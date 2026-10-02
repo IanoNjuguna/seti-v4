@@ -24,7 +24,7 @@ A mobile neobank for emerging markets. Users pay via existing QR infrastructure;
 
 - **Mobile:** React Native, Expo SDK 57, TypeScript, NativeWind v4, Expo Router
 - **Design system:** Calm Finance — quiet, trustworthy, modern minimalist fintech
-- **Backend:** Node.js + PostgreSQL/Supabase (planned)
+- **Backend:** Node.js, Fastify, TypeScript, Prisma, PostgreSQL
 - **Onchain:** Tempo, OUSD
 - **Off-ramp:** Stripe + Bridge for KES bank payouts
 
@@ -36,6 +36,7 @@ A mobile neobank for emerging markets. Users pay via existing QR infrastructure;
 - Git
 - For iOS: macOS with Xcode
 - For Android: Android Studio or a physical device with Expo Go
+- For backend: Docker (for local Postgres) or a running Postgres instance
 
 ---
 
@@ -92,6 +93,47 @@ npx expo start --clear
 
 ---
 
+## Run the backend
+
+All backend commands run from the `backend/` directory.
+
+```bash
+cd backend
+cp .env.example .env
+npm install
+```
+
+### Start Postgres
+
+```bash
+docker compose up -d
+```
+
+### Set up the database
+
+```bash
+npx prisma migrate dev
+npx prisma generate
+npm run db:seed
+```
+
+### Start the API server
+
+```bash
+npm run dev
+```
+
+The API runs on `http://localhost:4000`.
+
+Useful endpoints:
+- `GET /health`
+- `POST /auth/register`
+- `GET /users/:id/home`
+- `GET /transactions?userId=:id`
+- `POST /transactions/pay`
+
+---
+
 ## Verify before committing
 
 From `mobile/`:
@@ -102,7 +144,13 @@ npx expo-doctor       # Expo dependency/config health check
 npx expo lint         # Lint (if configured)
 ```
 
-Both `tsc --noEmit` and `expo-doctor` should pass before you consider a change done.
+From `backend/`:
+
+```bash
+npx tsc --noEmit      # TypeScript check
+```
+
+Both mobile and backend type checks should pass before you consider a change done.
 
 ---
 

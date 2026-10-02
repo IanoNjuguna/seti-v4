@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: seti-postgres
+    environment:
+      POSTGRES_USER: seti
+      POSTGRES_PASSWORD: seti
+      POSTGRES_DB: seti
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
