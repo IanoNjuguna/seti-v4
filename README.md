@@ -10,7 +10,7 @@ A mobile neobank for emerging markets. Users pay via existing QR infrastructure;
 
 ```
 ├── mobile/                 # React Native + Expo app
-├── backend/                # Node.js API service (planned)
+├── backend/                # Node.js + Fastify API service
 ├── .agents/skills/         # Project agent skills
 ├── DESIGN.md               # Calm Finance design system
 ├── design.tokens.json      # Machine-readable design tokens
