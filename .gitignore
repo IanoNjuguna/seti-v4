@@ -1,0 +1,3 @@
+# Per-agent skill copies; canonical project skills live in .agents/skills/
+agent/
+.claude/
