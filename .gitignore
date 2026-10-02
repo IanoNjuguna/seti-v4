@@ -1,3 +1,10 @@
 # Per-agent skill copies; canonical project skills live in .agents/skills/
 agent/
 **/.claude/
+
+# Lockfiles from other package managers
+mobile/bun.lock
+
+# Backend local env
+backend/.env
+backend/.env.*.local
