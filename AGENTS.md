@@ -2,13 +2,14 @@
 
 ## Project
 
-A mobile neobank for emerging markets, built on **Tempo**. Users hold stablecoins (OUSD preferred), scan existing merchant QR codes, and the backend settles local fiat (KES) to merchant bank accounts via **Stripe + Bridge**.
+A mobile neobank for emerging markets, built on **Tempo**. Users hold stablecoins (OUSD and pathUSD), scan a Seti merchant QR code, and pay the merchant's own wallet directly. v1 settlement is **non-custodial**: the customer's stablecoins go straight to the merchant, and Seti never takes possession of the funds.
 
 - Primary surface: React Native + Expo mobile app.
 - Onchain layer: Tempo (EVM-compatible payments chain).
 - Backend: Node.js + PostgreSQL/Supabase.
-- Stablecoin: OUSD (native Stripe/Bridge terms).
-- Off-ramp: Stripe Payouts / Bridge to Kenyan bank accounts.
+- Stablecoin: OUSD and pathUSD — Tempo-native, and the only two assets with deployed bytecode on both chains.
+- Fee: a flat 2% attributed to the merchant but funded by the customer inside their own transfer (`backend/src/services/fees.ts` is the source of truth).
+- Off-ramp: **none in v1.** There is no Stripe or Bridge integration in the code.
 
 ## UI code standards (enforced via skills)
 
@@ -51,24 +52,38 @@ If a rule feels needed in two skills, put it in the owning skill and cross-refer
 
 - **Mobile:** React Native, Expo, TypeScript, NativeWind (or project-chosen styling), React Navigation.
 - **Backend:** Node.js, Express/Fastify, TypeScript, PostgreSQL/Supabase.
-- **Onchain:** Tempo, Tempo TypeScript SDK, Tempo Accounts SDK, OUSD.
-- **Fiat:** Stripe + Bridge for KES bank payouts.
+- **Onchain:** Tempo, viem, Privy (embedded wallets). Assets: pathUSD, OUSD.
+- **Fiat:** none in v1 — settlement is non-custodial, straight to the merchant's wallet.
 
 ## Verification gates
 
-- `npx tsc --noEmit` must stay clean in the package being changed.
+- `npm run verify` from the repo root: typecheck + lint across all three
+  packages, then the backend check suites (fees, payout, indexer cursor,
+  reconciliation, indexer pass). This is the gate that must pass.
+- Per package: `npm run typecheck --workspace <pkg>` / `npm run lint --workspace <pkg>`.
 - Run the mobile type-check or Expo doctor after non-trivial UI changes, but **ask before starting a build or running the simulator**.
 - Do not run `expo start` or device builds automatically.
 
 ## Blockchain & security guardrails
 
 - Never request or store seed phrases, private keys, or raw passkey credentials.
-- Wallet keys belong to the user via Privy / Tempo Accounts SDK; the backend never signs transactions on behalf of users without explicit authorization.
+- Wallet keys belong to the user via Privy embedded wallets; the backend never signs transactions on behalf of users without explicit authorization.
 - Validate all onchain addresses and amounts before constructing transactions.
 - Keep testnet and mainnet configs separate; never default to mainnet in development.
+- **Never trust a client-supplied payment amount.** `recordPayment` reconciles
+  the claimed gross against the on-chain receipt and fails closed on a missing
+  payout address, an unverifiable receipt, or a mismatch beyond 1%. Do not add a
+  path that records a payment without that check.
 
 ## Business logic guardrails
 
-- Preserve the chosen stablecoin (OUSD) and chain (Tempo) unless the user explicitly asks to reconsider.
-- Fee model: consumer 0%, merchant 2% + KES 50 minimum, FX markup embedded.
+- Preserve the chosen stablecoins and chain (Tempo) unless the user explicitly
+  asks to reconsider. v1 supports **pathUSD and OUSD only** — USDC.e, USDT0 and
+  EURC.e have no deployed bytecode on either Tempo chain and were removed.
+- Fee model: merchant 2% of the payment, no floor, no cap. v1 collects the fee
+  inside the customer's transfer, so the **customer** funds it even though it is
+  attributed to the merchant. `backend/src/services/fees.ts` is the single
+  source of truth — never reintroduce a bare `Math.max(fiat * 0.02, 50)`, which
+  charges small merchants half their ticket. Run `npm run check:fees` after any
+  change to fee logic.
 - Do not add features that require M-Pesa settlement unless the user changes that priority.

@@ -1,0 +1,11 @@
+# Per-space GitBook configuration.
+#
+# This file lives in the space's mapped directory (./docs). Paths are resolved
+# relative to `root`, and only this space's directory is reachable — a monorepo's
+# sibling directories are not, so repository-level files (README.md, AGENTS.md,
+# DESIGN.md) are linked from the Overview page rather than included as pages.
+root: ./
+
+structure:
+  readme: README.md
+  summary: SUMMARY.md

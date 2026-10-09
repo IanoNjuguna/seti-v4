@@ -1,191 +1,95 @@
 # Seti
 
-A mobile neobank for emerging markets. Users pay via existing QR infrastructure; the backend converts stablecoins to local fiat (KES) for merchant settlement. Built on **Tempo** with **OUSD** and **Stripe + Bridge** off-ramps.
+**A neobank built for Nairobians.**
 
-> **Current focus:** Nairobi, Kenya. M-Pesa settlement is not a priority for this phase.
+Pay a merchant by scanning their QR code. You keep a stablecoin balance, and the payment settles wallet-to-wallet on Tempo. No new hardware.
+
+> **Current focus:** Nairobi, Kenya. v1 settles **non-custodially**: the customer's stablecoins go straight to the merchant's own wallet, and Seti never takes possession of the funds. There is **no fiat off-ramp** in this phase — no Stripe, no Bridge, no KES bank payout. M-Pesa settlement is intentionally out of scope.
+
+---
+
+## Why Nairobi?
+
+Nairobi is mobile-first, QR-ready, and underserved by calm, low-cost payment infrastructure. Merchants display QR codes; most consumers pay by phone. Seti connects that existing culture to stablecoin rails — so payments settle faster, cost less, and work across borders without changing how people move day-to-day.
+
+## How it works
+
+1. A customer scans or enters a merchant QR code in the Seti app.
+2. They confirm the amount in KES; Seti previews the stablecoin total.
+3. The customer signs a stablecoin transfer from their embedded wallet.
+4. The backend verifies the transfer against the on-chain receipt and records the payment. The merchant already holds the funds; nothing is off-ramped.
+
+We optimize for two things:
+
+- **Speed:** a payment should feel as fast as tapping a card.
+- **Privacy:** the customer controls their wallet keys through Privy; Seti never holds signing material.
 
 ---
 
 ## Repository layout
 
-```
+``` text
 ├── mobile/                 # React Native + Expo app
 ├── backend/                # Node.js + Fastify API service
+├── web/                    # Next.js marketing landing page
+├── docs/                   # PRD and fee-routing design
 ├── .agents/skills/         # Project agent skills
 ├── DESIGN.md               # Calm Finance design system
 ├── design.tokens.json      # Machine-readable design tokens
-├── tailwind.config.js      # NativeWind / Tailwind token config
-└── AGENTS.md               # Project conventions for agents
+├── AGENTS.md               # Project conventions for agents
+└── CONTRIBUTING.md         # Development workflow and branch conventions
 ```
+
+For setup and technical details, see:
+
+- **[docs/prd.md](./docs/prd.md)** — product requirements and current implementation status
+- **[mobile/README.md](./mobile/README.md)**
+- **[backend/README.md](./backend/README.md)**
+- **[web/README.md](./web/README.md)**
+
+The product design system is documented in **[DESIGN.md](./DESIGN.md)**.
 
 ---
 
-## Tech stack
+## Fee model
 
-- **Mobile:** React Native, Expo SDK 57, TypeScript, NativeWind v4, Expo Router
-- **Design system:** Calm Finance — quiet, trustworthy, modern minimalist fintech
-- **Backend:** Node.js, Fastify, TypeScript, Prisma, PostgreSQL
-- **Onchain:** Tempo, OUSD
-- **Off-ramp:** Stripe + Bridge for KES bank payouts
+- Merchant: 2% of the payment
+- No floor, no cap
+- No FX markup: the conversion uses the live provider rate as fetched
 
----
+The fee is a flat 2%, with no minimum and no cap. Because the customer signs
+principal + fee in one transfer, the fee adds to what they send rather than
+being deducted from what the merchant receives:
 
-## Prerequisites
+| Merchant receives | Customer signs for | Fee |
+| --- | --- | --- |
+| KES 50.00 | KES 51.00 | KES 1.00 |
+| KES 100.00 | KES 102.00 | KES 2.00 |
+| KES 500.00 | KES 510.00 | KES 10.00 |
+| KES 2,500.00 | KES 2,550.00 | KES 50.00 |
 
-- Node.js 20+ and npm
-- Git
-- For iOS: macOS with Xcode
-- For Android: Android Studio or a physical device with Expo Go
-- For backend: Docker (for local Postgres) or a running Postgres instance
+Those are the pre-conversion KES figures; the customer's balance is debited in
+the payment asset at the live rate shown in the preview, so the stablecoin
+amounts move with the exchange rate.
 
----
+v1 settles non-custodially — the customer's stablecoins go straight to the
+merchant's own wallet. With no fiat off-ramp there is no per-payout cost for the
+fee to recover, so a floor would have nothing to justify it.
 
-## Setup
-
-1. Clone the repo:
-
-   ```bash
-   git clone git@github.com:IanoNjuguna/seti-v4.git
-   cd seti-v4
-   ```
-
-2. Install project agent skills (optional, for AI-assisted work):
-
-   ```bash
-   npx skills experimental_install
-   ```
-
----
-
-## Run the mobile app
-
-All mobile commands run from the `mobile/` directory.
-
-```bash
-cd mobile
-npm install
-```
-
-> **Note:** If you hit React peer-dependency conflicts during install, use:
-> ```bash
-> npm install --legacy-peer-deps
-> ```
-
-### Start the dev server
-
-```bash
-npx expo start
-```
-
-Then press:
-- `i` for iOS simulator
-- `a` for Android emulator
-- `w` for web
-- Scan the QR code with **Expo Go** on a physical device
-
-### Clear the bundler cache
-
-After changing `tailwind.config.js`, `global.css`, or `babel.config.js`:
-
-```bash
-npx expo start --clear
-```
-
----
-
-## Run the backend
-
-All backend commands run from the `backend/` directory.
-
-```bash
-cd backend
-cp .env.example .env
-npm install
-```
-
-### Start Postgres
-
-```bash
-docker compose up -d
-```
-
-### Set up the database
-
-```bash
-npx prisma migrate dev
-npx prisma generate
-npm run db:seed
-```
-
-### Start the API server
-
-```bash
-npm run dev
-```
-
-The API runs on `http://localhost:4000`.
-
-Useful endpoints:
-- `GET /health`
-- `POST /auth/register`
-- `GET /users/:id/home`
-- `GET /transactions?userId=:id`
-- `POST /transactions/pay`
-
----
-
-## Verify before committing
-
-From `mobile/`:
-
-```bash
-npx tsc --noEmit      # TypeScript check
-npx expo-doctor       # Expo dependency/config health check
-npx expo lint         # Lint (if configured)
-```
-
-From `backend/`:
-
-```bash
-npx tsc --noEmit      # TypeScript check
-```
-
-Both mobile and backend type checks should pass before you consider a change done.
-
----
-
-## Design system
-
-`DESIGN.md` is the single source of truth for UI/UX. Key constraints:
-
-- Semantic tokens only — no raw hex in components
-- `font-tabular` on every monetary value
-- Currency format: `KES 1,250.00`
-- Calm, direct copy — no exclamation marks, no gamification
-- Minimum 44×44 pt touch targets
-- Light + dark mode parity for every surface/text pair
-
----
-
-## Branch conventions
-
-- `main` — stable, reviewed state
-- `feat/<name>` — feature branches
-- Open pull requests for review before merging into `main`
-
----
-
-## Fee model (current)
-
-- Consumer: 0%
-- Merchant: 2% + KES 50 minimum
-- FX markup embedded in conversion
+**Who pays it.** The 2% is attributed to the merchant, but in v1 it is collected
+inside the customer's transfer: they sign for principal + fee, and the merchant's
+wallet receives exactly the principal. The customer therefore funds the fee. A
+floor (`MERCHANT_FEE_MIN_KES`) and a cap (`MERCHANT_FEE_MAX_PERCENT`) both
+default to 0 and exist for when an off-ramp lands: a flat 2% on a KES 50 payment
+would not cover a per-payout charge, and a floor large enough to cover one would
+otherwise swallow small payments whole. Schedule lives in
+`backend/src/services/fees.ts`; verify it with `npm run check:fees`.
 
 ---
 
 ## Security notes
 
 - Never store seed phrases or private keys
-- Wallet keys belong to the user via Privy / Tempo Accounts SDK
+- Wallet keys belong to the user, via Privy embedded wallets
 - Backend never signs transactions on behalf of users without explicit authorization
-- Keep testnet and mainnet configs separate
+- Keep testnet and mainnet configs separate; mainnet is gated by `ALLOW_MAINNET=true`

@@ -1,0 +1,23 @@
+# GitBook site configuration for Git Sync (docs-as-code).
+#
+# GitBook reads this repository as a docs site: the space below is mapped to the
+# ./docs directory. Schema reference:
+# https://gitbook.com/docs/docs-as-code/git-sync/content-configuration
+#
+# `key` is how GitBook matches an entry to an existing space across syncs. It is
+# NOT cosmetic: changing a key makes GitBook create a NEW space, import into it,
+# and detach the original — so rename a space via `title`, and treat `key` as
+# permanent once the space is live.
+$schema: https://api.gitbook.com/gitbook-docs.yaml
+
+site:
+  title: Seti
+  structure:
+    - type: space
+      key: seti-docs
+      title: Product docs
+      path: docs
+      default: true
+      content:
+        directory: ./docs
+        language: en
