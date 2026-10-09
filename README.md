@@ -33,6 +33,7 @@ We optimize for two things:
 ├── backend/                # Node.js + Fastify API service
 ├── web/                    # Next.js marketing landing page
 ├── docs/                   # PRD and fee-routing design
+├── docs-site/              # Docusaurus site that renders docs/ (standalone package)
 ├── .agents/skills/         # Project agent skills
 ├── DESIGN.md               # Calm Finance design system
 ├── design.tokens.json      # Machine-readable design tokens
@@ -43,6 +44,7 @@ We optimize for two things:
 For setup and technical details, see:
 
 - **[docs/prd.md](./docs/prd.md)** — product requirements and current implementation status
+- **[docs-site/README.md](./docs-site/README.md)** — how to run the docs site that renders `docs/`
 - **[mobile/README.md](./mobile/README.md)**
 - **[backend/README.md](./backend/README.md)**
 - **[web/README.md](./web/README.md)**
