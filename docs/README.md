@@ -1,52 +1,56 @@
-# Seti — product documentation
+# Seti developer docs
 
-Seti is a mobile neobank for Nairobi. A customer holds a stablecoin balance
-(**OUSD** or **pathUSD**, on **Tempo**) in a wallet they control, scans a merchant
-QR code, and pays. Settlement is **non-custodial**: the customer signs an ERC-20
-transfer that lands in the merchant's own wallet. Seti never takes possession of
-the principal and holds no signing material.
+Seti is a **non-custodial payments API on [Tempo](https://tempo.xyz)**. A customer
+holds a stablecoin balance — **OUSD** or **pathUSD** — in a wallet they control,
+and pays a merchant's own wallet directly. Seti never takes possession of the
+funds, and in v1 there is no fiat off-ramp.
 
-> **Current phase (v1).** No fiat off-ramp — no Stripe, no Bridge, no KES bank
-> payout. The merchant receives stablecoins at their own address.
+## Status: read before you plan
 
-## Where to start
-
-| Document | Read it for |
+| | Today |
 | --- | --- |
-| [Product Requirements](prd.md) | Scope, a per-area implementation status table, non-functional requirements, risks, and what is still open |
-| [Fee routing](fee-routing.md) | How the 2% merchant fee is meant to reach Seti's treasury, the options considered, and the dead ends |
+| Public API authentication | **Not available.** Every route needs a Privy-issued bearer token, so integrating requires a Seti account. No API keys, no OAuth. |
+| API versioning | **None.** No `/v1` prefix; treat fields as subject to change. |
+| OpenAPI spec | **None.** The reference here is maintained by hand against `backend/src/routes/`. |
+| Rate limits, webhooks | **None.** Poll `GET /transactions/:id/status`. |
+| Credential-free tooling | **Yes** — the [MCP server](./mcp.md) has four tools that need no account: DEX quotes, TIP-20 balances, address inspection, and building unsigned payment calldata. |
 
-## The five facts that shape everything below
+If you want to build something today without a Seti account, start with the MCP
+server. Everything else needs the auth story to move first.
 
-1. **The 2% fee is attributed to the merchant but funded by the customer.** The
-   customer signs principal + fee in one transfer and the merchant receives the
-   principal. That is why the fee is invisible in a merchant's balance but real
-   in a customer's.
-2. **In the default mode the fee is not collected at all.** `FEE_ROUTING_MODE=inside-transfer`
-   sends the whole gross to the merchant, so Seti retains nothing. The atomic
-   two-leg alternative is implemented behind the flag and has never run on a
-   chain.
-3. **Every figure a client supplies is checked against the chain.** `recordPayment`
-   verifies the claimed amount against the on-chain receipt and fails closed: a
-   missing payout address, an unverifiable receipt, or a mismatch beyond 1% are
-   all refused.
-4. **v1 supports two assets only** — pathUSD and OUSD, the only two with deployed
-   bytecode on both Tempo chains. USDC.e, USDT0 and EURC.e were removed for that
-   reason.
-5. **Mainnet is one config edit away.** The tree currently points at Moderato
-   (testnet, `42431`); `TEMPO_CHAIN_ID` plus `ALLOW_MAINNET` are the only things
-   between the same code and real funds.
+## The payment flow
 
-## Living in the repository
+```
+resolve merchant → preview (fee, FX, gross) → sign the transfer → report the hash
+                → server verifies it against the chain → status
+```
 
-This space only covers `docs/`. The rest of the project's written surface lives in
-the repository, because a GitBook space can only read its own directory:
+Two things make Seti's version of this worth reading rather than assuming:
 
-- [`README.md`](https://github.com/IanoNjuguna/seti-v4/blob/main/README.md) — the product overview and fee table
-- `DESIGN.md` — the Calm Finance design system (the single source of truth for UI)
-- `AGENTS.md` — conventions, guardrails and verification gates
-- `CONTRIBUTING.md` — branch conventions and the `npm run verify` gate
+1. **The server never trusts your amount.** It verifies the reported hash against
+   the on-chain receipt and fails closed on a mismatch beyond 1%.
+2. **The fee is inside the customer's transfer.** The customer signs
+   `principal + fee`; the merchant receives the principal. In the default routing
+   mode the fee is not collected by Seti at all.
 
-The verification gate is `npm run verify` from the repository root: three
-typechecks, three lints, and seven executable check suites. There is no test
-runner — the `*.check.ts` files are the specs.
+## Where to go
+
+| Page | For |
+| --- | --- |
+| [Quickstart](./quickstart.md) | Run the API locally and make your first call |
+| [Authentication](./authentication.md) | What works today, and what an integration would need |
+| [Payments](./payments.md) | Units, fee semantics, and the reconciliation contract |
+| [API reference](./api-reference.md) | Every route that exists |
+| [MCP server](./mcp.md) | Drive Seti from an AI agent |
+
+## Not for integrators
+
+The product requirements and the fee-route design are engineering documents, kept
+in an internal section rather than mixed in here:
+
+- [Product requirements](./internal/prd.md) — scope, implementation status, risks
+- [Fee routing](./internal/fee-routing.md) — how the 2% is meant to reach the treasury
+
+The rest of the project's written surface lives in the repository:
+[`README.md`](https://github.com/IanoNjuguna/seti-v4/blob/main/README.md),
+`DESIGN.md` (the Calm Finance design system), `AGENTS.md` and `CONTRIBUTING.md`.

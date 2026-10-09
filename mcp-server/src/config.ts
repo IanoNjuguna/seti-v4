@@ -21,7 +21,7 @@ export interface NetworkConfig {
 
 /**
  * Token addresses are the same on both Tempo chains and were verified by
- * `eth_getCode` / `decimals()` / `symbol()` on each (see `docs/prd.md` §8.3).
+ * `eth_getCode` / `decimals()` / `symbol()` on each (see `docs/internal/prd.md` §8.3).
  * Note `eth_getCode` returns `0xef` for these — an EIP-7702 delegation
  * designator — so "non-empty code" is not the test that identifies them.
  */

@@ -8,9 +8,11 @@ import type * as Preset from '@docusaurus/preset-classic';
  *
  * 1. **The docs plugin reads `../docs`.** There is one source of truth for the
  *    written docs; this site renders them rather than holding a copy. Editing
- *    `docs/prd.md` changes the published page, and the copy cannot drift.
- * 2. **`routeBasePath: '/'`.** The docs are the site, so `docs/README.md` is the
- *    landing page and there is no separate marketing page to keep in sync.
+ *    `docs/internal/prd.md` changes the published page, and the copy cannot drift.
+ * 2. **`routeBasePath: '/'`.** `docs/README.md` is the landing page; the
+ *    developer pages sit at the root (`/quickstart`, `/api-reference`) while the
+ *    engineering documents live under `/internal/*` and are kept out of the
+ *    developer sidebar by `sidebars.ts`.
  *
  * `SUMMARY.md` is excluded: it is GitBook's navigation file and would otherwise
  * render as a stray page. The GitBook configs are kept intact so the same docs
@@ -68,9 +70,15 @@ const config: Config = {
       items: [
         {
           type: 'docSidebar',
-          sidebarId: 'docs',
+          sidebarId: 'developers',
           position: 'left',
-          label: 'Docs',
+          label: 'Developers',
+        },
+        {
+          type: 'docSidebar',
+          sidebarId: 'internal',
+          position: 'left',
+          label: 'Internal',
         },
         {
           href: 'https://github.com/IanoNjuguna/seti-v4',
@@ -83,11 +91,19 @@ const config: Config = {
       style: 'dark',
       links: [
         {
-          title: 'Documents',
+          title: 'Developers',
           items: [
             { label: 'Overview', to: '/' },
-            { label: 'Product requirements', to: '/prd' },
-            { label: 'Fee routing', to: '/fee-routing' },
+            { label: 'Quickstart', to: '/quickstart' },
+            { label: 'API reference', to: '/api-reference' },
+            { label: 'MCP server', to: '/mcp' },
+          ],
+        },
+        {
+          title: 'Internal',
+          items: [
+            { label: 'Product requirements', to: '/internal/prd' },
+            { label: 'Fee routing', to: '/internal/fee-routing' },
           ],
         },
         {

@@ -4,8 +4,9 @@
 **Branch:** `feat/mobile-scaffold` — **nothing committed this session**, 91 files dirty
 **Gate:** `npm run verify` from repo root → exit 0 (3 typechecks, 3 lints, 7 check suites)
 
-Read `docs/prd.md` first — it is the current statement of product requirements and
-implementation status. Then `docs/fee-routing.md` for the fee-route design.
+Read `docs/internal/prd.md` first — it is the current statement of product
+requirements and implementation status. Then `docs/internal/fee-routing.md` for
+the fee-route design.
 
 ---
 
@@ -38,7 +39,7 @@ Then, in order:
 2. Update `recordPayment` to reconcile **both** legs, failing closed if either is missing
 3. Only then mainnet, with a small funded wallet and a separate test treasury
 
-Design and reasoning: `docs/fee-routing.md`.
+Design and reasoning: `docs/internal/fee-routing.md`.
 
 ---
 
@@ -242,7 +243,7 @@ Recorded because they were wrong and would mislead if repeated:
 
 ## Reference
 
-- `docs/fee-routing.md` — the design, with reasoning and dead ends
+- `docs/internal/fee-routing.md` — the design, with reasoning and dead ends
 - `DESIGN.md` — Calm Finance system; error copy register, no exclamation marks
 - `AGENTS.md` — conventions, verification gates, business guardrails
 - `CONTRIBUTING.md` — branch conventions, `npm run verify`

@@ -43,7 +43,8 @@ We optimize for two things:
 
 For setup and technical details, see:
 
-- **[docs/prd.md](./docs/prd.md)** — product requirements and current implementation status
+- **[docs/README.md](./docs/README.md)** — developer docs (quickstart, auth, payments, API reference, MCP server)
+- **[docs/internal/prd.md](./docs/internal/prd.md)** — product requirements and current implementation status
 - **[docs-site/README.md](./docs-site/README.md)** — how to run the docs site that renders `docs/`
 - **[mobile/README.md](./mobile/README.md)**
 - **[backend/README.md](./backend/README.md)**
