@@ -13,24 +13,41 @@ async function main() {
   });
 
   const wallet = await prisma.wallet.upsert({
-    where: { address: '0xDemoWalletAddress' },
+    where: { address: '0x2dea7ad32bab196b7606be88f636093d6b5b1890' },
     update: {},
     create: {
       userId: user.id,
       chain: 'tempo',
       asset: 'ousd',
-      address: '0xDemoWalletAddress',
+      address: '0x2dea7ad32bab196b7606be88f636093d6b5b1890',
     },
   });
 
   const merchant = await prisma.merchant.upsert({
     where: { id: 'merchant_java_house' },
-    update: {},
+    update: {
+      payoutAddress: '0x20C000000000000000000000b9537d11c60E8b50',
+    },
     create: {
       id: 'merchant_java_house',
       name: 'Java House',
       category: 'Dining',
       bankCurrency: 'KES',
+      payoutAddress: '0x20C000000000000000000000b9537d11c60E8b50',
+    },
+  });
+
+  await prisma.merchant.upsert({
+    where: { id: 'merchant_safari_com' },
+    update: {
+      payoutAddress: '0x20c0000000000000000000009e8d7eb59b783726',
+    },
+    create: {
+      id: 'merchant_safari_com',
+      name: 'Safaricom Shop',
+      category: 'Utilities',
+      bankCurrency: 'KES',
+      payoutAddress: '0x20c0000000000000000000009e8d7eb59b783726',
     },
   });
 
