@@ -1,0 +1,31 @@
+{
+  "name": "seti",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Seti — a neobank built for Nairobians. Pay at any merchant using QR codes.",
+  "workspaces": [
+    "backend",
+    "web"
+  ],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspace backend && npm run typecheck --workspace web",
+    "lint": "npm run lint --workspace backend && npm run lint --workspace web",
+    "check:fees": "npm run check:fees --workspace backend",
+    "check:address": "npm run check:address --workspace backend",
+    "check:payout": "npm run check:payout --workspace backend",
+    "check:indexer": "npm run check:indexer --workspace backend",
+    "check:cursor": "npm run check:cursor --workspace backend",
+    "check:reconcile": "npm run check:reconcile --workspace backend",
+    "check:indexer-pass": "npm run check:indexer-pass --workspace backend",
+    "check:fee-batch": "npm run check:fee-batch --workspace backend",
+    "check:wallets": "npm run check:wallets --workspace backend",
+    "check:stuck": "npm run check:stuck --workspace backend",
+    "support:payment": "npm run --workspace backend support:payment --",
+    "verify": "npm run typecheck && npm run lint && npm run check:address && npm run check:fees && npm run check:payout && npm run check:indexer && npm run check:cursor && npm run check:reconcile && npm run check:indexer-pass && npm run check:stuck && npm run check:wallets",
+    "dev:backend": "npm run dev --workspace backend",
+    "dev:web": "npm run dev --workspace web"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
