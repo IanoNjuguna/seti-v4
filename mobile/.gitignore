@@ -31,7 +31,14 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
+
+# Backups of env files still contain live credentials — never commit.
+.env.bak*
+
+# env templates are committed, real env files never are
+!.env.example
 
 # typescript
 *.tsbuildinfo
