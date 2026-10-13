@@ -16,7 +16,28 @@ export type AuditAction =
   | 'payment.rejected'
   | 'offramp.initiate'
   | 'offramp.complete'
-  | 'settings.update';
+  | 'settings.update'
+  /**
+   * A claim that matched a held brand was parked, then approved. The binding is
+   * the claimant's own signature; approval only makes it live. See held-brands.ts.
+   */
+  | 'handle.brand.approved'
+  /**
+   * A parked claim was refused: the string was FREED (the row deleted) and the
+   * reason recorded here, which is the only record once the row is gone.
+   */
+  | 'handle.brand.refused'
+  /**
+   * A parked claim was not decided within PARK_EXPIRY_DAYS, so it released
+   * itself: the string freed and the reason recorded here.
+   */
+  | 'handle.brand.expired'
+  /**
+   * A brand proved a name was its own and took it over. The evidence and the
+   * reason the previous holder was released ride in `metadata`, and the released
+   * claim is preserved in `handle_releases`.
+   */
+  | 'handle.brand.reassigned';
 
 export interface AuditLogInput {
   userId?: string;

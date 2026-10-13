@@ -79,22 +79,32 @@ export const HANDLE_PROFILE_SELECT = {
 /**
  * A handle by its stored string.
  *
- * `handle` is unique and indexed, so this is a `findUnique` — NOT a scan that
- * reverse-engineers handles from names. Handles are stored lowercase (the rule
- * lowercases), so a caller's mixed case is lowered to match rather than searched
- * case-insensitively, which would not use the index.
+ * `handle` is unique and indexed, so this filters on that column — NOT a scan
+ * that reverse-engineers handles from names. Handles are stored lowercase (the
+ * rule lowercases), so a caller's mixed case is lowered to match rather than
+ * searched case-insensitively, which would not use the index.
+ *
+ * `reviewStatus: null` is the whole of the brand-review protection on the read
+ * side: a PARKED claim still holds its unique string but is invisible here, so a
+ * payer who resolves it gets exactly what they get for a name that does not
+ * exist — a 404, never an unverified name.
  */
 export async function findHandleByHandle(handle: string) {
-  return prisma.handle.findUnique({
-    where: { handle: handle.toLowerCase() },
+  return prisma.handle.findFirst({
+    where: { handle: handle.toLowerCase(), reviewStatus: null },
     include: HANDLE_PROFILE_SELECT,
   });
 }
 
-/** A handle by the name a customer typed. Last resort, after id and handle. */
+/**
+ * A handle by the name a customer typed. Last resort, after id and handle.
+ *
+ * Filtered the same way, for the same reason: an under-review name must not be
+ * reachable by typing it.
+ */
 export async function findHandleByName(name: string) {
   return prisma.handle.findFirst({
-    where: { name: { equals: name, mode: 'insensitive' } },
+    where: { name: { equals: name, mode: 'insensitive' }, reviewStatus: null },
     include: HANDLE_PROFILE_SELECT,
   });
 }
@@ -104,11 +114,12 @@ export async function findHandleByName(name: string) {
  *
  * The id path exists because a QR minted before claims carries `merchant:<id>`
  * rather than a handle. The handle is linked by `merchantId`, so this is a
- * `findFirst` on one indexed column.
+ * `findFirst` on one indexed column. Filtered like the others: a parked claim
+ * carries no merchant profile at all, and this is belt and braces if one ever did.
  */
 export async function findHandleByMerchantId(merchantId: string) {
   return prisma.handle.findFirst({
-    where: { merchantId },
+    where: { merchantId, reviewStatus: null },
     include: HANDLE_PROFILE_SELECT,
   });
 }

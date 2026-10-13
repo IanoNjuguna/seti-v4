@@ -59,16 +59,30 @@ export function ProfileHandlePanel({ intent, handle }: ProfileHandlePanelProps) 
         <Text variant="card-title" as="p">
           {handle.name}
         </Text>
-        <p className="mt-1 break-all font-mono text-body-sm text-ink">
-          {handleLink(kind, handle.name)}
-        </p>
+        {/* A parked handle has no page yet, so its link is not shown. */}
+        {handle.review ? null : (
+          <p className="mt-1 break-all font-mono text-body-sm text-ink">
+            {handleLink(kind, handle.name)}
+          </p>
+        )}
       </div>
 
-      <Badge variant={handle.verified ? 'success' : 'warning'}>
-        {handle.verified ? words.verified : words.unverified}
-      </Badge>
+      {handle.review ? (
+        <div className="space-y-2">
+          <Badge variant="neutral">{words.underReview}</Badge>
+          <Text variant="micro" as="p">
+            {handle.review.message}
+          </Text>
+        </div>
+      ) : (
+        <Badge variant={handle.verified ? 'success' : 'warning'}>
+          {handle.verified ? words.verified : words.unverified}
+        </Badge>
+      )}
 
-      {kind === 'business' ? <MerchantQr name={handle.name} kind="business" /> : null}
+      {kind === 'business' && handle.review === null ? (
+        <MerchantQr name={handle.name} kind="business" />
+      ) : null}
     </div>
   );
 }

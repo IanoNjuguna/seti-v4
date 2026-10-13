@@ -45,16 +45,26 @@ export function MerchantHandlePreview({
       )}
 
       {problem ? (
-        <p className="mt-2 text-body-sm text-accent-danger">{problem}</p>
+        <Text variant="micro" color="alert" as="p" className="mt-2">
+          {problem}
+        </Text>
       ) : loading ? (
         <Text variant="micro" as="p" className="mt-2">
           {copy.handleChecking}
         </Text>
       ) : takenBy ? (
-        <p className="mt-2 text-body-sm text-accent-danger">{copy.handleTaken(link, takenBy)}</p>
+        <Text variant="micro" color="alert" as="p" className="mt-2">
+          {copy.handleTaken(link, takenBy)}
+        </Text>
       ) : (
-        <div className="mt-2">
+        <div className="mt-2 space-y-2">
           <Badge variant="success">{copy.handleFree}</Badge>
+          {/* A free string that matches a held brand is still claimable — but parked. */}
+          {preview?.held ? (
+            <Text variant="micro" as="p">
+              {copy.heldNote}
+            </Text>
+          ) : null}
         </div>
       )}
     </div>

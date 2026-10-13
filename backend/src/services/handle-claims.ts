@@ -53,8 +53,10 @@ import {
   merchantHandle,
   normalizeMerchantName,
 } from '../lib/merchant-name.js';
+import { heldBrandEvidence, matchHeldBrand } from '../lib/held-brands.js';
 import { network } from '../config/networks.js';
 import { getWalletsByUser } from './wallet-registry.js';
+import { logAuditEvent } from './audit.js';
 
 /**
  * The name/handle rule lives in `lib/merchant-name.ts` (pure, no chain
@@ -76,6 +78,49 @@ export {
   merchantNameKey,
   normalizeMerchantName,
 } from '../lib/merchant-name.js';
+
+/**
+ * The held-brand list and rule, re-exported for the same reason: a caller of a
+ * claim imports ONE module. `HELD_BRANDS` is the editable list; `matchHeldBrand`
+ * is the one matcher the claim, the preview and the checks all use.
+ */
+export {
+  HELD_BRANDS,
+  HELD_BRAND_EVIDENCE_FALLBACK,
+  describeHeldBrand,
+  heldBrandByName,
+  heldBrandEvidence,
+  heldBrandKey,
+  heldBrandTokens,
+  matchHeldBrand,
+  type HeldBrand,
+} from '../lib/held-brands.js';
+
+/**
+ * How long a parked claim waits for a human before it releases itself. ONE
+ * constant, and 30 days is the chosen value: long enough to work a review queue
+ * and for a genuine claimant to gather a letter, short enough that an abandoned
+ * claim cannot reserve a name for a season. A park tells a person to WAIT, so a
+ * park that is never decided is a promise Seti cannot keep — this is what makes
+ * the wait honest. The value is reflected in the claimer's own review message.
+ */
+export const PARK_EXPIRY_DAYS = 30;
+
+const MS_PER_DAY = 86_400_000;
+
+/** When a park claimed at `claimedAt` releases itself. */
+export function parkExpiresAt(claimedAt: Date): Date {
+  return new Date(claimedAt.getTime() + PARK_EXPIRY_DAYS * MS_PER_DAY);
+}
+
+/** True when a pending row has waited past its expiry. */
+export function isParkExpired(
+  row: { reviewStatus: string | null; claimedAt: Date | null },
+  now: Date = new Date()
+): boolean {
+  if (row.reviewStatus !== 'pending' || !row.claimedAt) return false;
+  return now.getTime() >= parkExpiresAt(row.claimedAt).getTime();
+}
 
 // ---------------------------------------------------------------------------
 // The signed shape. Shared by the backend, the browser and the checks, so all
@@ -291,7 +336,10 @@ export interface HandleIdentityView {
   category: string | null;
   /**
    * True only when a signature over THIS name, THIS purpose and THIS address
-   * verifies. There is no path that sets this to true by assertion.
+   * verifies AND the handle is not parked for brand review. There is no path
+   * that sets this to true by assertion, and a parked claim — whose signature
+   * may well be genuine — is never reported as verified: nothing Seti has not
+   * stood behind reads as verified.
    */
   verified: boolean;
   /** The purpose the binding was signed for; null for a pre-purpose backfill. */
@@ -302,6 +350,48 @@ export interface HandleIdentityView {
    */
   merchantId: string | null;
   claimedAt: string | null;
+  /**
+   * The brand-review state, or null for a handle that is not under review.
+   *
+   * A parked handle is NOT live: it does not resolve, is not public, has no page
+   * and no QR, and never reads as verified. It is reachable ONLY here, on the
+   * response to the claim itself — a payer resolving it gets a name that does
+   * not exist.
+   */
+  review: HandleReview | null;
+}
+
+/** A claim parked for brand review: the state the claimer is shown. */
+export interface HandleReview {
+  /** Only `pending` today. A decision either clears it or deletes the row. */
+  status: 'pending';
+  /** The held brand the claimed name matched, as spelled on the list. */
+  brand: string;
+  /**
+   * A plain sentence naming what the claimer must SEND to finish review — the
+   * only actionable thing they can do while parked.
+   */
+  message: string;
+}
+
+/** The review state for a stored row, or null when it is not parked. */
+function reviewOf(handle: { name: string; reviewStatus: string | null; reviewBrand: string | null }): HandleReview | null {
+  if (handle.reviewStatus !== 'pending') return null;
+
+  // The stored brand is what was matched at claim time; fall back to the name if
+  // the row predates the column or the list no longer spells it the same way.
+  const brand = handle.reviewBrand ?? handle.name;
+  const evidence = heldBrandEvidence(brand);
+
+  return {
+    status: 'pending',
+    brand,
+    message:
+      `This name is under review because it matches ${brand}. ` +
+      `Send ${evidence} and we will finish verifying it. ` +
+      `If it is not decided within ${PARK_EXPIRY_DAYS} days it is released and can be claimed again — ` +
+      'until then it is not live and cannot be paid.',
+  };
 }
 
 export async function toHandleIdentityView(handle: {
@@ -316,8 +406,12 @@ export async function toHandleIdentityView(handle: {
   claimNonce: string | null;
   claimedAt: Date | null;
   merchantId: string | null;
+  reviewStatus: string | null;
+  reviewBrand: string | null;
   merchant?: { id: string; category: string | null } | null;
 }): Promise<HandleIdentityView> {
+  const review = reviewOf(handle);
+
   return {
     id: handle.id,
     handle: handle.handle,
@@ -325,10 +419,13 @@ export async function toHandleIdentityView(handle: {
     name: handle.name,
     address: handle.address || null,
     category: handle.merchant?.category ?? null,
-    verified: await handleClaimVerifies(handle),
+    // A parked handle is never verified, even with a genuine signature: review is
+    // the one thing the signature cannot say.
+    verified: review === null && (await handleClaimVerifies(handle)),
     purpose: handle.purpose,
     merchantId: handle.merchantId,
     claimedAt: handle.claimedAt ? handle.claimedAt.toISOString() : null,
+    review,
   };
 }
 
@@ -345,7 +442,15 @@ export type HandleClaimErrorCode =
   | 'signature-mismatch'
   | 'purpose-mismatch'
   | 'address-not-owned'
-  | 'handle-taken';
+  | 'handle-taken'
+  /** A reviewer named a handle that has no row. */
+  | 'review-not-found'
+  /** A reviewer named a handle that exists but is not parked for review. */
+  | 'review-not-pending'
+  /** A brand reassignment was attempted without the evidence that authorises it. */
+  | 'evidence-required'
+  /** A brand reassignment was attempted without a reason for releasing the holder. */
+  | 'reason-required';
 
 /** A refusal with a machine-readable code, in the envelope the app already reads. */
 export class HandleClaimError extends Error {
@@ -387,15 +492,22 @@ function otherPurpose(purpose: ClaimPurpose): ClaimPurpose {
 }
 
 /**
- * Claim a handle for an address, or refuse with a reason.
- *
- * The order is deliberate: cheap local validation first, then the signature,
- * then ownership, then the collision. A bad name or a bad signature never costs
- * a query, and — more importantly — a caller who does not control the address is
- * refused BEFORE anything is looked up about who else holds the handle, so a
- * failed claim cannot be used to probe which handles exist.
+ * The rules and the cryptography every claim must pass — shape, reserved list,
+ * address, issued-at, signature and ownership — factored out so the ordinary
+ * claim and a brand REASSIGNMENT pass exactly the same gate. A reassignment that
+ * could skip the signature would be Seti attaching a name to an address on its
+ * own authority, which is the one thing this feature forbids.
  */
-export async function claimHandle(input: ClaimHandleInput) {
+interface VerifiedClaim {
+  name: string;
+  handle: string;
+  kind: HandleKind;
+  purpose: ClaimPurpose;
+  /** The checksummed address the signing key actually controls. */
+  address: `0x${string}`;
+}
+
+async function verifyClaim(input: ClaimHandleInput): Promise<VerifiedClaim> {
   const problem =
     describeHandleName(input.name) ??
     describeHandleOf(input.name) ??
@@ -503,10 +615,78 @@ export async function claimHandle(input: ClaimHandleInput) {
     );
   }
 
+  return { name, handle, kind: input.kind, purpose, address: claimedAddress };
+}
+
+/** The reason recorded when a parked claim times out instead of being decided. */
+const EXPIRY_REASON = `not decided within ${PARK_EXPIRY_DAYS} days`;
+
+/**
+ * Release one parked row: record why, then free the string.
+ *
+ * The record is written to the audit trail BEFORE the row disappears — afterwards
+ * that trail is the only evidence the claim ever existed.
+ */
+async function releaseParkedRow(
+  row: {
+    id: string;
+    handle: string;
+    name: string;
+    reviewBrand: string | null;
+    userId: string | null;
+  },
+  reason: string
+): Promise<void> {
+  await logAuditEvent({
+    action: 'handle.brand.expired',
+    userId: row.userId ?? undefined,
+    metadata: { handle: row.handle, name: row.name, brand: row.reviewBrand, reason },
+  });
+  await prisma.handle.delete({ where: { id: row.id } });
+}
+
+/**
+ * Release every park that has waited past its expiry, returning how many.
+ *
+ * The claim path releases a stale park LAZILY the moment someone tries to claim
+ * the string (see `claimHandle`), so a name is never blocked waiting for this to
+ * run. This bulk form is for the reviewer's script and the check.
+ */
+export async function releaseExpiredParkedClaims(now: Date = new Date()): Promise<number> {
+  const cutoff = new Date(now.getTime() - PARK_EXPIRY_DAYS * MS_PER_DAY);
+
+  const stale = await prisma.handle.findMany({
+    where: { reviewStatus: 'pending', claimedAt: { lte: cutoff } },
+  });
+
+  for (const row of stale) await releaseParkedRow(row, EXPIRY_REASON);
+
+  return stale.length;
+}
+
+/**
+ * Claim a handle for an address, or refuse with a reason.
+ *
+ * The order is deliberate: cheap local validation first, then the signature,
+ * then ownership, then the collision. A bad name or a bad signature never costs
+ * a query, and — more importantly — a caller who does not control the address is
+ * refused BEFORE anything is looked up about who else holds the handle, so a
+ * failed claim cannot be used to probe which handles exist.
+ */
+export async function claimHandle(input: ClaimHandleInput) {
+  const { name, handle, kind, purpose, address: claimedAddress } = await verifyClaim(input);
+
   // First-come, in the ONE namespace. The handle is the key a person and a
   // business compete for, so a single lookup decides both the exact-name and the
   // same-link collisions the old two-column design had to check separately.
-  const existing = await prisma.handle.findUnique({ where: { handle } });
+  let existing = await prisma.handle.findUnique({ where: { handle } });
+
+  // A park past its expiry stops holding the string, released lazily here so a
+  // stalled review cannot reserve a name until some sweep happens to run.
+  if (existing && isParkExpired(existing)) {
+    await releaseParkedRow(existing, EXPIRY_REASON);
+    existing = null;
+  }
 
   const heldBy = existing?.address ? getAddress(existing.address) : null;
 
@@ -519,12 +699,29 @@ export async function claimHandle(input: ClaimHandleInput) {
     );
   }
 
+  /**
+   * A name that matches a HELD BRAND is PARKED, not refused — and not published.
+   *
+   * The order matters, and it is why this sits AFTER the collision check: a
+   * string already held by another address is still `handle-taken` (parking
+   * cannot reserve a string twice), and only a FREE string is parked. A reserved
+   * word is refused far above, before the signature, and is unaffected.
+   *
+   * `park` is true only for a NEW row. A re-claim by the wallet that already
+   * holds the name must not retroactively park a binding that was already
+   * decided — so an existing row keeps its stored review state.
+   */
+  const heldBrand = matchHeldBrand(input.name);
+  const park = heldBrand !== null && !existing;
+
   const claimedAt = new Date();
 
   // A business profile is a MODE on the handle. A person has none, so claiming a
   // handle as a person writes no profile — the handle still resolves to an
-  // address, which is all a send needs.
-  const merchantId = input.kind === 'business'
+  // address, which is all a send needs. A PARKED claim gets no profile either:
+  // nothing unresolved should look like a payee. The profile is minted at
+  // approval (`approveHandleClaim`).
+  const merchantId = kind === 'business' && !park
     ? await ensureBusinessProfile({
         existingMerchantId: existing?.merchantId ?? null,
         name,
@@ -534,7 +731,7 @@ export async function claimHandle(input: ClaimHandleInput) {
 
   const claim = {
     handle,
-    kind: input.kind,
+    kind,
     name,
     purpose,
     address: claimedAddress,
@@ -544,6 +741,8 @@ export async function claimHandle(input: ClaimHandleInput) {
     claimedAt,
     userId: input.userId,
     merchantId,
+    // Omitted for an existing row, so its stored state (pending or not) is kept.
+    ...(park ? { reviewStatus: 'pending', reviewBrand: heldBrand.name } : {}),
   };
 
   try {
@@ -562,6 +761,133 @@ export async function claimHandle(input: ClaimHandleInput) {
     }
     throw error;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Reassignment on proof — a brand taking a name it has PROVED is its own.
+//
+// Parking protects a squatter by accident if the brand has no way past it: the
+// handle string is unique, so a parked row BLOCKS the brand from claiming it.
+// This is the door past that. It is explicit (never a silent overwrite), it
+// REQUIRES the evidence that makes it legitimate, and — like every claim — it can
+// only attach the name to an address whose key signs for it; Seti never moves a
+// name onto an address on its own authority. The previous holder's record is
+// preserved, with the reason it was released, before the string is taken.
+// ---------------------------------------------------------------------------
+
+/** A brand reassignment: a claim, plus the proof that authorises it. */
+export interface ReassignHandleInput extends ClaimHandleInput {
+  /** Proof the caller is the brand or acts for it. Required; recorded. */
+  evidence: string;
+  /** Why the current holder is being released. Required; recorded. */
+  reason: string;
+}
+
+/**
+ * Give a PROVED brand a name, whatever state it is in — free, parked, or held by
+ * someone else.
+ *
+ * The new claim passes the SAME signature-and-ownership gate as any other claim
+ * (`verifyClaim`): the brand signs with the wallet that will receive the
+ * payments. What makes it a reassignment is the evidence and the release of the
+ * previous holder — never a weaker check.
+ */
+export async function reassignHandleClaim(input: ReassignHandleInput): Promise<HandleIdentityView> {
+  const evidence = input.evidence?.trim() ?? '';
+  const reason = input.reason?.trim() ?? '';
+
+  if (!evidence) {
+    throw new HandleClaimError(
+      'evidence-required',
+      400,
+      'A reassignment needs the evidence that proves the caller is the brand — ' +
+        'it is never done on an assertion.'
+    );
+  }
+
+  if (!reason) {
+    throw new HandleClaimError(
+      'reason-required',
+      400,
+      'A reassignment needs the reason the current holder is being released, so the ' +
+        'record says why.'
+    );
+  }
+
+  const { name, handle, kind, purpose, address: claimedAddress } = await verifyClaim(input);
+
+  const existing = await prisma.handle.findUnique({ where: { handle } });
+  const heldBy = existing?.address ? getAddress(existing.address) : null;
+  const releasesExisting = existing !== null && heldBy !== claimedAddress;
+
+  if (existing && releasesExisting) {
+    // Preserve the previous claimer's CLAIM — signature and all — with the reason,
+    // BEFORE the string is taken. This is the record that makes the reassignment
+    // auditable rather than a silent overwrite.
+    await prisma.handleRelease.create({
+      data: {
+        handle,
+        name: existing.name,
+        kind: existing.kind,
+        address: existing.address,
+        claimSignature: existing.claimSignature,
+        claimIssuedAt: existing.claimIssuedAt,
+        claimNonce: existing.claimNonce,
+        userId: existing.userId,
+        merchantId: existing.merchantId,
+        reason,
+        reassignedTo: claimedAddress,
+      },
+    });
+    await prisma.handle.delete({ where: { id: existing.id } });
+  }
+
+  const claimedAt = new Date();
+  const merchantId =
+    kind === 'business'
+      ? await ensureBusinessProfile({
+          existingMerchantId: releasesExisting ? null : existing?.merchantId ?? null,
+          name,
+          payoutAddress: claimedAddress,
+        })
+      : null;
+
+  const claim = {
+    handle,
+    kind,
+    name,
+    purpose,
+    address: claimedAddress,
+    claimSignature: input.signature,
+    claimIssuedAt: input.issuedAt,
+    claimNonce: input.nonce,
+    claimedAt,
+    userId: input.userId,
+    merchantId,
+    // A reassignment IS the review: it goes live, never parked.
+    reviewStatus: null,
+    reviewBrand: null,
+  };
+
+  const saved =
+    releasesExisting || !existing
+      ? await prisma.handle.create({ data: claim })
+      : await prisma.handle.update({ where: { id: existing.id }, data: claim });
+
+  await logAuditEvent({
+    action: 'handle.brand.reassigned',
+    userId: input.userId,
+    metadata: {
+      handle,
+      name,
+      evidence,
+      reason,
+      releasedAddress: releasesExisting ? (existing?.address ?? null) : null,
+      reassignedTo: claimedAddress,
+    },
+  });
+
+  return toHandleIdentityView(saved);
 }
 
 /**
@@ -592,6 +918,122 @@ async function ensureBusinessProfile(input: {
 }
 
 // ---------------------------------------------------------------------------
+// Brand review — the human decision on a parked claim.
+//
+// There is no admin role in the schema, so these are PLAIN FUNCTIONS, called by
+// the reviewer's script (`cli/review-brand.ts`) and by the check. The reviewer
+// acts on a handle, never on a customer's money: approving makes an existing,
+// already-signed binding live; refusing frees the string. Neither moves funds.
+// ---------------------------------------------------------------------------
+
+/** What a review decision did, for the script and the check to report. */
+export interface HandleReviewDecision {
+  handle: string;
+  name: string;
+  brand: string | null;
+  action: 'approved' | 'refused';
+}
+
+/** Every parked claim, oldest first — the reviewer's queue. */
+export async function listHandleReviews(): Promise<HandleIdentityView[]> {
+  const rows = await prisma.handle.findMany({
+    where: { reviewStatus: 'pending' },
+    orderBy: { claimedAt: 'asc' },
+    include: { merchant: { select: { id: true, category: true } } },
+  });
+
+  return Promise.all(rows.map(toHandleIdentityView));
+}
+
+/**
+ * Approve a parked claim: it becomes live.
+ *
+ * The binding is the CLAIMANT'S OWN signature — approval does not attach a name
+ * to an address Seti cannot point to a signer for; it only stops withholding a
+ * binding that already verifies. A business mode's profile, withheld while
+ * parked, is minted here, so the handle can be paid.
+ */
+export async function approveHandleClaim(handle: string): Promise<HandleIdentityView> {
+  const row = await requireParked(handle, 'approve');
+
+  const merchantId =
+    row.kind === 'business' && !row.merchantId
+      ? await ensureBusinessProfile({
+          existingMerchantId: null,
+          name: row.name,
+          payoutAddress: row.address,
+        })
+      : row.merchantId;
+
+  const updated = await prisma.handle.update({
+    where: { id: row.id },
+    data: { reviewStatus: null, reviewBrand: null, merchantId },
+    include: { merchant: { select: { id: true, category: true } } },
+  });
+
+  await logAuditEvent({
+    action: 'handle.brand.approved',
+    userId: row.userId ?? undefined,
+    metadata: { handle: row.handle, name: row.name, brand: row.reviewBrand },
+  });
+
+  return toHandleIdentityView(updated);
+}
+
+/**
+ * Refuse a parked claim: the string is FREED and the reason recorded.
+ *
+ * "Freed" is literal — the row is DELETED, releasing the unique handle so the
+ * name can be claimed again (a refusal is not a blacklist). The reason is written
+ * to the audit trail BEFORE the row goes, because afterwards that trail is the
+ * only record of why.
+ */
+export async function refuseHandleClaim(
+  handle: string,
+  reason: string
+): Promise<HandleReviewDecision> {
+  const row = await requireParked(handle, 'refuse');
+
+  await logAuditEvent({
+    action: 'handle.brand.refused',
+    userId: row.userId ?? undefined,
+    metadata: { handle: row.handle, name: row.name, brand: row.reviewBrand, reason },
+  });
+
+  await prisma.handle.delete({ where: { id: row.id } });
+
+  return {
+    handle: row.handle,
+    name: row.name,
+    brand: row.reviewBrand,
+    action: 'refused',
+  };
+}
+
+/** The parked row for a handle, or a typed refusal naming why it cannot be acted on. */
+async function requireParked(handle: string, verb: string) {
+  const row = await prisma.handle.findUnique({ where: { handle: handle.toLowerCase() } });
+
+  if (!row) {
+    throw new HandleClaimError(
+      'review-not-found',
+      404,
+      `No handle ${handle}. Nothing was ${verb}d.`
+    );
+  }
+
+  if (row.reviewStatus !== 'pending') {
+    throw new HandleClaimError(
+      'review-not-pending',
+      409,
+      `${row.handle} is not under review, so there is nothing to ${verb}.`
+    );
+  }
+
+  return row;
+}
+
+// ---------------------------------------------------------------------------
 // Handle availability — the claim path's own rule and lookup, for the preview.
 // ---------------------------------------------------------------------------
 
@@ -609,6 +1051,13 @@ export interface HandleStatus {
    * claim refusal would already name.
    */
   takenBy: string | null;
+  /**
+   * The held brand this name matches, or null. A held brand is NOT a problem —
+   * the claim is accepted, then parked for review — so this is a note beside a
+   * still-free handle, not a refusal, and it lets the form warn before a
+   * signature rather than after. `null` when the name is refused outright.
+   */
+  held: string | null;
 }
 
 /**
@@ -627,12 +1076,20 @@ export async function handleStatus(rawName: string): Promise<HandleStatus> {
   const problem =
     describeHandleName(rawName) ?? describeHandleOf(rawName) ?? describeReservedHandle(rawName);
 
-  if (problem) return { name, handle, problem, takenBy: null };
+  // A refused name is never parked, so the held note is only ever set alongside
+  // a usable, free handle.
+  if (problem) return { name, handle, problem, takenBy: null, held: null };
 
   const holder = await prisma.handle.findUnique({
     where: { handle },
     select: { name: true },
   });
 
-  return { name, handle, problem: null, takenBy: holder?.name ?? null };
+  return {
+    name,
+    handle,
+    problem: null,
+    takenBy: holder?.name ?? null,
+    held: matchHeldBrand(rawName)?.name ?? null,
+  };
 }

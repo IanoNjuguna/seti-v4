@@ -31,6 +31,7 @@ export type { AccountIdentity, AccountIntent } from './account.types';
 export type {
   HandleIdentity,
   HandleKind,
+  HandleReview,
   ResolveHandleResult,
   ClaimHandleRequest,
   ClaimHandleResult,
