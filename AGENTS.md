@@ -4,7 +4,7 @@
 
 A mobile neobank for emerging markets, built on **Tempo**. Users hold stablecoins (OUSD and pathUSD), scan a Seti merchant QR code, and pay the merchant's own wallet directly. v1 settlement is **non-custodial**: the customer's stablecoins go straight to the merchant, and Seti never takes possession of the funds.
 
-- Primary surface: React Native + Expo mobile app.
+- Product surfaces: the React Native + Expo mobile app (`mobile/`), and the web app (`web/`) — a Next.js 16 App Router landing page plus the product app served at `/app`.
 - Onchain layer: Tempo (EVM-compatible payments chain).
 - Backend: Node.js + PostgreSQL/Supabase.
 - Stablecoin: OUSD and pathUSD — Tempo-native, and the only two assets with deployed bytecode on both chains.
@@ -15,9 +15,9 @@ A mobile neobank for emerging markets, built on **Tempo**. Users hold stablecoin
 
 This repo has project skills in `.agents/skills/` that govern all UI work. Load and follow them:
 
-- **`modular-ui-authoring`** — when **writing new** React Native / Expo components, screens, or views. New UI must be modular from the start: typed hooks, `*.types.ts` / `*.constants.ts` files, <80-line component files, logic extracted to hooks.
+- **`modular-ui-authoring`** — when **writing new** components, screens, or views — React Native / Expo **and** the web app. New UI must be modular from the start: typed hooks, `*.types.ts` / `*.constants.ts` files, <80-line component files, logic extracted to hooks.
 - **`modular-ui-refactor`** — when **changing existing** UI structure. Zero behavior changes; public import paths and export styles are contracts.
-- **`design-enforcement`** — for **all** styling. `DESIGN.md` is the single source of truth: semantic tokens only, light/dark pairs, no raw hex, compose from `components/ui/`.
+- **`design-enforcement`** — for **all** styling. The surface decides the system: `design/revolut.md` governs every web surface, `DESIGN.md` (Calm Finance) still governs `mobile/` until it migrates. Semantic tokens only, no raw hex, no mixed vocabularies on one surface.
 - **`imagegen-frontend-mobile`** — for generating premium mobile app screen concepts and flows.
 - **`image-to-code`** — for converting generated design images into web frontend when needed.
 - **`brandkit`** — for brand-guidelines work and visual identity.
@@ -31,7 +31,7 @@ This repo has project skills in `.agents/skills/` that govern all UI work. Load 
 | --- | --- |
 | Structure of **new** UI code | `modular-ui-authoring` |
 | Restructuring **existing** UI, behavior preservation | `modular-ui-refactor` |
-| Styling, tokens, design system | `design-enforcement` (source of truth: `DESIGN.md`) |
+| Styling, tokens, design system | `design-enforcement` (web: `design/revolut.md` · mobile: `DESIGN.md`) |
 | Mobile screen image generation | `imagegen-frontend-mobile` |
 | Brand / visual identity | `brandkit` |
 | Exhaustive code output | `full-output-enforcement` |
@@ -41,16 +41,19 @@ If a rule feels needed in two skills, put it in the owning skill and cross-refer
 
 ## Repository layout
 
+- `web/` — Next.js 16 web app: the marketing landing page (`web/app/page.tsx`) and the product app (`web/app/app/*`, served at `/app`).
 - `mobile/` — React Native + Expo app (planned location; create if missing).
 - `backend/` — Node.js API service (planned location; create if missing).
 - `.agents/skills/` — project-local agent skills.
-- `DESIGN.md` — single source of truth for UI/UX.
+- `design/revolut.md` — source of truth for every web surface, and the target system for the whole repo.
+- `DESIGN.md` — Calm Finance. Still the source of truth for `mobile/`; legacy once mobile migrates to the Revolut system.
 - `tailwind.config.js` — NativeWind / Tailwind token configuration.
 - `design.tokens.json` — machine-readable design tokens for Figma/style-dictionary pipelines.
 
 ## Tech stack
 
 - **Mobile:** React Native, Expo, TypeScript, NativeWind (or project-chosen styling), React Navigation.
+- **Web:** Next.js 16 (App Router), TypeScript, Tailwind v4 `@theme` tokens. Design system: `design/revolut.md`.
 - **Backend:** Node.js, Express/Fastify, TypeScript, PostgreSQL/Supabase.
 - **Onchain:** Tempo, viem, Privy (embedded wallets). Assets: pathUSD, OUSD.
 - **Fiat:** none in v1 — settlement is non-custodial, straight to the merchant's wallet.
@@ -80,10 +83,21 @@ If a rule feels needed in two skills, put it in the owning skill and cross-refer
 - Preserve the chosen stablecoins and chain (Tempo) unless the user explicitly
   asks to reconsider. v1 supports **pathUSD and OUSD only** — USDC.e, USDT0 and
   EURC.e have no deployed bytecode on either Tempo chain and were removed.
-- Fee model: merchant 2% of the payment, no floor, no cap. v1 collects the fee
-  inside the customer's transfer, so the **customer** funds it even though it is
-  attributed to the merchant. `backend/src/services/fees.ts` is the single
-  source of truth — never reintroduce a bare `Math.max(fiat * 0.02, 50)`, which
-  charges small merchants half their ticket. Run `npm run check:fees` after any
-  change to fee logic.
+- Fee model: merchant 2% of the payment, no floor, no cap. The **customer**
+  funds it even though it is attributed to the merchant. The fee is **collected**
+  when `FEE_ROUTING_MODE=batch` (the default): one atomic Tempo transaction
+  carrying the principal to the recipient and the fee to
+  `SETI_TREASURY_ADDRESS`. `backend/src/services/fees.ts` is the single source of
+  truth — never reintroduce a bare `Math.max(fiat * 0.02, 50)`, which charges
+  small merchants half their ticket. Run `npm run check:fees` after any change to
+  fee logic.
+- A send to a person is a payment with a different payee: same 2%, same two-leg
+  batch, verified by `recordSend` against the receipt before anything is written
+  to Activity. It is refused while the server is in `inside-transfer` mode, where
+  the fee riding inside the single transfer would be paid *to the recipient*.
+- The batch is signed through Privy's Tempo hook (`useSendTransaction`), never
+  through an EIP-1193 provider: viem's RPC formatter drops `calls`, so a batch
+  sent that way would silently carry none. `npm run prove:batch` proves the
+  protocol path against Moderato; `npm run check:send` and `check:fee-batch` prove
+  the reconciliation against real receipts.
 - Do not add features that require M-Pesa settlement unless the user changes that priority.

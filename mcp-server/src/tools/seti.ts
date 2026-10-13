@@ -57,22 +57,22 @@ export function registerSetiTools(server: McpServer): string[] {
     {
       title: 'Preview a merchant payment',
       description:
-        'Get the server-computed preview for a payment: the principal, the merchant fee, the GROSS ' +
-        'the customer must sign for, the KES conversion with its FX provenance, and whether the ' +
-        'balance covers it. The amount is in KES — the field is amountKes on the wire, because that ' +
-        'is what the customer actually enters.',
+        'Get the server-computed preview for a payment: the principal, the platform fee, the GROSS ' +
+        'the customer must sign for, the customer-currency conversion with its FX provenance, and ' +
+        'whether the balance covers it. The amount is in the CUSTOMER\'s currency — the field is ' +
+        'amountFiat on the wire, because that is what the customer actually enters.',
       inputSchema: {
         merchantId: z.string().describe('Merchant id, from seti_resolve_merchant.'),
-        amountKes: z.string().describe('Amount the customer pays, in KES, e.g. "250".'),
+        amountFiat: z.string().describe("Amount the customer pays, in their currency, e.g. \"250\"."),
         asset: assetArg,
       },
     },
-    async ({ merchantId, amountKes, asset }) => {
+    async ({ merchantId, amountFiat, asset }) => {
       try {
         const result = await setiRequest<{ preview: unknown }>({
           method: 'POST',
           path: '/transactions/preview',
-          body: { merchantId, amountKes, asset: asset ?? 'ousd' },
+          body: { merchantId, amountFiat, asset: asset ?? 'ousd' },
         });
         return toolJson({ preview: result.preview });
       } catch (error) {
