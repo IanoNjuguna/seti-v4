@@ -14,14 +14,21 @@
  * BEFORE any chain read, so they need no real receipt — only a wallet, a valid
  * recipient and an amount. Each is asserted both at the `readQuote` level and
  * through `recordSend`, so the client-facing refusal code is covered.
+ *
+ * The anchor is PINNED BY HASH and read by hash, so the freeze is proven against
+ * an immutable receipt rather than on what happened to be on chain: a quiet chain
+ * cannot make a receipt disappear. Override the hash with `QUOTE_ANCHOR_TX` (a
+ * fresh `npm run prove:batch` receipt). If the pinned receipt cannot be read the
+ * suite FAILS LOUDLY naming the hash and the network — it never skips the freeze,
+ * because a suite that skipped there would report green while proving nothing.
  */
 import { prisma } from '../lib/prisma.js';
-import { getAddress, type Hex } from 'viem';
+import { getAddress, type Hex, type TransactionReceipt } from 'viem';
 import { recordSend } from './transactions.js';
 import { getFxQuote, previewPayment } from './payments.js';
 import { issueQuote, readQuote, QuoteError } from './quote.js';
 import { PaymentRefusalError } from './payment-refusal.js';
-import { getTokenContract, publicClient } from './chain.js';
+import { getTokenContract, network, publicClient } from './chain.js';
 import { env } from '../config/env.js';
 
 let failures = 0;
@@ -31,14 +38,19 @@ function check(label: string, passed: boolean, detail = ''): void {
 }
 
 /**
- * A real batched transaction on Moderato: ONE transaction, two transfers —
- * 0.5 pathUSD to a throwaway recipient, and the 2% fee (0.01 pathUSD) to
- * SETI_TREASURY_ADDRESS. The same immutable anchor `send.check.ts` reconciles
- * against, reused here so the freeze is proven against a wallet-produced receipt
- * rather than a stub.
+ * The default anchor: a real batched transaction on Moderato: ONE transaction,
+ * two transfers — 0.5 pathUSD to a throwaway recipient, and the 2% fee (0.01
+ * pathUSD) to SETI_TREASURY_ADDRESS. The same immutable anchor `send.check.ts`
+ * reconciles against, reused here so the freeze is proven against a
+ * wallet-produced receipt rather than a stub.
+ *
+ * The hash is overridable with QUOTE_ANCHOR_TX (see the file header) so a fresh
+ * receipt can be pinned without editing code.
  */
+const DEFAULT_ANCHOR_TX = '0xfbbacc1e13943afd4627bdd848b945f4de706d5726679d9f16612693d9aa7c70';
+
 const ANCHOR = {
-  txHash: '0xfbbacc1e13943afd4627bdd848b945f4de706d5726679d9f16612693d9aa7c70' as Hex,
+  txHash: ((process.env.QUOTE_ANCHOR_TX ?? '').trim() || DEFAULT_ANCHOR_TX) as Hex,
   /**
    * The address that SIGNED the anchor: the receipt's `from`.
    *
@@ -126,6 +138,54 @@ async function teardownSafely(): Promise<void> {
   }
 }
 
+/**
+ * Reads the pinned anchor receipt BY HASH, failing LOUDLY when it cannot be used.
+ *
+ * The anchor is a fixed receipt, so a quiet chain cannot make it disappear: the
+ * only reasons it is unreadable here are a wrong network/RPC or a receipt that is
+ * not there at all. SKIPPING the freeze (which is what this suite used to do)
+ * would then report green while proving nothing, so this exits 1 with the hash and
+ * the network instead.
+ */
+async function readAnchorReceipt(hash: Hex): Promise<TransactionReceipt> {
+  let receipt: TransactionReceipt | null = null;
+  try {
+    receipt = await publicClient.getTransactionReceipt({ hash });
+  } catch {
+    receipt = null;
+  }
+
+  if (!receipt || receipt.status !== 'success') {
+    console.error(
+      `\nPinned quote anchor ${hash} could not be read on ${network.displayName} ` +
+        `(chain ${network.chainId}, ${network.rpcUrl})` +
+        `${receipt ? ' — the transaction reverted' : ''}.\n` +
+        'The rate freeze is proven by recording a real two-leg send against this\n' +
+        'receipt, so without it the suite cannot run. Set QUOTE_ANCHOR_TX to a fresh\n' +
+        'batched pathUSD receipt (npm run prove:batch), or fix the network/RPC.'
+    );
+    await teardownSafely();
+    await prisma.$disconnect();
+    process.exit(1);
+  }
+
+  const hasPathUsd = receipt.logs.some(
+    (entry) => entry.address.toLowerCase() === getTokenContract('pathusd').toLowerCase()
+  );
+  if (!hasPathUsd) {
+    console.error(
+      `\nPinned quote anchor ${hash} on ${network.displayName} carries no pathUSD transfer.\n` +
+        'The freeze is proven against a pathUSD send, so this is the wrong receipt.\n' +
+        'Set QUOTE_ANCHOR_TX to a batched pathUSD receipt (npm run prove:batch).'
+    );
+    await teardownSafely();
+    await prisma.$disconnect();
+    process.exit(1);
+  }
+
+  return receipt;
+}
+
 async function main(): Promise<void> {
   if (env.FEE_ROUTING_MODE !== 'batch') {
     console.log(
@@ -194,14 +254,12 @@ async function main(): Promise<void> {
   // --- (b) the freeze: a valid quote with a DIFFERENT rate wins ------------
   console.log('\nthe rate shown is the rate recorded (the freeze):');
 
-  const anchorReceipt = await publicClient
-    .getTransactionReceipt({ hash: ANCHOR.txHash })
-    .catch(() => null);
-  const anchorUsable =
-    anchorReceipt?.status === 'success' &&
-    anchorReceipt.logs.some(
-      (entry) => entry.address.toLowerCase() === getTokenContract('pathusd').toLowerCase()
-    );
+  // --- The anchor must be readable: read it BY HASH and LOUDLY ---------------
+  //
+  // `readAnchorReceipt` exits 1 with the hash and the network if the pinned
+  // receipt cannot be used, so the freeze below always runs against a real
+  // receipt. The suite can no longer go green with its headline assertion skipped.
+  await readAnchorReceipt(ANCHOR.txHash);
 
   // Deliberately far from the live rate, so a row that carried the live rate
   // instead of the frozen one is unmissable.
@@ -222,12 +280,9 @@ async function main(): Promise<void> {
     `frozen ${frozenRateDisplay} vs live ${live.fiatPerUsd.toFixed(8)}`
   );
 
-  if (!anchorUsable) {
-    console.log(
-      'skip  the anchor receipt is not readable on this chain. Run `npm run prove:batch`\n' +
-        '      to produce one, then update ANCHOR in this file.'
-    );
-  } else {
+  {
+    // No skip branch: `readAnchorReceipt` above already exited 1 if the anchor
+    // could not be read, so the freeze always runs against a real receipt.
     const recorded = await recordSend({
       userId: user.id,
       amount: ANCHOR.principal,

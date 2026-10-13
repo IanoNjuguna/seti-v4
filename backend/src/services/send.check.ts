@@ -12,6 +12,15 @@
  * `recordSend` against the same two-leg receipt a customer's wallet produces —
  * not against a stub.
  *
+ * The anchor is PINNED BY HASH and read by hash, so its verdict depends on the
+ * code rather than on how busy the chain happened to be: a receipt is immutable,
+ * so a quiet chain cannot make it disappear. Override the hash with
+ * `SEND_ANCHOR_TX` (e.g. a fresh `npm run prove:batch` receipt, when the default
+ * anchor's sender has since been registered to another account). If the pinned
+ * receipt cannot be read the suite FAILS LOUDLY naming the hash and the network —
+ * it never skips its happy path, because a suite that skipped there would report
+ * green while verifying nothing.
+ *
  * The guard that matters most is the fee leg. A send that reaches the recipient
  * but not the treasury is the uncollected-fee failure wearing a new shape, and
  * it is the one a "did the money arrive?" test would happily pass.
@@ -22,13 +31,13 @@
  * the address that actually signed. The recorded row must land on the signer.
  */
 import { prisma } from '../lib/prisma.js';
-import { decodeEventLog, erc20Abi, getAddress, parseAbiItem, type Hex } from 'viem';
+import { decodeEventLog, erc20Abi, getAddress, parseAbiItem, type Hex, type TransactionReceipt } from 'viem';
 import { recordSend, receivedSide } from './transactions.js';
 import { PaymentRefusalError } from './payment-refusal.js';
 import { getFxQuote } from './payments.js';
 import { issueQuote } from './quote.js';
 import { calculateMerchantFee } from './fees.js';
-import { formatUnits, getTokenContract, publicClient, estimateNetworkFee } from './chain.js';
+import { formatUnits, getTokenContract, network, publicClient, estimateNetworkFee } from './chain.js';
 import { env } from '../config/env.js';
 
 let failures = 0;
@@ -63,16 +72,20 @@ async function refusalOf(
 }
 
 /**
- * A real batched transaction on Moderato: ONE transaction, two transfers —
- * 0.5 pathUSD to a throwaway recipient, and the 2% fee (0.01 pathUSD) to
- * SETI_TREASURY_ADDRESS. Signed and paid for by `npm run prove:batch`.
+ * The default anchor: a real batched transaction on Moderato: ONE transaction, two
+ * transfers — 0.5 pathUSD to a throwaway recipient, and the 2% fee (0.01 pathUSD)
+ * to SETI_TREASURY_ADDRESS. Signed and paid for by `npm run prove:batch`.
  *
  * Anchoring on it is what makes the happy path a statement about Tempo rather
  * than about this file: the receipt it points at was produced by a wallet, in
- * the shape the client signs, and it is immutable.
+ * the shape the client signs, and it is immutable. The hash is overridable with
+ * SEND_ANCHOR_TX (see the file header) so a fresh receipt can be pinned without
+ * editing code.
  */
+const DEFAULT_ANCHOR_TX = '0xfbbacc1e13943afd4627bdd848b945f4de706d5726679d9f16612693d9aa7c70';
+
 const ANCHOR = {
-  txHash: '0xfbbacc1e13943afd4627bdd848b945f4de706d5726679d9f16612693d9aa7c70' as Hex,
+  txHash: ((process.env.SEND_ANCHOR_TX ?? '').trim() || DEFAULT_ANCHOR_TX) as Hex,
   /**
    * The address that SIGNED the anchor: the receipt's `from`.
    *
@@ -204,6 +217,54 @@ async function teardownSafely(): Promise<void> {
   }
 }
 
+/**
+ * Reads the pinned anchor receipt BY HASH, failing LOUDLY when it cannot be used.
+ *
+ * The anchor is a fixed receipt, so a quiet chain cannot make it disappear: the
+ * only reasons it is unreadable here are a wrong network/RPC or a receipt that is
+ * not there at all. SKIPPING the happy path (which is what this suite used to do)
+ * would then report green while verifying nothing about `recordSend` — so this
+ * exits 1 with the hash and the network instead.
+ */
+async function readAnchorReceipt(hash: Hex): Promise<TransactionReceipt> {
+  let receipt: TransactionReceipt | null = null;
+  try {
+    receipt = await publicClient.getTransactionReceipt({ hash });
+  } catch {
+    receipt = null;
+  }
+
+  if (!receipt || receipt.status !== 'success') {
+    console.error(
+      `\nPinned send anchor ${hash} could not be read on ${network.displayName} ` +
+        `(chain ${network.chainId}, ${network.rpcUrl})` +
+        `${receipt ? ' — the transaction reverted' : ''}.\n` +
+        'A recorded transfer is reconciled against this receipt, so without it the\n' +
+        'suite cannot verify anything. Set SEND_ANCHOR_TX to a fresh batched pathUSD\n' +
+        'receipt (npm run prove:batch), or fix the network/RPC.'
+    );
+    await teardownSafely();
+    await prisma.$disconnect();
+    process.exit(1);
+  }
+
+  const hasPathUsd = receipt.logs.some(
+    (entry) => entry.address.toLowerCase() === getTokenContract('pathusd').toLowerCase()
+  );
+  if (!hasPathUsd) {
+    console.error(
+      `\nPinned send anchor ${hash} on ${network.displayName} carries no pathUSD transfer.\n` +
+        'This suite reconciles a pathUSD send against it, so it is the wrong receipt.\n' +
+        'Set SEND_ANCHOR_TX to a batched pathUSD receipt (npm run prove:batch).'
+    );
+    await teardownSafely();
+    await prisma.$disconnect();
+    process.exit(1);
+  }
+
+  return receipt;
+}
+
 async function main(): Promise<void> {
   if (env.FEE_ROUTING_MODE !== 'batch') {
     console.log(
@@ -319,16 +380,12 @@ async function main(): Promise<void> {
   const countRows = () => prisma.transaction.count({ where: { userId: user.id } });
 
   // --- The anchor must still be what this suite thinks it is -----------------
-  const anchorReceipt = await publicClient
-    .getTransactionReceipt({ hash: ANCHOR.txHash })
-    .catch(() => null);
-
-  const anchorUsable =
-    anchorReceipt?.status === 'success' &&
-    env.SETI_TREASURY_ADDRESS.toLowerCase() !== '' &&
-    anchorReceipt.logs.some(
-      (entry) => entry.address.toLowerCase() === getTokenContract('pathusd').toLowerCase()
-    );
+  //
+  // Read BY HASH, and read LOUDLY: `readAnchorReceipt` exits 1 with the hash and
+  // the network if the pinned receipt cannot be used, so the happy path below
+  // always runs. The suite can no longer go green with its most important
+  // assertions skipped on a quiet chain.
+  const anchorReceipt = await readAnchorReceipt(ANCHOR.txHash);
 
   // --- Guards that do not need a real receipt -------------------------------
 
@@ -586,12 +643,11 @@ async function main(): Promise<void> {
   // --- The happy path, against a real batched receipt ----------------------
   console.log('\nthe happy path (a real batched transaction):');
 
-  if (!anchorUsable) {
-    console.log(
-      'skip  the anchor receipt is not readable on this chain. Run\n' +
-        '      `npm run prove:batch` to produce one, then update ANCHOR in this file.'
-    );
-  } else {
+  {
+    // No skip branch: `readAnchorReceipt` above already exited 1 (naming the hash
+    // and the network) if the anchor could not be read, so everything here runs.
+    // That is deliberate — a skipped happy path is a green suite that verified
+    // nothing, which is worse than a red one.
     // Precondition for everything below: the anchor's sender is the address this
     // fixture declared, and it is NOT the account's active wallet. If the anchor
     // is re-created, update ANCHOR.sender — and this fails loudly rather than
@@ -718,9 +774,11 @@ async function main(): Promise<void> {
   // any other — to the Fee AMM's recipient rather than to a person.
   console.log('\ngas calibration:');
 
-  if (!anchorReceipt) {
-    console.log('skip  no anchor receipt to calibrate against.');
-  } else {
+  {
+    // The anchor receipt is guaranteed here (readAnchorReceipt exited 1 otherwise),
+    // so this is no longer a skip branch. `feePayment === undefined` below stays a
+    // skip: it would only mean the pinned receipt paid no fee leg of its own, which
+    // is a property of the receipt rather than of the code under test.
     const scale = BigInt(10 ** 12);
     const gasPriceUsed = anchorReceipt.effectiveGasPrice ?? (await publicClient.getGasPrice());
     const computedUnits = (anchorReceipt.gasUsed * gasPriceUsed) / scale;

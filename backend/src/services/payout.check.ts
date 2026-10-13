@@ -7,24 +7,44 @@
  * recordPayment reconciles the claimed gross against the chain and fails closed,
  * so a successful insert requires a REAL OUSD transfer to a merchant whose
  * payoutAddress is that transfer's actual recipient. This suite therefore
- * anchors on a real on-chain transaction discovered at run time, and claims the
+ * anchors on a real on-chain transaction, reads the legs off it, and claims the
  * amount that moved — so what it asserts is the persisted fee arithmetic rather
  * than the reconciliation (which reconcile.check.ts covers).
  *
- * A synthetic txHash cannot exercise the success path any more: reconciliation
- * rejects it, which is correct. That is why this file reaches the chain instead
- * of stubbing it.
+ * WHY THE ANCHOR IS PINNED (and read BY HASH)
+ * -------------------------------------------
+ * This suite used to DISCOVER its anchor by scanning a 60,000-block window for a
+ * batched OUSD receipt. That made its verdict depend on what happened to be on
+ * chain that hour rather than on the code: on a quiet chain no OUSD→treasury log
+ * has landed, the search finds nothing, and the gate goes red for a reason that
+ * has nothing to do with the fee arithmetic it exists to prove. A check that
+ * fails in CI because the chain was quiet is failing for the wrong reason.
+ *
+ * So the anchor is now a KNOWN receipt read BY HASH (default:
+ * 0x8e9c…a78d, a real batched OUSD payment on Moderato at block 39315983 — 0.5
+ * OUSD to the recipient, 0.01 OUSD to SETI_TREASURY_ADDRESS, plus the gas leg).
+ * A receipt is immutable, so its block age is irrelevant; reading it by hash is
+ * what makes the verdict depend only on the code.
+ *
+ * Override it with PAYOUT_ANCHOR_TX (any 32-byte hash). Setting it to the literal
+ * `search` restores the live window scan — that is the ONLY way the live path
+ * runs, and it is opt-in precisely so a quiet chain cannot take the gate red by
+ * default.
+ *
+ * If the pinned receipt cannot be found on the configured network the suite FAILS
+ * LOUDLY, naming the hash and the network. It never skips quietly: a check that
+ * silently passes when it verified nothing is worse than a red one.
  *
  * DUST: at 2dp, 2% of a payment only becomes exactly representable above
- * roughly KES 2. Real chains carry many dust transfers, so the suite prefers a
- * substantial anchor, falls back to the largest transfer it can find, and SKIPS
- * the percentage assertions when the anchor is too small for them to mean
- * anything. It asserts loudly rather than guessing.
+ * roughly KES 2. Real chains carry many dust transfers, so the live search
+ * prefers a substantial anchor and falls back to the largest transfer it can
+ * find; the percentage assertions are SKIPPED when the anchor is too small for
+ * them to mean anything. The pinned anchor is 0.5 OUSD, well above that.
  */
-import { decodeEventLog, erc20Abi, getAddress, parseAbiItem } from 'viem';
+import { decodeEventLog, erc20Abi, getAddress, parseAbiItem, type TransactionReceipt } from 'viem';
 import { prisma } from '../lib/prisma.js';
 import { env } from '../config/env.js';
-import { FEE_AMM_ADDRESS, formatUnits, getTokenContract, publicClient } from './chain.js';
+import { FEE_AMM_ADDRESS, formatUnits, getTokenContract, network, publicClient } from './chain.js';
 import { recordPayment } from './transactions.js';
 import { getFxQuote } from './payments.js';
 import { issueQuote } from './quote.js';
@@ -34,15 +54,42 @@ const transferEvent = parseAbiItem(
 );
 
 /**
- * Ceiling on candidate transfers probed for a treasury leg.
+ * Ceiling on candidate transfers probed for a treasury leg, on the LIVE-SEARCH
+ * path only (`PAYOUT_ANCHOR_TX=search`).
  *
  * Each probe is a `getTransactionReceipt` round-trip, so an unbounded search over
- * a busy range turns this suite into a hang. In practice it is also pointless:
- * until a real batched payment has landed, NO receipt on the chain contains a
- * treasury leg, so the search is guaranteed to exhaust and should report that
- * plainly rather than keep spending RPC calls.
+ * a busy range turns this suite into a hang. On a chain where few or no batches
+ * have landed the search is guaranteed to exhaust, and it should report that
+ * plainly rather than keep spending RPC calls. The pinned path reads one receipt
+ * by hash and never probes, so this budget does not apply there.
  */
 const MAX_FEE_LEG_PROBES = 25;
+
+/**
+ * The known batched OUSD receipt the suite is anchored on BY DEFAULT.
+ *
+ * A real payment on Moderato (chain 42431), block 39315983: one OUSD transaction
+ * carrying 0.5 OUSD to a recipient and 0.01 OUSD to SETI_TREASURY_ADDRESS, plus
+ * the gas leg. Read by hash, so its block age is irrelevant — the point is that
+ * the suite's verdict depends on this immutable receipt rather than on what
+ * happens to be on chain when CI runs.
+ */
+const DEFAULT_ANCHOR_TX =
+  '0x8e9c2ba14b14e046bdec1974eb119c4b7137a437ddd538d22038303c5b4aa78d';
+
+/**
+ * PAYOUT_ANCHOR_TX value that selects the LIVE window search instead of the
+ * pinned receipt. Deliberately a word rather than a hash, so it cannot be
+ * confused with an anchor.
+ */
+const LIVE_SEARCH = 'search';
+
+/**
+ * The anchor in force for this run: PAYOUT_ANCHOR_TX if set (and non-empty),
+ * else the pinned default. `search` here means the live window scan.
+ */
+const anchorTx = (process.env.PAYOUT_ANCHOR_TX ?? '').trim() || DEFAULT_ANCHOR_TX;
+
 
 /** Rough KES/USD, used only to size the anchor search — never for assertions. */
 const APPROX_KES_PER_USD = 130;
@@ -90,8 +137,58 @@ interface Anchor {
 const FEE_AMM = FEE_AMM_ADDRESS;
 
 /**
- * Finds a real recent OUSD **batched** transfer: a receipt carrying a transfer to
- * SETI_TREASURY_ADDRESS, which only a batch produces.
+ * Reads the OUSD legs out of a receipt: the largest transfer that is neither to
+ * the treasury nor to the Fee AMM (the principal), and any transfer to the
+ * treasury (the fee leg).
+ *
+ * Returns null when the receipt carries no principal leg at all — a receipt with
+ * only a fee leg (or only the gas leg) cannot anchor a payment. Shared by the
+ * pinned reader and the live search so the two can never disagree about what a
+ * batched receipt looks like.
+ */
+function readOusdLegs(
+  receipt: TransactionReceipt
+): { recipient: string; observed: number; feeObserved: number | null } | null {
+  const ousd = getTokenContract('ousd').toLowerCase();
+  const treasury = env.SETI_TREASURY_ADDRESS.toLowerCase();
+  const principal: Array<{ to: string; value: number }> = [];
+  let feeObserved: number | null = null;
+
+  for (const log of receipt.logs) {
+    if (log.address.toLowerCase() !== ousd) continue;
+    try {
+      const decoded = decodeEventLog({ abi: erc20Abi, data: log.data, topics: log.topics });
+      if (decoded.eventName !== 'Transfer') continue;
+
+      const to = String(decoded.args.to);
+      const lowered = to.toLowerCase();
+      const value = Number(formatUnits(decoded.args.value, 6));
+
+      if (lowered === treasury) {
+        feeObserved = value;
+        continue;
+      }
+      // The gas leg: the fee token paid to the protocol's Fee AMM — not a payment.
+      if (lowered === FEE_AMM) continue;
+      principal.push({ to, value });
+    } catch {
+      // ignore undecodable logs
+    }
+  }
+
+  if (principal.length === 0) return null;
+
+  const biggest = principal.reduce((a, b) => (b.value > a.value ? b : a));
+  return { recipient: biggest.to, observed: biggest.value, feeObserved };
+}
+
+/**
+ * Finds a real recent batched OUSD transfer by LIVE scan: a receipt carrying a
+ * transfer to SETI_TREASURY_ADDRESS, which only a batch produces.
+ *
+ * Only reached when PAYOUT_ANCHOR_TX=search. The pinned default reads a known
+ * receipt by hash instead; this path exists so the suite can still discover a
+ * fresh anchor on demand.
  *
  * Queried by the FEE LEG rather than by scanning transfers in general, and that is
  * the whole trick. The testnet faucet mints 1,000,000 OUSD to random addresses
@@ -126,34 +223,72 @@ async function findBatchedAnchor(fromBlock: bigint, head: bigint): Promise<Ancho
   // the same way this suite expects.
   for (const feeLog of [...candidates].reverse()) {
     const receipt = await publicClient.getTransactionReceipt({ hash: feeLog.transactionHash });
-    const ousd = getTokenContract('ousd').toLowerCase();
-    const principal: Array<{ to: string; value: number }> = [];
+    const legs = readOusdLegs(receipt);
+    if (!legs) continue;
 
-    for (const log of receipt.logs) {
-      if (log.address.toLowerCase() !== ousd) continue;
-      try {
-        const decoded = decodeEventLog({ abi: erc20Abi, data: log.data, topics: log.topics });
-        if (decoded.eventName !== 'Transfer') continue;
-        const to = String(decoded.args.to);
-        const lowered = to.toLowerCase();
-        if (lowered === treasury.toLowerCase() || lowered === FEE_AMM) continue;
-        principal.push({ to, value: Number(formatUnits(decoded.args.value, 6)) });
-      } catch {
-        // ignore undecodable logs
-      }
-    }
-
-    if (principal.length === 0) continue;
-
-    const biggest = principal.reduce((a, b) => (b.value > a.value ? b : a));
-    const feeObserved = Number(formatUnits(feeLog.args.value as bigint, 6));
-
-    if (biggest.value * APPROX_KES_PER_USD >= MIN_ANCHOR_KES) {
-      return { txHash: feeLog.transactionHash, recipient: biggest.to, observed: biggest.value, feeObserved };
+    if (legs.observed * APPROX_KES_PER_USD >= MIN_ANCHOR_KES) {
+      return {
+        txHash: feeLog.transactionHash,
+        recipient: legs.recipient,
+        observed: legs.observed,
+        feeObserved: legs.feeObserved,
+      };
     }
   }
 
   return null;
+}
+
+/**
+ * Reads the PINNED anchor BY HASH and builds an Anchor from it.
+ *
+ * A receipt is immutable, so its block age is irrelevant: reading it by hash is
+ * what makes this suite's verdict depend on the code rather than on how busy the
+ * chain happened to be when CI ran. When the receipt cannot be read — wrong
+ * network, wrong RPC, or a receipt that is not there — this THROWS, naming the
+ * hash and the network. It must never return null: the caller treats null as
+ * "skip", and a check that silently passes when it verified nothing is worse than
+ * a red one.
+ */
+async function anchorFromHash(txHash: string): Promise<Anchor> {
+  let receipt: TransactionReceipt;
+  try {
+    receipt = await publicClient.getTransactionReceipt({ hash: txHash as `0x${string}` });
+  } catch (error) {
+    throw new Error(
+      `Pinned payout anchor ${txHash} was not found on ${network.displayName} ` +
+        `(chain ${network.chainId}, ${network.rpcUrl}).\n` +
+        'The anchor is a real batched OUSD receipt read by hash. If the network or RPC ' +
+        `is wrong, or the receipt is gone, set PAYOUT_ANCHOR_TX to a known batched ` +
+        `OUSD receipt — or to \`${LIVE_SEARCH}\` to scan the chain live.\n` +
+        `Underlying error: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+
+  if (receipt.status !== 'success') {
+    throw new Error(
+      `Pinned payout anchor ${txHash} reverted on ${network.displayName} ` +
+        `(chain ${network.chainId}). Set PAYOUT_ANCHOR_TX to a successful batched OUSD ` +
+        `receipt, or to \`${LIVE_SEARCH}\` to scan live.`
+    );
+  }
+
+  const legs = readOusdLegs(receipt);
+  if (!legs || (batchMode && legs.feeObserved === null)) {
+    throw new Error(
+      `Pinned payout anchor ${txHash} on ${network.displayName} does not carry the legs ` +
+        `this suite needs: an OUSD transfer to a recipient AND, in batch mode, a fee ` +
+        `transfer to ${env.SETI_TREASURY_ADDRESS}. Set PAYOUT_ANCHOR_TX to a real ` +
+        `batched OUSD receipt, or to \`${LIVE_SEARCH}\` to scan live.`
+    );
+  }
+
+  return {
+    txHash,
+    recipient: legs.recipient,
+    observed: legs.observed,
+    feeObserved: legs.feeObserved,
+  };
 }
 
 /** Treasury transfer amount found in a receipt, or null if there isn't one. */
@@ -357,31 +492,59 @@ async function main() {
   const quote = await getFxQuote();
   console.log(`rate: ${quote.fiatPerUsd} KES/USD from "${quote.source}" (stale: ${quote.stale})`);
 
-  const anchor = await findAnchor();
+  // The anchor is PINNED by default: a fixed receipt read by hash, so the verdict
+  // does not depend on what happened to be on chain this hour. `search` opts into
+  // the live window scan, which is the only way that path runs.
+  let anchor: Anchor | null = null;
+  if (anchorTx === LIVE_SEARCH) {
+    console.log(`anchor: live window search (PAYOUT_ANCHOR_TX=${LIVE_SEARCH})`);
+    anchor = await findAnchor();
+  } else {
+    console.log(`anchor: pinned, read by hash (PAYOUT_ANCHOR_TX=${anchorTx})`);
+    try {
+      anchor = await anchorFromHash(anchorTx);
+    } catch (error) {
+      // FAIL LOUDLY. A pinned anchor that cannot be read is a defect in the check
+      // (wrong network/RPC, or a receipt that is gone) — never a reason to skip,
+      // because a suite that skipped here would report green while verifying
+      // nothing about the fee arithmetic it exists to prove.
+      console.error(`\n${error instanceof Error ? error.message : String(error)}`);
+      await prisma.$disconnect();
+      process.exit(1);
+    }
+  }
+
   if (!anchor) {
+    // Only reachable on the live-search path: a pinned anchor either resolves or
+    // has already exited above. A genuinely quiet chain is the one honest reason
+    // this suite can find nothing, and it is opt-in.
     if (batchMode) {
       console.error(
-        'No batched OUSD transfer found on the configured network.\n\n' +
-          'In batch mode this suite needs a real receipt containing BOTH the\n' +
-          'merchant transfer and a fee transfer to SETI_TREASURY_ADDRESS, because\n' +
-          'recordPayment refuses anything less. No such transaction exists yet\n' +
-          'unless a batched payment has actually been made.\n\n' +
-          'This is expected before the first batch: sign one on Moderato, or run\n' +
-          'with FEE_ROUTING_MODE=inside-transfer to exercise the single-leg path.'
+        'No batched OUSD transfer found by the live search on the configured network.\n\n' +
+          'You are on the live-search path (PAYOUT_ANCHOR_TX=search). In batch mode\n' +
+          'this suite needs a real receipt containing BOTH the merchant transfer and\n' +
+          'a fee transfer to SETI_TREASURY_ADDRESS, because recordPayment refuses\n' +
+          'anything less, and a quiet chain has no such receipt to find.\n\n' +
+          'Unset PAYOUT_ANCHOR_TX to use the pinned anchor instead (the default), or\n' +
+          'run with FEE_ROUTING_MODE=inside-transfer to exercise the single-leg path.'
       );
     } else {
       console.error(
-        'No recent OUSD transfer found on the configured network.\n' +
+        'No recent OUSD transfer found by the live search on the configured network.\n' +
           'This suite needs a real on-chain transfer to reconcile against, so it\n' +
-          'cannot run right now. Try again once OUSD has recent activity.'
+          'cannot run right now. Try again once OUSD has recent activity, or unset\n' +
+          'PAYOUT_ANCHOR_TX to use the pinned anchor (the default).'
       );
     }
     await prisma.$disconnect();
     process.exit(1);
   }
 
+  const anchorReceipt = await publicClient.getTransactionReceipt({
+    hash: anchor.txHash as `0x${string}`,
+  });
   const anchorKes = anchor.observed * quote.fiatPerUsd;
-  console.log(`anchored on ${anchor.txHash}`);
+  console.log(`anchored on ${anchor.txHash} (block ${anchorReceipt.blockNumber})`);
   console.log(
     `  recipient ${anchor.recipient}, moved ${anchor.observed} OUSD (~KES ${anchorKes.toFixed(2)})`
   );
@@ -408,9 +571,6 @@ async function main() {
    * than as a reconciliation failure, because nothing about the fee arithmetic
    * would be wrong.
    */
-  const anchorReceipt = await publicClient.getTransactionReceipt({
-    hash: anchor.txHash as `0x${string}`,
-  });
   const anchorSender = getAddress(anchorReceipt.from);
 
   const holder = await prisma.wallet.findUnique({ where: { address: anchorSender } });
