@@ -1,0 +1,347 @@
+import { parseAbiItem, type Hex } from 'viem';
+import { prisma } from '../lib/prisma.js';
+import { env } from '../config/env.js';
+import { publicClient, network, SUPPORTED_ASSETS, type SupportedAsset, assetDecimals } from './chain.js';
+import { logAuditEvent } from './audit.js';
+import { getFxQuote, resolveUserFiat } from './payments.js';
+import { sweepStuckTransactions } from './stuck-transactions.js';
+import {
+  clampRange,
+  isEmptyWindow,
+  resolveBlockWindow,
+  type BlockWindow,
+} from './indexer-cursor.js';
+import {
+  advanceCursor,
+  readCursor,
+  releaseLock,
+  REPLICA_ID,
+  tryAcquireLock,
+} from './indexer-store.js';
+
+const TRANSFER_EVENT = parseAbiItem([
+  'event Transfer(address indexed from, address indexed to, uint256 value)',
+]);
+
+const ASSET_ADDRESSES: Record<SupportedAsset, Hex> = Object.fromEntries(
+  SUPPORTED_ASSETS.map((asset) => [asset, network.tokens[asset]])
+) as Record<SupportedAsset, Hex>;
+
+const CHAIN_KEY = network.name;
+
+/** Outcome of one indexing pass, for logging and status reporting. */
+export interface IndexPassResult {
+  /** True when the pass did no work (lock held elsewhere, or already running). */
+  skipped: boolean;
+  reason?: 'already-running' | 'locked-by-other-replica';
+  fromBlock?: bigint;
+  toBlock?: bigint;
+  currentBlock?: bigint;
+  /** True when the window came from the lookback fallback, not a cursor. */
+  bootstrap?: boolean;
+}
+
+/**
+ * In-process guard against overlapping ticks. The DB lock is the real
+ * coordination point across replicas; this only stops a slow tick from
+ * overlapping the next one on a single process.
+ */
+let isRunning = false;
+
+async function getWalletsByAddress(): Promise<Map<string, { userId: string; walletId: string; asset: SupportedAsset }>> {
+  const wallets = await prisma.wallet.findMany({
+    where: { status: 'active' },
+    select: { id: true, userId: true, address: true, asset: true },
+  });
+
+  const map = new Map<string, { userId: string; walletId: string; asset: SupportedAsset }>();
+  for (const wallet of wallets) {
+    const asset = wallet.asset.toLowerCase() as SupportedAsset;
+    if (asset in ASSET_ADDRESSES) {
+      map.set(wallet.address.toLowerCase(), {
+        userId: wallet.userId,
+        walletId: wallet.id,
+        asset,
+      });
+    }
+  }
+  return map;
+}
+
+async function findMatchingTransaction(txHash: string, walletId: string) {
+  return prisma.transaction.findFirst({
+    where: { txHash, walletId },
+  });
+}
+
+async function confirmTransaction(txHash: string, blockNumber: bigint, userId: string) {
+  // Scoped to the row's owner: `txHash` is unique per USER now, so a transfer
+  // between two Seti accounts has a row on each side and an unscoped lookup could
+  // confirm the wrong one.
+  const tx = await prisma.transaction.findFirst({
+    where: { txHash, userId },
+    include: { user: true },
+  });
+
+  if (!tx || tx.status === 'completed' || tx.status === 'failed' || tx.status === 'reversed') {
+    return;
+  }
+
+  await prisma.transaction.update({
+    where: { id: tx.id },
+    data: {
+      status: 'completed',
+      blockNumber,
+      settledAt: new Date(),
+    },
+  });
+
+  await logAuditEvent({
+    userId: tx.userId,
+    action: 'transaction.confirm',
+    txHash,
+    metadata: { blockNumber: blockNumber.toString() },
+  });
+}
+
+/**
+ * Scans one block window's logs, persisting any resulting state.
+ *
+ * Extracted so the loop in indexOnce can walk a large backlog in bounded
+ * steps rather than issuing one enormous log query.
+ */
+async function scanWindow(window: BlockWindow): Promise<void> {
+  const walletMap = await getWalletsByAddress();
+  const addresses = Array.from(walletMap.keys());
+
+  if (addresses.length === 0) return;
+
+  for (const [asset, contractAddress] of Object.entries(ASSET_ADDRESSES)) {
+    const logs = await publicClient.getLogs({
+      address: contractAddress,
+      event: TRANSFER_EVENT,
+      fromBlock: window.fromBlock,
+      toBlock: window.toBlock,
+    });
+
+    for (const log of logs) {
+      const from = String(log.args.from).toLowerCase();
+      const to = String(log.args.to).toLowerCase();
+      const txHash = log.transactionHash;
+
+      const fromWallet = walletMap.get(from);
+      const toWallet = walletMap.get(to);
+
+      if (fromWallet) {
+        // Outbound transfer from a Seti wallet: confirm if we have a
+        // matching transaction row (payment, p2p_send, withdrawal, fee).
+        const existing = await findMatchingTransaction(txHash, fromWallet.walletId);
+        if (existing) {
+          await confirmTransaction(txHash, log.blockNumber, fromWallet.userId);
+        }
+      }
+
+      if (toWallet && !fromWallet) {
+        // Inbound transfer to a Seti wallet from an external address:
+        // create a top-up transaction if one does not already exist. Scoped to the
+        // recipient: the same hash can legitimately carry a row for each party.
+        const existing = await prisma.transaction.findFirst({
+          where: { txHash, userId: toWallet.userId },
+        });
+
+        if (!existing) {
+          const decimals = assetDecimals[asset as SupportedAsset];
+          const amount = Number(log.args.value) / 10 ** decimals;
+
+          // The fiat figure, stored at the rate in force when the row is written,
+          // in the OWNER's currency — the unit the activity row renders. A row
+          // without this figure has to fall back to the stablecoin amount and
+          // would overstate the deposit by the fx rate. Same provenance columns as
+          // a payment, so a historical row can still be explained.
+          const quote = await getFxQuote(await resolveUserFiat(toWallet.userId));
+
+          await prisma.transaction.create({
+            data: {
+              userId: toWallet.userId,
+              walletId: toWallet.walletId,
+              type: 'top_up',
+              status: 'completed',
+              amount: amount.toFixed(8),
+              asset: toWallet.asset,
+              counterparty: log.args.from,
+              txHash,
+              blockNumber: log.blockNumber,
+              fiatAmount: (amount * quote.fiatPerUsd).toFixed(2),
+              fiatCurrency: quote.fiatCurrency,
+              fxRate: quote.fiatPerUsd.toFixed(8),
+              fxRateSource: quote.source,
+              fxRateAsOf: quote.asOf,
+              settledAt: new Date(),
+            },
+          });
+
+          await logAuditEvent({
+            userId: toWallet.userId,
+            action: 'transaction.confirm',
+            txHash,
+            metadata: { type: 'top_up', amount },
+          });
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Runs one indexing pass: acquire the lock, scan forward from the durable
+ * cursor to the chain head, then persist progress.
+ *
+ * Returns a short summary for logging and for getIndexerStatus.
+ *
+ * `chainKey` is a parameter, not a constant, so a check can exercise this
+ * orchestration against a throwaway key. Driving the live key made the suite
+ * mutate real indexing progress and compete for the live lock, so a concurrent
+ * indexer could turn a real pass into `locked-by-other-replica` at random. The
+ * pass logic is key-agnostic; the caller owns the choice.
+ */
+export async function indexOnce(chainKey: string = CHAIN_KEY): Promise<IndexPassResult> {
+  if (isRunning) {
+    return { skipped: true, reason: 'already-running' };
+  }
+
+  // Another replica may be scanning. Skip this tick rather than queue behind
+  // it; the holder will advance the shared cursor and we resume next tick.
+  if (!(await tryAcquireLock(chainKey))) {
+    return { skipped: true, reason: 'locked-by-other-replica' };
+  }
+
+  isRunning = true;
+
+  try {
+    const currentBlock = await publicClient.getBlockNumber();
+    const stored = await readCursor(chainKey);
+
+    // A stored cursor of 0n means "never scanned" and must bootstrap. With the
+    // default lookback of 0 that resolves to an empty window, so a fresh
+    // production cursor does nothing until real activity arrives.
+    const storedLastBlock = stored.lastBlock > 0n ? stored.lastBlock : null;
+    let window = resolveBlockWindow(
+      currentBlock,
+      storedLastBlock,
+      BigInt(env.INDEXER_BOOTSTRAP_LOOKBACK)
+    );
+
+    if (isEmptyWindow(window)) {
+      // Fresh cursor with a zero bootstrap lookback: nothing to scan (correct —
+      // we refuse to ingest history), but we must still establish the baseline
+      // or the cursor stays at 0 forever and the indexer never advances.
+      if (stored.lastBlock === 0n) {
+        await advanceCursor(chainKey, currentBlock);
+        return {
+          skipped: false,
+          fromBlock: currentBlock,
+          toBlock: currentBlock,
+          currentBlock,
+          bootstrap: true,
+        };
+      }
+
+      return {
+        skipped: false,
+        fromBlock: currentBlock,
+        toBlock: currentBlock,
+        currentBlock,
+        bootstrap: window.isBootstrap,
+      };
+    }
+
+    const firstBlock = window.fromBlock;
+    const bootstrap = window.isBootstrap;
+    let scannedTo = firstBlock - 1n;
+
+    // Walk forward in bounded windows. clampRange trims a wide backlog to
+    // MAX_RANGE per iteration; the cursor advances each pass so we make
+    // progress instead of re-requesting the same span.
+    while (!isEmptyWindow(window)) {
+      const bounded = clampRange(window);
+      await scanWindow(bounded);
+      scannedTo = bounded.toBlock;
+      window = resolveBlockWindow(currentBlock, scannedTo);
+    }
+
+    await advanceCursor(chainKey, scannedTo);
+
+    return {
+      skipped: false,
+      fromBlock: firstBlock,
+      toBlock: scannedTo,
+      currentBlock,
+      bootstrap,
+    };
+  } finally {
+    isRunning = false;
+    await releaseLock(chainKey);
+  }
+}
+
+/**
+ * Starts the periodic indexer.
+ *
+ * No bootstrap RPC call is needed any more: the cursor is durable, so the
+ * first tick simply reads it (0n on a fresh chain) and resolves its own
+ * window. That also removes a race where the bootstrap promise resolved after
+ * the first tick and reset progress.
+ */
+export function startIndexer(intervalMs = 15000) {
+  const tick = async () => {
+    try {
+      await indexOnce();
+    } catch (error) {
+      console.error('[indexer] error', error);
+    }
+
+    // Resolving stuck rows deliberately lives here rather than inside
+    // indexOnce: that function returns early whenever there is no new block
+    // range to scan, which is the steady state, so a sweep inside it would
+    // almost never run. The sweep also needs no scan lock — it only ever
+    // advances a row that is still `processing`, so a duplicate pass is a
+    // no-op rather than a double write.
+    try {
+      const sweep = await sweepStuckTransactions();
+
+      if (sweep.checked > 0) {
+        console.log(
+          `[sweep] checked ${sweep.checked}: ${sweep.completed} completed, ` +
+            `${sweep.failed} failed, ${sweep.unresolved.length} unresolved`
+        );
+      }
+
+      for (const row of sweep.unresolved) {
+        console.error(
+          `[sweep] UNRESOLVED ${row.txHash} stuck ${row.ageMinutes}m: ${row.reason}`
+        );
+      }
+    } catch (error) {
+      console.error('[sweep] error', error);
+    }
+  };
+
+  const interval = setInterval(() => {
+    void tick();
+  }, intervalMs);
+
+  return () => clearInterval(interval);
+}
+
+export async function getIndexerStatus() {
+  const stored = await readCursor(CHAIN_KEY);
+  return {
+    chain: CHAIN_KEY,
+    lastBlock: stored.lastBlock.toString(),
+    isRunning,
+    replicaId: REPLICA_ID,
+    /** True when another replica currently holds the scan lock. */
+    lockedByOther: stored.lockedBy !== null && stored.lockedBy !== REPLICA_ID,
+    lockedAt: stored.lockedAt?.toISOString() ?? null,
+  };
+}
