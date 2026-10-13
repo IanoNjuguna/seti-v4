@@ -13,10 +13,12 @@
  * `.env` is never read (the cases set every variable they depend on; this file
  * never touches a real `.env`).
  *
- * The load-bearing cases are the refusals: DEV_BYPASS_AUTH and a missing
- * QUOTE_SIGNING_SECRET in production. The rest pin the surrounding surface so a
- * later change cannot quietly re-open a door — the dev behaviour the fix must
- * preserve, and the opt-in shape of ALLOW_MAINNET.
+ * The load-bearing cases are the refusals: DEV_BYPASS_AUTH, a missing
+ * QUOTE_SIGNING_SECRET, and the two "boots healthy but cannot serve" omissions
+ * — missing Privy credentials and a missing CORS allow-list — in production.
+ * The rest pin the surrounding surface so a later change cannot quietly re-open
+ * a door: the dev behaviour the fix must preserve, and the opt-in shape of
+ * ALLOW_MAINNET.
  */
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -60,6 +62,12 @@ const SECURE_PRODUCTION: Record<string, string> = {
   ALLOW_MAINNET: 'false',
   // 32 chars — comfortably above the minimum, so it is not itself a refusal.
   QUOTE_SIGNING_SECRET: '0123456789abcdef0123456789abcdef',
+  // A production deploy must reach Privy and must have a CORS allow-list; both
+  // are refusals when unset, so a "secure" fixture has to set them or every
+  // boot case below would refuse for the wrong reason.
+  PRIVY_APP_ID: 'clx0123456789abcdefghijkl',
+  PRIVY_APP_SECRET: 'privy-app-secret-0123456789abcdef',
+  CORS_ALLOWED_ORIGINS: 'https://app.seti.example',
 };
 
 interface ProbeResult {
@@ -126,14 +134,54 @@ const cases: Case[] = [
     names: ['INSECURE_PRODUCTION_CONFIG', 'JWT_SECRET'],
   },
   {
+    name: 'production refuses an unset PRIVY_APP_ID',
+    overrides: { PRIVY_APP_ID: undefined },
+    expect: 'refuses',
+    names: ['InsecureProductionConfigError', 'INSECURE_PRODUCTION_CONFIG', 'PRIVY_APP_ID'],
+  },
+  {
+    name: 'production refuses an unset PRIVY_APP_SECRET',
+    overrides: { PRIVY_APP_SECRET: undefined },
+    expect: 'refuses',
+    names: ['INSECURE_PRODUCTION_CONFIG', 'PRIVY_APP_SECRET'],
+  },
+  {
+    name: 'production refuses both Privy credentials missing, and names both',
+    overrides: { PRIVY_APP_ID: undefined, PRIVY_APP_SECRET: undefined },
+    expect: 'refuses',
+    names: ['PRIVY_APP_ID', 'PRIVY_APP_SECRET'],
+  },
+  {
+    name: 'production refuses an unset CORS_ALLOWED_ORIGINS',
+    overrides: { CORS_ALLOWED_ORIGINS: undefined },
+    expect: 'refuses',
+    names: ['InsecureProductionConfigError', 'INSECURE_PRODUCTION_CONFIG', 'CORS_ALLOWED_ORIGINS'],
+  },
+  {
+    name: 'a blank CORS_ALLOWED_ORIGINS is refused like an unset one',
+    overrides: { CORS_ALLOWED_ORIGINS: '   ' },
+    expect: 'refuses',
+    names: ['CORS_ALLOWED_ORIGINS'],
+  },
+  {
     name: 'the refusal names every offending variable at once',
     overrides: {
       DEV_BYPASS_AUTH: 'true',
       QUOTE_SIGNING_SECRET: undefined,
       JWT_SECRET: 'change-me-in-production',
+      PRIVY_APP_ID: undefined,
+      PRIVY_APP_SECRET: undefined,
+      CORS_ALLOWED_ORIGINS: undefined,
     },
     expect: 'refuses',
-    names: ['DEV_BYPASS_AUTH', 'QUOTE_SIGNING_SECRET', 'JWT_SECRET'],
+    names: [
+      'DEV_BYPASS_AUTH',
+      'QUOTE_SIGNING_SECRET',
+      'JWT_SECRET',
+      'PRIVY_APP_ID',
+      'PRIVY_APP_SECRET',
+      'CORS_ALLOWED_ORIGINS',
+    ],
   },
   {
     name: 'a secure production config boots',

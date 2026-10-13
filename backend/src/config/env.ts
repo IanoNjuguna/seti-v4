@@ -9,6 +9,16 @@ const envSchema = z.object({
   HOST: z.string().default('0.0.0.0'),
   DATABASE_URL: z.string(),
   JWT_SECRET: z.string().min(1),
+  /**
+   * Privy credentials — the only way an access token is verified
+   * (`services/auth.ts` builds the `PrivyClient` from them).
+   *
+   * Optional in development: the scaffold runs without Privy and verification
+   * simply throws until they are set. In production their absence is not
+   * survivable — with no client, `verifyPrivyToken` throws for every caller, so
+   * the API boots healthy and then answers nobody. `assertBootable` therefore
+   * REFUSES to start a production process unless both are set.
+   */
   PRIVY_APP_ID: z.string().optional(),
   PRIVY_APP_SECRET: z.string().optional(),
   /**
@@ -80,6 +90,11 @@ const envSchema = z.object({
    * list IS the policy: a deployed or tunnelled front end has an origin the
    * server cannot infer, and the previous production behaviour (`origin: false`)
    * blocked every request from it without an error the browser will explain.
+   *
+   * Because an empty list means "deny every browser origin", `assertBootable`
+   * REFUSES to start a production process with it unset: a deploy must not boot
+   * healthy and then 403 every browser request from the web app. A genuinely
+   * same-origin-only deployment still has to say so explicitly.
    *
    * Example: https://app.seti.example,https://random-words.trycloudflare.com
    */
@@ -276,6 +291,35 @@ function productionProblems(config: Env): { variables: string[]; details: string
     details.push(
       `JWT_SECRET is still the example placeholder "${EXAMPLE_JWT_SECRET}". That value is\n` +
         '    public, so it is not a secret. Set JWT_SECRET to a real secret.'
+    );
+  }
+
+  // Privy credentials. Without them the auth layer builds no `PrivyClient`, so
+  // every authenticated request throws and the deploy serves nobody — the same
+  // "boots healthy but cannot serve" failure as the bypass, reached by omission.
+  const missingPrivy = (['PRIVY_APP_ID', 'PRIVY_APP_SECRET'] as const).filter(
+    (name) => !config[name]
+  );
+  if (missingPrivy.length > 0) {
+    variables.push(...missingPrivy);
+    details.push(
+      `${missingPrivy.join(' and ')} ${missingPrivy.length > 1 ? 'are' : 'is'} unset. With no\n` +
+        '    Privy credentials the server builds no client, so verification throws for\n' +
+        '    every caller and the API answers nobody: a deploy boots healthy and then\n' +
+        '    serves no one. Set PRIVY_APP_ID and PRIVY_APP_SECRET from the Privy dashboard.'
+    );
+  }
+
+  // CORS allow-list. Unset means an empty list, which denies every browser
+  // origin — the front end loads and every call fails as an opaque CORS error.
+  if (!(config.CORS_ALLOWED_ORIGINS ?? '').trim()) {
+    variables.push('CORS_ALLOWED_ORIGINS');
+    details.push(
+      'CORS_ALLOWED_ORIGINS is unset. In production this allow-list IS the\n' +
+        '    cross-origin policy, and an empty list denies every browser origin: the\n' +
+        '    deploy boots healthy and then 403s (as an opaque browser CORS failure) every\n' +
+        '    request from the web app. List the front-end origins, e.g.\n' +
+        '    https://app.seti.example — even a same-origin-only deploy must say so.'
     );
   }
 
