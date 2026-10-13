@@ -8,6 +8,82 @@ Pay a merchant by scanning their QR code. You keep a stablecoin balance, and the
 
 ---
 
+## Running it locally
+
+Two npm workspaces (`backend`, `web`) — there is **no mobile app**; v1 is the web app.
+You need **Node 20+** and a **Postgres** database.
+
+```bash
+npm install                       # installs both workspaces
+```
+
+**1. A database.** Any Postgres works. The example config points at port `5433`:
+
+```bash
+# adapt to your machine; this is the shape, not a verified drop-in for every setup
+docker run --name seti-postgres -e POSTGRES_USER=seti -e POSTGRES_PASSWORD=seti \
+  -e POSTGRES_DB=seti -p 5433:5432 -d postgres:16
+```
+
+**2. Environment.** Both examples list every variable with a comment on what it is for:
+
+```bash
+cp backend/.env.example backend/.env
+cp web/.env.example web/.env.local
+```
+
+The ones you must set yourself: `DATABASE_URL`, the Tempo token addresses
+(`TEMPO_TOKEN_PATHUSD`, `TEMPO_TOKEN_OUSD`), and `SETI_TREASURY_ADDRESS` — the address
+that receives the platform fee. For local development set `DEV_BYPASS_AUTH=true`, which
+lets you sign in without a Privy app id.
+
+**3. Migrations.**
+
+```bash
+cd backend && npx prisma migrate deploy
+```
+
+(`npm run db:migrate` also exists but opens Prisma's interactive flow; `deploy` just
+applies what is in `prisma/migrations`.)
+
+**4. Run both servers** — backend first, since the web app calls it:
+
+```bash
+npm run dev --workspace backend    # tsx watch; listens on PORT (4000 locally)
+npm run dev --workspace web        # next dev; http://localhost:3000
+```
+
+Point `NEXT_PUBLIC_API_URL` in `web/.env.local` at the backend.
+
+**5. Prove it works.** This is the gate we hold ourselves to — typecheck, lint, and
+twelve check suites, several of which read real receipts off Tempo testnet:
+
+```bash
+npm run verify
+```
+
+### What it runs on
+
+Tempo **testnet (Moderato, chain 42431)**. Nothing here defaults to mainnet:
+`ALLOW_MAINNET` is false and must be set deliberately. Payments are non-custodial — the
+customer's embedded wallet signs, the merchant's own address receives the principal, and
+Seti's 2% platform fee is collected in the **same atomic transaction**. There is no
+custody, no payout queue, and no relayer.
+
+### Signing in without a Privy app id
+
+`DEV_BYPASS_AUTH=true` exposes `POST /auth/dev`, which returns a dev token and a seeded
+user so you can walk the app without wallet infrastructure:
+
+```bash
+curl -X POST http://localhost:4000/auth/dev
+```
+
+With a real `NEXT_PUBLIC_PRIVY_APP_ID` set, normal sign-in creates or uses an embedded
+wallet — no seed phrase, and no wallet address for the customer to manage.
+
+---
+
 ## Why Nairobi?
 
 Nairobi is mobile-first, QR-ready, and underserved by calm, low-cost payment infrastructure. Merchants display QR codes; most consumers pay by phone. Seti connects that existing culture to stablecoin rails — so payments settle faster, cost less, and work across borders without changing how people move day-to-day.
