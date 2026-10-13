@@ -1,0 +1,91 @@
+# The same gate a developer runs locally: `npm run verify`.
+#
+# It runs on every push and every pull request. It needs NO repository secrets.
+# That is a property of the check suites, not an accident:
+#
+#   * The suites that reconcile against the chain read PINNED receipts BY HASH
+#     (PAYOUT_ANCHOR_TX / SEND_ANCHOR_TX / QUOTE_ANCHOR_TX), against a PUBLIC RPC
+#     endpoint (https://rpc.moderato.tempo.xyz by default). Read-only JSON-RPC,
+#     no key — the same access any browser has.
+#   * The suites that exercise signatures mint THROWAWAY keys at runtime with
+#     viem's `generatePrivateKey()`. No real key is read from the environment.
+#   * The database suites need a Postgres instance, not a credential: the
+#     `services` block below is a throwaway container with fixed local-only
+#     values, and every row those suites touch uses `check-*` keys.
+#   * `npm run check:env` spawns boot probes in a temp directory and needs
+#     nothing from the environment at all.
+#
+# The only external dependencies are therefore: npm, a throwaway Postgres, and
+# public internet access to the Tempo RPC. See docs/operations.md.
+name: verify
+
+on:
+  push:
+  pull_request:
+
+# A newer push to the same ref supersedes an in-flight run for it.
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: typecheck + lint + checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      # Throwaway Postgres for the database-backed suites. Mirrors the ports and
+      # values in backend/docker-compose.yml so local and CI behave the same.
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: seti
+          POSTGRES_PASSWORD: seti
+          POSTGRES_DB: seti
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U seti -d seti"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      NODE_ENV: development
+      # Local-only values for the throwaway service above. Not secrets.
+      DATABASE_URL: postgresql://seti:seti@127.0.0.1:5433/seti?schema=public
+      JWT_SECRET: ci-only-jwt-secret-not-a-real-secret
+      SETI_TREASURY_ADDRESS: "0x48cb25f9d82aF721e71437feAfb295da627BA475"
+      TEMPO_CHAIN_ID: "42431"
+      TEMPO_TOKEN_PATHUSD: "0x20c0000000000000000000000000000000000000"
+      TEMPO_TOKEN_OUSD: "0x20c0000000000000000000006a37da5c996874be"
+      # The gate runs in development mode, as it does locally. The production
+      # refusals are proven by `check:env`, which spawns its own processes with
+      # NODE_ENV=production rather than switching the mode of this job.
+      DEV_BYPASS_AUTH: "false"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install (npm workspace root)
+        run: npm ci
+
+      - name: Generate the Prisma client
+        run: npx prisma generate
+        working-directory: backend
+
+      # Hand-written SQL + `migrate deploy`, never `migrate dev`: the latter is
+      # interactive and would try to generate migrations in the pipeline. See
+      # docs/operations.md.
+      - name: Apply migrations to the throwaway database
+        run: npx prisma migrate deploy
+        working-directory: backend
+
+      - name: Run the gate
+        run: npm run verify

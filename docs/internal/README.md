@@ -5,6 +5,8 @@ is built and what is unresolved — not how to integrate with it.
 
 | Document | Read it for |
 | --- | --- |
+| [Operations](../operations.md) | How Seti is deployed: production boot refusals, managed Postgres and migrations, the indexer cursor as data, the honest state of error tracking, and the CI gate |
+| [The mainnet flip](./mainnet-flip.md) | The owner-run procedure to move to mainnet, in order, gated on a mainnet batch proof before any real money moves |
 | [Product requirements](./prd.md) | Scope, a per-area implementation status table, non-functional requirements, risks, resolved questions and what is still open |
 | [Fee routing](./fee-routing.md) | How the 2% merchant fee is meant to reach Seti's treasury: the options considered, the dead ends, and the current correction that batching is protocol-native |
 

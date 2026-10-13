@@ -48,7 +48,7 @@ cp .env.example .env
 | `PORT` / `HOST` | API bind address |
 | `NODE_ENV` | `development` enables debug logging and is one of the two gates on the dev auth bypass |
 | `PRIVY_APP_ID` / `PRIVY_APP_SECRET` | Privy server auth |
-| `DEV_BYPASS_AUTH` | `"true"` **with** `NODE_ENV=development` attaches a synthetic dev user; otherwise the route 404s |
+| `DEV_BYPASS_AUTH` | `"true"` **with** `NODE_ENV=development` attaches a synthetic dev user. In production `"true"` is a **boot refusal**, not an ignored flag |
 | `TEMPO_CHAIN_ID` | `4217` for mainnet, `42431` for testnet. Unset in production is a boot error |
 | `ALCHEMY_API_KEY` | Optional Alchemy API key for Tempo RPC |
 | `TEMPO_RPC_URL` | Optional custom RPC override; takes precedence over the Alchemy-derived endpoint |
@@ -56,10 +56,11 @@ cp .env.example .env
 | `SETI_TREASURY_ADDRESS` | **Required.** Validated as 20-byte hex at boot. Receives the merchant fee in `batch` mode |
 | `FEE_ROUTING_MODE` | `inside-transfer` (default — fee recorded but **not collected**) or `batch` (atomic two-leg) |
 | `MERCHANT_FEE_PERCENT` / `MERCHANT_FEE_MIN_KES` / `MERCHANT_FEE_MAX_PERCENT` | Fee schedule; ships as `2` / `0` / `0` — a flat 2% with no floor and no cap |
-| `INDEXER_BOOTSTRAP_LOOKBACK` | Blocks to scan when no cursor exists yet. **Keep at 0 on mainnet**, or pre-existing chain history is written as new `top_up` rows |
-| `ALLOW_MAINNET` | Must be `"true"` to use chain ID `4217` |
+| `INDEXER_BOOTSTRAP_LOOKBACK` | Blocks to scan when no cursor exists yet. **Keep at 0 on mainnet** — a non-zero value there is a boot refusal (it would write pre-existing history as new `top_up` rows) |
+| `ALLOW_MAINNET` | Must be `"true"` to use chain ID `4217`; stays opt-in |
+| `QUOTE_SIGNING_SECRET` | HMAC key for signed rate quotes. **Required in production** (≥16 chars, same value on every instance) — unset is a boot refusal. Unset in development is fine: a random per-process key, warned once |
 | `BRIDGE_API_KEY` / `STRIPE_SECRET_KEY` | Unused in v1 — no off-ramp call site exists |
-| `JWT_SECRET` | Internal signing secret |
+| `JWT_SECRET` | Internal signing secret. **Required in production** — the `change-me-in-production` placeholder is a boot refusal |
 
 ---
 

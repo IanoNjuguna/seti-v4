@@ -14,6 +14,15 @@ const envSchema = z.object({
   /**
    * Explicit development-only bypass for auth. Must be set to "true" to take
    * effect; it is ignored outside of development.
+   *
+   * Ignored is not enough. A production deploy that carried this must FAIL TO
+   * START rather than be ignored: the bypass attributes every request to one
+   * shared dev user, so a server that boots with it on serves the whole API to
+   * anyone who asks. The refusal lives in `assertBootable` below, and it has no
+   * override flag — an operator cannot bypass it by accident.
+   *
+   * The `development` gate in `middleware/auth.ts` is a second, independent
+   * barrier: it is what stops the bypass even if the config somehow loads.
    */
   DEV_BYPASS_AUTH: z.enum(['true', 'false']).default('false'),
   TEMPO_CHAIN_ID: z.string().optional(),
@@ -21,6 +30,22 @@ const envSchema = z.object({
   ALCHEMY_API_KEY: z.string().optional(),
   TEMPO_TOKEN_PATHUSD: z.string().min(1),
   TEMPO_TOKEN_OUSD: z.string().min(1),
+
+  /**
+   * The asset the money path spends by default — the ONE place the primary
+   * stablecoin is chosen.
+   *
+   * OUSD is Seti's decided money path; pathUSD remains supported (both are
+   * TIP-20 tokens with deployed bytecode on both Tempo chains) but is no longer
+   * what the app signs. This is read once, here, and re-exported as
+   * `PRIMARY_ASSET` from `config/networks.ts`; the route schemas, the balance
+   * lookup and `prove:batch` all consume that constant rather than repeating a
+   * literal. A second hardcode is how the asset stays wrong.
+   *
+   * The web app has its own mirror (`NEXT_PUBLIC_TEMPO_ASSET`, read once in
+   * `web/lib/chain`), which must agree with this value.
+   */
+  TEMPO_ASSET: z.enum(['ousd', 'pathusd']).default('ousd'),
 
   /**
    * Address that collects the platform fee.
@@ -115,6 +140,11 @@ const envSchema = z.object({
    * only if they hold the same key. When unset, the process mints a random key
    * and warns once — quotes stay unforgeable but do not survive a restart and are
    * not readable across instances, which is fine for a single local dev server.
+   *
+   * Production therefore REFUSES TO BOOT without it (see `assertBootable`): a
+   * random per-process key turns every frozen quote into a promise that dies on
+   * restart or fails across instances, so a payment fails mid-flight. The dev
+   * behaviour — random per process, one warning — is preserved.
    */
   QUOTE_SIGNING_SECRET: z.string().optional(),
 
@@ -176,4 +206,110 @@ const envSchema = z.object({
   ALLOW_MAINNET: z.enum(['true', 'false']).default('false'),
 });
 
-export const env = envSchema.parse(process.env);
+/**
+ * A production configuration that must never be served.
+ *
+ * Named and coded so a caller (or a log-grepping operator) can tell this class
+ * of failure apart from an ordinary parse error: an unparseable `.env` says "you
+ * left a field blank", this says "you are about to run a production server that
+ * is not safe to run".
+ */
+export class InsecureProductionConfigError extends Error {
+  readonly code = 'INSECURE_PRODUCTION_CONFIG';
+  /** The variables that made the configuration unsafe to boot. */
+  readonly variables: readonly string[];
+
+  constructor(variables: readonly string[], message: string) {
+    super(message);
+    this.name = 'InsecureProductionConfigError';
+    this.variables = variables;
+  }
+}
+
+/** The placeholder shipped in `.env.example` — a known value, so not a secret. */
+const EXAMPLE_JWT_SECRET = 'change-me-in-production';
+
+/**
+ * A quote key shorter than this is treated as unset. The point of the variable
+ * is that every instance shares one unpredictable key; a two-character value is
+ * effectively the random-per-process case with a guessable key on top.
+ */
+const MIN_QUOTE_SECRET_LENGTH = 16;
+
+type Env = z.infer<typeof envSchema>;
+
+/**
+ * Every reason a production configuration is unsafe to boot, gathered so one
+ * failure names all of them rather than making the operator restart per fix.
+ */
+function productionProblems(config: Env): { variables: string[]; details: string[] } {
+  const variables: string[] = [];
+  const details: string[] = [];
+
+  if (config.DEV_BYPASS_AUTH === 'true') {
+    variables.push('DEV_BYPASS_AUTH');
+    details.push(
+      'DEV_BYPASS_AUTH=true — the development auth bypass is enabled. It attributes\n' +
+        '    every request to a single shared dev user, so the API would answer anyone,\n' +
+        '    without a token, as that user. Set DEV_BYPASS_AUTH=false. This refusal has\n' +
+        '    no override: an insecure production deploy must fail loudly, not boot.'
+    );
+  }
+
+  const quoteSecret = config.QUOTE_SIGNING_SECRET ?? '';
+  if (quoteSecret.length < MIN_QUOTE_SECRET_LENGTH) {
+    const state =
+      quoteSecret.length === 0
+        ? 'is unset'
+        : `is shorter than ${MIN_QUOTE_SECRET_LENGTH} characters`;
+    variables.push('QUOTE_SIGNING_SECRET');
+    details.push(
+      `QUOTE_SIGNING_SECRET ${state}. Without one shared, persistent key each process\n` +
+        '    mints its own, so a frozen quote dies on restart and one instance cannot read\n' +
+        "    another instance's quote — a payment fails mid-flight. Set QUOTE_SIGNING_SECRET\n" +
+        '    to the same strong value on every backend instance.'
+    );
+  }
+
+  if (config.JWT_SECRET === EXAMPLE_JWT_SECRET) {
+    variables.push('JWT_SECRET');
+    details.push(
+      `JWT_SECRET is still the example placeholder "${EXAMPLE_JWT_SECRET}". That value is\n` +
+        '    public, so it is not a secret. Set JWT_SECRET to a real secret.'
+    );
+  }
+
+  return { variables, details };
+}
+
+/**
+ * Refuse to boot a production process on an insecure configuration.
+ *
+ * `env` is parsed at module load, so this runs the moment ANY module that reads
+ * config is imported — the server, the indexer, the auth middleware, the
+ * signed-token helper. There is deliberately no override flag: an operator must
+ * not be able to bypass it by accident, and a deploy must fail loudly rather
+ * than serve an auth bypass or a broken quote key.
+ *
+ * Development and test are untouched — the only branch that can throw is
+ * `NODE_ENV=production`.
+ */
+function assertBootable(config: Env): void {
+  if (config.NODE_ENV !== 'production') return;
+
+  const { variables, details } = productionProblems(config);
+  if (variables.length === 0) return;
+
+  throw new InsecureProductionConfigError(
+    variables,
+    '[INSECURE_PRODUCTION_CONFIG] Refusing to start: NODE_ENV=production with an\n' +
+      `insecure configuration. Offending variable(s): ${variables.join(', ')}.\n\n` +
+      details.map((detail) => `  - ${detail}`).join('\n\n') +
+      '\n\nFix the variable(s) above and start again. This check has no bypass.'
+  );
+}
+
+const parsedEnv = envSchema.parse(process.env);
+assertBootable(parsedEnv);
+
+export const env = parsedEnv;

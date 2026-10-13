@@ -32,6 +32,17 @@ export const SUPPORTED_ASSETS = ['pathusd', 'ousd'] as const;
 
 export type SupportedAsset = (typeof SUPPORTED_ASSETS)[number];
 
+/**
+ * The primary asset the app spends, from the ONE setting (`TEMPO_ASSET`).
+ *
+ * OUSD is the decided money path; `pathusd` remains supported for older rows and
+ * balances but is no longer what the app signs. Every backend default — the route
+ * schemas, the balance lookup, `prove:batch` — reads this constant rather than
+ * repeating a literal, so the asset is chosen in exactly one place. The web app
+ * mirrors it as `PRIMARY_ASSET` in `web/lib/chain`, from `NEXT_PUBLIC_TEMPO_ASSET`.
+ */
+export const PRIMARY_ASSET: SupportedAsset = env.TEMPO_ASSET;
+
 export interface NetworkConfig {
   name: NetworkName;
   chainId: number;
@@ -135,6 +146,22 @@ function resolveNetwork(): NetworkConfig {
     throw new Error(
       `Mainnet chain ID ${TEMPO_MAINNET_CHAIN_ID} detected but ALLOW_MAINNET is not set to "true". ` +
         'Set ALLOW_MAINNET=true explicitly after confirming you intend to operate on mainnet.'
+    );
+  }
+
+  // A non-zero bootstrap lookback on mainnet fabricates ledger rows.
+  //
+  // With no cursor the indexer treats the lookback window as new activity and
+  // writes pre-existing historical transfers to tracked addresses as `top_up`
+  // rows — ledger entries no payment produced. `config/env.ts` defaults it to 0
+  // (safe); this refuses the one combination that turns the setting into a
+  // defect, so the mistake fails at boot rather than by writing bad history.
+  if (selected.isMainnet && env.INDEXER_BOOTSTRAP_LOOKBACK > 0) {
+    throw new Error(
+      `INDEXER_BOOTSTRAP_LOOKBACK=${env.INDEXER_BOOTSTRAP_LOOKBACK} on mainnet (chain ` +
+        `${TEMPO_MAINNET_CHAIN_ID}) would write pre-existing chain history as new \`top_up\` ` +
+        'rows — ledger entries no payment produced. Keep it at 0 on mainnet and seed the ' +
+        'indexer cursor to the current chain head instead (see docs/operations.md).'
     );
   }
 
