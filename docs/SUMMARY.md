@@ -15,5 +15,7 @@
 ## Internal
 
 * [Internal documents](internal/README.md)
+* [Operations](operations.md)
 * [Product requirements](internal/prd.md)
 * [Fee routing](internal/fee-routing.md)
+* [The mainnet flip (owner-run)](internal/mainnet-flip.md)

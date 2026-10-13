@@ -27,6 +27,11 @@ const sidebars: SidebarsConfig = {
     'internal/README',
     'internal/prd',
     'internal/fee-routing',
+    // Operational docs — the deploy runbook and the owner-run mainnet flip.
+    // Kept out of the developer sidebar for the same reason the rest of this
+    // section is: they describe how the system is run, not how to integrate.
+    'operations',
+    'internal/mainnet-flip',
   ],
 };
 

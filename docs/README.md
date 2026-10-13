@@ -45,11 +45,13 @@ Two things make Seti's version of this worth reading rather than assuming:
 
 ## Not for integrators
 
-The product requirements and the fee-route design are engineering documents, kept
-in an internal section rather than mixed in here:
+The product requirements, the fee-route design, and the operations runbook are
+engineering documents, kept in an internal section rather than mixed in here:
 
 - [Product requirements](./internal/prd.md) — scope, implementation status, risks
 - [Fee routing](./internal/fee-routing.md) — how the 2% is meant to reach the treasury
+- [Operations](./operations.md) — deploy, migrations, the indexer cursor, and the CI gate
+- [The mainnet flip](./internal/mainnet-flip.md) — the owner-run procedure to move to mainnet
 
 The rest of the project's written surface lives in the repository:
 [`README.md`](https://github.com/IanoNjuguna/seti-v4/blob/main/README.md),

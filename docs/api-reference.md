@@ -5,8 +5,10 @@ sidebar_position: 4
 # API reference
 
 **Unversioned.** There is no `/v1` prefix; paths below are the ones that exist.
-Everything except `/health` and `/auth/*` requires a bearer token — see
-[Authentication](./authentication.md).
+Everything requires a bearer token — see [Authentication](./authentication.md) —
+except the routes that exist to be opened signed out: `/health`, `/auth/*`,
+`GET /receipts/:id`, and `GET /public/merchants/:handle`. Each of those is marked
+**unauthenticated on purpose** in its own section below.
 
 Base URL in local development: `http://localhost:4000`.
 
@@ -55,27 +57,211 @@ Development-only bypass. Returns `{ user, token: "dev-bypass-token" }`. Returns
 
 Deprecated; kept for local seeding. `409` if the email exists.
 
-## Merchants
+## Account
 
-### `GET /merchants/resolve?qr=<payload>`
+### `GET /account`
 
-Resolves a Seti merchant QR payload. Accepted forms:
+The caller's own handles and mode. No id in the path, so it always answers about
+the BEARER TOKEN's account and can never be pointed at someone else's.
 
-- `seti://pay?merchantId=<id>&amount=<kes>`
-- `merchant:<id>`
-- a bare merchant id matching `/^[a-zA-Z0-9_-]{3,64}$/`
-
-Anything else → `400 Unrecognized QR format`. Not found → `404`.
+`onboarded` is **derived on every read** from whether the account holds a handle —
+there is no `onboardedAt` column, so it cannot drift from the rows it summarises.
+It is what `/app`'s client gate routes on: an account where it is `false` cannot
+reach an app surface, by tab bar or by direct URL.
 
 ```json
 {
-  "merchant": { "id": "merchant_java_house", "name": "Java House", "category": "Dining", "payoutAddress": "0x…" },
+  "intent": "personal",
+  "handles": [
+    {
+      "id": "handle_…",
+      "handle": "ianllc",
+      "kind": "business",
+      "name": "Ianllc",
+      "address": "0xE2eF…5e28",
+      "category": null,
+      "verified": true,
+      "purpose": "merchant-name",
+      "merchantId": "cm…",
+      "claimedAt": "2026-10-13T12:42:26.440Z"
+    }
+  ],
+  "onboarded": true
+}
+```
+
+`intent` is `personal` or `business` — the mode the account acts as, which is a
+PREFERENCE and never a gate. `kind` on each handle is `person` or `business` — what
+that name was claimed as, which decides the `purpose` its signature carries. An
+account may hold both a person handle and a business handle at once: the intent
+decides which one it presents, and switching it is how "try it personal, add a
+business later" stays reversible.
+
+### `POST /account/intent`
+
+Record the mode the account is acting as. Body `{ "intent": "personal" | "business" }`;
+answers with the same shape as `GET /account`. `400 { code: "invalid-intent" }` for
+anything else.
+
+No handle is required for the chosen mode, and none is affected: choosing `business`
+before a business name exists is the normal order, and the claim that follows is what
+creates the name. That is deliberate — refusing the switch until the name existed
+would make the mode a one-way door.
+
+## Merchants
+
+**A name proves control of an address, never identity.** A claim is an EIP-712
+signature by the key that controls the address, stored so anyone can re-verify the
+binding later. `verified` is recomputed from that signature on every read, never
+stored as a flag. Whether the business is really who it says it is — that this Java
+House is *the* Java House — is the owner's job, checked in person or by KYB, out of
+band. This API only ever answers: does this signature, over this name and this
+address, come from the key that controls the address?
+
+### `GET /merchants/resolve?qr=<payload>`
+
+Resolves a Seti merchant payload. Accepted forms:
+
+- `seti://pay?merchantId=<id>&amount=<kes>` — `amount` optional, returned as `suggestedAmount`
+- `seti://merchant?name=<name>` — a claimed business name, which a URL path cannot carry
+- `merchant:<id>`
+- a bare token matching `/^[a-zA-Z0-9._-]{3,64}$/` — a platform merchant id **or a
+  stored handle** (`.` is part of the shape, so `co.op` reaches the handle lookup)
+- a bare claimed **name** (the name lookup runs last)
+
+Looked up in that order: by id (`findUnique`), then by handle (`findUnique` on the
+lowercased, unique, indexed `handle` column — **not** a reverse-derivation from names),
+then by name (case-insensitive `findFirst`). Anything else → `400 Unrecognized QR
+format`. Not found → `404 Merchant not found`.
+
+```json
+{
+  "merchant": {
+    "id": "merchant_java_house",
+    "name": "Java House",
+    "handle": "javahouse",
+    "category": "Dining",
+    "payoutAddress": "0x…",
+    "verified": true,
+    "claimedAt": "2026-10-12T09:14:03.000Z"
+  },
   "suggestedAmount": "250"
 }
 ```
 
+`handle` is the `m/<handle>` of the link a customer scanned. `verified` is
+**recomputed from the stored signature on every read** — a name whose signature no
+longer recovers to its address comes back `verified: false`, so a tampered row can only
+ever read as unverified, never as a verified name pointing somewhere new.
+
 **It does not read other QR standards.** If you are integrating, assume the
 merchant displays a Seti-issued code — or generate the payload yourself.
+
+### `GET /merchants/handle?name=<name>`
+
+The claim form's live preview, **before** the merchant signs: the handle a name would
+get, and whether that link is free. Behind the same auth as the claim — a signed-in
+merchant checking a name it is about to sign for, not anonymous enumeration.
+
+```json
+{ "status": { "name": "Java House", "handle": "javahouse", "problem": null, "takenBy": null } }
+```
+
+- `name` — the name as the rule would store it
+- `handle` — the link's handle, `seti.live/m/<handle>`
+- `problem` — a name- or handle-rule failure, or `null` when the name is usable
+- `takenBy` — the NAME of the merchant already holding the handle, or `null` when free
+
+It runs the claim path's own validation, so the preview can never call a link free that
+the claim would then refuse. Only the holder's name is surfaced — no more than a
+`handle-taken` refusal would already name.
+
+### `POST /merchants/claim`
+
+Claim a business name for an address. One-time per merchant, costs no gas, writes
+nothing on chain: it stores a signature so anyone can re-verify the binding later. The
+address always stays authoritative for the money path; the name is only a label beside
+it. Requires a bearer token — that is what ties the claim to a user whose wallet
+ownership can be checked.
+
+The client signs EIP-712 typed data:
+
+- **Domain** — `{ name: "Seti", version: "1", chainId: <Tempo chain id> }`. The chain
+  id is read from the live network config, so a testnet claim cannot be replayed on
+  mainnet.
+- **primaryType** — `MerchantNameClaim`
+- **Types** — `name: string`, `address: address`, `issuedAt: string`, `nonce: string`
+- **Message** — the same four fields: the claimed `name`; the `address` the name is
+  claimed **for** (must be the signer's own); the ISO 8601 `issuedAt` the signer chose
+  and the server stores verbatim; and a one-time `nonce` so two claims are never the
+  same signature.
+
+Request — that message plus the signature over it:
+
+```json
+{
+  "name": "Java House",
+  "address": "0x1F9840a85d5aF5bf1D1762F925BDADdC4201F984",
+  "issuedAt": "2026-10-12T09:12:00.000Z",
+  "nonce": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "signature": "0x…"
+}
+```
+
+The server reads the signature once and asks two questions of it: viem's
+`verifyTypedData` (does it verify *against the claimed address*?) and the recovered
+signer (whom do we check ownership against?). Both must agree, and the recovered
+address — never the address in the body — is what the wallet check uses.
+
+`201` on success:
+
+```json
+{ "merchant": { "id": "…", "name": "Java House", "handle": "javahouse", "category": null, "payoutAddress": "0x1F98…F984", "verified": true, "claimedAt": "2026-10-12T09:14:03.000Z" } }
+```
+
+Every refusal is a typed code the UI branches on, in the envelope
+`{ "error": "<message>", "code": "<code>" }`:
+
+| Code | Status | Meaning |
+| --- | --- | --- |
+| `invalid-merchant-name` | `400` | The name fails the name rule, or is valid but makes no link |
+| `invalid-address` | `400` | Not a 20-byte address, or a checksum no client can build a transfer from |
+| `invalid-issued-at` | `400` | `issuedAt` is not a parseable date |
+| `invalid-signature` | `400` | The signature could not be read at all |
+| `signature-mismatch` | `400` | Signed by a different key than the claimed address |
+| `address-not-owned` | `403` | The recovered address is not a wallet registered to your account |
+| `name-taken` | `409` | The name is already claimed (names are first-come) |
+| `handle-taken` | `409` | A different name already reduces to the same link |
+
+A missing or invalid token is `401` before any of that. The order is deliberate —
+cheap local validation, then the signature, then ownership, then the collision — so a
+bad name or a bad signature costs no query, and **a caller who does not control the
+address is refused before anything is looked up about who else holds the name**, so a
+failed claim cannot be used to probe which names exist. Ownership is checked through
+the existing wallet registry. The name-collision check matches the normalised name key
+**and** the raw name case-insensitively, so a row written before claims existed still
+blocks its own name. The two `409`s are decided by the unique indexes when two claims
+race: whichever index (`nameKey` or `handle`) rejects the row decides the code.
+
+### `GET /public/merchants/:handle`
+
+**Unauthenticated on purpose.** This is the route behind the public
+`seti.live/m/<handle>` page: a customer opens a merchant's link signed out, so the
+identity has to be readable before anyone has a session — requiring a token would make
+the page ask a stranger to sign in before it would say who they are about to pay.
+There is **no bearer token; none is expected and none is needed.**
+
+It exposes only what the link is for — the same merchant identity view:
+
+```json
+{ "merchant": { "id": "…", "name": "Java House", "handle": "javahouse", "category": "Dining", "payoutAddress": "0x…", "verified": true, "claimedAt": "2026-10-12T09:14:03.000Z" } }
+```
+
+`verified` is recomputed from the stored signature here too. Unknown handle → `404
+Merchant not found`. It is a lookup by the unique handle: **read-only** (nothing here is
+writable), and it reaches **nothing about any customer** — no email, no user id, no
+balance, no other rows. It lives in its own file with no auth hook at all, so this
+unauthenticated route cannot leak an authenticated neighbour by accident.
 
 ## Transactions
 
