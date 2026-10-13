@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
+import { authMiddleware } from '../middleware/auth.js';
 import { verifyPrivyToken, isPrivyConfigured } from '../services/auth.js';
 import { registerWallet, resolveWalletAddress } from '../services/wallet-registry.js';
 import { logAuditEvent } from '../services/audit.js';
@@ -88,6 +89,47 @@ export async function authRoutes(app: FastifyInstance) {
         declaredWallet: parsed.walletAddress ?? null,
       },
     });
+
+    return { user };
+  });
+
+  /**
+   * Who the bearer token belongs to, as the SERVER resolves it.
+   *
+   * A browser cannot be trusted to remember who it signed in as: the pair it
+   * keeps (`seti-auth-user` + `seti-auth-token`) can be stale, edited, or lifted
+   * from another account, and the app then shows one identity while calling the
+   * API as another. This route exists so the client never has to trust the pair:
+   * it presents the token and the server answers with the account the token
+   * actually resolves to.
+   *
+   * It runs the SAME `authMiddleware` every other route runs, deliberately — not
+   * a second token flow. That is what guarantees this endpoint cannot disagree
+   * with the rest of the API about who a token is, and it is why the dev bypass
+   * (`DEV_BYPASS_AUTH=true` + `NODE_ENV=development`) resolves here exactly as it
+   * does on `/transactions`. A token the middleware refuses is a 401 here, which
+   * is the signal the browser clears its stored session on.
+   *
+   * Registered with a route-level `preHandler` rather than a plugin-wide hook, so
+   * `/verify`, `/dev` and the deprecated `/register` stay public.
+   */
+  app.get('/me', { preHandler: authMiddleware }, async (request, reply) => {
+    const caller = request.user;
+    if (!caller) {
+      return reply.status(401).send({ error: 'Unauthorized' });
+    }
+
+    // The middleware answers with the identity only ({ id, email }); the full
+    // record is what the client shows, and it is read fresh so nothing the token
+    // does not own is ever returned.
+    const user = await prisma.user.findUnique({
+      where: { id: caller.id },
+      include: { wallets: true },
+    });
+
+    if (!user) {
+      return reply.status(401).send({ error: 'User not found' });
+    }
 
     return { user };
   });

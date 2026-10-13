@@ -1,4 +1,4 @@
-import { post } from '@/lib/api';
+import { get, post } from '@/lib/api';
 import type { AuthUser } from './auth.types';
 
 interface VerifyResponse {
@@ -28,6 +28,23 @@ export async function verifyPrivyToken(
   walletAddress?: string
 ): Promise<AuthUser> {
   const { user } = await post<VerifyResponse>('/auth/verify', { token, walletAddress });
+  return user;
+}
+
+/**
+ * Ask the server who the CURRENT bearer token belongs to.
+ *
+ * This is the re-resolution the web session runs on every load. The client holds
+ * a token and a user it remembers; only `GET /auth/me` can say whether those two
+ * still agree, because the server verifies the token through the same middleware
+ * every other route uses. Nothing about the remembered user is sent — the token
+ * alone is the claim, and the server's answer is the only identity the app adopts.
+ *
+ * It carries whatever token the API client currently holds (see
+ * `setAuthToken`/`setTokenProvider`), so the caller must install the token first.
+ */
+export async function fetchCurrentUser(): Promise<AuthUser> {
+  const { user } = await get<VerifyResponse>('/auth/me');
   return user;
 }
 

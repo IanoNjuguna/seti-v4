@@ -1,5 +1,5 @@
 export { SessionProvider, useSession } from './SessionProvider';
-export { verifyPrivyToken, devSignIn, privySignIn } from './session';
+export { verifyPrivyToken, devSignIn, privySignIn, fetchCurrentUser } from './session';
 export {
   AUTH_TOKEN_KEY,
   AUTH_USER_KEY,

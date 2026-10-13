@@ -13,8 +13,11 @@ sidebar_position: 2
 | OAuth / client credentials | **No** | Not implemented. |
 | Development bypass | Yes, locally only | `DEV_BYPASS_AUTH=true` **and** `NODE_ENV=development`. Returns a fixed dev user. |
 
-Every route except `/health` and `/auth/*` sits behind the same middleware, so
-there is exactly one way in: a token that the backend can verify with Privy.
+Every route except `/health` and the public `/auth/*` entry points (`/auth/verify`,
+`/auth/dev`, `/auth/register`) sits behind the same middleware, so there is exactly
+one way in: a token that the backend can verify with Privy. `/auth/me` is an
+`/auth/*` route that sits *behind* that middleware rather than in front of it — see
+below.
 
 ## Using a bearer token
 
@@ -57,6 +60,30 @@ curl -s -X POST http://localhost:4000/auth/verify \
 If Privy did not supply a wallet, the backend creates one and returns `502` if it
 cannot — it does not proceed with a user who has no address to be paid to or
 paid from.
+
+## `/auth/me`
+
+Who the caller's bearer token belongs to, as the server resolves it:
+
+```bash
+curl -s -H "Authorization: Bearer <token>" http://localhost:4000/auth/me
+# { "user": { "id": "...", "email": "...", "wallets": [ ... ] } }
+```
+
+It runs the **same** middleware as every other protected route
+(`backend/src/middleware/auth.ts`), registered as a route-level `preHandler` so the
+public `/auth/*` routes stay public. Reusing the one token flow is the point: this
+endpoint cannot disagree with the rest of the API about who a token is, and the dev
+bypass resolves here exactly as it does on `/transactions`. A token the middleware
+refuses is a `401`.
+
+This exists for the web app. The browser persists a token **and** the user it signed
+in as (`seti-auth-token` / `seti-auth-user`); the user half is a cache, never an
+identity claim. On every load the web session presents the stored token here and
+adopts only what the server answers — a token the server refuses, or an answer that
+names a different account than the stored user claimed, clears the stored pair and
+leaves the app signed out, so a stale or hand-edited snapshot can never leave a
+cached identity visible. See `web/lib/auth/session-bootstrap.ts`.
 
 ## What a real integration would need
 
