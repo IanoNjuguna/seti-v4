@@ -19,3 +19,8 @@
 * [Product requirements](internal/prd.md)
 * [Fee routing](internal/fee-routing.md)
 * [The mainnet flip (owner-run)](internal/mainnet-flip.md)
+
+## Policy
+
+* [Verification](verification.md)
+* [Brand policy](brand-policy.md)

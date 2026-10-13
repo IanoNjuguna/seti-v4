@@ -32,6 +32,10 @@ const sidebars: SidebarsConfig = {
     // section is: they describe how the system is run, not how to integrate.
     'operations',
     'internal/mainnet-flip',
+    // Policy docs — what a name on Seti means, written to be shown to a
+    // merchant, a partner or a brand. Not integration material either.
+    'verification',
+    'brand-policy',
   ],
 };
 

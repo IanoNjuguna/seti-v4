@@ -43,6 +43,20 @@ Two things make Seti's version of this worth reading rather than assuming:
 | [API reference](./api-reference.md) | Every route that exists |
 | [MCP server](./mcp.md) | Drive Seti from an AI agent |
 
+## Trust and brand policy
+
+Two plain-language documents about what a name on Seti means. They are written to
+be shown to a merchant, a partner or a brand, not read as integration guides:
+
+| Page | For |
+| --- | --- |
+| [Verification](./verification.md) | What the identity mark checks, who performs it, what it promises and does not, and what happens when it fails |
+| [Brand policy](./brand-policy.md) | Reserved words, held brands and parked claims, and how a real brand owner reclaims a name |
+
+Both carry the same starting point: **a claimed name proves control of an address,
+never identity**, and because settlement is non-custodial neither document implies
+an escrow or a guarantee of the merchant.
+
 ## Not for integrators
 
 The product requirements, the fee-route design, and the operations runbook are
