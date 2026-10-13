@@ -8,34 +8,46 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  phone     String?  @unique
-  firstName String?
-  lastName  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String     @id @default(cuid())
+  email         String     @unique
+  phone         String?    @unique
+  firstName     String?
+  lastName      String?
+  kycStatus     KycStatus  @default(none)
+  kycTier       KycTier    @default(tier_0)
+  dailyVolume   Decimal    @default(0) @db.Decimal(24, 8)
+  monthlyVolume Decimal    @default(0) @db.Decimal(24, 8)
+  /// The customer's money is denominated in this. ISO 4217. KES in v1; the
+  /// backend refuses to price in a currency the app no longer enables, so a
+  /// stored code outliving its configuration cannot produce unexplained figures.
+  fiatCurrency  String     @default("KES")
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 
   wallets      Wallet[]
   transactions Transaction[]
+  auditLogs    AuditLog[]
 
   @@map("users")
 }
 
 model Wallet {
-  id           String        @id @default(cuid())
-  userId       String
-  chain        String // "tempo"
-  asset        String // "ousd", "usdc.e", etc.
-  address      String        @unique
-  encryptedKey String? // ref to KMS/HSM; never the raw key
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id        String       @id @default(cuid())
+  userId    String
+  chain     String // "tempo"
+  asset     String // "ousd", "usdc.e", etc.
+  address   String
+  status    WalletStatus @default(active)
+  keyId     String? // opaque reference to KMS/HSM key; never the raw key
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 
   user         User          @relation(fields: [userId], references: [id])
   transactions Transaction[]
 
-  @@unique([userId, asset])
+  @@unique([userId, asset, status])
+  @@unique([address])
+  @@index([userId, status])
   @@map("wallets")
 }
 
@@ -47,8 +59,54 @@ model Merchant {
   bankName      String?
   bankCurrency  String? // "KES"
   payoutAddress String? // on-chain settlement address
+  bridgeRecipientId String? // Bridge recipient ID for fiat payout
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  /// Normalised name (`lower(trim(name))`), the first-come key for a claim.
+  ///
+  /// Unique so two merchants cannot hold the same name — resolution by name must
+  /// be unambiguous, or a name could point at two addresses. Nullable because a
+  /// merchant row may predate claims; a null key participates in no uniqueness
+  /// (Postgres treats NULLs as distinct), and the by-name claim guard still sees
+  /// such a row.
+  nameKey            String?  @unique
+
+  /// The public handle — the `m/<handle>` in the link a customer is handed.
+  ///
+  /// STORED and UNIQUE so `seti.live/m/<handle>` can never be ambiguous. The
+  /// handle is not unique by construction: `merchantHandle` DROPS every character
+  /// outside `[a-z0-9._-]`, so `Mama's Kitchen & Grill` and `Mamas Kitchen Grill`
+  /// are two distinct NAMES (the `nameKey` keeps the space, the apostrophe and
+  /// the ampersand) that both reduce to `mamaskitchengrill`. Storing the handle
+  /// and refusing the second claim at claim time is what makes the link's target
+  /// a fact of the row rather than a coin toss at payment time.
+  ///
+  /// Computed in exactly one place, `lib/merchant-name.ts` → `merchantHandle`,
+  /// which the web mirrors in `lib/merchant-link.ts`. Nullable for the same
+  /// reason `nameKey` is: a row that predates claims, or a test fixture, may have
+  /// none — a null participates in no uniqueness, and such a row is simply not
+  /// reachable by handle. Every merchant created by a claim gets one.
+  handle             String?  @unique
+
+  /// The EIP-712 signature over (name, payoutAddress, issuedAt, nonce).
+  ///
+  /// Stored verbatim — this is the whole point of the feature: the binding is
+  /// re-verifiable by anyone holding the row, not a boolean we ask you to trust.
+  /// A tampered row recovers to a different address and reads as unverified.
+  claimSignature     String?
+  /// The `issuedAt` EXACTLY as it appeared in the signed message. Kept as the
+  /// raw string, not a DateTime: re-deriving an ISO string from a timestamp can
+  /// differ by precision or offset, and then a genuine signature would fail to
+  /// re-verify. The message is the authority.
+  claimIssuedAt      String?
+  claimNonce         String?
+  /// When the backend accepted the claim. Distinct from `claimIssuedAt`, which
+  /// the signer chose.
+  claimedAt          DateTime?
+  /// The account that submitted the claim. Informational, not a trust anchor:
+  /// what makes a claim true is the signature, never who posted it.
+  claimedByUserId    String?
 
   transactions Transaction[]
 
@@ -65,14 +123,37 @@ model Transaction {
   asset         String // "ousd"
   fiatAmount    Decimal?          @db.Decimal(24, 8)
   fiatCurrency  String? // "KES"
+  // Merchant fee charged on this payment, in fiatCurrency. Null for
+  // consumer-paid types where no merchant fee applies (p2p, top-up).
+  feeAmount     Decimal?          @db.Decimal(24, 8)
+  // Fee before the max-percent cap was applied. Kept so a capped fee can be
+  // reconciled against the published schedule after the fact.
+  feeUncappedAmount Decimal?       @db.Decimal(24, 8)
+  // True when feeAmount was limited by MERCHANT_FEE_MAX_PERCENT rather than
+  // by the published schedule.
+  feeCapped     Boolean           @default(false)
+  // What the merchant actually receives: fiatAmount - feeAmount. Stored rather
+  // than recomputed from a rate that may since have moved.
+  //
+  // Future-shape, not a payout path: no off-ramp exists in v1 (prd.md §7). The
+  // bank/bridge columns on Merchant and the `offramp.*` audit actions are the
+  // same category — documented intent, zero call sites.
+  merchantNetAmount Decimal?      @db.Decimal(24, 8)
+  // FX rate used to derive the fiat figures, and where it came from. Stored so
+  // a historical row can always be explained.
+  fxRate        Decimal?          @db.Decimal(24, 8)
+  fxRateSource  String? // "open.er-api.com", "fallback", etc.
+  fxRateAsOf    DateTime?
   merchantId    String?
   counterparty  String? // wallet address, phone, or merchant id
+  txHash        String? // on-chain transaction hash — unique PER USER, see below
+  blockNumber   BigInt?
   description   String?
-  metadata      Json? // qr payload, bridge/stripe refs, on-chain tx hash
+  metadata      Json? // qr payload, bridge/stripe refs
   settledAt     DateTime?
   failedAt      DateTime?
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   user     User      @relation(fields: [userId], references: [id])
   wallet   Wallet    @relation(fields: [walletId], references: [id])
@@ -80,7 +161,37 @@ model Transaction {
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
+  // One row per user per on-chain transfer.
+  //
+  // `txHash` alone used to be unique, which meant one transfer could only ever have
+  // ONE ledger row — written by whoever recorded it first, always the sender. A
+  // transfer between two Seti accounts is one transaction and two movements of
+  // money, and the recipient's side had nowhere to go. Scoping the uniqueness to
+  // the user lets both sides exist while still refusing to record the same transfer
+  // twice for one account.
+  @@unique([txHash, userId])
   @@map("transactions")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  ip        String?
+  /// On-chain transaction hash this event concerns, when there is one.
+  ///
+  /// Promoted out of `metadata` into a real column: support is handed a hash
+  /// and needs every event about it, and the same hash is the only handle that
+  /// exists for a payment that was refused before any row was written.
+  txHash    String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([txHash])
+  @@map("audit_logs")
 }
 
 enum TransactionType {
@@ -98,4 +209,44 @@ enum TransactionStatus {
   completed
   failed
   reversed
+}
+
+enum WalletStatus {
+  active
+  frozen
+  deprecated
+}
+
+enum KycStatus {
+  none
+  pending
+  verified
+  rejected
+}
+
+enum KycTier {
+  tier_0
+  tier_1
+  tier_2
+}
+
+/// Durable indexer progress, one row per chain.
+///
+/// The cursor lives in Postgres rather than process memory so that a restart
+/// resumes where it left off instead of re-scanning, and so that two backend
+/// replicas cannot both advance the same cursor independently.
+model IndexerCursor {
+  /// Chain name, e.g. "tempo-testnet". Part of the primary key: switching
+  /// networks gets its own cursor rather than inheriting an incompatible one.
+  chain      String   @id
+  /// Highest block whose logs have been fully processed.
+  lastBlock  BigInt   @default(0)
+  /// Identifies the replica currently scanning. Empty when idle.
+  lockedBy   String?
+  /// When lockedBy last acquired the lock. Used to reclaim a lock abandoned
+  /// by a crashed replica.
+  lockedAt   DateTime?
+  updatedAt  DateTime @updatedAt
+
+  @@map("indexer_cursors")
 }
