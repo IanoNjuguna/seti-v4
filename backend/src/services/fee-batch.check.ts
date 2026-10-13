@@ -16,8 +16,28 @@ import { decodeEventLog, erc20Abi, parseAbiItem } from 'viem';
 import { recordPayment } from './transactions.js';
 import { getFxQuote } from './payments.js';
 import { issueQuote } from './quote.js';
-import { formatUnits, getTokenContract, publicClient } from './chain.js';
+import { formatUnits, getTokenContract, network, publicClient } from './chain.js';
 import { env } from '../config/env.js';
+
+/**
+ * A plain OUSD transfer the suite anchors its missing-fee-leg guard on, read BY
+ * HASH.
+ *
+ * A real receipt that moves OUSD to a recipient with NO treasury leg: the
+ * "merchant paid, fee vanished" shape the guard exists to catch. A testnet
+ * faucet mint (1,000,000 OUSD, block 39403103) is exactly that shape, and it is
+ * immutable, so reading it by hash makes the suite's verdict depend on the code
+ * rather than on what happens to be on chain.
+ *
+ * Pinned rather than live-scanned because a live scan can land on a BATCH
+ * receipt (`prove:batch` writes one), whose fee leg IS present — which would make
+ * the missing-fee-leg assertion fail for a reason unrelated to the guard. Set
+ * `FEE_BATCH_ANCHOR_TX=search` to scan live instead.
+ */
+const DEFAULT_ANCHOR_TX = '0x7905fed85490a647223be13ad48a07cadd8870bd47960d458e9a0dbbd313f6bd';
+
+/** Selects the live window scan instead of the pinned receipt. */
+const LIVE_SEARCH = 'search';
 
 let failures = 0;
 function check(label: string, passed: boolean, detail = ''): void {
@@ -186,7 +206,7 @@ async function main() {
     asOf: quote.asOf,
   });
 
-  // Anchor on a REAL receipt that moves OUSD to a real address.
+  // Anchor on a KNOWN plain OUSD transfer, read BY HASH.
   //
   // A fabricated hash would make every refusal pass for the wrong reason:
   // "no receipt" satisfies a fail-closed assertion trivially, so the
@@ -194,17 +214,38 @@ async function main() {
   // batch guard would appear to work while being untested. Pointing the merchant
   // at the genuine recipient means the merchant leg genuinely resolves and the
   // rejection can only come from the missing treasury leg.
-  const realTx = await findRecentOusdTransfer();
+  //
+  // The anchor is PINNED by hash rather than discovered by a live scan, because a
+  // live scan can land on a BATCH receipt whose fee leg is present — which would
+  // fail the guard for the wrong reason. A pinned receipt is immutable, so its
+  // verdict depends only on the code. `FEE_BATCH_ANCHOR_TX=search` restores the
+  // live scan (opt-in); a pinned receipt that cannot be read FAILS LOUDLY.
+  const anchorTx = (process.env.FEE_BATCH_ANCHOR_TX ?? '').trim() || DEFAULT_ANCHOR_TX;
+
+  const live = anchorTx === LIVE_SEARCH;
+  const realTx = live ? await findRecentOusdTransfer() : anchorTx;
   const realTransfer = realTx ? await describeTransfer(realTx) : null;
 
-  if (!realTx || !realTransfer) {
-    console.log('skip  no recent OUSD transfer found; cannot anchor the batch guard.');
-    await teardown();
+  if (!realTransfer || !realTx) {
+    if (live) {
+      console.log('skip  no recent OUSD transfer found; cannot anchor the batch guard.');
+      await teardown();
+      await prisma.$disconnect();
+      process.exit(0);
+    }
+    console.error(
+      `\nPinned fee-batch anchor ${anchorTx} could not be read on ${network.displayName} ` +
+        `(chain ${network.chainId}), or carries no OUSD transfer.\n` +
+        'This suite anchors its missing-fee-leg guard on a plain OUSD transfer, so it\n' +
+        'cannot run without one. Set FEE_BATCH_ANCHOR_TX to a plain OUSD receipt, or to\n' +
+        `\`${LIVE_SEARCH}\` to scan the chain live.`
+    );
+    await teardownSafely();
     await prisma.$disconnect();
-    process.exit(0);
+    process.exit(1);
   }
 
-  console.log(`anchoring on real OUSD transfer: ${realTx}`);
+  console.log(`anchoring on OUSD transfer: ${realTx}`);
   console.log(`  recipient ${realTransfer.to}, moved ${realTransfer.value} OUSD\n`);
 
   const anchoredMerchant = await prisma.merchant.create({
@@ -302,9 +343,9 @@ async function main() {
 
   console.log(`\n${failures === 0 ? 'All checks passed.' : `${failures} CHECK(S) FAILED.`}`);
   console.log(
-    '\nnote  the success path (both legs in one real receipt) is not covered here —\n' +
-      'no batched transaction has been signed on Tempo yet. Prove it on Moderato\n' +
-      'before switching FEE_ROUTING_MODE to batch.'
+    '\nnote  the SUCCESS path (both legs in one real receipt) is covered by\n' +
+      'check:send against a real batched receipt; this suite covers only the\n' +
+      'missing-leg refusals on the same path.'
   );
   process.exit(failures === 0 ? 0 : 1);
 }

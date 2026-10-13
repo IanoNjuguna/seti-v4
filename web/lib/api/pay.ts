@@ -1,23 +1,19 @@
-import { get, post } from './client';
+import { post } from './client';
 import type {
   PaymentPreview,
   RecordPaymentInput,
   RecordPaymentResult,
-  ResolvedMerchant,
 } from './pay.types';
 
 /**
- * Mirrors `mobile/src/lib/api/pay.ts` — same three endpoints, same shapes.
+ * Mirrors `mobile/src/lib/api/pay.ts` — same endpoints, same shapes.
  *
- * Note what is NOT here: QR parsing. The payload goes to the server verbatim and
- * `backend/src/services/merchants.ts` decides whether it is a `seti://pay` URI, a
- * `merchant:<id>` string or a bare id. Parsing it here would be a second
- * implementation of a rule the backend already owns, and the two would drift.
+ * Note what is NOT here: resolving a merchant. A handle is resolved through the
+ * ONE resolver (`resolveHandle`, `lib/api/handles.ts`), which accepts a
+ * `seti://pay` URI, a `merchant:<id>` string, a handle or a name verbatim and
+ * lets `backend/src/services/handles.ts` decide what it is. Parsing it here would
+ * be a second implementation of a rule the backend already owns.
  */
-export async function resolveMerchant(qrPayload: string): Promise<ResolvedMerchant> {
-  const encoded = encodeURIComponent(qrPayload);
-  return get<ResolvedMerchant>(`/merchants/resolve?qr=${encoded}`);
-}
 
 export async function previewPayment(input: {
   userId: string;

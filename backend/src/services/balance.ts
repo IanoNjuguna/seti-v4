@@ -1,5 +1,5 @@
 import { prisma } from '../lib/prisma.js';
-import { getOnChainBalance, SUPPORTED_ASSETS, type SupportedAsset } from './chain.js';
+import { getOnChainBalance, SUPPORTED_ASSETS, PRIMARY_ASSET, type SupportedAsset } from './chain.js';
 import { isValidEvmAddress } from '../lib/address.js';
 import type { Hex } from 'viem';
 
@@ -11,7 +11,7 @@ export interface BalanceResult {
 
 export async function getUserBalance(
   userId: string,
-  asset: SupportedAsset = 'ousd'
+  asset: SupportedAsset = PRIMARY_ASSET
 ): Promise<BalanceResult> {
   // A wallet row is an ADDRESS, and an address holds every token — so the asset
   // must not filter which row we find. Filtering by it meant a user whose wallet

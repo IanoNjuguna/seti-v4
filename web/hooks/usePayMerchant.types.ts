@@ -1,4 +1,4 @@
-import type { Merchant, PaymentPreview } from '@/lib/api';
+import type { HandleIdentity, PaymentPreview } from '@/lib/api';
 import type { PayErrorKind } from '@/lib/pay/classify-payment-error';
 
 /**
@@ -18,7 +18,12 @@ export type PayStep =
 
 export interface PayState {
   step: PayStep;
-  merchant: Merchant | null;
+  /**
+   * The resolved handle being paid. In this flow it is always a business — a
+   * merchant payment prices against the business profile (`merchantId`) — while
+   * a person's handle is paid through Send. Same ONE identity type either way.
+   */
+  merchant: HandleIdentity | null;
   amount: string;
   preview: PaymentPreview | null;
   txHash: string | null;

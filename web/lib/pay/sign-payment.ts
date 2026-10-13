@@ -1,5 +1,5 @@
 import type { Address, EIP1193Provider } from 'viem';
-import type { Merchant, PaymentPreview, SupportedAsset } from '@/lib/api';
+import type { HandleIdentity, PaymentPreview, SupportedAsset } from '@/lib/api';
 import { buildBatchTransfer, buildTempoTransaction, buildTransfer } from './build-transfer';
 import type { SendTempoTransaction } from './build-transfer.types';
 
@@ -43,7 +43,8 @@ export type SigningProvider = EIP1193Provider;
 
 export interface SignPaymentInput {
   preview: PaymentPreview;
-  merchant: Merchant;
+  /** The resolved business handle being paid — the address below is what is signed. */
+  merchant: HandleIdentity;
   asset: SupportedAsset;
   /** The single-transfer mechanism. Used in `inside-transfer` mode. */
   provider: SigningProvider;
@@ -85,11 +86,11 @@ export class BatchSignerUnavailableError extends Error {
 export async function signPayment(input: SignPaymentInput): Promise<SignPaymentResult> {
   const { preview, merchant, asset, provider, from } = input;
 
-  if (!merchant.payoutAddress) {
+  if (!merchant.address) {
     throw new Error('This merchant has no payout address, so there is nowhere to send.');
   }
 
-  const payoutAddress = merchant.payoutAddress as Address;
+  const payoutAddress = merchant.address as Address;
 
   if (preview.feeRoutingMode === 'batch') {
     const sendTempoTransaction = input.sendTempoTransaction;

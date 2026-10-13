@@ -10,18 +10,6 @@
 /** v1 supports exactly these two; see `references/tempo-chain-and-wallets.md`. */
 export type SupportedAsset = 'ousd' | 'pathusd';
 
-export interface Merchant {
-  id: string;
-  name: string;
-  category: string | null;
-  payoutAddress: string | null;
-}
-
-export interface ResolvedMerchant {
-  merchant: Merchant;
-  suggestedAmount: string | null;
-}
-
 export interface PaymentPreview {
   /** The principal in the asset's own units — what gets signed. */
   amount: string;

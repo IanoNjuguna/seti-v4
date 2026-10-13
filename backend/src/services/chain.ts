@@ -1,8 +1,8 @@
 import { createPublicClient, http, erc20Abi, formatUnits, type Hex } from 'viem';
-import { network, SUPPORTED_ASSETS } from '../config/networks.js';
+import { network, SUPPORTED_ASSETS, PRIMARY_ASSET } from '../config/networks.js';
 import type { SupportedAsset } from '../config/networks.js';
 
-export { network, SUPPORTED_ASSETS };
+export { network, SUPPORTED_ASSETS, PRIMARY_ASSET };
 export { formatUnits };
 export type { SupportedAsset };
 
@@ -43,7 +43,7 @@ export const assetDecimals: Record<SupportedAsset, number> = Object.fromEntries(
 
 export async function getOnChainBalance(
   address: Hex,
-  asset: SupportedAsset = 'ousd'
+  asset: SupportedAsset = PRIMARY_ASSET
 ): Promise<string> {
   const contract = assetToContract[asset];
   const rawBalance = await publicClient.readContract({
@@ -115,7 +115,7 @@ export async function estimateErc20TransferGas(
   from: Hex,
   to: Hex,
   amount: bigint,
-  asset: SupportedAsset = 'ousd'
+  asset: SupportedAsset = PRIMARY_ASSET
 ): Promise<bigint> {
   const contract = assetToContract[asset];
   return publicClient.estimateContractGas({
@@ -128,27 +128,55 @@ export async function estimateErc20TransferGas(
 }
 
 /**
- * Gas used by a real two-call Tempo batch, measured from an on-chain receipt.
+ * Gas used by a real two-call Tempo batch, measured from an on-chain receipt,
+ * PER ASSET — because the fee token is what decides the cost.
  *
- * `npm run prove:batch` signs one and prints the hash; this number is that
- * transaction's `gasUsed` (298,172). It is a MEASUREMENT, not a model — the
- * point of quoting it here is that the customer-facing gas figure is a real cost
- * times a live price, rather than a fudge factor.
+ * A Tempo transaction pays its gas by converting the fee token through the Fee
+ * AMM (`0xfeec…0000`). When the fee token is the one the validators prefer — the
+ * `feeToken`-left-unset proof below — there is no conversion; when it is any
+ * other token the AMM route is taken and the batch costs materially more. Seti
+ * signs with `feeToken` set to the asset it is spending, so the number that
+ * matters is that asset's own measurement, not a single shared constant.
  *
- * It is also the pessimistic end: a batch whose fee token needs converting
- * through the Fee AMM (which is what Tempo does when the customer's token is not
- * the validator's preference) costs this much, while a plain transfer estimates
- * at ~38k gas. Quoting the expensive case is the right direction for a number
- * that decides whether a send can afford to happen.
+ *   pathusd  298,172 — `npm run prove:batch`, tx
+ *            0x913060ec28c168c38494bd5b725dea2778f93d34275c766447be2c45c68a9dcf
+ *            (block 39296367). The no-conversion case: the cheap end.
+ *   ousd     790,472 — the batched OUSD receipt
+ *            0x8e9c2ba14b14e046bdec1974eb119c4b7137a437ddd538d22038303c5b4aa78d
+ *            (block 39315983). The fee token routes through the Fee AMM, so it
+ *            costs ~2.6× the pathUSD proof — which is why the single constant
+ *            that used to live here under-quoted the moment the app signed OUSD.
  *
- * Re-measure it with `npm run prove:batch` if Tempo changes its pricing; the
- * calibration assertion in `send.check.ts` fails if the assumed
+ * Both are MEASUREMENTS of real receipts, not models. The OUSD figure is the
+ * pessimistic end of the observed range: a fresh OUSD batch re-measured at block
+ * 39401713 used 543,172, so 790,472 is the worst case seen, and quoting the
+ * expensive case is the right direction for a number that decides whether a send
+ * can afford to happen.
+ *
+ * Re-measure with `npm run prove:batch -- --asset=<asset>` if Tempo changes its
+ * pricing; the calibration assertion in `send.check.ts` fails if the assumed
  * 18-decimal-gas → 6-decimal-token conversion stops holding.
  */
-const MEASURED_BATCH_GAS = BigInt(298_172);
+const MEASURED_BATCH_GAS: Record<SupportedAsset, bigint> = {
+  pathusd: BigInt(298_172),
+  ousd: BigInt(790_472),
+};
 
 /** Gas rounding: wei (18dp) to the token's own units (6dp) for a $1 stablecoin. */
 const GAS_WEI_PER_TOKEN_UNIT = BigInt(10 ** 12);
+
+/**
+ * The gas price the BALANCE RESERVATION assumes, in wei.
+ *
+ * Deliberately far above the live price (~0.6 gwei on Moderato), so a spike on a
+ * busy block cannot leave a send short — the reservation is what keeps a payment
+ * from reverting at signing time. It is a PRICE assumption, not a second gas
+ * figure: the gas half of the reservation is the SAME `MEASURED_BATCH_GAS`
+ * measurement the displayed estimate reads, so the two move together when the
+ * measurement is re-taken. Picked so the OUSD reservation lands at ~0.0103 OUSD,
+ * just above the flat 0.01 floor it replaces.
+ */
+const RESERVE_GAS_PRICE_WEI = BigInt(13_000_000_000);
 
 export interface NetworkFeeEstimate {
   /** The fee in the asset's own units, as a decimal string. */
@@ -160,21 +188,38 @@ export interface NetworkFeeEstimate {
 /**
  * What a batch's gas costs right now, in the asset being sent.
  *
- * The live gas price times the measured gas of a real batch. Falls back to
- * `source: 'reserve'` when the RPC cannot answer: a payment preview must not fail
- * because a fee estimate did, and the caller already reserves a conservative
- * figure for the balance check.
+ * The live gas price times the measured gas of a real batch for THIS asset.
+ * Falls back to `reserveNetworkFee` when the RPC cannot answer: a payment preview
+ * must not fail because a fee estimate did.
  */
 export async function estimateNetworkFee(asset: SupportedAsset): Promise<NetworkFeeEstimate> {
   try {
     const gasPrice = await publicClient.getGasPrice();
-    const feeWei = MEASURED_BATCH_GAS * gasPrice;
+    const feeWei = MEASURED_BATCH_GAS[asset] * gasPrice;
 
     return {
       feeAsset: formatUnits(feeWei / GAS_WEI_PER_TOKEN_UNIT, assetDecimals[asset]),
       source: 'estimate',
     };
   } catch {
-    return { feeAsset: '0', source: 'reserve' };
+    return reserveNetworkFee(asset);
   }
+}
+
+/**
+ * The BALANCE RESERVATION for a batch's gas, in the asset's own units.
+ *
+ * The SAME measured batch gas as the estimate, priced at a conservative price
+ * rather than the live one — so it needs no RPC and holds on a busy block. This
+ * is the floor `hasEnoughBalance` is measured against, and deriving it from the
+ * measurement (rather than a flat literal) is what keeps the displayed estimate
+ * and the reservation from drifting apart.
+ */
+export function reserveNetworkFee(asset: SupportedAsset): NetworkFeeEstimate {
+  const feeWei = MEASURED_BATCH_GAS[asset] * RESERVE_GAS_PRICE_WEI;
+
+  return {
+    feeAsset: formatUnits(feeWei / GAS_WEI_PER_TOKEN_UNIT, assetDecimals[asset]),
+    source: 'reserve',
+  };
 }

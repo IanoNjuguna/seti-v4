@@ -13,8 +13,9 @@ import { previewPayment, previewSend, SendRequiresBatchError } from '../services
 import { toRecentTransaction } from '../services/transaction-view.js';
 import { buildReceipt } from '../services/receipt.js';
 import { mintReceiptLink } from '../services/receipt-link.js';
+import { PRIMARY_ASSET } from '../services/chain.js';
 
-const assetSchema = z.string().default('ousd');
+const assetSchema = z.string().default(PRIMARY_ASSET);
 
 const previewSchema = z.object({
   // KES, not stablecoin units — see PaymentPreviewInput in services/payments.ts.

@@ -73,8 +73,10 @@ async function refusalOf(
 
 /**
  * The default anchor: a real batched transaction on Moderato: ONE transaction, two
- * transfers — 0.5 pathUSD to a throwaway recipient, and the 2% fee (0.01 pathUSD)
- * to SETI_TREASURY_ADDRESS. Signed and paid for by `npm run prove:batch`.
+ * transfers — 0.5 OUSD to a throwaway recipient, and the 2% fee (0.01 OUSD) to
+ * SETI_TREASURY_ADDRESS. Signed and paid for by `npm run prove:batch` — the SAME
+ * asset the app signs, because the receipt this suite reconciles against must
+ * match what the client produces.
  *
  * Anchoring on it is what makes the happy path a statement about Tempo rather
  * than about this file: the receipt it points at was produced by a wallet, in
@@ -82,7 +84,7 @@ async function refusalOf(
  * SEND_ANCHOR_TX (see the file header) so a fresh receipt can be pinned without
  * editing code.
  */
-const DEFAULT_ANCHOR_TX = '0xfbbacc1e13943afd4627bdd848b945f4de706d5726679d9f16612693d9aa7c70';
+const DEFAULT_ANCHOR_TX = '0xe58f82dfd016ad6d1823dde4183d386bf0c62d59cf4de6706f45b9cab39186f0';
 
 const ANCHOR = {
   txHash: ((process.env.SEND_ANCHOR_TX ?? '').trim() || DEFAULT_ANCHOR_TX) as Hex,
@@ -91,20 +93,19 @@ const ANCHOR = {
    *
    * A recorded transfer is bound to the wallet that signed it, so the fixture
    * must DECLARE this address and own the wallet row holding it — `Wallet.address`
-   * is globally unique, so the signer's address has to be free. This anchor was
-   * chosen for exactly that reason: the sender of the previous one
-   * (`0x42A8…4155`, also a two-leg `prove:batch` receipt) is now registered to
-   * another account, which makes it unusable by any fixture. If a `prove:batch`
-   * run is ever made from a wallet that is already registered, pick a fresh
-   * receipt the same way — the suite fails loudly rather than quietly.
+   * is globally unique, so the signer's address has to be free. `npm run
+   * prove:batch` generates a throwaway key each run, so its sender is free by
+   * construction; if a run is ever made from a wallet that is already registered,
+   * pick a fresh receipt the same way — the suite fails loudly rather than
+   * quietly.
    *
    * Re-asserted below against `receipt.from`, so a stale value fails as a
    * precondition rather than as a confusing reconciliation failure.
    */
-  sender: '0xe71CD1DCE949838Ea4A5bd7Ac93F85c90257eBF4',
-  recipient: '0xCf0048e57F37df356de63864D1AF1bEA81639ac8',
+  sender: '0x57105d4e8c5fD5e868c2B60342580724Ba3fBb92',
+  recipient: '0x4111Cc6F2EaE3860e5A4CEF90A42C0572A19e127',
   principal: '0.5',
-  asset: 'pathusd',
+  asset: 'ousd',
 } as const;
 
 /** A valid address no user holds, for the self-send refusal. */
@@ -137,21 +138,21 @@ const transferEvent = parseAbiItem(
 );
 
 /**
- * Finds a recent pathUSD transfer that is NOT part of the anchor.
+ * Finds a recent OUSD transfer that is NOT part of the anchor.
  *
  * Used for the realistic "recipient got paid, treasury did not" case: a plain
  * transfer has a principal leg and no fee leg, which is exactly the shape the
  * guard has to catch. Walking in 10-block chunks because the provider caps the
  * range a single `getLogs` may cover.
  */
-async function findRecentPathUsdTransfer(): Promise<string | null> {
+async function findRecentOusdTransfer(): Promise<string | null> {
   const head = await publicClient.getBlockNumber();
   const CHUNK = 10n;
 
   for (let end = head; end > head - 20_000n; end -= CHUNK) {
     try {
       const logs = await publicClient.getLogs({
-        address: getTokenContract('pathusd'),
+        address: getTokenContract('ousd'),
         event: transferEvent,
         fromBlock: end - CHUNK + 1n > 0n ? end - CHUNK + 1n : 0n,
         toBlock: end,
@@ -172,7 +173,7 @@ async function describeTransfer(
   txHash: Hex
 ): Promise<{ to: string; value: string } | null> {
   const receipt = await publicClient.getTransactionReceipt({ hash: txHash });
-  const token = getTokenContract('pathusd').toLowerCase();
+  const token = getTokenContract('ousd').toLowerCase();
 
   for (const entry of receipt.logs) {
     if (entry.address.toLowerCase() !== token) continue;
@@ -240,7 +241,7 @@ async function readAnchorReceipt(hash: Hex): Promise<TransactionReceipt> {
         `(chain ${network.chainId}, ${network.rpcUrl})` +
         `${receipt ? ' — the transaction reverted' : ''}.\n` +
         'A recorded transfer is reconciled against this receipt, so without it the\n' +
-        'suite cannot verify anything. Set SEND_ANCHOR_TX to a fresh batched pathUSD\n' +
+        'suite cannot verify anything. Set SEND_ANCHOR_TX to a fresh batched OUSD\n' +
         'receipt (npm run prove:batch), or fix the network/RPC.'
     );
     await teardownSafely();
@@ -248,14 +249,14 @@ async function readAnchorReceipt(hash: Hex): Promise<TransactionReceipt> {
     process.exit(1);
   }
 
-  const hasPathUsd = receipt.logs.some(
-    (entry) => entry.address.toLowerCase() === getTokenContract('pathusd').toLowerCase()
+  const hasAnchorAsset = receipt.logs.some(
+    (entry) => entry.address.toLowerCase() === getTokenContract(ANCHOR.asset).toLowerCase()
   );
-  if (!hasPathUsd) {
+  if (!hasAnchorAsset) {
     console.error(
-      `\nPinned send anchor ${hash} on ${network.displayName} carries no pathUSD transfer.\n` +
-        'This suite reconciles a pathUSD send against it, so it is the wrong receipt.\n' +
-        'Set SEND_ANCHOR_TX to a batched pathUSD receipt (npm run prove:batch).'
+      `\nPinned send anchor ${hash} on ${network.displayName} carries no ${ANCHOR.asset} transfer.\n` +
+        `This suite reconciles a ${ANCHOR.asset} send against it, so it is the wrong receipt.\n` +
+        'Set SEND_ANCHOR_TX to a batched OUSD receipt (npm run prove:batch).'
     );
     await teardownSafely();
     await prisma.$disconnect();
@@ -320,11 +321,13 @@ async function main(): Promise<void> {
   // EIP-55 validation first, so a placeholder string would be refused for the
   // wrong reason). Nothing signs with it.
   //
-  // Both labels are deliberately NOT the asset the suite sends (`pathusd`), as
-  // before: login registers every wallet as `ousd`, and a lookup that filtered on
-  // the asset therefore refused every real send — after the money had left the
-  // wallet — while a fixture labelled to match the transfer passed. Do not
-  // "tidy" the mismatch into agreement.
+  // The two wallets' asset labels are deliberately unreliable as filters: the
+  // account's ACTIVE wallet is labelled `ousd` (the asset the suite sends) while
+  // the row that actually SIGNED is labelled `pathusd` and is DEPRECATED. A
+  // lookup by (asset, status) therefore finds the wrong wallet — which is the bug
+  // the binding assertion below exists to catch. Do not "tidy" the labels into
+  // agreement: login labels every wallet with the primary asset, and the signer's
+  // row can carry any label.
   const otherWallet = await prisma.wallet.create({
     data: {
       userId: user.id,
@@ -400,7 +403,7 @@ async function main(): Promise<void> {
     await recordSend({
       userId: user.id,
       amount: '1',
-      asset: 'pathusd',
+      asset: 'ousd',
       recipient: '0xnot-an-address',
       txHash: `0x${'11'.repeat(32)}`,
       quoteId: sendQuoteId,
@@ -424,7 +427,7 @@ async function main(): Promise<void> {
     await recordSend({
       userId: user.id,
       amount: '1',
-      asset: 'pathusd',
+      asset: 'ousd',
       recipient: SELF_ADDRESS,
       txHash: `0x${'22'.repeat(32)}`,
       quoteId: sendQuoteId,
@@ -572,11 +575,11 @@ async function main(): Promise<void> {
   // --- "Recipient paid, treasury not" — the missing fee leg ----------------
   console.log('\nrecipient leg present, fee leg missing:');
 
-  const plainTx = await findRecentPathUsdTransfer();
+  const plainTx = await findRecentOusdTransfer();
   const plainTransfer = plainTx ? await describeTransfer(plainTx as Hex) : null;
 
   if (!plainTx || !plainTransfer) {
-    console.log('skip  no recent pathUSD transfer found; cannot exercise the fee-leg guard.');
+    console.log('skip  no recent OUSD transfer found; cannot exercise the fee-leg guard.');
   } else {
     console.log(`  anchoring on plain transfer: ${plainTx}`);
     console.log(`  recipient ${plainTransfer.to}, moved ${plainTransfer.value}\n`);
@@ -587,7 +590,7 @@ async function main(): Promise<void> {
       await recordSend({
         userId: user.id,
         amount: plainTransfer.value,
-        asset: 'pathusd',
+        asset: 'ousd',
         recipient: plainTransfer.to,
         txHash: plainTx,
         quoteId: sendQuoteId,
@@ -625,7 +628,7 @@ async function main(): Promise<void> {
       await recordSend({
         userId: user.id,
         amount: wrongAmount,
-        asset: 'pathusd',
+        asset: 'ousd',
         recipient: plainTransfer.to,
         txHash: plainTx,
         quoteId: sendQuoteId,
@@ -808,7 +811,7 @@ async function main(): Promise<void> {
         `computed ${computedUnits} vs chain charged ${feePayment}`
       );
 
-      const live = await estimateNetworkFee('pathusd');
+      const live = await estimateNetworkFee('ousd');
       const liveUnits = BigInt(Math.round(Number(live.feeAsset) * 1_000_000));
       check(
         'the live estimate is the same order of magnitude as a real batch fee',

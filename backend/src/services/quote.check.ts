@@ -39,15 +39,16 @@ function check(label: string, passed: boolean, detail = ''): void {
 
 /**
  * The default anchor: a real batched transaction on Moderato: ONE transaction,
- * two transfers — 0.5 pathUSD to a throwaway recipient, and the 2% fee (0.01
- * pathUSD) to SETI_TREASURY_ADDRESS. The same immutable anchor `send.check.ts`
- * reconciles against, reused here so the freeze is proven against a
- * wallet-produced receipt rather than a stub.
+ * two transfers — 0.5 OUSD to a throwaway recipient, and the 2% fee (0.01 OUSD)
+ * to SETI_TREASURY_ADDRESS. The same immutable anchor `send.check.ts` reconciles
+ * against, reused here so the freeze is proven against a wallet-produced receipt
+ * rather than a stub. OUSD is the asset the app signs, so the receipt the freeze
+ * is proven against matches what the client produces.
  *
  * The hash is overridable with QUOTE_ANCHOR_TX (see the file header) so a fresh
  * receipt can be pinned without editing code.
  */
-const DEFAULT_ANCHOR_TX = '0xfbbacc1e13943afd4627bdd848b945f4de706d5726679d9f16612693d9aa7c70';
+const DEFAULT_ANCHOR_TX = '0xe58f82dfd016ad6d1823dde4183d386bf0c62d59cf4de6706f45b9cab39186f0';
 
 const ANCHOR = {
   txHash: ((process.env.QUOTE_ANCHOR_TX ?? '').trim() || DEFAULT_ANCHOR_TX) as Hex,
@@ -56,13 +57,13 @@ const ANCHOR = {
    *
    * The fixture declares this on every record call, because a recorded transfer is
    * bound to the wallet that signed it — and `Wallet.address` is globally unique,
-   * so the signer's address has to be one no other account holds. (The previous
-   * anchor's sender, `0x42A8…4155`, is now registered to another account.)
+   * so the signer's address has to be one no other account holds. `prove:batch`
+   * generates a throwaway key each run, so its sender is free by construction.
    */
-  sender: '0xe71CD1DCE949838Ea4A5bd7Ac93F85c90257eBF4',
-  recipient: '0xCf0048e57F37df356de63864D1AF1bEA81639ac8',
+  sender: '0x57105d4e8c5fD5e868c2B60342580724Ba3fBb92',
+  recipient: '0x4111Cc6F2EaE3860e5A4CEF90A42C0572A19e127',
   principal: '0.5',
-  asset: 'pathusd',
+  asset: 'ousd',
 } as const;
 
 const CHECK_EMAIL = 'quote-check@seti.test';
@@ -162,21 +163,21 @@ async function readAnchorReceipt(hash: Hex): Promise<TransactionReceipt> {
         `${receipt ? ' — the transaction reverted' : ''}.\n` +
         'The rate freeze is proven by recording a real two-leg send against this\n' +
         'receipt, so without it the suite cannot run. Set QUOTE_ANCHOR_TX to a fresh\n' +
-        'batched pathUSD receipt (npm run prove:batch), or fix the network/RPC.'
+        'batched OUSD receipt (npm run prove:batch), or fix the network/RPC.'
     );
     await teardownSafely();
     await prisma.$disconnect();
     process.exit(1);
   }
 
-  const hasPathUsd = receipt.logs.some(
-    (entry) => entry.address.toLowerCase() === getTokenContract('pathusd').toLowerCase()
+  const hasAnchorAsset = receipt.logs.some(
+    (entry) => entry.address.toLowerCase() === getTokenContract(ANCHOR.asset).toLowerCase()
   );
-  if (!hasPathUsd) {
+  if (!hasAnchorAsset) {
     console.error(
-      `\nPinned quote anchor ${hash} on ${network.displayName} carries no pathUSD transfer.\n` +
-        'The freeze is proven against a pathUSD send, so this is the wrong receipt.\n' +
-        'Set QUOTE_ANCHOR_TX to a batched pathUSD receipt (npm run prove:batch).'
+      `\nPinned quote anchor ${hash} on ${network.displayName} carries no ${ANCHOR.asset} transfer.\n` +
+        `The freeze is proven against a ${ANCHOR.asset} send, so this is the wrong receipt.\n` +
+        'Set QUOTE_ANCHOR_TX to a batched OUSD receipt (npm run prove:batch).'
     );
     await teardownSafely();
     await prisma.$disconnect();

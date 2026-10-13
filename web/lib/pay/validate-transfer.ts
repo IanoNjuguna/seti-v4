@@ -27,6 +27,19 @@ const HEX_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 /** Digits with at most one decimal point — no signs, no exponents, no grouping. */
 const DECIMAL = /^\d+(\.\d+)?$/;
 
+/**
+ * Whether a typed recipient IS an address rather than a handle to resolve.
+ *
+ * Shape only — it decides which of the two paths a recipient takes, not whether
+ * the address is valid (that is `validateRecipient`). A username like `ian` or a
+ * business handle like `javahouse` is not an address and must be resolved by the
+ * server; a mistyped address still takes the address path and is refused there,
+ * which names the real problem.
+ */
+export function looksLikeAddress(value: string): boolean {
+  return HEX_ADDRESS.test(value.trim());
+}
+
 /** Keeps the two messages below from drifting apart. */
 const OWN_ADDRESS =
   'That is this account’s own address. Nothing would move, and the network fee would still be spent.';

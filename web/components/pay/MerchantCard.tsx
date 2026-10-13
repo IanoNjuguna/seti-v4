@@ -1,10 +1,11 @@
 import { Badge, Card, Text } from '@/components/ui';
 import { shortenValue } from '@/components/receipt/receipt.format';
 import { merchantVerification } from '@/lib/api/merchant-verification';
-import type { Merchant } from '@/lib/api';
+import type { HandleIdentity } from '@/lib/api';
 
 export interface MerchantCardProps {
-  merchant: Merchant | null;
+  /** The resolved handle being paid — the ONE identity shape, business or person. */
+  merchant: HandleIdentity | null;
   /** True while the resolve request is in flight. */
   resolving?: boolean;
 }
@@ -41,9 +42,9 @@ export function MerchantCard({ merchant, resolving = false }: MerchantCardProps)
       <Text variant="card-title" as="p">
         {merchant.name}
       </Text>
-      {merchant.payoutAddress ? (
-        <p className="mt-1 font-mono text-body-sm text-stone" title={merchant.payoutAddress}>
-          {shortenValue(merchant.payoutAddress)}
+      {merchant.address ? (
+        <p className="mt-1 font-mono text-body-sm text-stone" title={merchant.address}>
+          {shortenValue(merchant.address)}
         </p>
       ) : null}
 
@@ -61,7 +62,7 @@ export function MerchantCard({ merchant, resolving = false }: MerchantCardProps)
         </Text>
       ) : null}
 
-      {!merchant.payoutAddress ? (
+      {!merchant.address ? (
         <Text variant="micro" color="alert" as="p" className="mt-2">
           This merchant has no payout address yet, so it cannot be paid.
         </Text>

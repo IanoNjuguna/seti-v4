@@ -24,12 +24,13 @@
  *
  * Usage:  npm run prove:batch --workspace backend -- [--asset=ousd|pathusd]
  * Needs:  TEMPO_RPC_URL, TEMPO_TOKEN_PATHUSD, TEMPO_TOKEN_OUSD, SETI_TREASURY_ADDRESS
+ *         (defaults to PRIMARY_ASSET — see `TEMPO_ASSET`)
  */
 import { http, parseUnits, formatUnits, decodeEventLog, erc20Abi, type Hex } from 'viem';
 import { Account, Actions, createClient } from 'viem/tempo';
 import { tempoModerato } from 'viem/chains';
 import { env } from '../config/env.js';
-import { getTokenContract, SUPPORTED_ASSETS, type SupportedAsset } from '../services/chain.js';
+import { getTokenContract, SUPPORTED_ASSETS, PRIMARY_ASSET, type SupportedAsset } from '../services/chain.js';
 
 /** The principal and 2% fee, mirroring a real quote at the smallest sane size. */
 const PRINCIPAL = '0.5';
@@ -40,16 +41,14 @@ const ASSET_DECIMALS = 6;
 /**
  * Which token to prove: `--asset=ousd` or `--asset=pathusd`.
  *
- * Defaults to pathUSD, which is what the app currently spends — and what this
- * proof has always used. `--asset=ousd` is the load-bearing invocation: it is
- * what decides whether the app can move to Tempo's recommended stablecoin, since
- * the two legs of the batch must share a token and the fee token is that token.
- * When the app's asset becomes one setting, this default follows it.
+ * Defaults to the app's PRIMARY_ASSET (`TEMPO_ASSET`, `ousd`) — so the proof, the
+ * anchors it feeds, and what the app signs are the same asset without anyone
+ * having to remember. `--asset=pathusd` still works for a historical comparison.
  */
 function resolveAsset(): SupportedAsset {
   const flag = process.argv.find((arg) => arg.startsWith('--asset'));
   const named = flag?.includes('=') ? flag.split('=')[1] : undefined;
-  const candidate = named ?? 'pathusd';
+  const candidate = named ?? PRIMARY_ASSET;
 
   if (!SUPPORTED_ASSETS.includes(candidate as SupportedAsset)) {
     throw new Error(

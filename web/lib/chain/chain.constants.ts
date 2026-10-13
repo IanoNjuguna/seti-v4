@@ -23,10 +23,40 @@ export const ASSET_DECIMALS: Record<SupportedAsset, number> = { ousd: 6, pathusd
 
 const ENV = {
   chainId: process.env.NEXT_PUBLIC_TEMPO_CHAIN_ID,
+  asset: process.env.NEXT_PUBLIC_TEMPO_ASSET,
   pathusd: process.env.NEXT_PUBLIC_TEMPO_TOKEN_PATHUSD,
   ousd: process.env.NEXT_PUBLIC_TEMPO_TOKEN_OUSD,
   allowMainnet: process.env.NEXT_PUBLIC_ALLOW_MAINNET,
 } as const;
+
+/**
+ * The ONE place the app's primary asset is chosen.
+ *
+ * OUSD is Seti's decided money path; pathUSD remains supported (both are TIP-20
+ * tokens with deployed bytecode on both chains) but is no longer what the app
+ * signs. `NEXT_PUBLIC_TEMPO_ASSET` picks it, defaulting to `ousd`; both signing
+ * hooks (`useSendPanel`, `usePayMerchant`) and every label read this constant
+ * rather than repeating a literal — a second hardcode is how the asset stays
+ * wrong. It must agree with the backend's `TEMPO_ASSET`.
+ *
+ * Refused rather than defaulted when it names an unsupported asset: signing
+ * against the wrong token contract is an unrecoverable payment error, the same
+ * class as a mistyped token address below.
+ */
+function resolvePrimaryAsset(): SupportedAsset {
+  const candidate = ENV.asset ?? 'ousd';
+
+  if (!(SUPPORTED_ASSETS as readonly string[]).includes(candidate)) {
+    throw new Error(
+      `NEXT_PUBLIC_TEMPO_ASSET is "${candidate}", which is not a supported asset. ` +
+        `Use one of: ${SUPPORTED_ASSETS.join(', ')}.`
+    );
+  }
+
+  return candidate as SupportedAsset;
+}
+
+export const PRIMARY_ASSET: SupportedAsset = resolvePrimaryAsset();
 
 const NETWORKS: Record<number, Omit<NetworkConfig, 'tokens'>> = {
   [TEMPO_MAINNET_CHAIN_ID]: {

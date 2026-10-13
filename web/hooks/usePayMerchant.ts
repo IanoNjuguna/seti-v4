@@ -5,20 +5,22 @@ import {
   ApiError,
   previewPayment,
   recordPayment,
-  resolveMerchant,
+  resolveHandle,
   type PaymentPreview,
   type SupportedAsset,
 } from '@/lib/api';
 import { classifyPaymentError } from '@/lib/pay/classify-payment-error';
 import { signPayment } from '@/lib/pay/sign-payment';
+import { PRIMARY_ASSET } from '@/lib/chain';
 import { quoteArrived } from '@/lib/feedback';
 import { useEmbeddedWallet } from '@/hooks/useEmbeddedWallet';
 import { useTempoSender } from '@/hooks/useTempoSender';
 import type { PayState, UsePayMerchantReturn } from './usePayMerchant.types';
 
-/** Both are in v1 scope; the asset maps to a TIP-20 token address. PathUSD is the
- * one the testnet credits and the faucet mints, so it is the default here. */
-const ASSET: SupportedAsset = 'pathusd';
+/** The asset the money path signs, from the ONE setting. OUSD is the decided money
+ * path; `PRIMARY_ASSET` is read in `lib/chain` and consumed here rather than
+ * repeated, so both hooks and every label agree. */
+const ASSET: SupportedAsset = PRIMARY_ASSET;
 /** Human-facing label only. Users are paying in dollars — the token behind it is
  * an implementation detail they should never have to reason about. */
 const ASSET_LABEL = 'USD';
@@ -59,7 +61,7 @@ function toErrorMessage(error: unknown, fallback: string): string {
  * 3. **An `initialPayload` is resolved on mount.** This is how a public page's
  *    Pay action (`/app/pay?handle=<handle>`) lands with the merchant already
  *    chosen: the value is the same string a pasted code would be, handed to the
- *    same `resolveMerchant` the manual entry uses.
+ *    same `resolveHandle` the manual entry uses.
  */
 export function usePayMerchant(userId?: string, initialPayload?: string): UsePayMerchantReturn {
   const [state, setState] = useState<PayState>(INITIAL);
@@ -90,15 +92,16 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
    * and it is right: a synchronous setState here cascades a render.
    */
   useEffect(() => {
-    if (!userId || !state.merchant || !state.amount) return;
+    if (!userId || !state.merchant || !state.merchant.merchantId || !state.amount) return;
     if (!Number.isFinite(Number(state.amount)) || Number(state.amount) <= 0) return;
 
     const merchant = state.merchant;
+    const merchantId = merchant.merchantId as string;
     const amount = state.amount;
     let active = true;
 
     const timer = setTimeout(() => {
-      previewPayment({ userId, amountFiat: amount, asset: ASSET, merchantId: merchant.id })
+      previewPayment({ userId, amountFiat: amount, asset: ASSET, merchantId })
         .then(({ preview }) => {
           if (!active) return;
           // The arrival pulse, same moment as the send panel: the figure has landed
@@ -131,8 +134,8 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
     async (qrPayload: string) => {
       setPartial({ step: 'resolving', error: null, errorKind: null, preview: null, merchant: null, txHash: null });
       try {
-        const { merchant, suggestedAmount } = await resolveMerchant(qrPayload);
-        setPartial({ merchant, amount: suggestedAmount ?? '', step: 'idle' });
+        const { handle, suggestedAmount } = await resolveHandle(qrPayload);
+        setPartial({ merchant: handle, amount: suggestedAmount ?? '', step: 'idle' });
       } catch (error) {
         // Merchant resolution is not a payment, so it keeps the generic message;
         // only the payment path classifies causes.
@@ -162,10 +165,10 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
 
     let active = true;
 
-    resolveMerchant(initialPayload)
-      .then(({ merchant, suggestedAmount }) => {
+    resolveHandle(initialPayload)
+      .then(({ handle, suggestedAmount }) => {
         if (!active) return;
-        setPartial({ merchant, amount: suggestedAmount ?? '', step: 'idle' });
+        setPartial({ merchant: handle, amount: suggestedAmount ?? '', step: 'idle' });
       })
       .catch((error: unknown) => {
         if (!active) return;
@@ -196,10 +199,22 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
       setPartial({ step: 'error', error: 'Enter a valid amount.', errorKind: 'unknown' });
       return;
     }
-    if (!merchant.payoutAddress) {
+    if (!merchant.merchantId) {
+      // A person's handle has an address but no business profile; there is
+      // nothing here to price as a merchant payment. Send to it instead.
+      setPartial({
+        step: 'error',
+        error: 'That is a person\u2019s handle, not a merchant \u2014 send to it from Send.',
+        errorKind: 'unknown',
+      });
+      return;
+    }
+    if (!merchant.address) {
       setPartial({ step: 'error', error: 'This merchant cannot receive payments yet.', errorKind: 'unknown' });
       return;
     }
+
+    const merchantId = merchant.merchantId;
 
     setPartial({ step: 'previewing', error: null, errorKind: null });
 
@@ -211,7 +226,7 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
         userId,
         amountFiat: amount,
         asset: ASSET,
-        merchantId: merchant.id,
+        merchantId,
       }));
       setPartial({ preview });
     } catch (error) {
@@ -266,7 +281,7 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
           // in it, because gas is not transferred to anyone.
           amount: preview.feeRoutingMode === 'batch' ? preview.amount : preview.grossAsset,
           asset: ASSET,
-          merchantId: merchant.id,
+          merchantId,
           txHash,
           description: `Payment to ${merchant.name}`,
           // The wallet that just signed. The backend checks it belongs to the
@@ -286,7 +301,7 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
             userId,
             amountFiat: amount,
             asset: ASSET,
-            merchantId: merchant.id,
+            merchantId,
           });
           setPartial({ preview: fresh });
 

@@ -3,6 +3,7 @@ export {
   TEMPO_TESTNET_CHAIN_ID,
   SUPPORTED_ASSETS,
   ASSET_DECIMALS,
+  PRIMARY_ASSET,
   network,
   tempoChain,
   getTokenContract,

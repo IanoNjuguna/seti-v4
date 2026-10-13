@@ -3,7 +3,7 @@ import { prisma } from '../lib/prisma.js';
 import { env } from '../config/env.js';
 import { describeEvmAddress } from '../lib/address.js';
 import { getUserBalance } from './balance.js';
-import { estimateNetworkFee } from './chain.js';
+import { estimateNetworkFee, reserveNetworkFee } from './chain.js';
 import { calculateMerchantFee, minimumTicketForFloor } from './fees.js';
 import { issueQuote } from './quote.js';
 import type { SupportedAsset } from './chain.js';
@@ -492,24 +492,28 @@ export async function quoteTransfer(input: {
   const feeInAsset = fiatPerUsd > 0 ? merchantFee / fiatPerUsd : 0;
   const grossAsset = principalAsset + feeInAsset;
 
-  // Gas, two ways.
-  //
-  // `NETWORK_FEE_RESERVE_ASSET` is the BALANCE floor: a flat, deliberately
-  // generous figure that decides `hasEnoughBalance`. It is not a measurement, so
-  // it is never shown — a customer reading a gas line worth fifty times the real
-  // cost would be right to call it a lie.
+  // Gas, two readings of ONE measurement.
   //
   // `estimateNetworkFee` is the DISPLAY figure: the measured gas of a real batch
-  // times the live gas price. If the RPC cannot answer, the reserve stands in for
-  // it and the preview says which one it is (`networkFeeSource`), so the UI can
-  // mark it as approximate rather than implied precise.
+  // for THIS asset times the live gas price. When the RPC cannot answer it falls
+  // back to the reservation, and the preview says which one it is
+  // (`networkFeeSource`), so the UI can mark it as approximate rather than
+  // implied precise.
+  //
+  // `reserveNetworkFee` is the BALANCE floor `hasEnoughBalance` is measured
+  // against: the SAME measured batch gas, priced at a conservative gas price
+  // rather than the live one. It is derived from the measurement rather than a
+  // flat literal, so the displayed estimate and the reservation cannot drift
+  // apart when the gas figure is re-taken.
   //
   // The customer funds their own gas (decided 2026-10-10, no sponsorship), so it
   // belongs on the receipt-and-preview, not buried.
-  const NETWORK_FEE_RESERVE_ASSET = 0.01;
   const estimate = await estimateNetworkFee(input.asset as SupportedAsset);
-  const networkFeeInAsset =
-    estimate.source === 'estimate' ? Number(estimate.feeAsset) : NETWORK_FEE_RESERVE_ASSET;
+  const networkFeeInAsset = Number(estimate.feeAsset);
+  const reservedNetworkFeeInAsset = Math.max(
+    Number(reserveNetworkFee(input.asset as SupportedAsset).feeAsset),
+    networkFeeInAsset
+  );
 
   const feeRoutingMode = env.FEE_ROUTING_MODE === 'batch' ? 'batch' : 'inside-transfer';
   const feeLegInAsset = feeRoutingMode === 'batch' ? feeInAsset : 0;
@@ -517,11 +521,11 @@ export async function quoteTransfer(input: {
   const asset = input.asset as SupportedAsset;
   const balanceResult = await getUserBalance(input.userId, asset);
   const balance = Number(balanceResult.balance);
-  // Sufficient balance is measured against the GROSS plus the RESERVE — never
-  // against the estimate. The estimate is a point number that moves with the gas
-  // price; reserving more than it says is what keeps a send from reverting at
-  // signing time on a busy block.
-  const hasEnoughBalance = balance >= grossAsset + NETWORK_FEE_RESERVE_ASSET;
+  // Sufficient balance is measured against the GROSS plus the RESERVATION — never
+  // the bare estimate. The estimate is a point number that moves with the gas
+  // price; the reservation is the same measurement at a conservative price, so
+  // it holds on a busy block.
+  const hasEnoughBalance = balance >= grossAsset + reservedNetworkFeeInAsset;
 
   const total = grossAsset + networkFeeInAsset;
   const networkFeeFiat = networkFeeInAsset * fiatPerUsd;
