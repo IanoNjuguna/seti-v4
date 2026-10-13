@@ -1,8 +1,18 @@
 import type { EmbeddedWalletStatus } from '@/hooks/useEmbeddedWallet.types';
-import type { SendPreview } from '@/lib/api';
+import type { HandleIdentity, SendPreview } from '@/lib/api';
 
 /** Only `previewing`, `signing` and `recording` are busy. A receipt is `sent`. */
 export type SendStep = 'idle' | 'previewing' | 'signing' | 'recording';
+
+/**
+ * The server's answer for what was typed, kept WITH the string it was asked
+ * about. A slow response for a username the customer has since edited is dropped
+ * rather than shown as a confident identity for the wrong person.
+ */
+export interface ResolvedRecipient {
+  query: string;
+  identity: HandleIdentity;
+}
 
 /** The receipt for the one transfer that was signed and broadcast. */
 export interface SentTransfer {
@@ -18,9 +28,12 @@ export interface SentTransfer {
 
 export interface SendPanelState {
   step: SendStep;
+  /** The address the customer typed, OR a username to be resolved. */
   recipient: string;
   /** The customer's currency — the same unit the pay screen takes, so both read alike. */
   amountFiat: string;
+  /** The last resolution the server returned, tagged with what it was for. */
+  resolution: ResolvedRecipient | null;
   /** The server's quote. Both signed amounts come from here, not from the fields. */
   preview: SendPreview | null;
   /**
@@ -36,6 +49,15 @@ export interface SendPanelState {
 }
 
 export interface UseSendPanelReturn extends SendPanelState {
+  /**
+   * The resolved identity for what is CURRENTLY typed, or null.
+   *
+   * This is the name AND the address the customer is shown before anything is
+   * signed: the username is only how they found the person, and the address is
+   * what gets signed. It is null while a typed value is an address (there is no
+   * name to show) or while a username has not resolved yet.
+   */
+  resolved: HandleIdentity | null;
   /** Whether an embedded wallet exists yet, so the panel can say so first. */
   walletStatus: EmbeddedWalletStatus;
   isBusy: boolean;
@@ -59,6 +81,11 @@ export interface SendFieldProps {
   disabled: boolean;
 }
 
+/** The resolved name and address, shown before anything is signed. */
+export interface SendResolvedRecipientProps {
+  recipient: HandleIdentity;
+}
+
 export interface SendFeeSummaryProps {
   preview: SendPreview | null;
   loading: boolean;
@@ -72,6 +99,8 @@ export interface SendFormProps {
   recipientError: string | null;
   amountError: string | null;
   formError: string | null;
+  /** The resolved identity, when the typed recipient is a username. */
+  resolved: HandleIdentity | null;
   preview: SendPreview | null;
   previewLoading: boolean;
   /** The step, so the submit row can narrate what is being waited on. */

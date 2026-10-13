@@ -10,8 +10,8 @@
 export const SEND_COPY = {
   title: 'Send to a wallet',
   subtitle: 'To a person, not a merchant code.',
-  recipientLabel: 'Their wallet address',
-  recipientHint: '0x followed by 40 hex characters.',
+  recipientLabel: 'Their address or username',
+  recipientHint: 'A 0x address, or a Seti username like javahouse.',
   /** Only used before the dashboard's currency reaches the panel. */
   amountLabelFallback: 'Amount',
   amountHint: 'They receive this exact amount.',
@@ -31,3 +31,17 @@ export const SEND_PROGRESS: Partial<Record<string, string>> = {
   signing: 'Confirm in your wallet…',
   recording: 'Recording the transfer…',
 };
+
+/**
+ * The resolved recipient, shown before anything is signed.
+ *
+ * A username is only how the customer FOUND the person; the address is what gets
+ * signed. Naming both, together, is what stops a name silently becoming an
+ * address the customer never saw.
+ */
+export const SEND_RESOLVED_COPY = {
+  label: 'Sending to',
+  verified: 'Name verified',
+  unverified: 'Name not verified',
+  addressNote: 'The money goes to this address.',
+} as const;

@@ -5,6 +5,7 @@ import { SEND_COPY } from './SendPanel.constants';
 import { SendFeeSummary } from './SendFeeSummary';
 import { SendField } from './SendField';
 import { SendFormHeader } from './SendFormHeader';
+import { SendResolvedRecipient } from './SendResolvedRecipient';
 import { SendSubmit } from './SendSubmit';
 import type { SendFormProps } from './SendPanel.types';
 
@@ -14,6 +15,10 @@ import type { SendFormProps } from './SendPanel.types';
  * Both fields are validated before anything is built (`validate-transfer.ts`), so
  * a typo is answered here and never reaches a wallet prompt, and the quote comes
  * from the server rather than from this component.
+ *
+ * A username recipient is RESOLVED between the two fields: once the server has
+ * answered, the name AND the address are shown together — the username is only
+ * how the customer found the person, and the address is what gets signed.
  *
  * The fee line is not decoration: the customer funds the 2%, so showing it after
  * they sign would be charging them for something they never saw.
@@ -25,6 +30,7 @@ export function SendForm({
   recipientError,
   amountError,
   formError,
+  resolved,
   preview,
   previewLoading,
   step,
@@ -51,6 +57,8 @@ export function SendForm({
         mono
         disabled={busy}
       />
+
+      {resolved ? <SendResolvedRecipient recipient={resolved} /> : null}
 
       <SendField
         label={amountLabel}

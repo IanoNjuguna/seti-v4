@@ -1,30 +1,41 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ASSET_DECIMALS, type SupportedAsset } from '@/lib/chain';
-import { ApiError, previewSend, recordSend, type SendPreview } from '@/lib/api';
+import { ASSET_DECIMALS, PRIMARY_ASSET, type SupportedAsset } from '@/lib/chain';
+import {
+  ApiError,
+  previewSend,
+  recordSend,
+  resolveHandle,
+  type HandleIdentity,
+  type SendPreview,
+} from '@/lib/api';
 import { classifyPaymentError } from '@/lib/pay/classify-payment-error';
 import { signSend } from '@/lib/pay/sign-transfer';
-import { validateAmount, validateRecipient } from '@/lib/pay/validate-transfer';
+import { looksLikeAddress, validateAmount, validateRecipient } from '@/lib/pay/validate-transfer';
 import { quoteArrived } from '@/lib/feedback';
 import { useEmbeddedWallet } from '@/hooks/useEmbeddedWallet';
 import { useTempoSender } from '@/hooks/useTempoSender';
-import type { SendPanelState, UseSendPanelReturn } from './SendPanel.types';
+import type { ResolvedRecipient, SendPanelState, UseSendPanelReturn } from './SendPanel.types';
 
-/** Both assets are in v1 scope; pathUSD is the one the testnet credits and the
- * faucet mints, so it is the default here too (see `usePayMerchant`). */
-const ASSET: SupportedAsset = 'pathusd';
+/** The asset the money path signs, from the ONE setting. OUSD is the decided money
+ * path; `PRIMARY_ASSET` is read in `lib/chain` and consumed here rather than
+ * repeated, so the app cannot sign one token while a label names another. */
+const ASSET: SupportedAsset = PRIMARY_ASSET;
 /** A label, not a token name: the customer is sending dollars — which stablecoin
  * backs it is an implementation detail they should never have to reason about. */
 const ASSET_LABEL = 'USD';
 
 /** How long to wait after the last keystroke before quoting the fee. */
 const PREVIEW_DEBOUNCE_MS = 400;
+/** How long to wait before asking the server who a handled recipient is. */
+const RESOLVE_DEBOUNCE_MS = 350;
 
 const INITIAL: SendPanelState = {
   step: 'idle',
   recipient: '',
   amountFiat: '',
+  resolution: null,
   preview: null,
   recipientError: null,
   amountError: null,
@@ -36,6 +47,55 @@ function toErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof ApiError) return error.message;
   if (error instanceof Error && error.message) return error.message;
   return fallback;
+}
+
+/** The resolved identity, only when it is the one for what is currently typed. */
+function appliedTo(recipient: string, resolved: ResolvedRecipient | null): HandleIdentity | null {
+  return resolved && resolved.query === recipient.trim() ? resolved.identity : null;
+}
+
+/**
+ * The address this send will actually sign, or the reason it cannot.
+ *
+ * THE WHOLE POINT of username sends: the recipient field may hold an address OR a
+ * username. A typed address is validated and signed directly; a username is
+ * resolved by the SERVER to a name AND an address, and it is the ADDRESS that is
+ * signed — the username is only how the customer found it. This function is the
+ * single place that decision is made, so a name can never silently become an
+ * address without the resolution having produced the address the form displays.
+ */
+function destinationFor(
+  recipient: string,
+  selfAddress: string | null | undefined,
+  resolved: HandleIdentity | null
+): { address: string | null; error: string | null } {
+  const value = recipient.trim();
+
+  if (!value) {
+    return { address: null, error: 'Enter the address or username you are sending to.' };
+  }
+
+  if (looksLikeAddress(value)) {
+    const checked = validateRecipient(value, (selfAddress ?? undefined) as `0x${string}` | undefined);
+    return checked.ok ? { address: checked.address, error: null } : { address: null, error: checked.error };
+  }
+
+  if (!resolved) {
+    return { address: null, error: 'Could not find that username yet. Check the spelling, or paste an address.' };
+  }
+
+  if (!resolved.address) {
+    return { address: null, error: `${resolved.name} has no address yet, so they cannot receive money.` };
+  }
+
+  if (selfAddress && resolved.address.toLowerCase() === selfAddress.toLowerCase()) {
+    return {
+      address: null,
+      error: 'That is this account’s own handle. Nothing would move, and the network fee would still be spent.',
+    };
+  }
+
+  return { address: resolved.address, error: null };
 }
 
 /**
@@ -50,14 +110,19 @@ function toErrorMessage(error: unknown, fallback: string): string {
  *    that get signed and then reconciled against the chain.
  * 2. **The amounts come from the quote, never from the fields.** `preview.amount`
  *    is the principal leg and `preview.feeInAsset` is the fee leg; the client
- *    computes neither. Reading state after an `await` is the stale-closure bug
- *    that underpaid every merchant on the pay path.
+ *    computes neither.
  * 3. **Nothing is written until the chain agrees.** `recordSend` re-reads both
  *    legs from the receipt and refuses if either is missing, so the row in
  *    Activity is evidence rather than a claim.
+ * 4. **A recipient may be a username.** It is resolved by the server to a name and
+ *    an address, both are shown, and the ADDRESS is what is signed.
+ *
+ * `initialRecipient` is how `seti.live/u/<handle>`'s Send action lands with the
+ * person already chosen (`/app/send?to=<handle>`): it is the same string a typed
+ * handle would be, handed to the same resolver.
  */
-export function useSendPanel(): UseSendPanelReturn {
-  const [state, setState] = useState(INITIAL);
+export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
+  const [state, setState] = useState<SendPanelState>({ ...INITIAL, recipient: initialRecipient });
 
   /**
    * Whether a quote has already landed in this flow, so the arrival pulse fires once
@@ -85,25 +150,65 @@ export function useSendPanel(): UseSendPanelReturn {
   );
 
   /**
+   * Resolve a handled recipient to a NAME and an ADDRESS, before anything is signed.
+   *
+   * A typed `0x…` address needs no resolution and is left alone. Anything else is
+   * sent to the server's ONE resolver, and the answer is stored WITH the string it
+   * was asked about — so a slow response for a username the customer has since
+   * edited is dropped rather than shown as a confident identity for the wrong
+   * person. State is written only in the timer's callbacks.
+   */
+  useEffect(() => {
+    const value = state.recipient.trim();
+    if (!value || looksLikeAddress(value)) return;
+
+    let active = true;
+
+    const timer = setTimeout(() => {
+      resolveHandle(value)
+        .then(({ handle }) => {
+          if (!active) return;
+          patch({ resolution: { query: value, identity: handle }, formError: null });
+        })
+        .catch((error: unknown) => {
+          if (!active) return;
+          patch({
+            resolution: null,
+            formError: toErrorMessage(error, 'Could not find that username. Check the spelling.'),
+          });
+        });
+    }, RESOLVE_DEBOUNCE_MS);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [state.recipient, patch]);
+
+  const resolved = appliedTo(state.recipient, state.resolution);
+
+  /**
    * Quote the fee while the recipient and amount are being typed.
    *
    * The 400ms timer is also what keeps this from firing a request per keystroke;
    * `active` stops a slow response writing to state after either field changed
    * again. State is written only in the timer's callbacks, never in the effect
-   * body — `react-hooks/set-state-in-effect` is an error in this package, and it
-   * is right: a synchronous setState here cascades a render.
+   * body — `react-hooks/set-state-in-effect` is an error in this package.
    */
   useEffect(() => {
     const amount = state.amountFiat;
-    if (!state.recipient || !amount) return;
-    if (validateRecipient(state.recipient, address).ok === false) return;
+    if (!state.recipient.trim() || !amount) return;
     if (!validateAmount(amount, ASSET_DECIMALS[ASSET]).ok) return;
 
-    const recipient = state.recipient;
+    // The quote is for the ADDRESS, whether it was typed or resolved from a
+    // username. A username that has not resolved yet quotes nothing.
+    const { address: destination } = destinationFor(state.recipient, address, resolved);
+    if (!destination) return;
+
     let active = true;
 
     const timer = setTimeout(() => {
-      previewSend({ amountFiat: amount, asset: ASSET, recipient })
+      previewSend({ amountFiat: amount, asset: ASSET, recipient: destination })
         .then(({ preview }) => {
           if (!active) return;
           // The quote landing is the moment the figure stops moving and becomes what
@@ -128,21 +233,21 @@ export function useSendPanel(): UseSendPanelReturn {
       active = false;
       clearTimeout(timer);
     };
-  }, [state.recipient, state.amountFiat, address, patch]);
+  }, [state.recipient, state.amountFiat, address, resolved, patch]);
 
   const submit = useCallback(() => {
-    const to = validateRecipient(state.recipient, address);
     const value = validateAmount(state.amountFiat, ASSET_DECIMALS[ASSET]);
+    const destination = destinationFor(state.recipient, address, resolved);
 
-    if (!to.ok || !value.ok) {
+    if (!destination.address || !value.ok) {
       patch({
-        recipientError: to.ok ? null : to.error,
+        recipientError: destination.error,
         amountError: value.ok ? null : value.error,
       });
       return;
     }
 
-    const recipient = to.address;
+    const recipient = destination.address;
     const amountFiat = state.amountFiat;
 
     void (async () => {
@@ -150,8 +255,7 @@ export function useSendPanel(): UseSendPanelReturn {
 
       // The wallet that will sign has to be known BEFORE anything is signed: its
       // address is what the server binds the recorded transfer to, and a record
-      // call that cannot declare one is refused. Failing here is the same outcome
-      // with a message the customer can act on.
+      // call that cannot declare one is refused.
       if (!address) {
         patch({
           step: 'idle',
@@ -190,26 +294,12 @@ export function useSendPanel(): UseSendPanelReturn {
 
         patch({ step: 'recording', sent: null });
 
-        /**
-         * Record the signed transfer with the quoteId of the figure that was
-         * signed. The server writes every fiat figure from the rate inside that
-         * token — not from a freshly-read live rate — so the number the customer
-         * was shown is the number recorded. A read does not consume the quote, so
-         * the retry below is safe.
-         */
         const record = (quoteId: string) =>
           recordSend({
-            // Mode-dependent, and getting it backwards fails loudly rather than
-            // quietly: `recordSend` verifies the RECIPIENT leg against this figure
-            // and the fee leg against the treasury, so the principal is what it
-            // asks for — not the gross.
             amount: preview.amount,
             asset: ASSET,
             recipient: preview.recipient,
             txHash,
-            // Which of the account's embedded wallets signed. The server checks it
-            // is one of this account's wallets AND that the chain recorded it as
-            // the sender, then binds the row to it.
             walletAddress: address,
             quoteId,
           });
@@ -223,10 +313,7 @@ export function useSendPanel(): UseSendPanelReturn {
             patch({ preview: fresh });
 
             if (fresh.totalFiat !== preview.totalFiat) {
-              // The figure moved. Never record a number the customer never saw:
-              // show the new one and let them confirm again. The signed transfer
-              // already moved the old figure on-chain; the ledger must not be
-              // written at a different one.
+              // The figure moved. Never record a number the customer never saw.
               patch({
                 step: 'idle',
                 formError:
@@ -236,7 +323,6 @@ export function useSendPanel(): UseSendPanelReturn {
               return;
             }
 
-            // Same figure: the frozen promise holds. Retry with the fresh token.
             await record(fresh.quoteId);
           } else {
             throw error;
@@ -258,7 +344,7 @@ export function useSendPanel(): UseSendPanelReturn {
         patch({ step: 'idle', formError: message.replace('{ASSET}', ASSET_LABEL) });
       }
     })();
-  }, [state.recipient, state.amountFiat, address, sendTempoTransaction, patch]);
+  }, [state.recipient, state.amountFiat, address, resolved, sendTempoTransaction, patch]);
 
   const reset = useCallback(() => setState(INITIAL), []);
 
@@ -267,6 +353,7 @@ export function useSendPanel(): UseSendPanelReturn {
 
   return {
     ...state,
+    resolved,
     walletStatus: status,
     isBusy: state.step !== 'idle',
     previewLoading: amountIsQuotable && !state.preview,
