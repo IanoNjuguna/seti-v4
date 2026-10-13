@@ -8,6 +8,9 @@ dist/
 # Environment
 .env
 .env.*.local
+# Local backups of env files still contain live credentials — never commit.
+.env.bak*
+.env.premainnet
 
 # Logs
 npm-debug.log*
