@@ -47,6 +47,20 @@ export const RECEIPT_GENERIC_PAYEE = 'Recipient';
 /** A fee figure the row cannot support is a dash, never a zero. */
 export const RECEIPT_MISSING_FIGURE = '—';
 
+/**
+ * The two colours a QR code is read by, and its viewBox size.
+ *
+ * Deliberately literals rather than design tokens: react-qr-code writes these to
+ * an SVG presentation attribute (`fill`), which cannot resolve a CSS custom
+ * property — a token there would render an unreadable code, not a themed one. A
+ * QR's colours are also a machine-readable spec (maximum contrast), not a
+ * styling choice; the light field the code sits in is the tile's own
+ * `bg-canvas-light` token, which IS part of the surface.
+ */
+export const RECEIPT_QR_FOREGROUND = 'black';
+export const RECEIPT_QR_BACKGROUND = 'white';
+export const RECEIPT_QR_SIZE = 144;
+
 export const RECEIPT_COPY = {
   /* The one word above the figure: what the money did, from the customer's side. */
   paid: 'Paid',
@@ -60,6 +74,7 @@ export const RECEIPT_COPY = {
   explorer: 'View on the explorer',
   close: 'Close receipt',
   share: 'Share',
+  qrCaption: 'Scan to open this receipt',
   pdf: 'PDF',
   txt: 'TXT',
   json: 'JSON',
@@ -75,8 +90,8 @@ export const RECEIPT_COPY = {
  * a dismissed share sheet is not a failure and does not deserve an error.
  */
 export const RECEIPT_ACTION_MESSAGE: Record<ShareOutcome, string | null> = {
-  shared: 'Receipt shared.',
-  copied: 'Explorer link copied to your clipboard.',
+  shared: 'Receipt link shared.',
+  copied: 'Receipt link copied to your clipboard.',
   failed: "Couldn't share or copy. Open the receipt on the explorer instead.",
   dismissed: null,
 };

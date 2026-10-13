@@ -12,6 +12,7 @@ import { PaymentRefusalError } from '../services/payment-refusal.js';
 import { previewPayment, previewSend, SendRequiresBatchError } from '../services/payments.js';
 import { toRecentTransaction } from '../services/transaction-view.js';
 import { buildReceipt } from '../services/receipt.js';
+import { mintReceiptLink } from '../services/receipt-link.js';
 
 const assetSchema = z.string().default('ousd');
 
@@ -27,6 +28,18 @@ const paySchema = z.object({
   asset: assetSchema,
   merchantId: z.string().min(1),
   txHash: z.string().regex(/^0x[a-fA-F0-9]+$/),
+  /**
+   * The wallet the client signed this payment with — see
+   * `RecordPaymentInput.walletAddress`.
+   *
+   * Optional at the SCHEMA level for the same reason as `quoteId`: a missing
+   * declaration must reach the service and be refused with the typed
+   * `signer-not-declared` code, which is a client-actionable state, rather than a
+   * generic zod 400. The SHAPE is checked here; whether the address is the
+   * caller's, and whether the chain agrees it sent this transaction, is the
+   * service's job.
+   */
+  walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/).optional(),
   /**
    * The signed rate quote from `/preview`. Optional at the SCHEMA level so a
    * missing token reaches the service and is refused with the typed
@@ -53,6 +66,8 @@ const sendSchema = z.object({
   asset: assetSchema,
   recipient: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
   txHash: z.string().regex(/^0x[a-fA-F0-9]+$/),
+  /** The wallet the client signed this send with. See `paySchema.walletAddress`. */
+  walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/).optional(),
   /** The signed rate quote from `/send/preview`. See `paySchema.quoteId`. */
   quoteId: z.string().optional(),
   description: z.string().optional(),
@@ -252,6 +267,28 @@ export async function transactionRoutes(app: FastifyInstance) {
     }
 
     return receipt;
+  });
+
+  /**
+   * Mint the shareable link for one of the caller's own receipts.
+   *
+   * The owner's second door, opened deliberately: this is where the capability
+   * token is created, and it is created only for a row the caller owns (same
+   * precondition as the receipt above). The body carries the PATH, not an
+   * absolute URL: the browser knows its own origin, so the link is composed there
+   * and works through a tunnel or a preview host without the server guessing it.
+   */
+  app.post('/:id/receipt-link', async (request, reply) => {
+    const user = requireUser(request);
+    const { id } = request.params as { id: string };
+
+    const link = await mintReceiptLink(id, user.id);
+
+    if (!link) {
+      return reply.code(404).send({ error: 'No receipt for that transaction.' });
+    }
+
+    return reply.send({ path: link.path, expiresAt: link.expiresAt.toISOString() });
   });
 
   app.post('/', async (request, reply) => {

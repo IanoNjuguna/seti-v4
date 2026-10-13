@@ -204,6 +204,50 @@ currency rather than invent one.
 404 when the row is not the caller's, or has no on-chain hash — a receipt is never a way
 to read someone else's transfer.
 
+### `POST /transactions/:id/receipt-link`
+
+The owner's SHARE action: mints the link they can hand to the merchant on the other side.
+
+```json
+{ "path": "/r/x8C5v-9Oae8Avz61G6VM8L?t=eyJ0…", "expiresAt": "2026-10-14T07:50:07.966Z" }
+```
+
+Same precondition as the receipt above — the row must be the caller's and have something on
+chain, else `404`. The body is a PATH, not an absolute URL: the browser knows its own origin,
+so the link is composed there and works through a tunnel or a preview host without the server
+guessing its own public name.
+
+The `path` opens the receipt as its own page, `/r/<opaqueId>?t=<token>`, which reads
+`GET /receipts/:id` below. That page shows the SAME proof card the modal shows — figure, payee,
+date, status, one fee line, explorer link, plus a QR of this exact link — and it carries
+`noindex`: a shared link is a capability, and it must never become a search result.
+
+### `GET /receipts/:id?t=<token>`
+
+**Unauthenticated on purpose.** This is the receipt behind a shared link, and the point of the
+link is that a merchant with no Seti session can open it. The capability is the signed `t`
+token, HMAC over (receipt id + scope + expiry) using the SAME primitive and secret as the price
+quote (`QUOTE_SIGNING_SECRET`) — the scope (`receipt:read`) lives inside the signed payload,
+never in a parameter a client could widen. Read-only, ~24h.
+
+The response is exactly the `GET /transactions/:id/receipt` body (the receipt, never the
+account: no email, no user id, no balance, no other rows).
+
+The `id` is NOT the txHash. It is an opaque, keyed value (`HMAC(secret, "receipt:" + row id)`)
+because a chain is public and enumerable: a page keyed by the hash would be a tidier mirror of
+a public chain that also leaked our enrichment — the customer↔transfer link, the merchant's
+name, the fiat figure and the rate.
+
+**Every refusal is the same `404`** — an unknown id, a missing token, a forged one, an expired
+one, a token bound to another receipt — so the endpoint can never be used to test whether a
+guessed id exists:
+
+```json
+{ "error": "No receipt for that link." }
+```
+
+Rate-limited modestly by address (`429` beyond it).
+
 ### `POST /transactions`
 
 Creates a non-payment transaction record (`p2p_send`, `p2p_receive`, `top_up`,

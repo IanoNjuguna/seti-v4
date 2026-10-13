@@ -21,7 +21,8 @@ import type { UseReceiptActionsReturn } from './Receipt.types';
  */
 export function useReceiptActions(
   receipt: ReceiptDocument | null,
-  currency: string | null
+  currency: string | null,
+  shareUrl: string | null
 ): UseReceiptActionsReturn {
   const [status, setStatus] = useState<string | null>(null);
   const timer = useRef<number | null>(null);
@@ -43,8 +44,8 @@ export function useReceiptActions(
 
   const share = useCallback(() => {
     if (!receipt) return;
-    void shareReceipt(receipt).then((outcome) => announce(RECEIPT_ACTION_MESSAGE[outcome]));
-  }, [receipt, announce]);
+    void shareReceipt(receipt, shareUrl).then((outcome) => announce(RECEIPT_ACTION_MESSAGE[outcome]));
+  }, [receipt, shareUrl, announce]);
 
   const downloadTxt = useCallback(() => {
     if (!receipt) return;

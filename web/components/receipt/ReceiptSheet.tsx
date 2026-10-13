@@ -8,6 +8,7 @@ import { useReceipt } from './useReceipt';
 import { useReceiptActions } from './useReceiptActions';
 import { useReceiptCard } from './useReceiptCard';
 import { useReceiptDialog } from './useReceiptDialog';
+import { useReceiptLink } from './useReceiptLink';
 import type { ReceiptSheetProps } from './Receipt.types';
 
 /**
@@ -20,14 +21,17 @@ import type { ReceiptSheetProps } from './Receipt.types';
  * receipt onto a second sheet of paper.
  *
  * The card is sized to fit; `overflow-y-auto` is only the guard for a receipt
- * taller than any we expect (an unusually long merchant name), so a normal one
- * shows no scrollbar and nothing is clipped to avoid one.
+ * taller than any we expect (an unusually long merchant name, plus the QR), so a
+ * normal one shows no scrollbar and nothing is clipped to avoid one.
  */
 export function ReceiptSheet({ transactionId, onClose }: ReceiptSheetProps) {
   const { containerRef, onKeyDown } = useReceiptDialog(onClose);
   const { receipt, loading, error, retry } = useReceipt(transactionId);
   const card = useReceiptCard(receipt);
-  const actions = useReceiptActions(receipt, card?.currency ?? null);
+  // The one link this surface hands out: the card draws its QR and the Share
+  // action sends it, so both are the SAME link by construction.
+  const { shareUrl } = useReceiptLink(transactionId);
+  const actions = useReceiptActions(receipt, card?.currency ?? null, shareUrl);
 
   return createPortal(
     <div
@@ -62,6 +66,7 @@ export function ReceiptSheet({ transactionId, onClose }: ReceiptSheetProps) {
             error={error}
             retry={retry}
             actions={actions}
+            shareUrl={shareUrl}
           />
         </div>
       </div>

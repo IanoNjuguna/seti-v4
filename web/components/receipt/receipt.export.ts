@@ -54,18 +54,23 @@ export function printReceipt(): void {
 }
 
 /**
- * Share the receipt where the platform can, and fall back to the explorer link.
+ * Share the receipt as a link the recipient can open signed out.
  *
- * The explorer URL rather than the whole document: it is the one handle the
- * recipient can open anywhere, and it is what the customer would have sent by
- * hand. A share sheet the customer dismisses is not a failure.
+ * The shareable link (`shareUrl`) is the point of the action: it opens the receipt
+ * itself, on any device, for a day, with no Seti account. When it could not be
+ * minted the explorer URL is the fallback — the one other handle the recipient can
+ * open anywhere. A share sheet the customer dismisses is not a failure.
  */
-export async function shareReceipt(receipt: ReceiptDocument): Promise<ShareOutcome> {
+export async function shareReceipt(
+  receipt: ReceiptDocument,
+  shareUrl: string | null
+): Promise<ShareOutcome> {
   const title = 'Seti transaction receipt';
+  const url = shareUrl ?? receipt.explorerUrl;
 
   if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
     try {
-      await navigator.share({ title, text: `${title} — ${receipt.hash}`, url: receipt.explorerUrl });
+      await navigator.share({ title, text: `${title} — ${receipt.hash}`, url });
       return 'shared';
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return 'dismissed';
@@ -75,7 +80,7 @@ export async function shareReceipt(receipt: ReceiptDocument): Promise<ShareOutco
   }
 
   try {
-    await navigator.clipboard.writeText(receipt.explorerUrl);
+    await navigator.clipboard.writeText(url);
     return 'copied';
   } catch {
     return 'failed';

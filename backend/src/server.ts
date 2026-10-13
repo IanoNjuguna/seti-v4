@@ -8,6 +8,7 @@ import { walletRoutes } from './routes/wallets.js';
 import { merchantRoutes } from './routes/merchants.js';
 import { publicMerchantRoutes } from './routes/public-merchants.js';
 import { transactionRoutes } from './routes/transactions.js';
+import { receiptRoutes } from './routes/receipts.js';
 
 export async function buildServer() {
   const app = Fastify({
@@ -58,6 +59,11 @@ export async function buildServer() {
   // this signed out, which is why it is its own registration with no auth hook
   // rather than a route inside `merchantRoutes`.
   await app.register(publicMerchantRoutes, { prefix: '/public/merchants' });
+  // The shared receipt read: no auth hook, gated only by the signed capability
+  // token in the query. Registered without a session for the same reason as the
+  // public merchant read above — a link the owner hands to a merchant must open
+  // for someone who has no Seti account.
+  await app.register(receiptRoutes, { prefix: '/receipts' });
   await app.register(transactionRoutes, { prefix: '/transactions' });
 
   return app;

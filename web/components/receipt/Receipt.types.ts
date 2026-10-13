@@ -65,6 +65,27 @@ export interface ReceiptFeeLine {
 
 export interface ReceiptCardProps {
   card: ReceiptCard;
+  /**
+   * The shareable link, absolute, when the card should carry a QR. Absent while
+   * the link is being minted or when it could not be minted — a card with no link
+   * is still a receipt, it just has nothing for a scanner to open.
+   */
+  shareUrl?: string | null;
+}
+
+/** The QR of the shareable link. `value` is the exact link, encoded verbatim. */
+export interface ReceiptQrProps {
+  value: string;
+}
+
+/**
+ * The owner's shareable link for a receipt, as the sheet needs it.
+ *
+ * `null` covers both "not minted yet" and "could not be minted": the card simply
+ * omits the QR, because a link we could not prove is not one to offer.
+ */
+export interface UseReceiptLinkReturn {
+  shareUrl: string | null;
 }
 
 export interface ReceiptFigureProps {
@@ -95,6 +116,8 @@ export interface ReceiptBodyProps {
   error: string | null;
   retry: () => void;
   actions: UseReceiptActionsReturn;
+  /** The shareable link the card carries as a QR, when one was minted. */
+  shareUrl?: string | null;
 }
 
 export interface ReceiptActionsProps {
