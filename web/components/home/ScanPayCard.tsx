@@ -1,5 +1,4 @@
-import Link from 'next/link';
-import { Button, Card, Text } from '@/components/ui';
+import { ButtonLink, Card, Text } from '@/components/ui';
 import { Icon } from '@/components/ui/Icon';
 
 /**
@@ -9,6 +8,11 @@ import { Icon } from '@/components/ui/Icon';
  * QR lives on the home screen rather than behind a tab a user has to find. The
  * QR mark is the icon set's only multi-path glyph, which is why it reads as a
  * mark rather than a line drawing.
+ *
+ * This card is the home screen's ONE pay entry point (`quick-actions.constants`
+ * records the same rule for the tile strip: a second affordance for one job is
+ * two affordances). The CTA is therefore a single control — a `ButtonLink` — and
+ * not `<Link><Button>`, which rendered the action twice in the DOM.
  *
  * Layout is the one thing this card has to get right at both ends. On a phone the
  * mark sat beside the text and took a third of the card, squeezing the paragraph
@@ -39,11 +43,9 @@ export function ScanPayCard() {
         </Text>
       </div>
 
-      <Link href="/app/pay" className="block w-full sm:inline-flex sm:w-auto">
-        <Button variant="secondary" fullWidth className="sm:w-auto">
-          Find a merchant
-        </Button>
-      </Link>
+      <ButtonLink href="/app/pay" variant="secondary" fullWidth className="sm:w-auto">
+        Find a merchant
+      </ButtonLink>
     </Card>
   );
 }

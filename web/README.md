@@ -8,13 +8,15 @@ v4, and the Calm Finance design system.
 
 One page (`app/page.tsx`) with four numbered sections:
 
-- **Hero** — "a neo-bank", with `Install` and `See how it works` anchors, over a
-  background video
+- **Hero** — "a neo-bank", with `Open the app` and `See how it works` anchors, over
+  a background video
 - **01 — Hello, World.** — the problem framing (currency debasement, global trade)
-- **02 — How** — scan / spend / settlement
-- **03 — Rails** — infrastructure & partners (Tempo live; Stripe and Bridge are
-  labelled "planned")
-- **04 — Download** — `Install for Android`, with "iOS coming soon"
+- **02 — How** — scan / pay / settlement
+- **03 — Rails** — infrastructure & partners: Tempo and Privy only. Stripe and
+  Bridge are deliberately absent — v1 has no fiat off-ramp and no
+  Stripe/Bridge integration in the code, so listing them as "planned" invented a
+  roadmap the product does not have.
+- **04 — Get started** — `Open Seti`, on Tempo testnet
 
 Plus:
 
@@ -22,8 +24,9 @@ Plus:
   data in `app/legal/*.content.ts` rendered by `app/legal/LegalDocument.tsx`
 - `components/ScrollNavbar.tsx` with a ⌘K `SearchModal.tsx` index over the
   sections
-- A footer that publishes the donations address and QR
-  (`components/TreasuryAddress.tsx`)
+- A footer that publishes Seti's treasury (fee-collection) address
+  (`components/TreasuryAddress.tsx`). Labelled as what it is — a transparency
+  item, not an address to send money to; no imperative and no scan-to-pay QR.
 
 There is no waitlist form and no backend call anywhere on the site; every CTA is
 an in-page anchor.

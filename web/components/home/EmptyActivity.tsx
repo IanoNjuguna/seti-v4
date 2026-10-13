@@ -1,14 +1,21 @@
-import Link from 'next/link';
-import { Button, Text } from '@/components/ui';
+import { Text } from '@/components/ui';
 import { Icon } from '@/components/ui/Icon';
 
 /**
  * The empty state, composed rather than declared.
  *
  * "No transactions yet" is the generic version and tells a new user nothing.
- * This one says what will appear, what it will contain, and gives them the one
- * action that makes something appear in it — which is the whole point of an
- * empty state on a money screen.
+ * This one says what will appear and what it will contain — and it deliberately
+ * carries NO CTA of its own.
+ *
+ * It used to end in a "Make your first payment" pill. That pill and the
+ * `ScanPayCard` directly above it are the same action: both open `/app/pay`, so a
+ * new account was offered one job twice on one screen — the exact duplication
+ * `quick-actions.constants` refuses when it keeps Pay out of the tile strip.
+ * The home screen's pay entry is `ScanPayCard`; this section explains what will
+ * fill it, and the sentence itself points at the action, so nothing is lost but
+ * the second control. (Nested in a `<Link>` the pill was also two controls in the
+ * DOM for one action — see `ButtonLink`.)
  */
 export function EmptyActivity() {
   return (
@@ -27,10 +34,6 @@ export function EmptyActivity() {
         Pay a Seti merchant and it shows up here with the amount, the merchant and
         the receipt — straight from the chain, not from us.
       </Text>
-
-      <Link href="/app/pay" className="mt-1 inline-flex">
-        <Button variant="primary">Make your first payment</Button>
-      </Link>
     </div>
   );
 }

@@ -123,11 +123,9 @@ export default function Home() {
                 Infrastructure & Partners
               </h2>
             </div>
-            <div className="grid gap-6 md:grid-cols-4">
+            <div className="grid gap-6 md:grid-cols-2">
               {[
                 ["Tempo", "Payments", "Stablecoin-native EVM chain. Gas paid in OUSD and pathUSD.", "/tempo-wordmark.svg"],
-                ["Stripe", "Fiat rails (planned)", "On-ramping and treasury infrastructure.", "/stripe-wordmark.svg"],
-                ["Bridge", "Off-ramp (planned)", "Stablecoin-to-fiat infrastructure.", "/bridge-logo.svg"],
                 ["Privy", "Wallets", "Authentication.", "/privy-stripe-company.png"],
               ].map(([name, role, desc, logo]) => (
                 <div
@@ -136,7 +134,7 @@ export default function Home() {
                 >
                   <div>
                     {logo ? (
-                      <img src={logo} alt={name} className={name === "Bridge" ? "h-10 w-auto" : "h-6 w-auto"} />
+                      <img src={logo} alt={name} className="h-6 w-auto" />
                     ) : (
                       <p className="text-xl font-medium text-ink">{name}</p>
                     )}
@@ -159,8 +157,9 @@ export default function Home() {
                   Open it in your browser.
                 </h2>
                 <p className="mt-4 max-w-md text-body-lg text-on-dark-mute">
-                  Seti runs on the web today. Sign in with a passkey — no seed phrase to
-                  write down, and no wallet address to manage.
+                  Seti runs on the web today. Your wallet is set up for you when you
+                  sign in — no seed phrase to write down, and no wallet address to
+                  manage.
                 </p>
               </div>
               <div className="flex flex-col items-start gap-4 md:col-span-5 md:items-end md:justify-center">

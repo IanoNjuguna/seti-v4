@@ -57,7 +57,7 @@ export function ScrollNavbar() {
   return (
     <>
       <div className="fixed left-0 right-0 top-0 z-50 px-6 py-4">
-        <nav className="relative mx-auto flex h-16 max-w-5xl items-center justify-between rounded-lg border border-white/10 bg-canvas-dark/50 px-4 backdrop-blur-lg">
+        <nav className="relative mx-auto flex h-16 max-w-5xl items-center justify-between rounded-lg border border-hairline-dark bg-canvas-dark/50 px-4 backdrop-blur-lg">
           <a href="#hero" className="flex items-center">
             <img src="/red-phoenix-mark.png" alt="Seti" className="h-10 w-auto" />
           </a>
