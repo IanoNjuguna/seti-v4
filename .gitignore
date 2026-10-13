@@ -2,9 +2,29 @@
 agent/
 **/.claude/
 
-# Lockfiles from other package managers
+# Workspace dependencies — the repo is an npm workspace, installed from the root
+node_modules/
+
+# Lockfiles from other package managers. The npm workspace keeps a single
+# root package-lock.json; per-package lockfiles would defeat hoisting.
 mobile/bun.lock
+**/package-lock.json.bak
+!package-lock.json
 
 # Backend local env
 backend/.env
 backend/.env.*.local
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+
+# Local agent scratch: harness copies of the app, browser artefacts, logs
+.web-check*/
+.playwright-mcp/
+tmp-*
+*.log
+
+# Build output
+.next/
