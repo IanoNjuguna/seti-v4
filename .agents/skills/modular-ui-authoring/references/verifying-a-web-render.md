@@ -1,28 +1,113 @@
-# Verifying a web render when someone else's `next dev` is running
+# Verifying a web render without a production build
 
 `npm run typecheck` and `npm run lint` do not prove a Tailwind token compiles — an
-unstyled page passes both. Render it. Two things block the obvious route:
+unstyled page passes both. Render it. Until recently agents believed the only way to
+render this app was `next build && next start`, because dev-mode client components
+never hydrated. That was a misdiagnosis with a one-line fix; this file is the corrected
+recipe.
+
+## TL;DR — the dev-hydration failure and its fix
+
+`next dev` (Next 16) **blocks cross-origin requests to dev-only resources by default**,
+including the HMR websocket at `/_next/hmr`. The only origins allowed out of the box are
+`localhost`, its subdomains, and the hostname the server was started with. Load the page
+from any other host — `127.0.0.1`, the printed **Network** URL, a LAN IP — and the
+websocket handshake is rejected with a raw `Unauthorized` body, the dev client never
+hydrates, and the page sits on its server-rendered skeleton with **zero console errors**.
+
+Fix, in `next.config.ts` (development only, ignored by `next build`):
+
+```ts
+const nextConfig: NextConfig = {
+  allowedDevOrigins: ['127.0.0.1'],
+};
+```
+
+Or, if the running `next dev` is not yours to restart, add the same line to the **copy**
+you render (see the procedure below), so only the copy is affected.
+
+**Edits to `next.config.ts` make a running `next dev` in that directory restart itself**
+(``⚠ Found a change in next.config.ts. Restarting the server to apply the changes…``).
+That is why the fix may be applied to the copy instead.
+
+## Proving it (30 seconds, no browser)
+
+Start a dev server, then hand-shake the socket by hand. The guard only inspects
+`/_next*` / `/__nextjs*` and only looks at the request's `Origin` hostname.
+
+```bash
+# blocked: Origin host is not in the allow list -> raw "Unauthorized", HTTP/0.9
+curl -s -D - -o /dev/null --max-time 4 \
+  -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" \
+  -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+  -H "Origin: http://127.0.0.1:3200" http://127.0.0.1:3200/_next/hmr
+#   curl: (1) Received HTTP/0.9 when not allowed
+#   < Unauthorized
+
+# allowed: Origin host matches the server's own host
+curl -s -D - -o /dev/null --max-time 4 \
+  -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" \
+  -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+  -H "Origin: http://localhost:3200" http://127.0.0.1:3200/_next/hmr
+#   HTTP/1.1 101 Switching Protocols
+```
+
+The dev server logs the block explicitly (once per distinct host):
+
+```
+⚠ Blocked cross-origin request to Next.js dev resource /_next/hmr from "127.0.0.1".
+Cross-origin access to Next.js dev resources is blocked by default for safety.
+```
+
+In the browser this surfaces as `WebSocket connection to 'ws://HOST/_next/hmr?id=…'
+failed: Error during WebSocket handshake: net::ERR_INVALID_HTTP_RESPONSE` — which a
+previous revision of this file wrongly attributed to "the sandbox". Grep the recorded
+evidence: `.playwright-mcp/console-*.log` in this repo contains that exact line against
+`ws://127.0.0.1:3000` and `ws://127.0.0.1:3600`, i.e. agents were driving the browser at
+**`127.0.0.1`, not `localhost`** — 1428 requests to `127.0.0.1:3000` versus 291 to
+`localhost:3000` in the snapshots. The sandbox was never the problem.
+
+Why nothing else breaks: right after the guard was added, the reference story said
+"server HTML renders, JS chunks load with 200, and no element ever gets a `__reactFiber`
+key". That is still exactly what you see. Chunk requests are same-origin `GET`s and
+carry **no** `Origin` header, so the guard lets them through; the websocket always sends
+one, so it is the only thing blocked. React loads (the DevTools banner logs), but
+`hydrate()` in `node_modules/next/dist/client/app-index.js` runs `createWebSocket(...)`
+and then `await initialServerResponse`, and the tree is never committed.
+
+## The procedure (copy + hard-linked deps + spare ports)
+
+Two things block the obvious "just run `next dev`" route:
 
 - **One `next dev` per project directory.** A second one exits with "Another next dev
   server is already running" and names the PID. Never kill that process: it is usually
   someone else's session, and its `.next` state is not yours to reset.
 - **Turbopack rejects a symlinked `node_modules`** ("Symlink [project]/node_modules is
-  invalid, it points out of the filesystem root"), so the usual
-  copy-the-app-and-symlink-deps trick does not work.
+  invalid, it points out of the filesystem root"), so the usual copy-the-app-and-symlink
+  trick does not work.
 
-## The procedure
-
-Work inside the repo, so module resolution still finds the hoisted root
-`node_modules`, and hard-link the deps (same filesystem — instant, no extra space):
+Work inside the repo, so module resolution still finds the hoisted root `node_modules`,
+and hard-link the deps (same filesystem — instant, no extra space):
 
 ```bash
 cd <repo>
-mkdir .web-check
-rsync -a --exclude .next --exclude node_modules --exclude AGENTS.md web/ .web-check/
-cp -al web/node_modules .web-check/node_modules
-cp web/.env.local .web-check/.env.local
-printf '\nNEXT_PUBLIC_API_URL=http://localhost:4100\nNEXT_PUBLIC_AUTH_SOURCE=dev\n' >> .web-check/.env.local
-(cd .web-check && npx next dev -p 3200)     # a port nothing else holds
+mkdir .web-check-<item>                     # UNIQUE dir — see Cleanup
+rsync -a --exclude .next --exclude node_modules --exclude AGENTS.md web/ .web-check-<item>/
+cp -al web/node_modules .web-check-<item>/node_modules
+cp web/.env.local .web-check-<item>/.env.local
+printf '\nNEXT_PUBLIC_API_URL=http://localhost:4100\nNEXT_PUBLIC_AUTH_SOURCE=dev\n' >> .web-check-<item>/.env.local
+```
+
+**Then fix the copy's hydration** — append the config line, or the browser will only
+hydrate if it is pointed at `localhost`:
+
+```bash
+cat > .web-check-<item>/next.config.ts <<'EOF'
+import type { NextConfig } from "next";
+const nextConfig: NextConfig = { allowedDevOrigins: ["127.0.0.1"] };
+export default nextConfig;
+EOF
+(cd .web-check-<item> && npx next dev -p 3200)     # a port nothing else holds
 ```
 
 Signing in needs a backend that allows the dev bypass, on its own port so it does not
@@ -34,9 +119,10 @@ cd backend && PORT=4100 HOST=127.0.0.1 DEV_BYPASS_AUTH=true NODE_ENV=development
 curl -s -X POST http://localhost:4100/auth/dev -H 'content-type: application/json' -d '{}'
 ```
 
-Then drive a real browser at `http://localhost:3200/app`, click Sign in (source `dev`
-renders the local-development card), and inspect the DOM. `getComputedStyle` on the new
-elements is the evidence that the tokens compiled — background, colour, radius, font:
+Warm the route before driving a browser (see below), then load `http://localhost:3200/app`
+(or `127.0.0.1:3200` once `allowedDevOrigins` is set), click Sign in (source `dev` renders
+the local-development card), and inspect the DOM. `getComputedStyle` on the new elements is
+the evidence that the tokens compiled — background, colour, radius, font:
 
 ```js
 const s = getComputedStyle(document.querySelector('form input'));
@@ -45,8 +131,20 @@ const s = getComputedStyle(document.querySelector('form input'));
 
 Assertions worth making in this order: the copy renders, a bad input produces the field
 message (and no wallet prompt), and the computed colours match the tokens you intended.
-The first `GET /app` compiles for well over a minute — curl with a long timeout before
-concluding the server is down.
+
+### Assert hydration with the fiber key, never by eye
+
+A dev page that is *not* hydrating looks identical to one that is, for the parts that
+matter. Check the key, not the pixels:
+
+```js
+[...document.querySelectorAll('*')].some(e => Object.keys(e).some(k => k.startsWith('__reactFiber')))
+```
+
+`false` on a route that should have hydrated means the websocket never connected — check
+the `Origin` host against the fix above before blaming the component. From the console,
+`[HMR] connected` is the positive signal; a `ws://…/_next/hmr … net::ERR_INVALID_HTTP_RESPONSE`
+close (code 1006, retrying forever) is the block.
 
 ### The copy's env decides whether `/app` boots at all
 
@@ -69,12 +167,14 @@ scroll is a **blank frame**, so inspect the image rather than trusting the exit 
 
 ## Cleanup
 
-`rm -rf .web-check` and stop both processes. Nothing else in the tree should change —
-check `git status` for strays before reporting.
+`rm -rf .web-check-<item>` and stop both processes — **kill by PID** (`ss -ltnp` to find
+it), never by pattern: a `next dev` on 3000/4000 may be the owner's and pkill would take
+it too. Nothing else in the tree should change; check `git status` for strays before
+reporting.
 
 ### Use a UNIQUE copy directory, not `.web-check`
 
-`.web-check` is gitignored and the name this procedure has always used, so **two agents
+`.web-check` is gitignored and the name this procedure used to use, so **two agents
 working the same repo at once will both claim it** — and each one's cleanup `rm -rf
 .web-check` deletes the other's copy out from under a running `next dev`. The failure is
 loud but late: the server logs `ENOENT: scandir .../.web-check/app`, then `The directory
@@ -83,36 +183,19 @@ next/dist/server/lib/start-server.js` — mid-verification, after the compiles y
 two minutes for. Pick a task-specific name that still matches the `.web-check*/` ignore
 rule (e.g. `.web-check-<item>/`) and clean up only that.
 
-## If a client component never hydrates, suspect the HMR socket
-
-`next dev`'s HMR WebSocket can be blocked from upgrading by the sandbox
-(`ws://…/_next/hmr … Error during WebSocket handshake: net::ERR_INVALID_HTTP_RESPONSE`).
-When it is, the dev client defers the initial hydration: server HTML renders, the JS
-chunks load with 200, React logs its DevTools banner — and **no element ever gets a
-`__reactFiber` key**, so a client-only branch (a skeleton gated on mount, a
-`useSyncExternalStore` mount guard) stays frozen forever with **zero console errors**.
-
-Diagnose with
-`[...document.querySelectorAll('*')].some(e=>Object.keys(e).some(k=>k.startsWith('__reactFiber')))`,
-not by eyeballing the DOM. False on a route that should have hydrated means the
-environment is at fault, not the component.
-
-**Verify against a production build instead**, which has no HMR socket to negotiate:
-`npx next build` then `npx next start -p <spare port>`, and re-check the fiber key. A
-Turbopack production build of this app measured ~15 min on a loaded box, so budget for
-it rather than concluding the build hung.
-
 ## Warm the route before you drive a browser
+
 `next dev` compiles a route on its **first** request. Measured in this repo, the first
-`GET /app/activity` on a warm filesystem cache took **2m02s**. A browser tool that gives
-up after ~60s (Playwright MCP's `page.goto`, `browser-use`'s `Page.navigate`) fails
-before that, and a navigation that times out mid-compile looks exactly like a dead
-server — it is not; the compile is still running.
+`GET /app/activity` on a warm filesystem cache took **2m02s**; under load the first
+`GET /app` has taken well over five minutes. A browser tool that gives up after ~60s
+(Playwright MCP's `page.goto`, `browser-use`'s `Page.navigate`) fails before that, and a
+navigation that times out mid-compile looks exactly like a dead server — it is not; the
+compile is still running.
 
 So block on `curl` first — it waits out the compile and then answers `200`:
 
 ```bash
-curl -s -m 180 -o /tmp/page.html -w '%{http_code}\n' localhost:<port>/app/activity
+curl -s -m 600 -o /tmp/page.html -w '%{http_code}\n' localhost:<port>/app/activity
 ```
 
 Every later request is served in well under a second, and the browser then navigates
@@ -185,7 +268,8 @@ Read the query with `useSearchParams()` from `next/navigation` inside a
 while the rest of the route stays static (verified: `/app/merchant?kind=person`
 showed business copy before, username copy after).
 
-**The general lesson: drive the flow against `next build && next start`, not only
-`next dev`.** A dev-only pass cannot see this class of defect, and the trap is that
-the page is not blank — it renders, just not as configured.
-
+**The general lesson: a dev-only pass cannot see the prerender class of defect.** Drive
+those routes against `next build && next start` too — a Turbopack production build of
+this app measured ~15 min on a loaded box, so budget for it. But do not reach for a
+production build merely to get *hydration*: that is the websocket origin guard above,
+and it is fixed by one config line.
