@@ -7,7 +7,7 @@ description: Upgrades existing websites and apps to premium quality. Audits curr
 
 ## Project Localization: Calm Finance / Seti
 
-This project is a **Tempo-based mobile neobank for Nairobi, Kenya**. The existing design system is **Calm Finance** and is defined in `DESIGN.md` at the repository root. When redesigning or auditing this repo, read `DESIGN.md` first and treat it as the single source of truth.
+This project is a **Tempo-based neobank for Nairobi, Kenya**, with a React Native app (`mobile/`) and a Next.js web app (`web/`). Which design system governs depends on the surface: **`design/revolut.md`** for every web surface (the landing page and the product app at `/app`), and **Calm Finance** (`DESIGN.md` at the repository root) for `mobile/` until it migrates — the Revolut system is the repo's target. Read the surface's doc first and treat it as the single source of truth; never apply one system's tokens to the other surface.
 
 The following generic redesign defaults **do not apply** here and must be overridden:
 
