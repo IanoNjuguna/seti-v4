@@ -14,6 +14,7 @@
 import { prisma } from '../lib/prisma.js';
 import { decodeEventLog, erc20Abi, parseAbiItem } from 'viem';
 import { recordPayment } from './transactions.js';
+import { PaymentRefusalError } from './payment-refusal.js';
 import { getFxQuote } from './payments.js';
 import { issueQuote } from './quote.js';
 import { formatUnits, getTokenContract, network, publicClient } from './chain.js';
@@ -43,6 +44,26 @@ let failures = 0;
 function check(label: string, passed: boolean, detail = ''): void {
   if (!passed) failures += 1;
   console.log(`${passed ? 'ok  ' : 'FAIL'}  ${label}${detail ? `  ${detail}` : ''}`);
+}
+
+/**
+ * The typed refusal code a `recordPayment` call produced, or a marker for "did
+ * not refuse".
+ *
+ * The wallet binding is pinned by its CODE, not by "it threw": `signer-not-declared`
+ * and `signer-not-owned` are distinct, client-actionable states, and a suite that
+ * only saw an exception could not tell them from a crash. `check:send` pins the
+ * third (`signer-mismatch`) on the same shared gate.
+ */
+async function refusalCodeOf(fn: () => Promise<unknown>): Promise<string> {
+  try {
+    await fn();
+    return '(did not refuse)';
+  } catch (error) {
+    return error instanceof PaymentRefusalError
+      ? error.code
+      : `non-refusal: ${error instanceof Error ? error.message : String(error)}`;
+  }
 }
 
 const transferEvent = parseAbiItem(
@@ -316,6 +337,58 @@ async function main() {
   check(
     'still no row written',
     (await prisma.transaction.count({ where: { merchantId: merchant.id } })) === 0
+  );
+
+  // --- The wallet a recorded payment is bound to ---------------------------
+  //
+  // A recorded payment is bound to the wallet that SIGNED it, so `recordPayment`
+  // resolves the wallet the CALLER declared and owns — never "the user's active
+  // wallet", which an account holding several embedded wallets may have wrong —
+  // and refuses everything else with a typed code. `declaredWalletOrRefuse` runs
+  // BEFORE any chain read, so these cases need no receipt: the declaration is
+  // rejected on its own.
+  //
+  // The third refusal, `signer-mismatch` (a declared wallet that IS the caller's
+  // but is not the receipt's sender), is pinned on the same shared gate by
+  // `check:send`, which reconciles against a real receipt.
+  console.log('\nthe payment is bound only to a wallet the caller declared and owns:');
+
+  const undeclaredWallet = await refusalCodeOf(() =>
+    recordPayment({
+      userId: user.id,
+      amount: realTransfer.value.toFixed(8),
+      asset: 'ousd',
+      merchantId: anchoredMerchant.id,
+      txHash: realTx,
+      quoteId,
+    })
+  );
+  check(
+    'a payment with no declared signing wallet is refused',
+    undeclaredWallet === 'signer-not-declared',
+    undeclaredWallet
+  );
+
+  const foreignWallet = await refusalCodeOf(() =>
+    recordPayment({
+      userId: user.id,
+      amount: realTransfer.value.toFixed(8),
+      asset: 'ousd',
+      merchantId: anchoredMerchant.id,
+      txHash: realTx,
+      quoteId,
+      walletAddress: '0x' + '99'.repeat(20),
+    })
+  );
+  check(
+    'a declared wallet the account does not own is refused',
+    foreignWallet === 'signer-not-owned',
+    foreignWallet
+  );
+
+  check(
+    'and neither wallet refusal wrote a row',
+    (await prisma.transaction.count({ where: { userId: user.id } })) === 0
   );
 
   // --- The treasury address must be a real, distinct recipient ------------
