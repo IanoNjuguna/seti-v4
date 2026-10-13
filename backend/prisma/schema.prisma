@@ -21,12 +21,26 @@ model User {
   /// backend refuses to price in a currency the app no longer enables, so a
   /// stored code outliving its configuration cannot produce unexplained figures.
   fiatCurrency  String     @default("KES")
+  /// Which mode the app presents this account in: `personal` or `business`.
+  ///
+  /// NOT an onboarding flag. Whether onboarding is FINISHED is derived from data
+  /// that already exists — the presence of a `Handle` row for this user — so
+  /// there is no `onboardedAt` to go stale or to disagree with the handles. This
+  /// column only answers a question the handles cannot: with a username AND a
+  /// business name both claimed (which the model allows, and which "try it as a
+  /// person, add a business later" requires), which of the two the account is
+  /// currently acting as. Deriving it instead would make `business` win forever
+  /// the moment a business name exists — a one-way door where the feature needs
+  /// a reversible one. It never gates anything: a user with this column set and
+  /// no handle is still, correctly, not onboarded.
+  intent        String     @default("personal")
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
   wallets      Wallet[]
   transactions Transaction[]
   auditLogs    AuditLog[]
+  handles      Handle[]
 
   @@map("users")
 }
@@ -51,6 +65,73 @@ model Wallet {
   @@map("wallets")
 }
 
+/// THE namespace. One row per handle, whether it belongs to a person or a
+/// business — a person's username and a business's name are the same kind of
+/// signed handle and compete for the same string. "Person or business" is a
+/// PROFILE MODE (`kind`) on one handle, never a different identity: there is one
+/// lookup box, one claim, and one resolver.
+///
+/// A handle belongs to an ADDRESS, and a merchant profile is a mode on top of it
+/// (`merchantId`), which is why the claim lives here rather than on the Merchant
+/// row. The binding is an EIP-712 signature, stored verbatim and RE-VERIFIED from
+/// the stored signature on every read — there is no stored "verified" boolean. A
+/// compromised database can at worst HIDE a handle; it cannot invent a binding,
+/// because a binding is a signature and forging one is not a database write.
+///
+/// The signature is PURPOSE-SCOPED (`purpose`): a signature made to claim a
+/// username cannot be replayed to claim a merchant name, or the reverse.
+model Handle {
+  id             String    @id @default(cuid())
+  /// The ONE namespace key — lowercased, `[a-z0-9._-]`, unique across people and
+  /// businesses. Computed by `handleOf` in `lib/merchant-name.ts`, which the web
+  /// mirrors in `lib/merchant-link.ts`. STORED and UNIQUE because the rule DROPS
+  /// characters: `Mama's Grill` and `Mamas Grill` are two distinct NAMES that
+  /// reduce to one handle, and only a stored unique column makes
+  /// `seti.live/<x>/<handle>` unambiguous about who is paid.
+  handle         String    @unique
+  /// `person` | `business` — a profile mode on the handle, not an identity.
+  kind           String    @default("business")
+  /// The username a person typed, or a business's name. Same rule for both.
+  name           String
+  /// The EIP-712 purpose this binding was signed with: `username` or
+  /// `merchant-name`. NULL only for a handle backfilled from a merchant claim
+  /// made BEFORE `purpose` existed — its signature was made without the field,
+  /// so it is re-verified against the legacy message shape. Every handle claimed
+  /// through the API stores a purpose, which is what makes a replay across
+  /// purposes impossible.
+  purpose        String?
+  /// The address the handle is bound to. The authoritative thing for the money
+  /// path: a name is only ever a label beside it.
+  address        String
+  /// The signature, stored verbatim — this is the whole point of the feature.
+  claimSignature String?
+  /// The `issuedAt` EXACTLY as it appeared in the signed message. Kept as the raw
+  /// string, not a DateTime: re-deriving an ISO string from a timestamp can differ
+  /// by precision or offset, and a genuine signature would then fail to re-verify.
+  claimIssuedAt  String?
+  claimNonce     String?
+  /// When the backend accepted the claim. Distinct from `claimIssuedAt`.
+  claimedAt      DateTime?
+  /// The account the handle belongs to. Informational, not a trust anchor: what
+  /// makes a claim true is the signature, never who posted it.
+  userId         String?
+  /// The business profile, when `kind = 'business'`. A person has none.
+  merchantId     String?   @unique
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user     User?     @relation(fields: [userId], references: [id])
+  merchant Merchant? @relation(fields: [merchantId], references: [id])
+
+  @@index([userId])
+  @@index([name])
+  @@map("handles")
+}
+
+/// A business PROFILE — the mode a business handle turns on. It carries what a
+/// business is (a category, settlement details) and where its money goes
+/// (`payoutAddress`), but NOT the claim: the handle, its signature and its
+/// uniqueness live in `Handle`, so one string can only ever be one thing.
 model Merchant {
   id            String   @id @default(cuid())
   name          String
@@ -63,52 +144,8 @@ model Merchant {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  /// Normalised name (`lower(trim(name))`), the first-come key for a claim.
-  ///
-  /// Unique so two merchants cannot hold the same name — resolution by name must
-  /// be unambiguous, or a name could point at two addresses. Nullable because a
-  /// merchant row may predate claims; a null key participates in no uniqueness
-  /// (Postgres treats NULLs as distinct), and the by-name claim guard still sees
-  /// such a row.
-  nameKey            String?  @unique
-
-  /// The public handle — the `m/<handle>` in the link a customer is handed.
-  ///
-  /// STORED and UNIQUE so `seti.live/m/<handle>` can never be ambiguous. The
-  /// handle is not unique by construction: `merchantHandle` DROPS every character
-  /// outside `[a-z0-9._-]`, so `Mama's Kitchen & Grill` and `Mamas Kitchen Grill`
-  /// are two distinct NAMES (the `nameKey` keeps the space, the apostrophe and
-  /// the ampersand) that both reduce to `mamaskitchengrill`. Storing the handle
-  /// and refusing the second claim at claim time is what makes the link's target
-  /// a fact of the row rather than a coin toss at payment time.
-  ///
-  /// Computed in exactly one place, `lib/merchant-name.ts` → `merchantHandle`,
-  /// which the web mirrors in `lib/merchant-link.ts`. Nullable for the same
-  /// reason `nameKey` is: a row that predates claims, or a test fixture, may have
-  /// none — a null participates in no uniqueness, and such a row is simply not
-  /// reachable by handle. Every merchant created by a claim gets one.
-  handle             String?  @unique
-
-  /// The EIP-712 signature over (name, payoutAddress, issuedAt, nonce).
-  ///
-  /// Stored verbatim — this is the whole point of the feature: the binding is
-  /// re-verifiable by anyone holding the row, not a boolean we ask you to trust.
-  /// A tampered row recovers to a different address and reads as unverified.
-  claimSignature     String?
-  /// The `issuedAt` EXACTLY as it appeared in the signed message. Kept as the
-  /// raw string, not a DateTime: re-deriving an ISO string from a timestamp can
-  /// differ by precision or offset, and then a genuine signature would fail to
-  /// re-verify. The message is the authority.
-  claimIssuedAt      String?
-  claimNonce         String?
-  /// When the backend accepted the claim. Distinct from `claimIssuedAt`, which
-  /// the signer chose.
-  claimedAt          DateTime?
-  /// The account that submitted the claim. Informational, not a trust anchor:
-  /// what makes a claim true is the signature, never who posted it.
-  claimedByUserId    String?
-
   transactions Transaction[]
+  handleEntry  Handle?
 
   @@map("merchants")
 }

@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { getHomeDashboard } from '../services/wallet.js';
 import { getUserBalance } from '../services/balance.js';
+import { PRIMARY_ASSET } from '../services/chain.js';
 
 const paramsSchema = z.object({
   id: z.string().cuid(),
@@ -64,7 +65,7 @@ export async function userRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: 'User not found' });
     }
 
-    const balance = await getUserBalance(id, 'ousd');
+    const balance = await getUserBalance(id, PRIMARY_ASSET);
     return balance;
   });
 }

@@ -7,7 +7,7 @@ async function main() {
     update: {},
     create: {
       email: 'demo@seti.app',
-      phone: '+254712345678',
+      phone: '+254****5678',
       firstName: 'Demo',
       lastName: 'User',
     },
@@ -24,35 +24,60 @@ async function main() {
     },
   });
 
+  const javaHouseAddress = '0x20C000000000000000000000b9537d11c60E8b50';
+  const safaricomAddress = '0x20c0000000000000000000009e8d7eb59b783726';
+
   const merchant = await prisma.merchant.upsert({
     where: { id: 'merchant_java_house' },
     update: {
-      payoutAddress: '0x20C000000000000000000000b9537d11c60E8b50',
-      handle: merchantHandle('Java House'),
+      payoutAddress: javaHouseAddress,
     },
     create: {
       id: 'merchant_java_house',
       name: 'Java House',
       category: 'Dining',
       bankCurrency: 'KES',
-      handle: merchantHandle('Java House'),
-      payoutAddress: '0x20C000000000000000000000b9537d11c60E8b50',
+      payoutAddress: javaHouseAddress,
     },
   });
 
-  await prisma.merchant.upsert({
+  const safari = await prisma.merchant.upsert({
     where: { id: 'merchant_safari_com' },
     update: {
-      payoutAddress: '0x20c0000000000000000000009e8d7eb59b783726',
-      handle: merchantHandle('Safaricom Shop'),
+      payoutAddress: safaricomAddress,
     },
     create: {
       id: 'merchant_safari_com',
       name: 'Safaricom Shop',
       category: 'Utilities',
       bankCurrency: 'KES',
+      payoutAddress: safaricomAddress,
+    },
+  });
+
+  // The handle is the identity; the Merchant row is the business PROFILE it turns
+  // on. Seed both halves of that shape so `seti.live/m/javahouse` resolves.
+  await prisma.handle.upsert({
+    where: { handle: merchantHandle('Java House') },
+    update: { merchantId: merchant.id },
+    create: {
+      handle: merchantHandle('Java House'),
+      kind: 'business',
+      name: 'Java House',
+      address: javaHouseAddress,
+      merchantId: merchant.id,
+    },
+  });
+
+  await prisma.handle.upsert({
+    where: { handle: merchantHandle('Safaricom Shop') },
+    update: { merchantId: safari.id },
+    create: {
       handle: merchantHandle('Safaricom Shop'),
-      payoutAddress: '0x20c0000000000000000000009e8d7eb59b783726',
+      kind: 'business',
+      name: 'Safaricom Shop',
+      address: safaricomAddress,
+      merchantId: safari.id,
     },
   });
 
@@ -102,7 +127,7 @@ async function main() {
     ],
   });
 
-  console.log('Seeded demo user, wallet, merchant, and transactions.');
+  console.log('Seeded demo user, wallet, merchant, handles, and transactions.');
 }
 
 main()

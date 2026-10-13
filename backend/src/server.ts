@@ -5,8 +5,9 @@ import { healthRoutes } from './routes/health.js';
 import { authRoutes } from './routes/auth.js';
 import { userRoutes } from './routes/users.js';
 import { walletRoutes } from './routes/wallets.js';
-import { merchantRoutes } from './routes/merchants.js';
-import { publicMerchantRoutes } from './routes/public-merchants.js';
+import { handleRoutes } from './routes/handles.js';
+import { accountRoutes } from './routes/account.js';
+import { publicHandleRoutes } from './routes/public-handles.js';
 import { transactionRoutes } from './routes/transactions.js';
 import { receiptRoutes } from './routes/receipts.js';
 
@@ -54,11 +55,16 @@ export async function buildServer() {
   // `/wallets/users/:id/wallets`, which no client ever called and which read as
   // a typo in every log line.
   await app.register(walletRoutes);
-  await app.register(merchantRoutes, { prefix: '/merchants' });
-  // The public half of the same feature: the `seti.live/m/<handle>` page reads
-  // this signed out, which is why it is its own registration with no auth hook
-  // rather than a route inside `merchantRoutes`.
-  await app.register(publicMerchantRoutes, { prefix: '/public/merchants' });
+  await app.register(handleRoutes, { prefix: '/handles' });
+  // The account read the onboarding gate is built on: which handles the caller
+  // holds (so "onboarded" is DERIVED from data) and which mode they are in. Its
+  // own registration because it is about the ACCOUNT, not about the namespace
+  // `handleRoutes` owns.
+  await app.register(accountRoutes, { prefix: '/account' });
+  // The public half of the same feature: the `seti.live/m/<handle>` and
+  // `seti.live/u/<handle>` pages read this signed out, which is why it is its own
+  // registration with no auth hook rather than a route inside `handleRoutes`.
+  await app.register(publicHandleRoutes, { prefix: '/public/handles' });
   // The shared receipt read: no auth hook, gated only by the signed capability
   // token in the query. Registered without a session for the same reason as the
   // public merchant read above — a link the owner hands to a merchant must open

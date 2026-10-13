@@ -3,10 +3,11 @@ import { z } from 'zod';
 import { authMiddleware } from '../middleware/auth.js';
 import { getWalletsByUser, registerWallet } from '../services/wallet-registry.js';
 import { describeEvmAddress } from '../lib/address.js';
+import { PRIMARY_ASSET } from '../services/chain.js';
 
 const registerSchema = z.object({
   chain: z.string().default('tempo'),
-  asset: z.string().default('ousd'),
+  asset: z.string().default(PRIMARY_ASSET),
   address: z.string(),
   keyId: z.string().optional(),
 });

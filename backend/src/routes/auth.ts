@@ -5,6 +5,7 @@ import { authMiddleware } from '../middleware/auth.js';
 import { verifyPrivyToken, isPrivyConfigured } from '../services/auth.js';
 import { registerWallet, resolveWalletAddress } from '../services/wallet-registry.js';
 import { logAuditEvent } from '../services/audit.js';
+import { PRIMARY_ASSET } from '../services/chain.js';
 
 const verifySchema = z.object({
   token: z.string().min(1),
@@ -70,7 +71,7 @@ export async function authRoutes(app: FastifyInstance) {
     await registerWallet({
       userId: user.id,
       chain: 'tempo',
-      asset: 'ousd',
+      asset: PRIMARY_ASSET,
       address: resolved.address,
     });
 
@@ -163,7 +164,7 @@ export async function authRoutes(app: FastifyInstance) {
     await registerWallet({
       userId: user.id,
       chain: 'tempo',
-      asset: 'ousd',
+      asset: PRIMARY_ASSET,
       address: devWalletAddress,
     });
 

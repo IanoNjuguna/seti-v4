@@ -25,7 +25,9 @@ let warnedAboutMissingSecret = false;
  * random one and warns ONCE: tokens are still unforgeable, but they are pinned
  * to this process, so an outstanding token does not survive a restart and a
  * second instance cannot read the first's. That is a development convenience
- * only — production must set `QUOTE_SIGNING_SECRET`.
+ * only — production must set `QUOTE_SIGNING_SECRET`, and `config/env.ts`
+ * REFUSES TO BOOT a production process without one, so this fallback is
+ * unreachable in production.
  */
 export function signingSecret(): Buffer {
   const configured = env.QUOTE_SIGNING_SECRET;

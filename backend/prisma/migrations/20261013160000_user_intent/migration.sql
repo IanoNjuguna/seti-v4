@@ -1,0 +1,17 @@
+-- The account's intended mode: personal or business.
+--
+-- A COLUMN IS NEEDED HERE, and only here — it is not an onboarding flag.
+-- "Has this account finished onboarding?" is already answered by data that
+-- exists: a `handles` row for the user's id. Nothing is added for that, so there
+-- is no second source of truth to drift.
+--
+-- What the handles CANNOT answer is which mode an account is acting as once it
+-- holds BOTH a username and a business name — a state the model allows on
+-- purpose (a person tries the product, then adds a business), and one that
+-- "personal / business is reversible" requires to be reachable. Deriving the
+-- mode from the handles would make `business` win the moment a business name
+-- exists, which is the one-way door this feature exists to avoid.
+--
+-- Defaulted to 'personal' so every existing row is valid the moment the column
+-- lands, and so a brand-new account has a defined mode before it claims anything.
+ALTER TABLE "users" ADD COLUMN "intent" TEXT NOT NULL DEFAULT 'personal';

@@ -37,6 +37,9 @@ async function attachDevTestUser(request: FastifyRequest) {
 }
 
 export async function authMiddleware(request: FastifyRequest, reply: FastifyReply) {
+  // NOTE: production cannot reach this bypass even if DEV_BYPASS_AUTH were set:
+  // `config/env.ts` refuses to boot a production process with it on. This
+  // `NODE_ENV === 'development'` gate is the second, independent barrier.
   const bypassAllowed =
     env.NODE_ENV === 'development' && env.DEV_BYPASS_AUTH === 'true';
 
