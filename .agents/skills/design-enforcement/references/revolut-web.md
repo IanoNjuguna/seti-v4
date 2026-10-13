@@ -75,14 +75,23 @@ Radii: `sm`, `md`, `lg`, `xl`, `pill`.
   because Tailwind emits variants after base utilities, so
   `<Button fullWidth className="sm:w-auto">` is full width at 360px and 184px from
   `sm` up (verified in a render here).
-- **An explicit colour loses to the variant's baked colour.** `Text`'s variants carry
-  a colour (`micro` → `text-stone`), and Tailwind v4 emits colour utilities in
-  *alphabetical* order — so `text-stone` is emitted after `text-accent-danger` and wins
-  at equal specificity. `variant="micro" color="alert"` therefore renders grey, and
-  `variant="micro" color="inverse-muted"` renders stone. Confirmed in the compiled
-  stylesheet and in a live render (`getComputedStyle` on an error line:
-  `rgb(141,150,158)`, not the danger red). Until the variants stop setting a colour at
-  all, a colour that must win needs the important modifier — `text-accent-danger!`.
+- **`Text` resolves exactly ONE colour class, so a colour is deterministic.** The variants
+  used to carry a colour of their own (`micro` → `text-stone`), and Tailwind v4 emits
+  colour utilities *alphabetically* — so `text-stone` landed after `text-accent-danger` and
+  won at equal specificity, and `variant="micro" color="alert"` rendered grey
+  (`rgb(141,150,158)` in a live render). The variants no longer set a colour at all:
+  `Text` applies the caller's `color` when given, otherwise the variant's own default
+  (`DEFAULT_COLOR_CLASSES` in `Text.constants.ts`, e.g. `micro` → `text-stone`), and emits
+  only one of the two. Consequences that still bite:
+  - A colour that must be chosen goes through the `color` prop. A `text-*` class in
+    `className` still competes with the default and still loses (`cn()` is a join, not a
+    merge) — `Text` is the one place colour is decided.
+  - The `!` important modifier is no longer needed anywhere (`text-accent-danger!` was
+    the old workaround). If you see one, it is dead weight.
+  - Status roles are `success` / `warning` / `alert` (`accent-light-green` /
+    `accent-yellow` / `accent-danger`).
+  - A variant's colour set on an **ancestor** element is still overridden by the child
+    `Text`'s own default. Name the role on the text itself — that is what `Badge` does.
 
 - `--text-body-md-bold` is **not** in the original theme — it had to be added to
   `globals.css`. If an emphatic size compiles to nothing, the class is missing from the

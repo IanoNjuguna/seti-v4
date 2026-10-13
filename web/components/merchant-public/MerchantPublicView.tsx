@@ -18,7 +18,7 @@ import type { MerchantPublicViewProps } from './MerchantPublic.types';
 export function MerchantPublicView({ merchant }: MerchantPublicViewProps) {
   return (
     <div className="space-y-6">
-      <Text variant="micro" as="p" className="font-brand text-heading-sm text-ink">
+      <Text variant="micro" as="p" color="primary" className="font-brand text-heading-sm">
         {PUBLIC_COPY.brand}
       </Text>
 

@@ -1,6 +1,7 @@
 'use client';
 
 import type { FormEvent } from 'react';
+import { Text } from '@/components/ui';
 import { SEND_COPY } from './SendPanel.constants';
 import { SendFeeSummary } from './SendFeeSummary';
 import { SendField } from './SendField';
@@ -73,11 +74,13 @@ export function SendForm({
       <SendFeeSummary preview={preview} loading={previewLoading} />
 
       {/* A wallet, chain or server failure is not the customer's entry, so it is
-          not rendered on a field — and it names what failed, not just that it did. */}
+          not rendered on a field — and it names what failed, not just that it did.
+          `role="alert"` makes it a live region; `color="alert"` is the token role,
+          not a hand-copied class. */}
       {formError ? (
-        <p role="alert" className="text-body-sm text-accent-danger">
+        <Text variant="micro" color="alert" as="p" role="alert">
           {formError}
-        </p>
+        </Text>
       ) : null}
 
       <SendSubmit step={step} />

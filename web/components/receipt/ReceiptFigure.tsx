@@ -19,15 +19,16 @@ import type { ReceiptFigureProps } from './Receipt.types';
 export function ReceiptFigure({ word, figure, titleId }: ReceiptFigureProps) {
   return (
     <header className="mt-6">
-      {/* `text-on-dark-mute!` is deliberate: the `micro` variant bakes its own
-          colour (`text-stone`), and Tailwind v4 emits colour utilities
-          alphabetically, so `text-stone` is emitted after `text-on-dark-mute` and
-          wins at equal specificity. The card has one muted tier, not two. */}
+      {/* One muted tier, not two: `color="inverse-muted"` is the ONLY colour class
+          this element carries. It used to need a `text-on-dark-mute!` important
+          modifier because the `micro` variant baked its own `text-stone`, which
+          Tailwind emitted after it and won. `Text` no longer lets a variant
+          outrank an explicit colour, so the modifier is gone. */}
       <Text
         variant="micro"
         as="p"
         color="inverse-muted"
-        className="uppercase tracking-widest text-on-dark-mute!"
+        className="uppercase tracking-widest"
       >
         {word}
       </Text>

@@ -81,15 +81,20 @@ export function SendFeeSummary({ preview, loading }: SendFeeSummaryProps) {
       />
 
       {preview.fxRateStale ? (
+        /* Left as a raw line on purpose: this is a caption (13px), and `Text`
+           has no `caption` variant — giving it a `micro` base and overriding the
+           size by class would trade one class-order fight (colour) for another
+           (font-size). It is a warning, not the alert/error colour this change
+           is about, so it keeps its bare element. */
         <p className="text-caption text-accent-yellow">
           The exchange rate is out of date, so these figures are indicative.
         </p>
       ) : null}
 
       {preview.hasEnoughBalance === false ? (
-        <p className="text-body-sm text-accent-danger">
+        <Text variant="micro" color="alert" as="p">
           Not enough {preview.fiatCurrency} to cover this send and its fee.
-        </p>
+        </Text>
       ) : null}
     </div>
   );

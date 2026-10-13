@@ -1,5 +1,6 @@
 export { Text } from './Text';
 export { Button } from './Button';
+export { ButtonLink } from './ButtonLink';
 export { Card } from './Card';
 export { Badge } from './Badge';
 export { Skeleton } from './Skeleton';
@@ -9,6 +10,7 @@ export { Input } from './Input';
 
 export type { TextProps, TextVariant, TextColor } from './Text.types';
 export type { ButtonProps } from './Button.types';
+export type { ButtonLinkProps } from './ButtonLink.types';
 export type { CardProps } from './Card';
 export type { BadgeProps } from './Badge.types';
 export type { SkeletonProps } from './Skeleton';

@@ -2,6 +2,7 @@
 
 import { useId } from 'react';
 import { cn } from '@/lib/cn';
+import { Text } from './Text';
 import type { InputProps } from './Input.types';
 
 /**
@@ -22,13 +23,11 @@ import type { InputProps } from './Input.types';
  * and the "colour is never the only signal" rule are shared, so a field on either
  * surface behaves identically to a screen reader.
  *
- * The message and hint are raw elements naming their colour class, not `Text`: a
- * `Text` variant bakes a colour in (`micro` → `text-stone`) and Tailwind emits colour
- * utilities alphabetically, so the variant's stone is emitted AFTER an added colour
- * class and wins at equal specificity. `variant="micro" color="alert"` therefore
- * renders grey — everywhere in this app, including the error message this component
- * used to render. Naming the token class directly is what actually applies; fixing
- * `Text` itself is the real follow-up (design-enforcement/references/revolut-web.md).
+ * The message and hint are `Text` like everything else: colour comes from the
+ * `color` role (`alert` for the error, the `micro` default for the light hint,
+ * `inverse-muted` for the dark one). They used to be raw elements naming a token
+ * class by hand because a variant's baked colour beat the `color` prop — that is
+ * fixed in `Text`, so the workaround is gone.
  */
 export function Input({ label, hint, error, tone = 'light', className, id, ...props }: InputProps) {
   const generatedId = useId();
@@ -43,6 +42,8 @@ export function Input({ label, hint, error, tone = 'light', className, id, ...pr
         ONE label element. Rendering `Text as="label"` inside a <label> produced a
         nested label, which is invalid HTML and gives the field two competing
         accessible names — invisible to typecheck and lint, obvious in the DOM.
+        The label keeps a single colour class of its own, so it is not a victim of
+        the override trap.
       */}
       <label htmlFor={inputId} className={cn('text-body-sm', dark ? 'text-on-dark-mute' : 'text-stone')}>
         {label}
@@ -68,13 +69,19 @@ export function Input({ label, hint, error, tone = 'light', className, id, ...pr
       {/* The colour is never the only signal: the border carries the same state, and
           the message is a sentence that names the cause. */}
       {error ? (
-        <p id={errorId} className="mt-1 text-body-sm text-accent-danger">
+        <Text id={errorId} variant="micro" color="alert" as="p" className="mt-1">
           {error}
-        </p>
+        </Text>
       ) : hint ? (
-        <p id={hintId} className={cn('mt-1 text-body-sm', dark ? 'text-on-dark-mute' : 'text-stone')}>
+        <Text
+          id={hintId}
+          variant="micro"
+          color={dark ? 'inverse-muted' : undefined}
+          as="p"
+          className="mt-1"
+        >
           {hint}
-        </p>
+        </Text>
       ) : null}
     </div>
   );

@@ -1,4 +1,3 @@
-import { cn } from '@/lib/cn';
 import { formatFiat } from '@/lib/formatCurrency';
 import { Text } from './Text';
 import { TransactionRowSubtitle } from './TransactionRowSubtitle';
@@ -17,7 +16,14 @@ function formatDate(date: Date): string {
  * `accent-light-green` — the doc's reserved "success / positive" colour — and
  * outflows stay in `ink`, because a routine payment is not an event worth a
  * colour. Pending uses `accent-yellow` and failed `accent-danger`, each paired
- * with its word so colour is never the only signal.
+ * with its word so colour is never the only signal. Every one of those colours is
+ * named through `color=`, never as a bare class the variant could outrank.
+ *
+ * Layout at 360px: the name column is the ONLY thing allowed to shrink
+ * (`flex-1 min-w-0`), and the name itself truncates — a merchant name is long,
+ * arbitrary and a label. The money is `shrink-0` and `whitespace-nowrap`, so a
+ * long name ellipsises rather than the amount, which must never be the thing that
+ * gets cut: it is the row's reason to exist.
  *
  * The counterparty address sits UNDER the name it belongs to: a merchant name is
  * something a wallet signed for, while the address is the only part of the pair
@@ -43,7 +49,7 @@ export function TransactionRowBody({ transaction, details }: TransactionRowBodyP
       </span>
 
       <span className="min-w-0 flex-1">
-        <Text variant="card-title" as="span" className="block">
+        <Text variant="card-title" as="span" className="block truncate">
           {merchant}
         </Text>
         <TransactionRowSubtitle subtitle={subtitle} address={counterparty ?? null} />
@@ -55,7 +61,8 @@ export function TransactionRowBody({ transaction, details }: TransactionRowBodyP
           variant="body-medium"
           tabular
           as="span"
-          className={cn(isOutflow ? 'text-ink' : 'text-accent-light-green')}
+          color={isOutflow ? 'primary' : 'success'}
+          className="shrink-0 whitespace-nowrap"
         >
           {isOutflow ? '-' : '+'}
           {formatted}
@@ -64,7 +71,7 @@ export function TransactionRowBody({ transaction, details }: TransactionRowBodyP
           <Text
             variant="micro"
             as="span"
-            className={status === 'pending' ? 'text-accent-yellow' : 'text-accent-danger'}
+            color={status === 'pending' ? 'warning' : 'alert'}
           >
             {status === 'pending' ? 'Pending' : 'Failed'}
           </Text>
