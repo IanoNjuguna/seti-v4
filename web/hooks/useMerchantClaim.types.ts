@@ -1,5 +1,4 @@
-import type { ClaimedMerchant } from '@/lib/api/merchant-claim.types';
-import type { MerchantHandlePreview } from '@/lib/api/merchant-handle.types';
+import type { HandleIdentity, HandleKind, HandleStatusPreview } from '@/lib/api';
 
 /**
  * Steps a claim moves through.
@@ -13,25 +12,42 @@ export type ClaimStep = 'idle' | 'signing' | 'submitting' | 'done' | 'error';
 
 export interface MerchantClaimState {
   step: ClaimStep;
+  /**
+   * The profile mode the handle is claimed as. A merchant page claims
+   * `business`; the same hook claims `person` for a username, with the signed
+   * `purpose` derived from it.
+   */
+  kind: HandleKind;
   /** What the person typed — the un-normalised name. */
   name: string;
-  /** The merchant once the claim lands. */
-  claimed: ClaimedMerchant | null;
+  /** The handle once the claim lands. */
+  claimed: HandleIdentity | null;
   error: string | null;
   /** The backend's machine-readable refusal code, when it refused. */
   errorCode: string | null;
 }
 
 export interface UseMerchantClaimReturn extends MerchantClaimState {
+  setKind: (kind: HandleKind) => void;
   setName: (name: string) => void;
-  claim: () => Promise<void>;
+  /**
+   * Sign and submit the claim.
+   *
+   * `kind` overrides the state's current kind, and exists because onboarding picks
+   * the intent on the same step that signs: React state is not updated
+   * synchronously, so a `setKind(...)` immediately followed by `claim()` would sign
+   * for the PREVIOUS kind and the backend would (correctly) refuse it as a
+   * purpose mismatch. Passing the kind makes the purpose signed explicit at the
+   * call site rather than a race with a re-render.
+   */
+  claim: (kind?: HandleKind) => Promise<void>;
   reset: () => void;
   /** True while the wallet prompt or the request is in flight. */
   isBusy: boolean;
   /**
    * The handle the current name will get — the web's own `merchantHandle`, the
    * same string the backend stores. Recomputed on every keystroke, so the link
-   * the merchant will print is visible before they sign.
+   * the person will print is visible before they sign.
    */
   handle: string;
   /**
@@ -39,7 +55,7 @@ export interface UseMerchantClaimReturn extends MerchantClaimState {
    * Only ever the preview whose handle matches the one being shown — a preview
    * for a name the person has since changed is dropped rather than displayed.
    */
-  preview: MerchantHandlePreview | null;
+  preview: HandleStatusPreview | null;
   /** True while a preview for the current handle is in flight. */
   previewLoading: boolean;
 }

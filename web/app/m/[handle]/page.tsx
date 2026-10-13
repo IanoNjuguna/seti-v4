@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import { cache } from 'react';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { MerchantPublicView } from '@/components/merchant-public/MerchantPublicView';
-import { fetchPublicMerchant } from '@/lib/api/merchant-public';
+import { fetchPublicHandle } from '@/lib/api/handles';
 
 interface MerchantLinkPageProps {
   params: Promise<{ handle: string }>;
@@ -18,10 +18,10 @@ interface MerchantLinkPageProps {
  *
  * An unknown handle is a real 404 (`notFound()`), never an empty page — a link
  * that resolves to nothing has to say so. The read is uncached (`no-store`, see
- * `fetchPublicMerchant`), so a name claimed or an address repointed a moment ago
+ * `fetchPublicHandle`), so a name claimed or an address repointed a moment ago
  * is what the customer sees.
  */
-const loadMerchant = cache(fetchPublicMerchant);
+const loadMerchant = cache(fetchPublicHandle);
 
 export const dynamic = 'force-dynamic';
 
@@ -39,6 +39,9 @@ export default async function MerchantLinkPage({ params }: MerchantLinkPageProps
   const merchant = await loadMerchant(handle);
 
   if (!merchant) notFound();
+  // `/m/<handle>` and `/u/<handle>` are two routes onto ONE namespace. A PERSON's
+  // handle opened here goes to its person page rather than pretending to be a shop.
+  if (merchant.kind === 'person') redirect(`/u/${handle}`);
 
   return (
     <main className="min-h-dvh bg-canvas-light text-ink">

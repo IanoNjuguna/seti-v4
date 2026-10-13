@@ -1,18 +1,28 @@
 import { Badge, Text } from '@/components/ui';
-import { merchantHandle, merchantLink } from '@/lib/merchant-link';
-import { CLAIM_COPY } from './Claim.constants';
+import { handleLinkLabel, merchantHandle } from '@/lib/merchant-link';
 import type { MerchantHandlePreviewProps } from './ClaimForm.types';
 
 /**
- * The link the merchant will get, shown while they type — before they sign.
+ * The handle a person will get, shown while they type — before they sign.
  *
- * The link itself is derived locally (the rule is the web's own `merchantHandle`,
+ * The handle itself is derived locally (the rule is the web's own `merchantHandle`,
  * a mirror of the backend's), so it updates on every keystroke. Whether it is
  * FREE is the backend's answer, because only the backend holds the registry: a
- * taken link is named here, with its current holder, so it is discovered while
+ * taken handle is named here, with its current holder, so it is discovered while
  * editing a name rather than when a customer scans a printed sticker.
+ *
+ * When the KIND is not known yet (onboarding, before the intent is chosen) this
+ * shows the handle itself and says which two links it could become. Printing a URL
+ * there would be printing the wrong one half the time — `/m/` for a username
+ * points a customer at the shop page.
  */
-export function MerchantHandlePreview({ name, preview, loading }: MerchantHandlePreviewProps) {
+export function MerchantHandlePreview({
+  name,
+  preview,
+  loading,
+  kind,
+  copy,
+}: MerchantHandlePreviewProps) {
   const handle = merchantHandle(name);
 
   // Nothing usable to show yet (an empty or punctuation-only name). The field's
@@ -21,27 +31,30 @@ export function MerchantHandlePreview({ name, preview, loading }: MerchantHandle
 
   const problem = preview?.problem ?? null;
   const takenBy = preview?.takenBy ?? null;
+  const link = kind ? handleLinkLabel(kind, handle) : handle;
 
   return (
     <div className="rounded-md bg-surface-soft p-3">
       <Text variant="micro" as="p">
-        {CLAIM_COPY.linkLabel}
+        {kind ? copy.linkLabel : copy.handleLabel}
       </Text>
-      <p className="mt-1 break-all font-mono text-body-sm text-ink">{merchantLink(name)}</p>
+      <p className="mt-1 break-all font-mono text-body-sm text-ink">{link}</p>
+
+      {kind ? null : (
+        <p className="mt-1 text-caption text-stone">{copy.handleKindHint}</p>
+      )}
 
       {problem ? (
         <p className="mt-2 text-body-sm text-accent-danger">{problem}</p>
       ) : loading ? (
         <Text variant="micro" as="p" className="mt-2">
-          {CLAIM_COPY.handleChecking}
+          {copy.handleChecking}
         </Text>
       ) : takenBy ? (
-        <p className="mt-2 text-body-sm text-accent-danger">
-          {CLAIM_COPY.handleTaken(handle, takenBy)}
-        </p>
+        <p className="mt-2 text-body-sm text-accent-danger">{copy.handleTaken(link, takenBy)}</p>
       ) : (
         <div className="mt-2">
-          <Badge variant="success">{CLAIM_COPY.handleFree}</Badge>
+          <Badge variant="success">{copy.handleFree}</Badge>
         </div>
       )}
     </div>

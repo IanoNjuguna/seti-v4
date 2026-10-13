@@ -2,19 +2,20 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError } from '@/lib/api';
-import { claimMerchantName } from '@/lib/api/merchant-claim';
-import { fetchMerchantHandle } from '@/lib/api/merchant-handle';
+import { claimHandle } from '@/lib/api/handles';
+import { fetchHandleStatus } from '@/lib/api/handles';
 import { merchantHandle } from '@/lib/merchant-link';
-import { signMerchantClaim } from '@/lib/pay/sign-merchant-claim';
+import { signHandleClaim } from '@/lib/pay/sign-handle-claim';
 import { useEmbeddedWallet } from './useEmbeddedWallet';
 import type {
   MerchantClaimState,
   UseMerchantClaimReturn,
 } from './useMerchantClaim.types';
-import type { MerchantHandlePreview } from '@/lib/api/merchant-handle.types';
+import type { HandleKind, HandleStatusPreview } from '@/lib/api';
 
 const INITIAL: MerchantClaimState = {
   step: 'idle',
+  kind: 'business',
   name: '',
   claimed: null,
   error: null,
@@ -31,31 +32,38 @@ function toError(error: unknown): { message: string; code: string | null } {
 }
 
 /**
- * Claim a business name with the embedded wallet.
+ * Claim a handle with the embedded wallet — a username or a business name.
  *
  * Two steps that must not be collapsed: the wallet signs the typed data, then
  * the SIGNED MESSAGE AND SIGNATURE are sent to the backend, which verifies them.
  * The client never decides whether the claim is valid — it cannot, because it
- * does not hold the registry — and the address the backend checks ownership
+ * does not hold the namespace — and the address the backend checks ownership
  * against is the one it recovers from the signature, not one this code sent.
  *
- * Nothing is read from captured state after an `await`: the name is taken into a
- * local before the first await, so a re-render mid-flight cannot change what is
- * being signed.
+ * The signed message carries a `purpose` derived from `kind`, so a signature the
+ * app makes to claim a username cannot be replayed by the server as a business
+ * claim, and the reverse. That map lives in `sign-handle-claim.ts`.
  *
- * The handle is previewed as the name is typed (see the effect), using the
- * backend's own rule so a link that is already taken is discovered while editing
- * the name rather than when a customer scans a printed sticker.
+ * Nothing is read from captured state after an `await`: the name and kind are
+ * taken into locals before the first await, so a re-render mid-flight cannot
+ * change what is being signed.
  */
-export function useMerchantClaim(): UseMerchantClaimReturn {
-  const [state, setState] = useState(INITIAL);
-  const [preview, setPreview] = useState<MerchantHandlePreview | null>(null);
+export function useMerchantClaim(initialKind: HandleKind = 'business'): UseMerchantClaimReturn {
+  const [state, setState] = useState<MerchantClaimState>({ ...INITIAL, kind: initialKind });
+  const [preview, setPreview] = useState<HandleStatusPreview | null>(null);
   const [previewFailed, setPreviewFailed] = useState(false);
   const { getSigningWallet } = useEmbeddedWallet();
 
   const setPartial = useCallback((partial: Partial<MerchantClaimState>) => {
     setState((prev) => ({ ...prev, ...partial }));
   }, []);
+
+  const setKind = useCallback(
+    (kind: HandleKind) => {
+      setPartial({ kind, error: null, errorCode: null });
+    },
+    [setPartial]
+  );
 
   const setName = useCallback(
     (name: string) => {
@@ -80,7 +88,7 @@ export function useMerchantClaim(): UseMerchantClaimReturn {
     let active = true;
 
     const timer = setTimeout(() => {
-      fetchMerchantHandle(name)
+      fetchHandleStatus(name)
         .then((status) => {
           if (!active) return;
           setPreview(status);
@@ -98,14 +106,19 @@ export function useMerchantClaim(): UseMerchantClaimReturn {
     };
   }, [state.name]);
 
-  const claim = useCallback(async () => {
+  const claim = useCallback(async (kindOverride?: HandleKind) => {
     const name = state.name.trim();
+    // The override wins over the state's kind: onboarding chooses the intent on the
+    // step that signs, and a state update would not have landed yet. The purpose
+    // signed and the `kind` sent are both taken from THIS value, so they can never
+    // disagree with each other.
+    const kind = kindOverride ?? state.kind;
 
     if (!name) {
       setPartial({
         step: 'error',
-        error: 'Enter the business name you want to claim.',
-        errorCode: 'invalid-merchant-name',
+        error: kind === 'person' ? 'Enter the username you want.' : 'Enter the business name you want to claim.',
+        errorCode: 'invalid-handle-name',
       });
       return;
     }
@@ -116,22 +129,22 @@ export function useMerchantClaim(): UseMerchantClaimReturn {
       // The wallet only exists once the embedded wallet does; asking for it is
       // what surfaces "sign in first".
       const { provider, address } = await getSigningWallet();
-      const { message, signature } = await signMerchantClaim({ provider, address, name });
+      const { message, signature } = await signHandleClaim({ provider, address, kind, name });
 
       setPartial({ step: 'submitting' });
-      const claimed = await claimMerchantName({ ...message, signature });
+      const claimed = await claimHandle({ kind, ...message, signature });
 
       setPartial({ step: 'done', claimed });
     } catch (error) {
       const { message, code } = toError(error);
       setPartial({ step: 'error', error: message, errorCode: code });
     }
-  }, [state.name, getSigningWallet, setPartial]);
+  }, [state.name, state.kind, getSigningWallet, setPartial]);
 
   const reset = useCallback(() => {
-    setState(INITIAL);
+    setState({ ...INITIAL, kind: initialKind });
     setPreview(null);
-  }, []);
+  }, [initialKind]);
 
   // The handle shown must be the one the typed name yields, and the preview only
   // applies when it is about THAT handle — a stale preview for a name the person
@@ -142,6 +155,7 @@ export function useMerchantClaim(): UseMerchantClaimReturn {
 
   return {
     ...state,
+    setKind,
     setName,
     claim,
     reset,

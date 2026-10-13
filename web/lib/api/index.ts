@@ -16,10 +16,8 @@ export type {
   ReceiptStatus,
   ReceiptTotal,
 } from './receipt.types';
-export { resolveMerchant, previewPayment, recordPayment } from './pay';
+export { previewPayment, recordPayment } from './pay';
 export type {
-  Merchant,
-  ResolvedMerchant,
   PaymentPreview,
   RecordPaymentInput,
   RecordPaymentResult,
@@ -27,13 +25,16 @@ export type {
 } from './pay.types';
 export { previewSend, recordSend } from './send';
 export type { SendPreview, RecordSendInput, RecordSendResult } from './send.types';
-export { claimMerchantName } from './merchant-claim';
+export { resolveHandle, fetchHandleStatus, claimHandle, fetchPublicHandle } from './handles';
+export { fetchAccountIdentity, setAccountIntent } from './account';
+export type { AccountIdentity, AccountIntent } from './account.types';
 export type {
-  ClaimedMerchant,
-  ClaimMerchantNameRequest,
-  ClaimMerchantNameResult,
-} from './merchant-claim.types';
-export { fetchMerchantHandle } from './merchant-handle';
-export type { MerchantHandlePreview, MerchantHandleStatusResult } from './merchant-handle.types';
-export { fetchPublicMerchant } from './merchant-public';
+  HandleIdentity,
+  HandleKind,
+  ResolveHandleResult,
+  ClaimHandleRequest,
+  ClaimHandleResult,
+  HandleStatusPreview,
+  HandleStatusResult,
+} from './handles.types';
 export { merchantVerification } from './merchant-verification';

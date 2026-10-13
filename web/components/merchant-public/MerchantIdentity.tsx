@@ -28,9 +28,9 @@ export function MerchantIdentity({ merchant }: MerchantIdentityProps) {
         {merchant.name}
       </Text>
 
-      {merchant.payoutAddress ? (
-        <p className="mt-2 font-mono text-body-sm text-stone" title={merchant.payoutAddress}>
-          {shortenValue(merchant.payoutAddress)}
+      {merchant.address ? (
+        <p className="mt-2 font-mono text-body-sm text-stone" title={merchant.address}>
+          {shortenValue(merchant.address)}
         </p>
       ) : (
         <Text variant="micro" as="p" className="mt-2">

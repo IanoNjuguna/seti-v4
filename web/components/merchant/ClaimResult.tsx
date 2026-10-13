@@ -2,8 +2,8 @@
 
 import { Badge, Button, Card, Text } from '@/components/ui';
 import { shortenValue } from '@/components/receipt/receipt.format';
-import { merchantLink } from '@/lib/merchant-link';
-import { CLAIM_COPY } from './Claim.constants';
+import { handleLink } from '@/lib/merchant-link';
+import { claimCopy } from './Claim.constants';
 import { MerchantQr } from './MerchantQr';
 import type { ClaimResultProps } from './ClaimForm.types';
 
@@ -18,46 +18,49 @@ import type { ClaimResultProps } from './ClaimForm.types';
  *
  * The link and the QR are shown only once the binding verifies: an unverified
  * name resolves to nothing, so printing its link would be printing a broken
- * address. The QR encodes the same `merchantLink` the text shows.
+ * address. Both are built from the claimed KIND — `/u/<handle>` for a person,
+ * `/m/<handle>` for a business — because a username handed a `/m/` link would send
+ * a customer to a shop page for someone who is not a shop.
  */
 export function ClaimResult({ claimed, onAgain }: ClaimResultProps) {
-  const link = claimed.handle ? merchantLink(claimed.name) : null;
+  const words = claimCopy(claimed.kind);
+  const link = claimed.handle ? handleLink(claimed.kind, claimed.name) : null;
 
   return (
     <Card className="space-y-4">
       <div>
         <Text variant="micro" as="p">
-          {CLAIM_COPY.resultTitle}
+          {words.resultTitle}
         </Text>
         <Text variant="section" as="p" className="mt-1">
           {claimed.name}
         </Text>
-        {claimed.payoutAddress ? (
-          <p className="mt-1 font-mono text-body-sm text-stone" title={claimed.payoutAddress}>
-            {shortenValue(claimed.payoutAddress)}
+        {claimed.address ? (
+          <p className="mt-1 font-mono text-body-sm text-stone" title={claimed.address}>
+            {shortenValue(claimed.address)}
           </p>
         ) : null}
       </div>
 
       <Badge variant={claimed.verified ? 'success' : 'warning'}>
-        {claimed.verified ? CLAIM_COPY.verified : CLAIM_COPY.unverified}
+        {claimed.verified ? words.verified : words.unverified}
       </Badge>
 
       {claimed.verified && link ? (
         <div className="space-y-3">
           <div>
             <Text variant="micro" as="p">
-              {CLAIM_COPY.linkLabel}
+              {words.linkLabel}
             </Text>
             <p className="mt-1 break-all font-mono text-body-sm text-ink">{link}</p>
           </div>
 
-          <MerchantQr name={claimed.name} />
+          <MerchantQr name={claimed.name} kind={claimed.kind} />
         </div>
       ) : null}
 
       <Button variant="secondary" onClick={onAgain} fullWidth>
-        {CLAIM_COPY.again}
+        {words.again}
       </Button>
     </Card>
   );

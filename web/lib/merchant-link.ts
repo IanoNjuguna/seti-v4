@@ -38,7 +38,7 @@ export function merchantHandle(name: string): string {
     .replace(/[^a-z0-9._-]/g, '');
 }
 
-/** The link a merchant hands to a customer. */
+/** The link a business hands to a customer. */
 export function merchantLink(name: string): string {
   /*
    * A plain path, not `/@name`.
@@ -49,4 +49,48 @@ export function merchantLink(name: string): string {
    * route that collides with nothing, and it is short enough to print on a sticker.
    */
   return `https://${HOST}/m/${merchantHandle(name)}`;
+}
+
+/**
+ * The link a PERSON hands to a customer: `seti.live/u/<handle>`.
+ *
+ * The same handle rule as `merchantLink` — a person's username and a business's
+ * name compete for the same string, so `/u/<handle>` and `/m/<handle>` are two
+ * routes onto ONE namespace, not two namespaces. `/u` is an ordinary route that
+ * collides with nothing.
+ */
+export function personLink(name: string): string {
+  return `https://${HOST}/u/${merchantHandle(name)}`;
+}
+
+/**
+ * Whether a handle belongs to a person or a business — the shape a link needs.
+ *
+ * Declared here rather than imported from `@/lib/api/handles.types` on purpose:
+ * this file is loaded at RUNTIME by the backend's `check:handle` suite (it is the
+ * live mirror the drift assertion compares against), so it must stay dependency-
+ * free. The backend owns the same union in `handle-claims.ts`.
+ */
+export type HandleLinkKind = 'person' | 'business';
+
+/**
+ * The link for a handle, by KIND. The same string either way — `/u/<handle>` for
+ * a person, `/m/<handle>` for a business.
+ *
+ * One namespace, two routes onto it: a claim the app makes as `person` must not
+ * hand out a `/m/` link, because `/m` is the shop page and a customer following
+ * it would be paying a person as though they were a merchant. Which route a
+ * handle lives at is decided by the kind it was claimed as.
+ */
+export function handleLink(kind: HandleLinkKind, name: string): string {
+  return kind === 'person' ? personLink(name) : merchantLink(name);
+}
+
+/**
+ * The human-readable form of the same link — `seti.live/u/<handle>` — for copy
+ * that names the address before it is a clickable URL (an error message, a
+ * sticker's caption). Built from the same handle and the same two route names.
+ */
+export function handleLinkLabel(kind: HandleLinkKind, handle: string): string {
+  return `${HOST}/${kind === 'person' ? 'u' : 'm'}/${handle}`;
 }
