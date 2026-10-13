@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react';
 import { ApiError, setAccountIntent } from '@/lib/api';
 import type { AccountIntent } from '@/lib/api';
-import { HANDLE_KIND_FOR_INTENT, useAccountIdentity } from '@/lib/account';
+import { handleForIntent, useAccountIdentity } from '@/lib/account';
 import type { UseProfileIntentReturn } from './ProfileIntent.types';
 
 function toMessage(error: unknown): string {
@@ -24,9 +24,10 @@ function toMessage(error: unknown): string {
  * (`ProfileHandlePanel` then offers the claim), because blocking the switch until
  * the name existed is exactly the one-way door this is meant to avoid.
  *
- * `handleFor` passes through `HANDLE_KIND_FOR_INTENT`: the mode is the account's
- * word (`personal`), the handles carry the handle's word (`person`), and this is
- * where those two meet on the way out.
+ * `handleFor` is the shared `handleForIntent`, which crosses `HANDLE_KIND_FOR_INTENT`:
+ * the mode is the account's word (`personal`), the handles carry the handle's word
+ * (`person`), and that helper is where the two meet — for this card and for the
+ * rail's identity card alike, so neither can answer differently.
  */
 export function useProfileIntent(): UseProfileIntentReturn {
   const account = useAccountIdentity();
@@ -36,10 +37,7 @@ export function useProfileIntent(): UseProfileIntentReturn {
   const intent = account.identity?.intent ?? 'personal';
 
   const handleFor = useCallback(
-    (mode: AccountIntent) =>
-      account.identity?.handles.find(
-        (held) => held.kind === HANDLE_KIND_FOR_INTENT[mode]
-      ) ?? null,
+    (mode: AccountIntent) => handleForIntent(account.identity?.handles ?? [], mode),
     [account.identity]
   );
 

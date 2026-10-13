@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Text } from '@/components/ui';
 import { AppNavLink } from './AppNavLink';
+import { RailIdentityCard } from './RailIdentityCard';
 import { useAppNav } from './useAppNav';
 
 /**
@@ -16,11 +17,12 @@ import { useAppNav } from './useAppNav';
  * than as the product's name. `pb-[safe-area-inset-bottom]` mirrors the bottom
  * bar, so the last row is never under a home indicator on a tablet.
  *
- * Known and deliberate: three destinations end about a quarter of the way down a
- * 900px column and the rest is canvas. Filling it means putting new information
- * in the chrome — an account block, or moving Sign out off Profile onto the rail
- * — which is a product decision rather than a styling one, so it is left as the
- * owner's call rather than invented here.
+ * Three destinations end a quarter of the way down a 900px column, and the rest
+ * is canvas. That used to be left deliberately empty — filling it meant putting
+ * new information in the chrome. The owner has now decided the ONE thing that
+ * belongs there: who you are signed in as, with the handle and the link that
+ * follows from it (`RailIdentityCard`, pinned to the foot by `mt-auto`). Nothing
+ * else goes in this gap; it is chrome, not a place to advertise.
  */
 export function AppRail() {
   const { items, isActive } = useAppNav();
@@ -45,6 +47,8 @@ export function AppRail() {
           <AppNavLink key={item.href} item={item} active={isActive(item.href)} layout="rail" />
         ))}
       </div>
+
+      <RailIdentityCard />
     </nav>
   );
 }
