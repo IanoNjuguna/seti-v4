@@ -1,0 +1,51 @@
+'use client';
+
+import { Button, Text } from '@/components/ui';
+import { ActivityDay } from './ActivityDay';
+import { ActivityEmpty, ActivityError, ActivityLoading } from './ActivityStates';
+import { ACTIVITY_COPY } from './Activity.constants';
+import { useActivity } from './useActivity';
+import type { ActivityListProps } from './Activity.types';
+
+/**
+ * The full history, grouped by day.
+ *
+ * Every state the page can be in is rendered from the hook's own flags rather than
+ * guessed in JSX: a failed first page shows the error and a retry, an empty account
+ * says so, and a page still arriving shows the shape of what is coming.
+ *
+ * "Load more" is a button rather than an infinite scroll: the customer decides when
+ * to ask for more, and the control they used stays where they left it.
+ */
+export function ActivityList({ onSelect }: ActivityListProps) {
+  const activity = useActivity();
+
+  return (
+    <div className="flex flex-col gap-6">
+      <header>
+        <Text variant="section" as="h1">
+          {ACTIVITY_COPY.title}
+        </Text>
+        <Text variant="micro" as="p" className="mt-1">
+          {ACTIVITY_COPY.subtitle}
+        </Text>
+      </header>
+
+      {activity.loading ? <ActivityLoading /> : null}
+
+      {activity.error ? <ActivityError message={activity.error} onRetry={activity.retry} /> : null}
+
+      {activity.empty ? <ActivityEmpty /> : null}
+
+      {activity.groups?.map((group) => (
+        <ActivityDay key={group.key} group={group} onSelect={onSelect} />
+      ))}
+
+      {activity.hasMore && !activity.error ? (
+        <Button variant="ghost" onClick={activity.loadMore} disabled={activity.loadingMore}>
+          {activity.loadingMore ? ACTIVITY_COPY.loadingMore : ACTIVITY_COPY.loadMore}
+        </Button>
+      ) : null}
+    </div>
+  );
+}

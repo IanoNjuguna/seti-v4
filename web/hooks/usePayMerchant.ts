@@ -1,0 +1,336 @@
+'use client';
+
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ApiError,
+  previewPayment,
+  recordPayment,
+  resolveMerchant,
+  type PaymentPreview,
+  type SupportedAsset,
+} from '@/lib/api';
+import { classifyPaymentError } from '@/lib/pay/classify-payment-error';
+import { signPayment } from '@/lib/pay/sign-payment';
+import { quoteArrived } from '@/lib/feedback';
+import { useEmbeddedWallet } from '@/hooks/useEmbeddedWallet';
+import { useTempoSender } from '@/hooks/useTempoSender';
+import type { PayState, UsePayMerchantReturn } from './usePayMerchant.types';
+
+/** Both are in v1 scope; the asset maps to a TIP-20 token address. PathUSD is the
+ * one the testnet credits and the faucet mints, so it is the default here. */
+const ASSET: SupportedAsset = 'pathusd';
+/** Human-facing label only. Users are paying in dollars — the token behind it is
+ * an implementation detail they should never have to reason about. */
+const ASSET_LABEL = 'USD';
+
+/** How long to wait after the last keystroke before quoting the fee. */
+const PREVIEW_DEBOUNCE_MS = 400;
+
+const INITIAL: PayState = {
+  step: 'idle',
+  merchant: null,
+  amount: '',
+  preview: null,
+  txHash: null,
+  error: null,
+  errorKind: null,
+};
+
+function toErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiError) return error.message;
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+}
+
+/**
+ * Ported from `mobile/src/hooks/usePayMerchant.ts`, with three deliberate
+ * differences.
+ *
+ * 1. **The fee is quoted BEFORE the customer commits.** Mobile fetches the
+ *    preview inside `pay()`, so the customer taps Pay and only then learns what
+ *    the fee is. That is the wrong way round for a fee the customer funds, so
+ *    this hook also quotes on a debounce as the amount is typed. The `pay()` path
+ *    still fetches its own fresh preview — the debounced one is display-only.
+ * 2. **Nothing is read from captured state after an `await`.** Mobile's version
+ *    read `state.preview` after awaiting, which is the previous render's value;
+ *    on a first payment that is `null`, and the fallback sent the *principal*
+ *    instead of the gross, underpaying the merchant on every payment. Every
+ *    figure below comes from a local variable or the fresh response.
+ * 3. **An `initialPayload` is resolved on mount.** This is how a public page's
+ *    Pay action (`/app/pay?handle=<handle>`) lands with the merchant already
+ *    chosen: the value is the same string a pasted code would be, handed to the
+ *    same `resolveMerchant` the manual entry uses.
+ */
+export function usePayMerchant(userId?: string, initialPayload?: string): UsePayMerchantReturn {
+  const [state, setState] = useState<PayState>(INITIAL);
+
+  /** See useSendPanel: the arrival pulse fires once per flow, on the first quote. */
+  const quoted = useRef(false);
+  const { getSigningWallet } = useEmbeddedWallet();
+  const { sendTempoTransaction } = useTempoSender();
+
+  const setPartial = useCallback((partial: Partial<PayState>) => {
+    setState((prev) => ({ ...prev, ...partial }));
+  }, []);
+
+  const setAmount = useCallback(
+    (amount: string) => {
+      setPartial({ amount, error: null, errorKind: null });
+    },
+    [setPartial]
+  );
+
+  /**
+   * Quote the fee while the amount is being typed.
+   *
+   * The 400ms timer is also what keeps this from firing a request per keystroke;
+   * `active` stops a slow response writing to state after the merchant or amount
+   * changed again. State is written only in the timer's callbacks, never in the
+   * effect body — `react-hooks/set-state-in-effect` is an error in this package
+   * and it is right: a synchronous setState here cascades a render.
+   */
+  useEffect(() => {
+    if (!userId || !state.merchant || !state.amount) return;
+    if (!Number.isFinite(Number(state.amount)) || Number(state.amount) <= 0) return;
+
+    const merchant = state.merchant;
+    const amount = state.amount;
+    let active = true;
+
+    const timer = setTimeout(() => {
+      previewPayment({ userId, amountFiat: amount, asset: ASSET, merchantId: merchant.id })
+        .then(({ preview }) => {
+          if (!active) return;
+          // The arrival pulse, same moment as the send panel: the figure has landed
+          // and this is what the customer is about to approve. Once per flow.
+          if (!quoted.current) {
+            quoted.current = true;
+            quoteArrived();
+          }
+          setPartial({ preview, error: null, errorKind: null });
+        })
+        .catch((error: unknown) => {
+          if (!active) return;
+          // The figure is cleared, so the next quote that lands is an arrival again.
+          quoted.current = false;
+          setPartial({
+            preview: null,
+            error: toErrorMessage(error, 'Could not price this payment. Try again.'),
+            errorKind: 'unknown',
+          });
+        });
+    }, PREVIEW_DEBOUNCE_MS);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [userId, state.merchant, state.amount, setPartial]);
+
+  const resolve = useCallback(
+    async (qrPayload: string) => {
+      setPartial({ step: 'resolving', error: null, errorKind: null, preview: null, merchant: null, txHash: null });
+      try {
+        const { merchant, suggestedAmount } = await resolveMerchant(qrPayload);
+        setPartial({ merchant, amount: suggestedAmount ?? '', step: 'idle' });
+      } catch (error) {
+        // Merchant resolution is not a payment, so it keeps the generic message;
+        // only the payment path classifies causes.
+        setPartial({
+          step: 'error',
+          error: toErrorMessage(error, 'Could not resolve that code. Try again.'),
+          errorKind: 'unknown',
+        });
+      }
+    },
+    [setPartial]
+  );
+
+  /**
+   * Resolve a merchant handed in by the URL — the public `seti.live/m/<handle>`
+   * page's Pay action sends `/app/pay?handle=<handle>`.
+   *
+   * Guarded on `userId` because `/merchants/resolve` needs a token: a signed-out
+   * visitor sees the sign-in card, and the `userId` arriving after sign-in
+   * re-runs this. State is written only in the promise callbacks —
+   * `react-hooks/set-state-in-effect` is an error in this package, and the
+   * `resolve` callback cannot be reused here precisely because it sets state
+   * synchronously at its start.
+   */
+  useEffect(() => {
+    if (!userId || !initialPayload) return;
+
+    let active = true;
+
+    resolveMerchant(initialPayload)
+      .then(({ merchant, suggestedAmount }) => {
+        if (!active) return;
+        setPartial({ merchant, amount: suggestedAmount ?? '', step: 'idle' });
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setPartial({
+          step: 'error',
+          error: toErrorMessage(error, 'Could not resolve that code. Try again.'),
+          errorKind: 'unknown',
+        });
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [userId, initialPayload, setPartial]);
+
+  const pay = useCallback(async () => {
+    const { merchant, amount } = state;
+
+    if (!userId) {
+      setPartial({ step: 'error', error: 'You must be signed in to make a payment.', errorKind: 'unknown' });
+      return;
+    }
+    if (!merchant) {
+      setPartial({ step: 'error', error: 'Enter a merchant name first.', errorKind: 'unknown' });
+      return;
+    }
+    if (!amount || Number(amount) <= 0 || !Number.isFinite(Number(amount))) {
+      setPartial({ step: 'error', error: 'Enter a valid amount.', errorKind: 'unknown' });
+      return;
+    }
+    if (!merchant.payoutAddress) {
+      setPartial({ step: 'error', error: 'This merchant cannot receive payments yet.', errorKind: 'unknown' });
+      return;
+    }
+
+    setPartial({ step: 'previewing', error: null, errorKind: null });
+
+    let preview: PaymentPreview;
+    try {
+      // Fresh, authoritative quote. The displayed one may be seconds old, and
+      // these figures are what gets signed and then reconciled against the chain.
+      ({ preview } = await previewPayment({
+        userId,
+        amountFiat: amount,
+        asset: ASSET,
+        merchantId: merchant.id,
+      }));
+      setPartial({ preview });
+    } catch (error) {
+      setPartial({
+        step: 'error',
+        error: toErrorMessage(error, 'Could not price this payment. Try again.'),
+        errorKind: 'unknown',
+      });
+      return;
+    }
+
+    if (!preview.hasEnoughBalance) {
+      setPartial({
+        step: 'error',
+        error: `Not enough ${ASSET_LABEL} to cover this payment.`,
+        errorKind: 'insufficient-funds',
+      });
+      return;
+    }
+
+    try {
+      setPartial({ step: 'signing' });
+      // The wallet is resolved here, not passed in: it only exists once the
+      // embedded wallet does, and asking for it is what surfaces "sign in first".
+      const { provider, address } = await getSigningWallet();
+      const { txHash } = await signPayment({
+        preview,
+        merchant,
+        asset: ASSET,
+        provider,
+        // In `batch` mode the payment is signed as ONE Tempo transaction with two
+        // calls — the principal leg and the fee leg — through the Privy Tempo
+        // hook, because an EIP-1193 provider cannot carry `calls`.
+        sendTempoTransaction,
+        from: address,
+      });
+
+      setPartial({ step: 'recording', txHash });
+
+      /**
+       * Record the signed payment with the quoteId of the figure that was signed.
+       * The server writes every fiat figure from that frozen rate; the token is
+       * not consumed by a read, so the retry below is safe.
+       */
+      const record = (quoteId: string) =>
+        recordPayment({
+          userId,
+          // Mode-dependent, and getting it backwards fails loudly rather than
+          // quietly: in `batch` the backend reconciles the RECIPIENT leg against
+          // this figure, which is the principal; in `inside-transfer` the single
+          // leg to the recipient IS the gross — principal + fee, with no gas figure
+          // in it, because gas is not transferred to anyone.
+          amount: preview.feeRoutingMode === 'batch' ? preview.amount : preview.grossAsset,
+          asset: ASSET,
+          merchantId: merchant.id,
+          txHash,
+          description: `Payment to ${merchant.name}`,
+          quoteId,
+        });
+
+      try {
+        await record(preview.quoteId);
+      } catch (error) {
+        // The quote aged out between the preview and the record. Re-quote once.
+        if (error instanceof ApiError && error.code === 'quote-expired') {
+          const { preview: fresh } = await previewPayment({
+            userId,
+            amountFiat: amount,
+            asset: ASSET,
+            merchantId: merchant.id,
+          });
+          setPartial({ preview: fresh });
+
+          if (fresh.totalFiat !== preview.totalFiat) {
+            // The figure moved. Never record a number the customer never saw:
+            // show the new one and let them confirm again. The signed transfer
+            // already moved the old figure on-chain; the ledger must not be
+            // written at a different one.
+            setPartial({
+              step: 'error',
+              error:
+                `The rate changed while you were confirming. This payment now totals ` +
+                `${fresh.fiatCurrency} ${fresh.totalFiat}. Review it before paying again.`,
+              errorKind: 'unknown',
+            });
+            return;
+          }
+
+          // Same figure: the frozen promise holds. Retry with the fresh token.
+          await record(fresh.quoteId);
+        } else {
+          throw error;
+        }
+      }
+
+      setPartial({ step: 'done' });
+    } catch (error) {
+      const { kind, message } = classifyPaymentError(error);
+      setPartial({
+        step: kind === 'insufficient-gas' ? 'insufficient-gas' : 'error',
+        // {ASSET} is substituted with the asset actually being spent, so the
+        // message names a token the customer recognises.
+        error: message.replace('{ASSET}', ASSET_LABEL),
+        errorKind: kind,
+      });
+    }
+  }, [state, userId, setPartial, getSigningWallet, sendTempoTransaction]);
+
+  const reset = useCallback(() => setState(INITIAL), []);
+
+  const amountIsPayable =
+    Boolean(state.merchant) && state.amount !== '' && Number(state.amount) > 0;
+  const previewLoading =
+    Boolean(userId) && amountIsPayable && !state.preview && state.step === 'idle';
+  const isBusy =
+    state.step !== 'idle' &&
+    state.step !== 'error' &&
+    state.step !== 'insufficient-gas' &&
+    state.step !== 'done';
+
+  return { ...state, setAmount, resolve, pay, reset, previewLoading, isBusy };
+}
