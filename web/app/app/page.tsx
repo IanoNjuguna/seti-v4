@@ -12,13 +12,12 @@ import { useSession } from '@/lib/auth';
 import { mapRecentToUiTransaction, useHomeData } from '@/hooks/useHomeData';
 
 /**
- * Home: the balance first, then the things a money app is opened for — pay,
- * move money, review activity — then where the money actually goes.
+ * Home: the greeting, the balance, then what the account is opened for — pay,
+ * move money, review activity — and where the money goes last.
  *
- * From `lg` up there are two columns: the account column, and a side column for
- * the settlement facts. Activity then spans the full width. Below `lg`
- * everything stacks in that reading order, so the money column always leads and
- * the scan entry point never ends up below the list.
+ * One column at every width (see the note in the body): the shell caps content
+ * at `max-w-2xl`, so a second column here squeezed the balance until a 9-figure
+ * amount wrapped.
  */
 export default function HomePage() {
   const session = useSession();
@@ -58,20 +57,15 @@ export default function HomePage() {
 
   return (
     <div className="flex flex-col gap-6 md:gap-8">
-      {/* Single column on purpose: the app shell caps content at `max-w-2xl`, so a
-          second column here squeezed the balance card until a 9-figure amount
-          wrapped, and made the primary CTA the smallest thing on the card. The
-          side facts read fine inline.
+      {/* One column on purpose: the shell caps content at `max-w-2xl`, and a
+          second column here squeezed the balance until a 9-figure amount wrapped.
 
-          The vertical rhythm is one ladder off `design/revolut.md`'s spacing
-          scale, and the grouping is what makes it a rhythm rather than a stack of
-          equal gaps: the greeting and the balance are one unit (`gap-4` = 16px,
-          `spacing.lg`) because the line labels the card, then the three working
-          sections sit one step apart (`gap-6` = 24px `spacing.xl`, or 32px
-          `spacing.xxl` from `md` up). It used to be a flat 32px everywhere, which
-          left the greeting floating away from the card it belongs to, and
-          `HomeActivity` added its own 8px on top of that gap — the one step in
-          the ladder that came from nowhere. */}
+          The rhythm is one ladder off `design/revolut.md`'s spacing scale,
+          grouped so it reads as a rhythm: the greeting and the balance are one
+          unit (`gap-4` = 16px `spacing.lg`) because the line labels the card,
+          then each working section is one step apart (`gap-6` = 24px
+          `spacing.xl`; 32px `spacing.xxl` from `md` up). Flat 32px left the
+          greeting floating, and `HomeActivity` used to add its own 8px on top. */}
       <div className="flex flex-col gap-4">
         <HomeGreeting />
         <BalanceCard data={data} />

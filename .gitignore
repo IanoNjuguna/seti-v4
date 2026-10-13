@@ -28,3 +28,7 @@ tmp-*
 
 # Build output
 .next/
+
+# Agent scratch (never part of the product)
+.hermes/
+.kimi-code/

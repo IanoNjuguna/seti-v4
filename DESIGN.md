@@ -2,7 +2,7 @@
 
 > **Core Visual Ethos:** Financial clarity without cognitive overload. A quiet, trustworthy neobank surface built around modern minimalism — calm colors, generous whitespace, clear hierarchy, and tabular precision for money. Every element reduces anxiety; nothing gamifies, shouts, or distracts.
 
-This design system governs the React Native + Expo mobile app and any related web/marketing surfaces for the Tempo-based neobank.
+**Status: mobile only (`mobile/`), and legacy.** The repository's target system is `design/revolut.md`. A full mobile migration is planned but not started, so these tokens remain correct for React Native work and must **not** be "fixed" to match web. Web surfaces — the landing page and the product app at `/app` — already follow the Revolut system; this document does not govern them. See `AGENTS.md`.
 
 ---
 

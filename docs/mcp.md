@@ -82,7 +82,7 @@ tempo_get_dex_quote { "tokenIn": "pathUSD", "tokenOut": "OUSD",
 Preview a payment (needs a token):
 
 ```
-seti_preview_payment { "merchantId": "merchant_java_house", "amountKes": "250" }
+seti_preview_payment { "merchantId": "merchant_java_house", "amountFiat": "250" }
 → { "amount": "1.928398", "fee": "5.00", "total": "1.966966", … }
 ```
 

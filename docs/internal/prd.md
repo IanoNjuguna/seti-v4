@@ -26,12 +26,13 @@ address; what they do with them afterwards is out of scope.
 
 Two things make this harder than it looks, and both are load-bearing:
 
-1. **The 2% merchant fee is currently attributed but not collected.** It is
-   computed, persisted and audited, and then paid to the merchant, because v1
-   routes it *inside* the customer's single transfer
-   (`FEE_ROUTING_MODE=inside-transfer`). A second, atomic fee leg is
-   implemented behind `FEE_ROUTING_MODE=batch` and **has never been executed
-   against a chain**.
+1. **The 2% platform fee is collected.** It is computed, persisted and audited,
+   and taken as its own transfer to `SETI_TREASURY_ADDRESS` in the same atomic
+   Tempo transaction as the principal, so Seti is paid without ever holding the
+   principal (`FEE_ROUTING_MODE=batch`, the default). `FEE_ROUTING_MODE=inside-transfer`
+   remains for comparison: there the fee rides inside the customer's single
+   transfer, so the recipient gets it and Seti collects nothing. The batch path is
+   proven on Moderato by `npm run prove:batch`.
 2. **Every figure the client supplies is an input, not a measurement.** The
    backend verifies the claimed amount against the on-chain receipt and fails
    closed.
@@ -83,12 +84,13 @@ Status vocabulary: **Shipped** = in the tree, covered by a check or a live path;
 | Stuck `processing` rows resolved against the chain | Shipped | `backend/src/services/stuck-transactions.ts` |
 | Stuck-payment alerting (`GET /health/sweep` → 503) | Shipped | `backend/src/routes/health.ts` |
 | Fee schedule (flat 2%, floor 0, cap 0) | Shipped | `backend/src/services/fees.ts` |
-| **Fee *collection* to treasury** | **Not collected** (default mode) | `FEE_ROUTING_MODE=inside-transfer` |
-| Atomic two-leg fee batch | Implemented, **never executed** | `mobile/src/lib/fee-batch.ts`, `transactions.ts:213` |
-| Gas estimation in the preview | Not built | `networkFee = 0` — `payments.ts:229` |
+| **Fee *collection* to treasury** | **Collected** (default mode) | `FEE_ROUTING_MODE=batch` + `SETI_TREASURY_ADDRESS` |
+| Atomic two-leg fee batch | Shipped, proven on Moderato | `npm run prove:batch`, `web/hooks/useTempoSender.ts` |
+| Sending to a person (P2P) | Shipped: quoted, batched, recorded | `recordSend`, `previewSend`, `web/components/home/SendPanel.tsx` |
+| Gas estimation in the preview | Shipped: measured gas × live gas price, display only | `estimateNetworkFee` — the balance check still reserves a flat floor |
 | KYC / tiering | Not built | `profile.tsx` renders "Coming soon" |
 | Fiat off-ramp (Stripe/Bridge) | Not built | schema fields only: `bankAccount`, `bridgeRecipientId` |
-| P2P send / receive, top-up, withdrawal (app surface) | Not built as UI | enum values exist in schema + `routes/transactions.ts` |
+| Receive side of a P2P send to another Seti user | Not built | the indexer skips wallet→wallet transfers, so the recipient sees no row |
 | Test runner | Does not exist | gates are `tsc` + `eslint` + `*.check.ts` |
 
 ---
@@ -181,10 +183,11 @@ minimum: principal in asset units, the fee in KES, the **gross the customer will
 sign for** (principal + fee + network), the KES-equivalent, FX rate plus source
 and staleness flag, and a boolean balance sufficiency.
 
-- **The request is KES-denominated.** The customer enters a KES figure — the pay
-  screen labels the field `KES`, and a merchant QR payload carries a
-  local-currency amount — so the request field is `amountKes` and the server
-  converts it to the asset for signing. Reading that figure as stablecoin units
+- **The request is fiat-denominated.** The customer enters a figure in THEIR
+  currency — the pay screen labels the field with it, and a merchant QR payload
+  carries a local-currency amount — so the request field is `amountFiat` and the
+  server converts it to the asset for signing. KES is the only currency enabled in
+  v1; the field is named for the unit, not for one currency. Reading that figure as stablecoin units
   was a real unit bug: a customer typing 250 against a `KES` label signed a 250
   OUSD transfer, roughly 129× what they meant. Keep the contract KES-in /
   asset-out, and never let one number carry both meanings.
