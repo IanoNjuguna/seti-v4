@@ -269,6 +269,11 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
           merchantId: merchant.id,
           txHash,
           description: `Payment to ${merchant.name}`,
+          // The wallet that just signed. The backend checks it belongs to the
+          // account AND that the chain recorded it as this transaction's sender,
+          // then binds the row to it — so this is which of the account's embedded
+          // wallets the payment is attributed to.
+          walletAddress: address,
           quoteId,
         });
 

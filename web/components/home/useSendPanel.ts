@@ -148,6 +148,18 @@ export function useSendPanel(): UseSendPanelReturn {
     void (async () => {
       patch({ step: 'previewing', recipientError: null, amountError: null, formError: null });
 
+      // The wallet that will sign has to be known BEFORE anything is signed: its
+      // address is what the server binds the recorded transfer to, and a record
+      // call that cannot declare one is refused. Failing here is the same outcome
+      // with a message the customer can act on.
+      if (!address) {
+        patch({
+          step: 'idle',
+          formError: 'No wallet is available to sign with. Sign in again to send.',
+        });
+        return;
+      }
+
       let preview: SendPreview;
       try {
         // Fresh, authoritative quote — the displayed one may be seconds old.
@@ -195,6 +207,10 @@ export function useSendPanel(): UseSendPanelReturn {
             asset: ASSET,
             recipient: preview.recipient,
             txHash,
+            // Which of the account's embedded wallets signed. The server checks it
+            // is one of this account's wallets AND that the chain recorded it as
+            // the sender, then binds the row to it.
+            walletAddress: address,
             quoteId,
           });
 

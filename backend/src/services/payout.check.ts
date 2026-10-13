@@ -21,7 +21,7 @@
  * the percentage assertions when the anchor is too small for them to mean
  * anything. It asserts loudly rather than guessing.
  */
-import { decodeEventLog, erc20Abi, parseAbiItem } from 'viem';
+import { decodeEventLog, erc20Abi, getAddress, parseAbiItem } from 'viem';
 import { prisma } from '../lib/prisma.js';
 import { env } from '../config/env.js';
 import { FEE_AMM_ADDRESS, formatUnits, getTokenContract, publicClient } from './chain.js';
@@ -398,14 +398,41 @@ async function main() {
     create: { email: 'payout-check@seti.test' },
   });
 
+  /**
+   * The fixture's wallet must be the address that SIGNED the anchor.
+   *
+   * `recordPayment` binds the recorded row to the wallet that signed, so the
+   * fixture declares the anchor's `from` and must own the wallet row holding it.
+   * `Wallet.address` is globally unique, so an address another account already
+   * holds cannot be used — that is reported as an un-runnable precondition rather
+   * than as a reconciliation failure, because nothing about the fee arithmetic
+   * would be wrong.
+   */
+  const anchorReceipt = await publicClient.getTransactionReceipt({
+    hash: anchor.txHash as `0x${string}`,
+  });
+  const anchorSender = getAddress(anchorReceipt.from);
+
+  const holder = await prisma.wallet.findUnique({ where: { address: anchorSender } });
+  if (holder && holder.userId !== user.id) {
+    console.error(
+      `The anchor's sender ${anchorSender} is already registered to another account, so\n` +
+        'the payment cannot be bound to it. Pick a fresh batched OUSD transfer signed by\n' +
+        'an unregistered wallet, then run this suite again.'
+    );
+    await teardown();
+    await prisma.$disconnect();
+    process.exit(1);
+  }
+
   await prisma.wallet.upsert({
     where: { userId_asset_status: { userId: user.id, asset: 'ousd', status: 'active' } },
-    update: {},
+    update: { address: anchorSender },
     create: {
       userId: user.id,
       chain: 'tempo',
       asset: 'ousd',
-      address: `0xpayoutcheck${Date.now()}`,
+      address: anchorSender,
     },
   });
 
@@ -441,6 +468,9 @@ async function main() {
     merchantId: merchant.id,
     txHash: anchor.txHash,
     quoteId,
+    // The wallet that signed the anchor: the row is bound to the address the
+    // chain recorded as this transaction's sender, or it is refused.
+    walletAddress: anchorSender,
   });
 
   // Recompute the expectation independently from the on-chain amounts and the

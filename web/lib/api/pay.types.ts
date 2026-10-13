@@ -100,6 +100,17 @@ export interface RecordPaymentInput {
   asset: string;
   merchantId: string;
   txHash: string;
+  /**
+   * The address the wallet signed with — the `from` of the transfer.
+   *
+   * The backend binds the recorded row to this wallet, so it verifies it twice:
+   * that it belongs to the account, and that it is the sender the chain recorded.
+   * Only the browser knows which of the account's embedded wallets it picked,
+   * which is why the client has to say. Required, not optional: a record call
+   * without it is refused (`signer-not-declared`), so omitting it is a bug rather
+   * than a fallback.
+   */
+  walletAddress: string;
   /** The rate quote from the preview the customer confirmed. See PaymentPreview. */
   quoteId?: string;
   description?: string;

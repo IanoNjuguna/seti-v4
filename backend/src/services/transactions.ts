@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma.js';
 import { env } from '../config/env.js';
 import { describeEvmAddress } from '../lib/address.js';
+import { resolveSigningWallet } from './wallet-registry.js';
 import type { TransactionType } from '../types/index.js';
 import { SEND_REQUIRES_BATCH } from './payments.js';
 import { QuoteError, readQuote, type FrozenRate } from './quote.js';
@@ -18,7 +19,7 @@ import {
   waitForTransactionReceipt,
   type SupportedAsset,
 } from './chain.js';
-import { decodeEventLog, erc20Abi, type Hex, type TransactionReceipt } from 'viem';
+import { decodeEventLog, erc20Abi, getAddress, type Hex, type TransactionReceipt } from 'viem';
 
 interface CreateTransactionInput {
   userId: string;
@@ -43,6 +44,20 @@ interface RecordPaymentInput {
   merchantId: string;
   txHash: string;
   /**
+   * The address the CLIENT signed this payment with — the `from` of the transfer.
+   *
+   * Only the browser knows which of an account's embedded wallets it picked, so
+   * the client declares it here, the same way the login flow declares a wallet to
+   * `/auth/verify`. It is checked twice: against the caller's own wallet rows, and
+   * against the sender the chain recorded for `txHash`. The row is bound to THAT
+   * wallet, so a transfer is never attributed to a wallet that did not sign it.
+   *
+   * Optional at the type level so a missing declaration reaches this service and
+   * is refused with the typed `signer-not-declared` code rather than failing in a
+   * schema — a refusal a client can act on, never a recorded transfer.
+   */
+  walletAddress?: string;
+  /**
    * The signed rate quote from the preview the customer confirmed. Every fiat
    * figure this call writes is derived from the rate inside it. A missing,
    * forged, expired or foreign quote refuses — never a live re-read.
@@ -66,6 +81,16 @@ interface RecordSendInput {
   /** The address the money was sent to, as the customer typed it. */
   recipient: string;
   txHash: string;
+  /**
+   * The address the CLIENT signed this send with — the `from` of the transfer.
+   *
+   * Same contract as `RecordPaymentInput.walletAddress`: only the browser knows
+   * which embedded wallet it signed with, the declaration is checked against the
+   * caller's own wallet rows AND against the sender on the receipt, and the row is
+   * bound to THAT wallet. A send is never attributed to a wallet that did not sign
+   * it, and "the recipient's side" names the wallet the money actually came from.
+   */
+  walletAddress?: string;
   /**
    * The signed rate quote from the preview the customer confirmed. Same contract
    * as `RecordPaymentInput.quoteId`: the frozen rate is the only rate written.
@@ -116,7 +141,14 @@ async function resolveFrozenRate(input: {
 }
 
 /**
- * The user's active wallet — the ADDRESS their money moves from.
+ * The user's active wallet row.
+ *
+ * NOT the wallet a transfer came from, and it must never be used to decide that.
+ * An account can hold SEVERAL embedded wallets, so the row a lookup happens to
+ * find is not necessarily the one that signed — binding a recorded transfer to it
+ * is the bug `resolveSigningWallet` closes. This is used only by
+ * {@link createTransaction}, the pending scaffold, which has no on-chain receipt
+ * to name a signer and moves no money.
  *
  * Deliberately NOT filtered by asset, and that is the fix for a real refusal
  * (`No active pathusd wallet found for user`). Registration labels the row with
@@ -144,6 +176,36 @@ async function findActiveWallet(userId: string) {
   }
 
   return wallet;
+}
+
+/**
+ * The wallet row a record path must bind its row to: the one the CLIENT declared
+ * it signed with, checked against the caller's own wallets — or a recorded
+ * refusal.
+ *
+ * This is the ONLY way the money path resolves a wallet. There is deliberately no
+ * "or fall back to the active wallet" branch: that fallback is precisely how a
+ * recorded transfer came to point at a wallet that did not sign, which made the
+ * receipt's `mine` flags read false and its total read 0.00. Refusing is a state
+ * the app can act on; a wrong binding is silent corruption of the ledger.
+ */
+async function declaredWalletOrRefuse(input: {
+  userId: string;
+  txHash: string;
+  walletAddress?: string;
+  merchantId?: string;
+}) {
+  const resolved = await resolveSigningWallet(input.userId, input.walletAddress);
+
+  if ('wallet' in resolved) return resolved.wallet;
+
+  throw await refusal({
+    userId: input.userId,
+    txHash: input.txHash,
+    ...(input.merchantId ? { merchantId: input.merchantId } : {}),
+    code: resolved.code,
+    reason: resolved.complaint,
+  });
 }
 
 /**
@@ -211,6 +273,10 @@ export async function receivedSide(input: {
 }
 
 export async function createTransaction(input: CreateTransactionInput) {
+  // The pending scaffold: no txHash, nothing on chain, no money moved yet — so
+  // there is no receipt to name a signer and nothing to bind. The money path
+  // (`recordPayment`/`recordSend`) resolves the declared signing wallet and
+  // verifies it against the receipt's sender instead of looking one up here.
   const wallet = await findActiveWallet(input.userId);
 
   const transaction = await prisma.transaction.create({
@@ -237,22 +303,19 @@ export async function createTransaction(input: CreateTransactionInput) {
   return transaction;
 }
 
+/** A receipt read for verification, or the typed reason it could not be used. */
+type ReceiptLookup =
+  | { ok: true; receipt: TransactionReceipt }
+  | { ok: false; code: ReceiptFailureCode; reason: string };
+
 /**
- * Reads the amount that actually moved, out of an on-chain receipt.
+ * Reads a transaction receipt for verification.
  *
- * The client tells us how much it thinks it sent; this is what the chain
- * recorded. Returns the Transfer `value` for the expected recipient so the
- * caller can compare rather than trust.
+ * Read ONCE per record call: every leg below, and the sender check that binds the
+ * row to a wallet, are statements about the same receipt, and re-fetching it per
+ * leg would let the two disagree across a reorg.
  */
-async function readTransferredAmount(
-  txHash: string,
-  tokenAddress: Hex,
-  expectedRecipient: string,
-  asset: SupportedAsset
-): Promise<
-  | { ok: true; value: number }
-  | { ok: false; code: ReceiptFailureCode; reason: string }
-> {
+async function readReceipt(txHash: string): Promise<ReceiptLookup> {
   let receipt: TransactionReceipt;
   try {
     receipt = await publicClient.getTransactionReceipt({ hash: txHash as Hex });
@@ -264,6 +327,22 @@ async function readTransferredAmount(
     return { ok: false, code: 'receipt-reverted', reason: 'transaction reverted on-chain' };
   }
 
+  return { ok: true, receipt };
+}
+
+/**
+ * Reads the amount that actually moved, out of an on-chain receipt.
+ *
+ * The client tells us how much it thinks it sent; this is what the chain
+ * recorded. Returns the Transfer `value` for the expected recipient so the
+ * caller can compare rather than trust.
+ */
+function readTransferredAmount(
+  receipt: TransactionReceipt,
+  tokenAddress: Hex,
+  expectedRecipient: string,
+  asset: SupportedAsset
+): { ok: true; value: number } | { ok: false; code: ReceiptFailureCode; reason: string } {
   const token = tokenAddress.toLowerCase();
 
   for (const log of receipt.logs) {
@@ -292,6 +371,39 @@ async function readTransferredAmount(
 }
 
 /**
+ * Refuses unless the receipt was signed by the wallet the client declared.
+ *
+ * The declaration has already been checked against the caller's own wallets, so
+ * this is the second half of the same rule and the one that makes the binding
+ * true: the row is about to name a wallet as the source of this transfer, and the
+ * chain is the only authority on which address that was. When they disagree the
+ * transfer came from a wallet the account did not name — a registration or client
+ * bug — and a loud refusal is the only honest outcome. Binding the row to the
+ * declared wallet anyway would build a receipt whose `mine` flags and total are
+ * wrong for every leg.
+ */
+async function assertReceiptSender(input: {
+  userId: string;
+  txHash: string;
+  merchantId?: string;
+  receipt: TransactionReceipt;
+  declaredAddress: string;
+}): Promise<void> {
+  if (input.receipt.from.toLowerCase() === input.declaredAddress.toLowerCase()) return;
+
+  throw await refusal({
+    userId: input.userId,
+    txHash: input.txHash,
+    ...(input.merchantId ? { merchantId: input.merchantId } : {}),
+    code: 'signer-mismatch',
+    reason:
+      `This transaction was signed by ${getAddress(input.receipt.from)}, not by the ` +
+      `wallet the app declared (${getAddress(input.declaredAddress)}), so the transfer ` +
+      'cannot be recorded against that wallet.',
+  });
+}
+
+/**
  * Records a payment that has already been signed and broadcast on-chain.
  *
  * What `input.amount` means depends on the server-side FEE_ROUTING_MODE:
@@ -308,26 +420,28 @@ async function readTransferredAmount(
  * it is verified against the chain before anything is written: on mainnet,
  * trusting it would let a modified client under-report the amount and therefore
  * the merchant fee at will.
+ *
+ * The row is BOUND to the wallet that signed it. The client declares the address
+ * it signed with (`walletAddress`), that declaration is checked against the
+ * caller's own wallet rows, the receipt's `from` must equal it, and the row is
+ * written against THAT wallet row. An account can hold several embedded wallets,
+ * so resolving one here — whatever the lookup happens to find — is how a payment
+ * came to be recorded against a wallet that did not sign it, which made the
+ * receipt's `mine` flags false and its total 0.00.
  */
 export async function recordPayment(input: RecordPaymentInput) {
-  // The wallet lookup is caught rather than left to throw: a user with no
-  // active wallet is a refusal like any other, and it has to be recorded with
-  // the txHash so support can find it. Without this it is the one failure on
-  // this path that leaves no trace at all.
-  const [walletResult, merchant] = await Promise.all([
-    findActiveWallet(input.userId).catch((error: unknown) => error as Error),
-    prisma.merchant.findUnique({ where: { id: input.merchantId } }),
-  ]);
+  // The wallet is the one the CLIENT declared it signed with, checked against the
+  // caller's wallets — or a recorded refusal. It is deliberately NOT "the user's
+  // active wallet": an account can hold several embedded wallets, and binding the
+  // row to whichever row a lookup found is what made a recorded payment point at a
+  // wallet that did not sign it.
+  const wallet = await declaredWalletOrRefuse({
+    userId: input.userId,
+    txHash: input.txHash,
+    walletAddress: input.walletAddress,
+  });
 
-  if (walletResult instanceof Error) {
-    throw await refusal({
-      userId: input.userId,
-      txHash: input.txHash,
-      code: 'no-active-wallet',
-      reason: walletResult.message,
-    });
-  }
-  const wallet = walletResult;
+  const merchant = await prisma.merchant.findUnique({ where: { id: input.merchantId } });
 
   if (!merchant) {
     throw await refusal({
@@ -380,18 +494,35 @@ export async function recordPayment(input: RecordPaymentInput) {
 
   const batchMode = env.FEE_ROUTING_MODE === 'batch';
 
+  // One read of the receipt, for every statement below — including which wallet
+  // signed it.
+  const found = await readReceipt(input.txHash);
+
+  if (!found.ok) {
+    // Fail closed: on mainnet an unverifiable payment must not be written as a
+    // settled one.
+    throw await refusal({
+      userId: input.userId,
+      txHash: input.txHash,
+      merchantId: merchant.id,
+      code: found.code,
+      reason: `Payment could not be verified on-chain: ${found.reason}`,
+      claimedAmount,
+    });
+  }
+
+  const receipt = found.receipt;
+
   // The merchant leg. In batch mode this is the PRINCIPAL; in inside-transfer
   // mode it is the GROSS. Either way the chain is authoritative.
-  const merchantLeg = await readTransferredAmount(
-    input.txHash,
+  const merchantLeg = readTransferredAmount(
+    receipt,
     getTokenContract(asset),
     merchant.payoutAddress,
     asset
   );
 
   if (!merchantLeg.ok) {
-    // Fail closed: on mainnet an unverifiable payment must not be written as a
-    // settled one.
     throw await refusal({
       userId: input.userId,
       txHash: input.txHash,
@@ -428,8 +559,8 @@ export async function recordPayment(input: RecordPaymentInput) {
     // client could send only the principal leg and still be recorded as having
     // paid a fee — the batch would be atomic on-chain but unverified here,
     // which is the same uncollected-fee problem in a new shape.
-    const treasuryLeg = await readTransferredAmount(
-      input.txHash,
+    const treasuryLeg = readTransferredAmount(
+      receipt,
       getTokenContract(asset),
       env.SETI_TREASURY_ADDRESS,
       asset
@@ -482,6 +613,17 @@ export async function recordPayment(input: RecordPaymentInput) {
   // Recomputed only to report whether a cap governed; it does not set the fee.
   const feeResult = calculateMerchantFee(fiatAmount);
 
+  // The wallet that signed is the wallet this row is bound to. Everything above
+  // reconciled the TRANSFER; this is the last gate before the row exists, and it
+  // is what stops a row naming a wallet that did not make it.
+  await assertReceiptSender({
+    userId: input.userId,
+    txHash: input.txHash,
+    merchantId: merchant.id,
+    receipt,
+    declaredAddress: wallet.address,
+  });
+
   const transaction = await prisma.transaction.create({
     data: {
       userId: input.userId,
@@ -531,6 +673,11 @@ export async function recordPayment(input: RecordPaymentInput) {
       merchantNet,
       fxRate: quote.fiatPerUsd,
       fxRateSource: quote.source,
+      // Which wallet the payment was recorded against, and the reason it is that
+      // one: the address the client declared and the chain confirmed as the
+      // sender. Support needs both halves when a row is questioned.
+      signedBy: wallet.address,
+      receiptSender: receipt.from,
       ...(batchMode ? { treasuryFeeObserved } : {}),
     },
   });
@@ -577,21 +724,23 @@ export async function recordPayment(input: RecordPaymentInput) {
  * Refused outside `batch` mode — with no merchant in the path there is no
  * recipient for the fee, so a single transfer would pay the 2% to the person
  * being sent to. See {@link SEND_REQUIRES_BATCH}.
+ *
+ * The row — and the recipient's row — is BOUND to the wallet that signed. The
+ * client declares the address it signed with (`walletAddress`), that declaration
+ * is checked against the caller's own wallet rows, the receipt's `from` must
+ * equal it, and both rows are written against THAT wallet row.
  */
 export async function recordSend(input: RecordSendInput) {
-  const walletResult = await findActiveWallet(input.userId).catch(
-    (error: unknown) => error as Error
-  );
-
-  if (walletResult instanceof Error) {
-    throw await refusal({
-      userId: input.userId,
-      txHash: input.txHash,
-      code: 'no-active-wallet',
-      reason: walletResult.message,
-    });
-  }
-  const wallet = walletResult;
+  // The wallet that SIGNED, declared by the client and checked against the
+  // caller's own wallets — never "the user's active wallet". An account can hold
+  // several embedded wallets, and binding the row (and the recipient's row) to
+  // whichever one a lookup found is what attributed a transfer to a wallet that
+  // did not make it.
+  const wallet = await declaredWalletOrRefuse({
+    userId: input.userId,
+    txHash: input.txHash,
+    walletAddress: input.walletAddress,
+  });
 
   const complaint = describeEvmAddress(input.recipient);
   if (complaint) {
@@ -604,9 +753,9 @@ export async function recordSend(input: RecordSendInput) {
   }
   const recipient = input.recipient;
 
-  // A transfer to the sender's own active wallet moves nothing and still costs
-  // gas — and in batch mode it would pay the fee twice for nothing. Refused
-  // rather than recorded, so the ledger never shows a send that was a no-op.
+  // A transfer to the wallet that signed moves nothing and still costs gas — and
+  // in batch mode it would pay the fee twice for nothing. Refused rather than
+  // recorded, so the ledger never shows a send that was a no-op.
   if (wallet.address.toLowerCase() === recipient.toLowerCase()) {
     throw await refusal({
       userId: input.userId,
@@ -646,9 +795,24 @@ export async function recordSend(input: RecordSendInput) {
     txHash: input.txHash,
   });
 
+  // One read of the receipt, for both legs and for the sender.
+  const found = await readReceipt(input.txHash);
+
+  if (!found.ok) {
+    throw await refusal({
+      userId: input.userId,
+      txHash: input.txHash,
+      code: found.code,
+      reason: `Send could not be verified on-chain: ${found.reason}`,
+      claimedAmount,
+    });
+  }
+
+  const receipt = found.receipt;
+
   // The recipient's leg. The chain is authoritative; the claim is only an input.
-  const recipientLeg = await readTransferredAmount(
-    input.txHash,
+  const recipientLeg = readTransferredAmount(
+    receipt,
     getTokenContract(asset),
     recipient,
     asset
@@ -681,8 +845,8 @@ export async function recordSend(input: RecordSendInput) {
   // The fee must have actually reached the treasury. Without this check a client
   // could sign only the recipient leg and still be recorded as having paid the
   // fee — the uncollected-fee problem in a new shape, and harder to see.
-  const treasuryLeg = await readTransferredAmount(
-    input.txHash,
+  const treasuryLeg = readTransferredAmount(
+    receipt,
     getTokenContract(asset),
     env.SETI_TREASURY_ADDRESS,
     asset
@@ -715,6 +879,17 @@ export async function recordSend(input: RecordSendInput) {
 
   // Recomputed only to report whether a cap governed; it does not set the fee.
   const feeResult = calculateMerchantFee(principalFiat);
+
+  // The wallet that signed is the wallet this row — and the recipient's — is bound
+  // to. The legs above reconciled the TRANSFER; this is the last gate before any
+  // row exists, and it is what stops a send being attributed to a wallet that did
+  // not make it.
+  await assertReceiptSender({
+    userId: input.userId,
+    txHash: input.txHash,
+    receipt,
+    declaredAddress: wallet.address,
+  });
 
   const transaction = await prisma.transaction.create({
     data: {
@@ -755,6 +930,10 @@ export async function recordSend(input: RecordSendInput) {
   // and the person who received the money saw an empty Activity, which is exactly
   // what happened. Written here, in the same request as the sender's row, so the two
   // sides cannot disagree about what moved.
+  //
+  // `senderAddress` is the wallet that SIGNED, from the declaration the receipt was
+  // checked against — not whichever wallet a lookup found. The recipient's row
+  // names where the money actually came from.
   await receivedSide({
     recipient,
     amountAsset: observedPrincipal,
@@ -779,6 +958,10 @@ export async function recordSend(input: RecordSendInput) {
       fxRate: quote.fiatPerUsd,
       fxRateSource: quote.source,
       treasuryFeeObserved,
+      // Same evidence as `payment.recorded`: the wallet this send was bound to,
+      // and the sender the chain recorded for it.
+      signedBy: wallet.address,
+      receiptSender: receipt.from,
     },
   });
 

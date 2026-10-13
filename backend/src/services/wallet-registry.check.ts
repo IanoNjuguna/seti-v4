@@ -17,7 +17,7 @@
  * never read or delete a real user's wallet — a wallet row is where money lands.
  */
 import { prisma } from '../lib/prisma.js';
-import { registerWallet, resolveWalletAddress } from './wallet-registry.js';
+import { registerWallet, resolveSigningWallet, resolveWalletAddress } from './wallet-registry.js';
 
 const FIXTURE_EMAIL_A = 'check-wallet-a@seti.test';
 const FIXTURE_EMAIL_B = 'check-wallet-b@seti.test';
@@ -192,6 +192,65 @@ async function main() {
     'with no wallet anywhere, the login is refused rather than invented',
     'complaint' in nothing && nothing.complaint.includes('No embedded wallet'),
     true
+  );
+
+  // --- Which wallet a recorded transfer is bound to -------------------------
+  //
+  // The money path resolves the wallet the CLIENT declared it signed with, and
+  // refuses rather than picking one — an account can hold several embedded
+  // wallets (this one holds two), so "the active wallet" is not the wallet that
+  // signed. A declaration is checked against the caller's own rows, and a row's
+  // STATUS is deliberately ignored: login deprecates the row it replaces, and the
+  // deprecated one is very often the wallet that signs. Getting this wrong bound
+  // recorded transfers to a wallet that did not sign them, which made the
+  // receipt's `mine` flags and its total wrong.
+  console.log('\nsigning wallet resolution (the wallet a recorded transfer binds to):');
+
+  const resolvedDeprecated = await resolveSigningWallet(userA.id, ADDR_1);
+  check(
+    'a declared address resolves to its own row, deprecated or not',
+    'wallet' in resolvedDeprecated ? resolvedDeprecated.wallet.address : resolvedDeprecated.complaint,
+    ADDR_1
+  );
+  check(
+    'and the deprecated row resolves while another row is active',
+    'wallet' in resolvedDeprecated && resolvedDeprecated.wallet.status === 'deprecated',
+    true
+  );
+
+  const resolvedActive = await resolveSigningWallet(userA.id, ADDR_2.toLowerCase());
+  check(
+    'casing does not decide ownership (the client sends what it holds)',
+    'wallet' in resolvedActive ? resolvedActive.wallet.id : 'refused',
+    rotated.id
+  );
+
+  const resolvedForeign = await resolveSigningWallet(userB.id, ADDR_2);
+  check(
+    'another account\'s address is refused',
+    'code' in resolvedForeign ? resolvedForeign.code : 'resolved',
+    'signer-not-owned'
+  );
+
+  const resolvedUndeclared = await resolveSigningWallet(userA.id, undefined);
+  check(
+    'a missing declaration is refused, not guessed',
+    'code' in resolvedUndeclared ? resolvedUndeclared.code : 'resolved',
+    'signer-not-declared'
+  );
+
+  const resolvedMalformed = await resolveSigningWallet(userA.id, '0xnothex');
+  check(
+    'an unusable declaration is refused',
+    'code' in resolvedMalformed ? resolvedMalformed.code : 'resolved',
+    'signer-not-owned'
+  );
+
+  const resolvedUnknown = await resolveSigningWallet(userA.id, `0x${'ff'.repeat(20)}`);
+  check(
+    'an address no account holds is refused',
+    'code' in resolvedUnknown ? resolvedUnknown.code : 'resolved',
+    'signer-not-owned'
   );
 
   await cleanup();

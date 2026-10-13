@@ -1,6 +1,8 @@
 /**
  * Send reconciliation checks: `recordSend` must verify the chain before it
- * writes anything, and it must refuse when the fee was not actually collected.
+ * writes anything, refuse when the fee was not actually collected, and bind the
+ * row to the wallet that SIGNED the transfer rather than to whichever wallet a
+ * lookup happens to find.
  *
  * Run with:  FEE_ROUTING_MODE=batch npm run check:send
  *
@@ -13,10 +15,16 @@
  * The guard that matters most is the fee leg. A send that reaches the recipient
  * but not the treasury is the uncollected-fee failure wearing a new shape, and
  * it is the one a "did the money arrive?" test would happily pass.
+ *
+ * The second is the wallet binding, and the fixture is built to make the old bug
+ * fail loudly: the account below holds TWO wallets — one ACTIVE (the row
+ * `findActiveWallet` used to pick, and the wrong one) and one DEPRECATED holding
+ * the address that actually signed. The recorded row must land on the signer.
  */
 import { prisma } from '../lib/prisma.js';
 import { decodeEventLog, erc20Abi, getAddress, parseAbiItem, type Hex } from 'viem';
 import { recordSend, receivedSide } from './transactions.js';
+import { PaymentRefusalError } from './payment-refusal.js';
 import { getFxQuote } from './payments.js';
 import { issueQuote } from './quote.js';
 import { calculateMerchantFee } from './fees.js';
@@ -30,6 +38,31 @@ function check(label: string, passed: boolean, detail = ''): void {
 }
 
 /**
+ * The typed refusal a record call produced, or a marker for "did not refuse".
+ *
+ * Refusals are the money path's contract, so an assertion on the CODE (not just
+ * "it threw") is what pins them: `signer-not-declared` and `signer-not-owned`
+ * are client-actionable states, and a suite that only checks "something threw"
+ * cannot tell them from a crash.
+ */
+async function refusalOf(
+  fn: () => Promise<unknown>
+): Promise<{ code: string; message: string }> {
+  try {
+    await fn();
+    return { code: '(did not refuse)', message: '' };
+  } catch (error) {
+    return {
+      code:
+        error instanceof PaymentRefusalError
+          ? error.code
+          : `non-refusal: ${error instanceof Error ? error.message : String(error)}`,
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+/**
  * A real batched transaction on Moderato: ONE transaction, two transfers —
  * 0.5 pathUSD to a throwaway recipient, and the 2% fee (0.01 pathUSD) to
  * SETI_TREASURY_ADDRESS. Signed and paid for by `npm run prove:batch`.
@@ -39,14 +72,35 @@ function check(label: string, passed: boolean, detail = ''): void {
  * the shape the client signs, and it is immutable.
  */
 const ANCHOR = {
-  txHash: '0x913060ec28c168c38494bd5b725dea2778f93d34275c766447be2c45c68a9dcf' as Hex,
-  recipient: '0x617C416110B328dB48030259c8664F29403Ce074',
+  txHash: '0xfbbacc1e13943afd4627bdd848b945f4de706d5726679d9f16612693d9aa7c70' as Hex,
+  /**
+   * The address that SIGNED the anchor: the receipt's `from`.
+   *
+   * A recorded transfer is bound to the wallet that signed it, so the fixture
+   * must DECLARE this address and own the wallet row holding it — `Wallet.address`
+   * is globally unique, so the signer's address has to be free. This anchor was
+   * chosen for exactly that reason: the sender of the previous one
+   * (`0x42A8…4155`, also a two-leg `prove:batch` receipt) is now registered to
+   * another account, which makes it unusable by any fixture. If a `prove:batch`
+   * run is ever made from a wallet that is already registered, pick a fresh
+   * receipt the same way — the suite fails loudly rather than quietly.
+   *
+   * Re-asserted below against `receipt.from`, so a stale value fails as a
+   * precondition rather than as a confusing reconciliation failure.
+   */
+  sender: '0xe71CD1DCE949838Ea4A5bd7Ac93F85c90257eBF4',
+  recipient: '0xCf0048e57F37df356de63864D1AF1bEA81639ac8',
   principal: '0.5',
   asset: 'pathusd',
 } as const;
 
 /** A valid address no user holds, for the self-send refusal. */
 const SELF_ADDRESS = getAddress('0x0000000000000000000000000000000000000001');
+/**
+ * A valid address this account does NOT own, for the not-owned refusal. Valid
+ * 20-byte form so the refusal is about ownership, not about the shape.
+ */
+const STRANGER_ADDRESS = getAddress('0x0000000000000000000000000000000000009a9a');
 const CHECK_EMAIL = 'send-check@seti.test';
 /**
  * The OTHER side of the same transfer: a fixture whose wallet address IS the
@@ -184,21 +238,69 @@ async function main(): Promise<void> {
     asOf: quote.asOf,
   });
 
-  // The wallet's address is a real, valid address (the self-send refusal runs
-  // through EIP-55 validation first, so a placeholder string would be refused
-  // for the wrong reason). Nothing signs with it.
+  // --- The account's TWO wallets: the bug, made explicit -------------------
   //
-  // The label is deliberately NOT the asset the suite sends (`pathusd`): login
-  // registers every wallet as `ousd`, and a lookup that filtered on the asset
-  // therefore refused every real send — after the money had left the wallet —
-  // while this fixture, labelled to match the transfer, passed. Keeping the
-  // mismatch here is what pins the fix; do not "tidy" it into agreement.
-  await prisma.wallet.create({
+  // An account can hold several embedded wallets, and this fixture holds two:
+  //
+  //   * `otherWallet`  — ACTIVE, the row a lookup finds first. This is the one
+  //                      the old code bound every recorded transfer to, and it is
+  //                      NOT the wallet that signed the anchor.
+  //   * `signerWallet` — DEPRECATED, holding ANCHOR.sender: the address the chain
+  //                      recorded as the sender of the anchor. Deprecated is what
+  //                      login does to a row when it registers a different
+  //                      address, which is exactly how a real account ends up in
+  //                      this shape — and why a lookup by status can never find
+  //                      the signer.
+  //
+  // The row must land on `signerWallet`. Making the wrong wallet the ACTIVE one
+  // (rather than relying on row order) is what keeps this deterministic.
+  //
+  // `SELF_ADDRESS` is a real, valid address (the self-send refusal runs through
+  // EIP-55 validation first, so a placeholder string would be refused for the
+  // wrong reason). Nothing signs with it.
+  //
+  // Both labels are deliberately NOT the asset the suite sends (`pathusd`), as
+  // before: login registers every wallet as `ousd`, and a lookup that filtered on
+  // the asset therefore refused every real send — after the money had left the
+  // wallet — while a fixture labelled to match the transfer passed. Do not
+  // "tidy" the mismatch into agreement.
+  const otherWallet = await prisma.wallet.create({
     data: {
       userId: user.id,
       chain: 'tempo',
       asset: 'ousd',
       address: SELF_ADDRESS,
+      status: 'active',
+    },
+  });
+
+  // The signer's address has to be FREE. `Wallet.address` is globally unique, and
+  // a fixture cannot own an address another account holds — so if one does, this
+  // fails loudly with the reason instead of turning into a P2002 that reads like
+  // a broken suite. (It is not skipped silently: the binding is the point of
+  // these assertions.)
+  const signerAddress = getAddress(ANCHOR.sender);
+  const signerTaken = await prisma.wallet.findUnique({ where: { address: signerAddress } });
+  if (signerTaken && signerTaken.userId !== user.id) {
+    console.error(
+      `The anchor's sender ${signerAddress} is already registered to another account.\n` +
+        'A recorded transfer is bound to the wallet that signed it, and an address\n' +
+        'can belong to only one account, so this suite cannot declare it. Pick a\n' +
+        'fresh batched receipt signed by an unregistered wallet (npm run prove:batch)\n' +
+        'and update ANCHOR in this file.'
+    );
+    await teardownSafely();
+    await prisma.$disconnect();
+    process.exit(1);
+  }
+
+  const signerWallet = await prisma.wallet.create({
+    data: {
+      userId: user.id,
+      chain: 'tempo',
+      asset: 'pathusd',
+      address: signerAddress,
+      status: 'deprecated',
     },
   });
 
@@ -230,6 +332,11 @@ async function main(): Promise<void> {
 
   // --- Guards that do not need a real receipt -------------------------------
 
+  // FEE_ROUTING_MODE must be batch for the rest of this suite to mean anything,
+  // so the declaration is supplied on every call. The declared address is a
+  // real, DECLARED wallet of the account's — the signer's row.
+  const signed = signerWallet.address;
+
   let threw = false;
   let message = '';
   try {
@@ -240,6 +347,7 @@ async function main(): Promise<void> {
       recipient: '0xnot-an-address',
       txHash: `0x${'11'.repeat(32)}`,
       quoteId: sendQuoteId,
+      walletAddress: signed,
     });
   } catch (error) {
     threw = true;
@@ -263,6 +371,9 @@ async function main(): Promise<void> {
       recipient: SELF_ADDRESS,
       txHash: `0x${'22'.repeat(32)}`,
       quoteId: sendQuoteId,
+      // The self refusal compares the recipient with the wallet that SIGNED, so
+      // the declaration here is the wallet the fixture says it signs with.
+      walletAddress: SELF_ADDRESS,
     });
   } catch (error) {
     threw = true;
@@ -271,6 +382,135 @@ async function main(): Promise<void> {
   check('a send to the sender\'s own wallet is refused', threw, message.slice(0, 70));
   check('and says the transfer would move nothing', /move nothing/i.test(message));
   check('no row written for a self-send', (await countRows()) === 0);
+
+  // --- The wallet the row is bound to --------------------------------------
+  //
+  // A recorded transfer must be bound to the wallet that SIGNED it, and this
+  // account holds two. Everything below asserts on `walletId`, which is the
+  // binding: the row's own `mine` flags and totals are computed from it, so a
+  // wrong binding is what made a real account's receipt read every leg as
+  // `mine:false` with a total of 0.00.
+  console.log('\nthe wallet that signed:');
+
+  check(
+    'the fixture account holds two wallets',
+    (await prisma.wallet.count({ where: { userId: user.id } })) === 2
+  );
+  check(
+    'the wallet a lookup by status finds is NOT the one that signed',
+    otherWallet.id !== signerWallet.id &&
+      otherWallet.status === 'active' &&
+      signerWallet.status === 'deprecated',
+    `active ${otherWallet.address} vs signer ${signerWallet.address}`
+  );
+
+  // 1. A declaration that MATCHES the receipt binds the row to that wallet.
+  //    (Asserted on the real anchor in the happy path below.)
+
+  // 2. A missing declaration is refused, not guessed.
+  const undeclared = await refusalOf(() =>
+    recordSend({
+      userId: user.id,
+      amount: ANCHOR.principal,
+      asset: ANCHOR.asset,
+      recipient: ANCHOR.recipient,
+      txHash: ANCHOR.txHash,
+      quoteId: sendQuoteId,
+    })
+  );
+  check(
+    'a record with no declared wallet is refused',
+    undeclared.code === 'signer-not-declared',
+    undeclared.code
+  );
+  check(
+    'and it says which wallet cannot be resolved, not which amount failed',
+    /does not say which wallet/i.test(undeclared.message),
+    undeclared.message.slice(0, 78)
+  );
+  check('no row written without a declared wallet', (await countRows()) === 0);
+
+  // 3. A declared address the caller does not own is refused.
+  const foreign = await refusalOf(() =>
+    recordSend({
+      userId: user.id,
+      amount: ANCHOR.principal,
+      asset: ANCHOR.asset,
+      recipient: ANCHOR.recipient,
+      txHash: ANCHOR.txHash,
+      quoteId: sendQuoteId,
+      walletAddress: STRANGER_ADDRESS,
+    })
+  );
+  check(
+    'a declared wallet the account does not own is refused',
+    foreign.code === 'signer-not-owned',
+    foreign.code
+  );
+  check(
+    'and the refusal says it does not belong to the account',
+    /does not belong to this account/i.test(foreign.message),
+    foreign.message.slice(0, 78)
+  );
+  check('no row written for a wallet the caller does not own', (await countRows()) === 0);
+
+  // A malformed declaration is the same hole: unusable, so refused.
+  const malformedDeclaration = await refusalOf(() =>
+    recordSend({
+      userId: user.id,
+      amount: ANCHOR.principal,
+      asset: ANCHOR.asset,
+      recipient: ANCHOR.recipient,
+      txHash: ANCHOR.txHash,
+      quoteId: sendQuoteId,
+      walletAddress: '0xnot-an-address',
+    })
+  );
+  check(
+    'an unusable declared wallet is refused',
+    malformedDeclaration.code === 'signer-not-owned' &&
+      /20-byte|checksum/i.test(malformedDeclaration.message),
+    malformedDeclaration.code
+  );
+
+  // 4. A declared address that is not the receipt's sender is refused — on an
+  //    otherwise PERFECT record call: same receipt, same recipient, same
+  //    principal, same quote. The only difference from the happy path below is
+  //    the declared wallet, so this fails for that reason alone.
+  const notTheSender = await refusalOf(() =>
+    recordSend({
+      userId: user.id,
+      amount: ANCHOR.principal,
+      asset: ANCHOR.asset,
+      recipient: ANCHOR.recipient,
+      txHash: ANCHOR.txHash,
+      quoteId: sendQuoteId,
+      walletAddress: SELF_ADDRESS,
+    })
+  );
+  check(
+    'a declared wallet that did not sign the receipt is refused',
+    notTheSender.code === 'signer-mismatch',
+    notTheSender.code
+  );
+  check(
+    'and the refusal names both the sender and the declared wallet',
+    notTheSender.message.includes(getAddress(ANCHOR.sender)) &&
+      notTheSender.message.includes(SELF_ADDRESS),
+    notTheSender.message.slice(0, 96)
+  );
+  check('no row written when the declared wallet did not sign', (await countRows()) === 0);
+  check(
+    'and the refusal is recorded against its txHash with its code',
+    (await prisma.auditLog.count({
+      where: {
+        userId: user.id,
+        action: 'payment.rejected',
+        txHash: ANCHOR.txHash,
+        metadata: { path: ['code'], equals: 'signer-mismatch' },
+      },
+    })) === 1
+  );
 
   // --- "Recipient paid, treasury not" — the missing fee leg ----------------
   console.log('\nrecipient leg present, fee leg missing:');
@@ -294,6 +534,11 @@ async function main(): Promise<void> {
         recipient: plainTransfer.to,
         txHash: plainTx,
         quoteId: sendQuoteId,
+        // The declaration is a wallet of this account's. It is deliberately NOT
+        // this receipt's real sender (a stranger's wallet, which no fixture
+        // holds), so the refusal below can only come from the missing fee leg —
+        // the sender check runs after the legs, before any write.
+        walletAddress: signed,
       });
     } catch (error) {
       threw = true;
@@ -327,6 +572,7 @@ async function main(): Promise<void> {
         recipient: plainTransfer.to,
         txHash: plainTx,
         quoteId: sendQuoteId,
+        walletAddress: signed,
       });
     } catch (error) {
       threw = true;
@@ -346,6 +592,16 @@ async function main(): Promise<void> {
         '      `npm run prove:batch` to produce one, then update ANCHOR in this file.'
     );
   } else {
+    // Precondition for everything below: the anchor's sender is the address this
+    // fixture declared, and it is NOT the account's active wallet. If the anchor
+    // is re-created, update ANCHOR.sender — and this fails loudly rather than
+    // turning into a confusing binding assertion.
+    check(
+      'the anchor receipt was signed by the declared wallet',
+      anchorReceipt?.from?.toLowerCase() === signerWallet.address.toLowerCase(),
+      `receipt.from ${anchorReceipt?.from} vs declared ${signerWallet.address}`
+    );
+
     const transaction = await recordSend({
       userId: user.id,
       amount: ANCHOR.principal,
@@ -353,6 +609,7 @@ async function main(): Promise<void> {
       recipient: ANCHOR.recipient,
       txHash: ANCHOR.txHash,
       quoteId: sendQuoteId,
+      walletAddress: signerWallet.address,
     });
 
     check('a two-leg send is recorded, not refused', Boolean(transaction.id));
@@ -364,6 +621,22 @@ async function main(): Promise<void> {
     check(
       'the counterparty is the recipient the chain paid',
       transaction.counterparty?.toLowerCase() === ANCHOR.recipient.toLowerCase()
+    );
+
+    // --- THE BUG: the row is bound to the wallet that SIGNED ---------------
+    //
+    // The account holds two wallets and the signer is the DEPRECATED one, so a
+    // lookup by status (the old `findActiveWallet`) could only ever find the
+    // other. This is the assertion that fails when that lookup comes back.
+    check(
+      'the row is bound to the wallet that SIGNED the transfer',
+      transaction.walletId === signerWallet.id,
+      `bound to ${transaction.walletId} (signer row ${signerWallet.id})`
+    );
+    check(
+      'and NOT to the account\'s other wallet',
+      transaction.walletId !== otherWallet.id,
+      `other row ${otherWallet.id} (${otherWallet.address}, ${otherWallet.status})`
     );
 
     // The fee is the whole point: it must be recorded, and it must be the 2% of
@@ -414,8 +687,9 @@ async function main(): Promise<void> {
     );
     check('and already settled, since it was read off a confirmed receipt', receivedRows[0]?.status === 'completed');
     check(
-      'and it names the sender',
-      receivedRows[0]?.counterparty?.toLowerCase() === SELF_ADDRESS.toLowerCase()
+      'and it names the wallet the money actually came from',
+      receivedRows[0]?.counterparty?.toLowerCase() === signerWallet.address.toLowerCase(),
+      `counterparty ${receivedRows[0]?.counterparty} vs signer ${signerWallet.address}`
     );
 
     // Idempotent: a transfer cannot be recorded twice for one account, so a retry
@@ -426,7 +700,7 @@ async function main(): Promise<void> {
       amountFiat: Number(ANCHOR.principal) * quote.fiatPerUsd,
       asset: ANCHOR.asset,
       txHash: ANCHOR.txHash,
-      senderAddress: SELF_ADDRESS,
+      senderAddress: signerWallet.address,
       quote,
     });
     check(

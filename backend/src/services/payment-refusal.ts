@@ -50,6 +50,30 @@ export type PaymentRefusalCode =
    */
   | 'send-requires-batch'
   /**
+   * A recorded transfer is bound to the wallet that SIGNED it, so the record path
+   * requires the client to declare that address — the `from` of the transfer —
+   * because only the browser knows which of an account's embedded wallets it
+   * signed with. An account can hold SEVERAL embedded wallets, so "the user's
+   * active wallet" is not the wallet that signed.
+   *
+   * These three codes are the ways that declaration fails to hold, and each one
+   * fails closed rather than picking a wallet to write:
+   *
+   * - `signer-not-declared`: nothing was declared, so there is no wallet to bind
+   *   the row to. Picking one here is what bound rows to whatever wallet the
+   *   lookup happened to find; the binding, and every `mine` flag and total
+   *   computed from it, could then be wrong.
+   * - `signer-not-owned`: the declared address is not one of the caller's
+   *   wallets, or is not a usable address. A declared address is the client
+   *   naming which of ITS OWN wallets it used, never an assertion of identity.
+   * - `signer-mismatch`: the declared address is not the sender the chain recorded
+   *   for the transaction being recorded. The row would name a wallet that did
+   *   not sign this transfer.
+   */
+  | 'signer-not-declared'
+  | 'signer-not-owned'
+  | 'signer-mismatch'
+  /**
    * The FX rate is frozen at quote time and carried as a signed quote token. The
    * record path refuses — never falls back to the live rate — when that token is
    * absent, malformed or forged, has outlived its TTL, or belongs to another

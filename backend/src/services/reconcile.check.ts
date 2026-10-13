@@ -201,14 +201,23 @@ async function main() {
   });
 
   // Fixture only: `teardown()` finds it through the user, so no id is needed here.
+  //
+  // A REAL 20-byte address (12 hex digits of timestamp + a fixed tag, so a
+  // concurrent run cannot share the row). Every `recordPayment` below declares the
+  // wallet that signed: the declaration is checked before anything else, and these
+  // cases have to be refused for what they are TESTING — the amount, the receipt,
+  // the merchant — not for the wallet. Nothing signs with it; every case here is
+  // refused before the sender check.
+  const SIGNING_ADDRESS = `0x${Date.now().toString(16).padStart(12, '0')}${'c0de'.repeat(7)}`;
+
   await prisma.wallet.upsert({
-    where: { address: `0xreconcile${Date.now()}` },
+    where: { address: SIGNING_ADDRESS },
     update: {},
     create: {
       userId: user.id,
       chain: 'tempo',
       asset: 'ousd',
-      address: `0xreconcile${Date.now()}`,
+      address: SIGNING_ADDRESS,
     },
   });
 
@@ -245,6 +254,7 @@ async function main() {
       merchantId: merchant.id,
       txHash: '0x' + '11'.repeat(32), // well-formed, does not exist
       quoteId,
+      walletAddress: SIGNING_ADDRESS,
     });
   } catch (error) {
     threw = true;
@@ -280,6 +290,7 @@ async function main() {
       merchantId: merchant.id,
       txHash: realTx ?? '0x' + '00'.repeat(32),
       quoteId,
+      walletAddress: SIGNING_ADDRESS,
     });
   } catch (error) {
     threw = true;
@@ -317,6 +328,7 @@ async function main() {
         merchantId: targetMerchant.id,
         txHash: anchorTx,
         quoteId,
+        walletAddress: SIGNING_ADDRESS,
       });
     } catch (error) {
       threw = true;
@@ -371,6 +383,7 @@ async function main() {
         merchantId: merchant.id,
         txHash: badAmountHash,
         quoteId,
+        walletAddress: SIGNING_ADDRESS,
       });
     } catch {
       threw = true;
@@ -405,6 +418,7 @@ async function main() {
       merchantId: noAddressMerchant.id,
       txHash: '0x' + '22'.repeat(32),
       quoteId,
+      walletAddress: SIGNING_ADDRESS,
     });
   } catch (error) {
     threw = true;

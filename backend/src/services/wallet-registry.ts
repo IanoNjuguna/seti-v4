@@ -1,7 +1,8 @@
 import { getAddress } from 'viem';
 import { prisma } from '../lib/prisma.js';
 import { describeEvmAddress } from '../lib/address.js';
-import type { WalletStatus } from '@prisma/client';
+import type { Wallet, WalletStatus } from '@prisma/client';
+import type { PaymentRefusalCode } from './payment-refusal.js';
 
 export interface RegisterWalletInput {
   userId: string;
@@ -92,6 +93,74 @@ export async function getWalletsByUser(userId: string) {
     where: { userId },
     orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
   });
+}
+
+/** The two ways a declared signing address can fail, out of `PaymentRefusalCode`. */
+export type SigningWalletRefusalCode = Extract<
+  PaymentRefusalCode,
+  'signer-not-declared' | 'signer-not-owned'
+>;
+
+/**
+ * The wallet row for the address a record path DECLARED it signed with.
+ *
+ * The counterpart of {@link resolveWalletAddress} for the money path, and it
+ * exists for the same reason: an account can hold SEVERAL embedded wallets, so
+ * "the user's active wallet" is not the wallet that signed. Which one signed is
+ * knowable only to the client — the browser picks a wallet to sign with — so the
+ * client declares it, this checks the declaration against the wallets the account
+ * actually holds, and the record path REFUSES rather than inventing one. Resolving
+ * the address any other way is what bound a recorded transfer to a wallet that
+ * did not sign it, which made the receipt's `mine` flags and its total wrong.
+ *
+ * Two deliberate differences from `resolveWalletAddress`:
+ *
+ * - The ownership check is against the caller's own `Wallet` ROWS, not Privy's
+ *   linked-wallet list. This runs after the signature, on a request carrying no
+ *   Privy session, and the registered rows are the durable record of which
+ *   addresses the account holds.
+ * - A row's STATUS is ignored. `deprecated` is what login does to a row when it
+ *   registers a different address — it is not a statement that the key is gone,
+ *   and the signing wallet is very often the deprecated row (that is exactly how
+ *   this bug presented).
+ *
+ * A declared address is the client naming which of its own wallets it used; it is
+ * never an assertion of identity. An address that is not one of the caller's
+ * wallets is refused, as is a missing or unusable one — nothing is invented.
+ */
+export async function resolveSigningWallet(
+  userId: string,
+  declared: string | undefined
+): Promise<
+  { wallet: Wallet } | { code: SigningWalletRefusalCode; complaint: string }
+> {
+  if (!declared) {
+    return {
+      code: 'signer-not-declared',
+      complaint:
+        'This transfer does not say which wallet signed it, so it cannot be bound to ' +
+        'one. Sign out and back in so the app can register the wallet it signs with.',
+    };
+  }
+
+  const malformed = describeEvmAddress(declared);
+  if (malformed) return { code: 'signer-not-owned', complaint: malformed };
+
+  const wallets = await getWalletsByUser(userId);
+  const owned = wallets.find(
+    (candidate) => candidate.address.toLowerCase() === declared.toLowerCase()
+  );
+
+  if (!owned) {
+    return {
+      code: 'signer-not-owned',
+      complaint:
+        'That wallet does not belong to this account. Sign out and back in so the app ' +
+        'can register the wallet it signs with.',
+    };
+  }
+
+  return { wallet: owned };
 }
 
 export async function registerWallet(input: RegisterWalletInput) {

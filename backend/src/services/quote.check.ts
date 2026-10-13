@@ -38,8 +38,17 @@ function check(label: string, passed: boolean, detail = ''): void {
  * rather than a stub.
  */
 const ANCHOR = {
-  txHash: '0x913060ec28c168c38494bd5b725dea2778f93d34275c766447be2c45c68a9dcf' as Hex,
-  recipient: '0x617C416110B328dB48030259c8664F29403Ce074',
+  txHash: '0xfbbacc1e13943afd4627bdd848b945f4de706d5726679d9f16612693d9aa7c70' as Hex,
+  /**
+   * The address that SIGNED the anchor: the receipt's `from`.
+   *
+   * The fixture declares this on every record call, because a recorded transfer is
+   * bound to the wallet that signed it — and `Wallet.address` is globally unique,
+   * so the signer's address has to be one no other account holds. (The previous
+   * anchor's sender, `0x42A8…4155`, is now registered to another account.)
+   */
+  sender: '0xe71CD1DCE949838Ea4A5bd7Ac93F85c90257eBF4',
+  recipient: '0xCf0048e57F37df356de63864D1AF1bEA81639ac8',
   principal: '0.5',
   asset: 'pathusd',
 } as const;
@@ -48,8 +57,8 @@ const CHECK_EMAIL = 'quote-check@seti.test';
 const OTHER_EMAIL = 'quote-check-other@seti.test';
 const MERCHANT_NAME = 'Quote Check Merchant';
 
-/** A valid address no user holds — the sender's own wallet, distinct from the recipient. */
-const SENDER_ADDRESS = getAddress('0x0000000000000000000000000000000000000002');
+/** The wallet that signs — the anchor's sender. See ANCHOR.sender. */
+const SENDER_ADDRESS = getAddress(ANCHOR.sender);
 
 const round2 = (value: number): number => Math.round(value * 100) / 100;
 
@@ -135,6 +144,25 @@ async function main(): Promise<void> {
   await teardown();
 
   const user = await prisma.user.create({ data: { email: CHECK_EMAIL } });
+
+  // The fixture registers the address that SIGNED the anchor and declares it on
+  // every record below: the wallet a transfer is bound to is the one that signed
+  // it, and only the client knows which of an account's wallets it used.
+  // `Wallet.address` is globally unique, so a row another account holds cannot be
+  // used — fail loudly with the reason rather than a bare P2002.
+  const signerTaken = await prisma.wallet.findUnique({ where: { address: SENDER_ADDRESS } });
+  if (signerTaken && signerTaken.userId !== user.id) {
+    console.error(
+      `The anchor's sender ${SENDER_ADDRESS} is already registered to another account, so\n` +
+        'this suite cannot declare the wallet that signed it. Pick a fresh batched\n' +
+        'receipt signed by an unregistered wallet (npm run prove:batch) and update\n' +
+        'ANCHOR in this file.'
+    );
+    await teardown();
+    await prisma.$disconnect();
+    process.exit(1);
+  }
+
   await prisma.wallet.create({
     data: { userId: user.id, chain: 'tempo', asset: 'ousd', address: SENDER_ADDRESS },
   });
@@ -207,6 +235,9 @@ async function main(): Promise<void> {
       recipient: ANCHOR.recipient,
       txHash: ANCHOR.txHash,
       quoteId: frozenQuote,
+      // The wallet that signed the anchor. The record path checks it belongs to
+      // this account AND that the chain recorded it as this transaction's sender.
+      walletAddress: SENDER_ADDRESS,
     });
 
     const observedPrincipal = Number(ANCHOR.principal);
@@ -277,7 +308,15 @@ async function main(): Promise<void> {
   check('another user\'s quote reads as quote-not-yours', readQuoteCode(foreign, user.id) === 'quote-not-yours');
   check('a missing token reads as quote-missing', readQuoteCode(undefined, user.id) === 'quote-missing');
 
-  const base = { userId: user.id, amount: ANCHOR.principal, asset: ANCHOR.asset, recipient: ANCHOR.recipient };
+  const base = {
+    userId: user.id,
+    amount: ANCHOR.principal,
+    asset: ANCHOR.asset,
+    recipient: ANCHOR.recipient,
+    // Declared on every call: the wallet binding is a precondition of the record
+    // path, so a refusal below has to be about the QUOTE, not about the wallet.
+    walletAddress: SENDER_ADDRESS,
+  };
 
   const forgedRefusal = await refusalCode(() =>
     recordSend({ ...base, txHash: `0x${'33'.repeat(32)}`, quoteId: forged })
