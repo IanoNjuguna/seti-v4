@@ -16,6 +16,8 @@
     "check:fees": "tsx src/services/fees.check.ts",
     "check:address": "tsx src/lib/address.check.ts",
     "check:env": "tsx src/config/env.check.ts",
+    "check:server": "DEV_BYPASS_AUTH=true tsx src/server.check.ts",
+    "check:session": "DEV_BYPASS_AUTH=true tsx src/middleware/session.check.ts",
     "check:payout": "tsx src/services/payout.check.ts",
     "check:indexer": "tsx src/services/indexer-cursor.check.ts",
     "check:cursor": "tsx src/services/indexer-cursor.db-check.ts",
@@ -30,6 +32,8 @@
     "check:claim": "DEV_BYPASS_AUTH=true tsx src/services/merchant-claims.check.ts",
     "check:handle": "DEV_BYPASS_AUTH=true tsx src/services/merchant-handle.check.ts",
     "check:username": "DEV_BYPASS_AUTH=true tsx src/services/username.check.ts",
+    "check:brand": "DEV_BYPASS_AUTH=true tsx src/services/brand-hold.check.ts",
+    "review:brand": "tsx src/cli/review-brand.ts",
     "prove:batch": "tsx src/cli/prove-batch.ts",
     "lint": "eslint src"
   },
