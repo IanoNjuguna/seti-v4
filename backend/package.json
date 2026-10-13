@@ -12,20 +12,42 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
-    "lint": "eslint src --ext .ts"
+    "support:payment": "tsx src/cli/support-payment.ts",
+    "check:fees": "tsx src/services/fees.check.ts",
+    "check:address": "tsx src/lib/address.check.ts",
+    "check:payout": "tsx src/services/payout.check.ts",
+    "check:indexer": "tsx src/services/indexer-cursor.check.ts",
+    "check:cursor": "tsx src/services/indexer-cursor.db-check.ts",
+    "check:reconcile": "tsx src/services/reconcile.check.ts",
+    "check:indexer-pass": "tsx src/services/indexer-pass.check.ts",
+    "check:stuck": "tsx src/services/stuck-transactions.check.ts",
+    "check:fee-batch": "tsx src/services/fee-batch.check.ts",
+    "check:send": "tsx src/services/send.check.ts",
+    "check:quote": "tsx src/services/quote.check.ts",
+    "check:wallets": "tsx src/services/wallet-registry.check.ts",
+    "check:claim": "DEV_BYPASS_AUTH=true tsx src/services/merchant-claims.check.ts",
+    "check:handle": "DEV_BYPASS_AUTH=true tsx src/services/merchant-handle.check.ts",
+    "prove:batch": "tsx src/cli/prove-batch.ts",
+    "lint": "eslint src"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.0",
     "@prisma/client": "^5.20.0",
+    "@privy-io/node": "^0.35.0",
+    "@privy-io/server-auth": "^1.32.5",
     "dotenv": "^16.4.5",
     "fastify": "^5.0.0",
+    "viem": "^2.57.2",
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@types/node": "^20.16.0",
+    "eslint": "^9.39.5",
     "prisma": "^5.20.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.71.0"
   },
   "engines": {
     "node": ">=20.0.0"

@@ -1,4 +1,5 @@
 import { prisma } from '../src/lib/prisma.js';
+import { merchantHandle } from '../src/lib/merchant-name.js';
 
 async function main() {
   const user = await prisma.user.upsert({
@@ -27,12 +28,14 @@ async function main() {
     where: { id: 'merchant_java_house' },
     update: {
       payoutAddress: '0x20C000000000000000000000b9537d11c60E8b50',
+      handle: merchantHandle('Java House'),
     },
     create: {
       id: 'merchant_java_house',
       name: 'Java House',
       category: 'Dining',
       bankCurrency: 'KES',
+      handle: merchantHandle('Java House'),
       payoutAddress: '0x20C000000000000000000000b9537d11c60E8b50',
     },
   });
@@ -41,12 +44,14 @@ async function main() {
     where: { id: 'merchant_safari_com' },
     update: {
       payoutAddress: '0x20c0000000000000000000009e8d7eb59b783726',
+      handle: merchantHandle('Safaricom Shop'),
     },
     create: {
       id: 'merchant_safari_com',
       name: 'Safaricom Shop',
       category: 'Utilities',
       bankCurrency: 'KES',
+      handle: merchantHandle('Safaricom Shop'),
       payoutAddress: '0x20c0000000000000000000009e8d7eb59b783726',
     },
   });
