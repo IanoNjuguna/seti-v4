@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { verifyPrivyToken, isPrivyConfigured } from '../services/auth.js';
 import { registerWallet, resolveWalletAddress } from '../services/wallet-registry.js';
+import { bindSessionIdentity } from '../services/session-identity.js';
 import { logAuditEvent } from '../services/audit.js';
 import { PRIMARY_ASSET } from '../services/chain.js';
 
@@ -39,16 +40,42 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: 'Privy account must have an email' });
     }
 
-    let user = await prisma.user.upsert({
-      where: { email },
-      update: {
-        phone: verified.phone ?? undefined,
-      },
-      create: {
-        email,
-        phone: verified.phone,
-      },
+    // Resolve the account by the identity the session is ESTABLISHED with — the
+    // Privy subject — BEFORE the email. A returning account whose Privy email has
+    // changed is still the same account, and its ledger must not move; the email
+    // is only the entry key for an identity Seti has not seen before. See
+    // `services/session-identity.ts`.
+    let user = await prisma.user.findUnique({
+      where: { privyDid: verified.privyDid },
     });
+
+    if (user) {
+      if (verified.phone) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { phone: verified.phone },
+        });
+      }
+    } else {
+      user = await prisma.user.upsert({
+        where: { email },
+        update: {
+          phone: verified.phone ?? undefined,
+        },
+        create: {
+          email,
+          phone: verified.phone,
+        },
+      });
+
+      // Bind the account to the subject this session is established with, so
+      // every later request resolves by it — never by the email Privy reports
+      // then. A subject already held by another account is refused, not moved.
+      const bound = await bindSessionIdentity(user.id, verified.privyDid);
+      if (!bound.ok) {
+        return reply.status(409).send({ error: bound.reason });
+      }
+    }
 
     // Which wallet this account moves money from. Verified, never minted — see
     // `resolveWalletAddress`.

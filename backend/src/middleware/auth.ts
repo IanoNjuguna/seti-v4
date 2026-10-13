@@ -1,7 +1,8 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '../lib/prisma.js';
 import { env } from '../config/env.js';
-import { verifyPrivyToken } from '../services/auth.js';
+import { verifyPrivySubject } from '../services/auth.js';
+import { resolveSessionIdentity } from '../services/session-identity.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -61,21 +62,22 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
   }
 
   try {
-    const verified = await verifyPrivyToken(token);
-    if (!verified.email) {
-      return reply.status(401).send({ error: 'Account must have an email' });
+    // The identity a session was ESTABLISHED with: the token's subject (the
+    // Privy DID), fixed at issuance. Resolving the account from it — and never
+    // from a profile Privy reports at request time — is what stops a later change
+    // from re-pointing a live session. The account is bound to this subject at
+    // `POST /auth/verify`; see `services/session-identity.ts`.
+    const privyDid = await verifyPrivySubject(token);
+    const identity = await resolveSessionIdentity(privyDid);
+
+    if ('code' in identity) {
+      return reply.status(401).send({ error: identity.reason, code: identity.code });
     }
 
-    // Resolve local user. In a real system we might cache this in a session.
-    const user = await prisma.user.findUnique({
-      where: { email: verified.email },
-    });
-
-    if (!user) {
-      return reply.status(401).send({ error: 'User not found' });
-    }
-
-    request.user = { id: user.id, email: user.email };
+    // The email attached here is the SNAPSHOT stored on the account at
+    // establishment — not whatever Privy reports now — so the rest of the API
+    // cannot disagree with the identity this session was created as.
+    request.user = { id: identity.id, email: identity.email };
   } catch {
     return reply.status(401).send({ error: 'Invalid or expired token' });
   }

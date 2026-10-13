@@ -30,6 +30,24 @@ The middleware rejects a malformed header with **401** and a missing local user
 record with **401** as well. A token for a Privy account that has never called
 `/auth/verify` will not resolve to a user.
 
+## How a session resolves
+
+A bearer token is verified with Privy, and what it proves is a **subject** — the
+Privy DID — fixed for the life of the account. The account that subject belongs to
+is bound at `POST /auth/verify` (the moment a session is established) and stored
+on the user row; every later request resolves the caller from **that binding**, and
+the email attached to the request is the account's stored one, not whatever Privy
+reports now.
+
+The email is the *entry key at login* and a label on the account — it is never
+what a live request is resolved by. Re-deriving the account from the email Privy
+reports at request time is what let a later change re-point, or kill, a session
+that had been established for a different identity. A session whose subject has no
+binding — an account created before this column, or the dev bypass user — resolves
+to no account and re-authenticates once through `/auth/verify`, which binds it.
+
+See `backend/src/services/session-identity.ts` and `npm run check:session`.
+
 ## Local development bypass
 
 ```bash

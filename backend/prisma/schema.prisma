@@ -9,8 +9,24 @@ datasource db {
 
 model User {
   id            String     @id @default(cuid())
+  /// The entry key at LOGIN (`POST /auth/verify` upserts on it) and a label on
+  /// the account — but NOT the key a live session resolves by. See `privyDid`.
   email         String     @unique
   phone         String?    @unique
+  /// The Privy DID (`did:privy:…`) this account was ESTABLISHED with.
+  ///
+  /// The immutable subject of every Privy token for this user, written once at
+  /// `POST /auth/verify` — the moment a session is established. `middleware/auth.ts`
+  /// resolves the caller by THIS, never by re-reading the email Privy reports at
+  /// request time: an email is a mutable attribute, so keying a live session on it
+  /// means a later change re-points — or kills — a session that was established for
+  /// a different identity, and the recorded history of the old session then appears
+  /// to belong to whoever holds that email now.
+  ///
+  /// NULL for accounts that predate this column and for the dev bypass user, which
+  /// has no Privy identity. Such a session simply cannot resolve by subject and
+  /// re-authenticates once through `/auth/verify`, which binds it.
+  privyDid      String?    @unique
   firstName     String?
   lastName      String?
   kycStatus     KycStatus  @default(none)
@@ -117,6 +133,21 @@ model Handle {
   userId         String?
   /// The business profile, when `kind = 'business'`. A person has none.
   merchantId     String?   @unique
+  /// Brand-review state: NULL for a normal handle, `pending` for a claim whose
+  /// name matched a HELD BRAND (see `lib/held-brands.ts`).
+  ///
+  /// Deliberately a second, SEPARATE state from verification. `verified` is
+  /// recomputed from the signature on every read and is not stored; this column
+  /// stores the one thing the signature cannot say — whether a person has looked
+  /// yet. A parked row KEEPS its string (the unique index is untouched), but the
+  /// resolvers filter it out, so it is not public, has no page and no QR, and a
+  /// payer who resolves it gets a name that does not exist. It never reads as
+  /// verified while parked. Refusing a parked claim deletes the row, freeing the
+  /// string; the reason is recorded in `audit_logs` (`handle.brand.refused`).
+  reviewStatus   String?
+  /// The held brand the name matched, as spelled on the list — so a parked row
+  /// can name, later, what the claimer has to send. Informational.
+  reviewBrand    String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -125,7 +156,48 @@ model Handle {
 
   @@index([userId])
   @@index([name])
+  /// The reviewer's queue: every parked claim (`reviewStatus = 'pending'`).
+  @@index([reviewStatus])
   @@map("handles")
+}
+
+/// A claim that was RELEASED so a proved brand could take the name.
+///
+/// A brand proving ownership must be able to take a name whatever state it is in
+/// — including one already claimed by someone else. The handle string is unique,
+/// so the previous claimer's row must go for the new one to exist; this table is
+/// where it goes. It is a full copy of the released claim (the signature and all)
+/// plus WHY it was released, so a reassignment is never a silent overwrite and the
+/// previous holder's record survives.
+///
+/// Deliberately NOT related by foreign key to `User`/`Merchant`: this is a
+/// historical record that must outlive any account or profile deletion, so it
+/// keeps the ids as plain strings rather than following them.
+model HandleRelease {
+  id             String   @id @default(cuid())
+  /// The string that was reassigned, e.g. `kfckaribu` — the link a customer had.
+  handle         String
+  /// The name the RELEASED claim was made under.
+  name           String
+  /// The kind it was claimed as (`person` | `business`).
+  kind           String
+  /// The address the released claim pointed at.
+  address        String
+  claimSignature String?
+  claimIssuedAt  String?
+  claimNonce     String?
+  /// The account that held the released claim, if any.
+  userId         String?
+  /// The business profile the released claim turned on, if any.
+  merchantId     String?
+  /// Why it was released — the reason the reviewer recorded.
+  reason         String
+  /// The address it was reassigned TO (the brand's, proved by signature).
+  reassignedTo   String
+  createdAt      DateTime @default(now())
+
+  @@index([handle])
+  @@map("handle_releases")
 }
 
 /// A business PROFILE — the mode a business handle turns on. It carries what a

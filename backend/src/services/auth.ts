@@ -31,14 +31,37 @@ export interface VerifiedUser {
   embeddedWalletAddresses: string[];
 }
 
-export async function verifyPrivyToken(token: string): Promise<VerifiedUser> {
+/**
+ * Verify a Privy token and return ONLY the subject it was issued for.
+ *
+ * The middleware's whole job is to answer "who is this?" and the answer Privy
+ * gives is the token's subject — the DID. The token is fixed at issuance, so the
+ * subject is the identity the session was ESTABLISHED with; it does not drift the
+ * way a fetched profile does. Deliberately no `getUserById`: that call re-reads
+ * live profile attributes (email, wallets) on every request, which is the
+ * re-resolution the session-identity snapshot removes. The account is resolved
+ * from the subject by `resolveSessionIdentity`, not from a profile fetched now.
+ */
+export async function verifyPrivySubject(token: string): Promise<string> {
+  const claims = await privyClaims(token);
+  return claims.userId;
+}
+
+/**
+ * Verify a Privy token, or throw with the full cause logged.
+ *
+ * Extracted so `verifyPrivyToken` (login, which needs the whole profile) and
+ * `verifyPrivySubject` (the middleware, which needs only the subject) fail and
+ * log identically — a second copy of this catch would be a second place to get
+ * the diagnosis wrong.
+ */
+async function privyClaims(token: string) {
   if (!privy) {
     throw new Error('Privy is not configured. Set PRIVY_APP_ID and PRIVY_APP_SECRET.');
   }
 
-  let claims;
   try {
-    claims = await privy.verifyAuthToken(token);
+    return await privy.verifyAuthToken(token);
   } catch (cause) {
     // Do not collapse every cause into "Invalid or expired auth token". A network
     // fault while fetching the app's verification key, or a token minted for a
@@ -61,8 +84,12 @@ export async function verifyPrivyToken(token: string): Promise<VerifiedUser> {
 
     throw new Error(`Invalid or expired auth token: ${e.message}`, { cause });
   }
+}
 
-  const user = await privy.getUserById(claims.userId);
+export async function verifyPrivyToken(token: string): Promise<VerifiedUser> {
+  const claims = await privyClaims(token);
+
+  const user = await privy!.getUserById(claims.userId);
 
   const email = user.email?.address;
   const phone = user.phone?.number;
