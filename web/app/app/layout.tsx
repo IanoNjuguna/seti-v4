@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
-import { AppShell } from '@/components/app/AppShell';
+import { AppGate } from '@/components/app/AppGate';
 import { PrivyAppProvider } from '@/components/providers/PrivyAppProvider';
+import { AccountIdentityProvider } from '@/lib/account';
 import { SessionProvider } from '@/lib/auth';
 
 /**
@@ -11,6 +12,12 @@ import { SessionProvider } from '@/lib/auth';
  * Sans) for body and UI, `font-brand` (Space Grotesk) for display sizes as the
  * Aeonik Pro substitute. Importing a third family for one segment would be a
  * third voice on one site.
+ *
+ * The providers are nested outermost-first: Privy (the SDK the session may adopt
+ * a token from), then the session, then the account identity (which needs the
+ * session to know WHOSE handles to read), then the gate (which needs all three).
+ * `AppGate` owns the shell rather than the layout, because the one route that
+ * must render without the app's nav is the onboarding wizard inside this tree.
  */
 
 export const metadata: Metadata = {
@@ -25,7 +32,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     // is configured, which is what keeps the `dev` sign-in path working.
     <PrivyAppProvider>
       <SessionProvider>
-        <AppShell>{children}</AppShell>
+        <AccountIdentityProvider>
+          <AppGate>{children}</AppGate>
+        </AccountIdentityProvider>
       </SessionProvider>
     </PrivyAppProvider>
   );

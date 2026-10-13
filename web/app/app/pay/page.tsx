@@ -1,6 +1,7 @@
 'use client';
 
-import { use, useState } from 'react';
+import { Suspense, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { SignInCard } from '@/components/auth/SignInCard';
 import { MerchantCard } from '@/components/pay/MerchantCard';
 import { MerchantEntry } from '@/components/pay/MerchantEntry';
@@ -10,11 +11,6 @@ import { PaySuccess } from '@/components/pay/PaySuccess';
 import { Input, Skeleton, StateMessage, Text } from '@/components/ui';
 import { usePayMerchant } from '@/hooks/usePayMerchant';
 import { useSession } from '@/lib/auth';
-
-interface PayPageProps {
-  /** A handle handed in by a public merchant link's Pay action, if any. */
-  searchParams: Promise<{ handle?: string }>;
-}
 
 /**
  * Pay a merchant, ported from `mobile/src/app/(tabs)/pay.tsx`.
@@ -30,12 +26,33 @@ interface PayPageProps {
  * signed-out visitor is asked to sign in first and the merchant resolves the
  * moment they are.
  *
+ * The handle comes from `useSearchParams` — the LIVE URL — and not from the page's
+ * `searchParams` prop. This route is prerendered as static content, so that prop is
+ * resolved once at build time and arrives EMPTY, and the Pay action on a merchant's
+ * public page resolved nothing in a production build. The boundary below is what
+ * makes the query-dependent subtree client-render while the rest stays static.
+ *
  * `formKey` exists because the entry field owns its own local state: bumping the
  * key on cancel remounts it empty, which is cheaper and less error-prone than
  * pushing the payload up into this component just to clear it.
  */
-export default function PayPage({ searchParams }: PayPageProps) {
-  const { handle } = use(searchParams);
+export default function PayPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="space-y-4">
+          <Skeleton className="h-40 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </div>
+      }
+    >
+      <PayScreen />
+    </Suspense>
+  );
+}
+
+function PayScreen() {
+  const handle = useSearchParams().get('handle') ?? undefined;
   const session = useSession();
   const payment = usePayMerchant(session.user?.id, handle);
   const [formKey, setFormKey] = useState(0);

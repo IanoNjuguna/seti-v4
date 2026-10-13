@@ -1,0 +1,53 @@
+'use client';
+
+import { useId } from 'react';
+import { Text } from '@/components/ui';
+import { ONBOARDING_COPY } from './Onboarding.constants';
+import type { IntentOptionProps } from './Onboarding.types';
+
+/**
+ * One intent, as a BUTTON rather than a radio.
+ *
+ * The choice is not a form field waiting for a submit — choosing it is what asks
+ * the wallet to sign, and the kind it names is the purpose the signature carries. A
+ * radio group would fire on arrow keys, so sweeping the keyboard across the two
+ * options would sign twice. A button fires only on Enter or Space, which is the
+ * only place a signature should ever start.
+ *
+ * The description is wired with `aria-describedby` so the label a screen reader
+ * announces carries the consequence ("your link is seti.live/m/<name>") and not
+ * just the word "Business" — which is the part the person is choosing between.
+ */
+export function IntentOption({
+  intent,
+  title,
+  body,
+  action,
+  pending,
+  busy,
+  onChoose,
+}: IntentOptionProps) {
+  const descriptionId = useId();
+  const isSigning = pending === intent;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onChoose(intent)}
+      disabled={busy}
+      aria-describedby={descriptionId}
+      aria-busy={isSigning}
+      className="min-touch w-full rounded-lg border border-hairline-light bg-surface-card p-5 text-left transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-light disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      <Text variant="card-title" as="span" className="block">
+        {title}
+      </Text>
+      <Text variant="micro" as="span" id={descriptionId} className="mt-1 block">
+        {body}
+      </Text>
+      <Text variant="tab" as="span" className="mt-3 block text-link">
+        {isSigning ? ONBOARDING_COPY.signing : action}
+      </Text>
+    </button>
+  );
+}

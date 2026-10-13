@@ -2,7 +2,7 @@
 
 import { Badge, Card, Text } from '@/components/ui';
 import { SignOutButton } from '@/components/auth/SignOutButton';
-import { ProfileClaimCard } from './ProfileClaimCard';
+import { ProfileIntentCard } from './ProfileIntentCard';
 import { ProfileLegalCard } from './ProfileLegalCard';
 import { useSession } from '@/lib/auth';
 
@@ -48,7 +48,7 @@ export function ProfileCard() {
         </div>
       </Card>
 
-      <ProfileClaimCard />
+      <ProfileIntentCard />
 
       <ProfileLegalCard />
 
