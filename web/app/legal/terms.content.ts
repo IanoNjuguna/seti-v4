@@ -35,7 +35,10 @@ import type { LegalSection } from "./LegalDocument";
  *     the product is built for Nairobi, which is a market, not a choice of law,
  *     and the earlier draft's Kenyan governing law, JAMS arbitration and
  *     KES 1,000 liability cap were all template text, not facts about Seti;
- *  4. any licence, registration or regulatory approval.
+ *  4. any licence, registration or regulatory approval;
+ *  5. a data-protection contact, and the retention periods for the records Seti
+ *     keeps — the Privacy Policy leaves both open the same way this document
+ *     leaves the operator unnamed, and says so in its own section 13.
  *
  * The age statement is the 18+ confirmation the customer gives at sign-up. There
  * is deliberately no date-of-birth field and no birth year collected anywhere:
@@ -64,7 +67,7 @@ const sections: LegalSection[] = [
   {
     title: "2. Your wallet, and who can move money from it",
     paragraphs: [
-      "Your wallet is created for you when you sign up, through Privy's embedded wallet infrastructure. The keys that control it are held on your device. Seti never holds, receives, copies or stores your keys.",
+      "Your wallet is created for you when you sign up, through Privy's embedded wallet infrastructure. The keys that control it belong to you, held for you by Privy and on your device. Seti never holds, receives, copies or stores your keys, and stores no signing credential of yours.",
       "You are responsible for your own access to that wallet: your device, and the credentials you sign in with. If you lose them, Seti cannot restore your access to the wallet or to anything in it, and cannot reverse a payment you have already authorized. Nobody at Seti can recover a wallet for you, because nobody at Seti holds the means to do so.",
       "Seti cannot move funds from your wallet on its own. Every payment is a transaction you authorize on your device, and the app is built so that the backend never signs on your behalf.",
       "Seti will never ask you for a recovery phrase, a private key, or your sign-in credentials. Anyone who asks you for any of them is not Seti.",
@@ -108,7 +111,8 @@ const sections: LegalSection[] = [
   {
     title: "7. What Seti records, and what is public",
     paragraphs: [
-      "To show your Activity and to keep its own records, Seti records each payment: the amount, the asset, the fee charged, the recipient's address, the transaction hash, the block it settled in, and when it settled. Section 8 says how long that record lives, including after you delete your account.",
+      "To show your Activity and to keep its own records, Seti records each payment: the amount and the asset, the fee charged, the recipient's address, the fiat figure shown beside it and the exchange rate used with its source and time, the transaction hash, the block it settled in, and its status and when it settled. Nothing is written until the transfer has been checked against its on-chain receipt, so what Seti records follows the chain, not the figure the app was told. Section 8 says how long that record lives, including after you delete your account.",
+      "Seti also holds the name you claim — the username or business name, the handle it reduces to, and the signature your wallet made to claim it — together with the wallet address the handle is bound to, and it re-checks that signature on every lookup. It keeps a security log of the actions that matter, including sign-in: the action, the time, and the IP address the request came from.",
       "The blockchain record is public and permanent. Anyone can read the addresses, the amounts and the timing of a payment on Tempo's block explorer. Seti cannot delete that record, and neither can you. This is a property of the network, not a choice Seti makes.",
     ],
   },
@@ -130,7 +134,7 @@ const sections: LegalSection[] = [
   {
     title: "10. The services Seti depends on",
     paragraphs: [
-      "Seti is built on other people's infrastructure: Privy, which manages authentication and the embedded wallets; Tempo and its RPC providers, which supply the chain and its data; and the recipients you pay, whose own systems you are transacting with. Seti does not control those services and is not responsible for them. Their own terms and privacy practices apply to your use of them.",
+      "Seti is built on other people's infrastructure: Privy, which manages sign-in and the embedded wallets; Tempo and its RPC providers, which supply the chain and its data; a public exchange-rate provider (open.er-api.com), from which Seti fetches a table of USD rates to show a fiat figure — a request that carries nothing about you; and the recipients you pay, whose own systems you are transacting with. Seti does not control those services and is not responsible for them. Their own terms and privacy practices apply to your use of them.",
       "Seti is an app, not the network. If Tempo is unavailable, if a recipient's address does not accept what you send, or if a third-party provider fails, Seti cannot intervene on your behalf in the transfer itself.",
     ],
   },
@@ -153,7 +157,8 @@ const sections: LegalSection[] = [
     title: "13. The operator, the governing law, and notices — not yet published",
     paragraphs: [
       "Seti has not yet published the name and registered address of the legal entity that will operate the Service, an address for formal notices, or the law and the forum that will govern a dispute about these Terms. Section 13 exists to say so plainly instead of filling those gaps with placeholder text that pretends to be a fact.",
-      "All four will be published in this section, and users told when they are, before Seti is offered to the public generally. Until then, raise anything about these Terms or the Service through the app.",
+      "The Privacy Policy leaves two further decisions open in the same way: a dedicated data-protection contact, and the retention periods for the records Seti keeps. Those are stated there as unpublished, not invented.",
+      "All of them will be published in the corresponding section, and users told when they are, before Seti is offered to the public generally. Until then, raise anything about these Terms or the Service through the app.",
       "Nothing in these Terms is a claim that Seti holds a licence, registration or regulatory approval, or that the Service is regulated anywhere.",
     ],
   },
