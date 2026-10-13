@@ -20,25 +20,27 @@ happened on-chain rather than trusting what you tell it.
 
 ## Units — the part that bites
 
-**The preview request amount is in KES, not in stablecoin units.** The field is
-`amountKes`:
+**The preview request amount is in the customer's own currency, not in stablecoin
+units.** The field is `amountFiat`: (KES is the only currency enabled in v1, so it
+is KES today — the field is named for the unit, not for one currency.)
 
 ```bash
 curl -s -X POST http://localhost:4000/transactions/preview \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d '{"merchantId":"merchant_java_house","amountKes":"250","asset":"ousd"}'
+  -d '{"merchantId":"merchant_java_house","amountFiat":"250","asset":"ousd"}'
 ```
 
 Every *response* field, by contrast, is in stablecoin units except the ones named
-in KES. The response tells you which is which:
+`*Fiat`, which are in the customer's currency (`fiatCurrency` says which):
 
 | Field | Unit | Meaning |
 | --- | --- | --- |
 | `amount` | asset | principal — what the merchant receives; the batch's merchant leg |
-| `fee` | **KES** | the merchant fee |
+| `feeFiat` | fiat | the platform fee |
 | `total` | asset | **the gross you must sign for** (principal + fee + network) |
-| `fiatAmount` | **KES** | the principal in KES — echo of `amountKes` |
-| `fxRate`, `fxRateSource`, `fxRateStale` | — | the rate used, its provenance, and whether it is stale |
+| `fiatAmount` | fiat | the principal — echo of `amountFiat` |
+| `networkFeeFiat`, `totalFiat` | fiat | gas, and principal + fee + gas |
+| `fxRate`, `fxRateSource`, `fxRateStale` | — | units of `fiatCurrency` per USD, its provenance, and whether it is stale |
 | `feeInAsset` | asset | the fee as a transferable amount; `0` in inside-transfer mode |
 | `feeRoutingMode` | — | `inside-transfer` or `batch` — decided by the server, never by you |
 | `hasEnoughBalance` | — | measured against `total`, not `amount` |
@@ -93,7 +95,7 @@ Consequences for an integrator:
 
 | Symptom | Cause |
 | --- | --- |
-| `Amount must be a positive number` | `amountKes` was zero, negative or non-numeric. |
+| `Amount must be a positive number` | `amountFiat` was zero, negative or non-numeric. |
 | `Payment could not be verified on-chain: receipt not available yet` | Reported before the transaction was mined. |
 | `Payment amount mismatch: client claimed … chain recorded …` | You signed the wrong figure — usually `amount` instead of `total`. |
 | `Merchant has no payout address…` | The merchant cannot receive; nothing was recorded. |

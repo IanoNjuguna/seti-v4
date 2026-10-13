@@ -1,38 +1,62 @@
 # Fee routing: getting the 2% to Seti's treasury
 
-**Status:** Option A is implemented behind a server-side flag, default OFF.
-The refusal guards are proven against a live chain; the success path is not.
+**Status:** implemented and PROVEN on Moderato. `FEE_ROUTING_MODE=batch` is the
+default; in that mode the 2% is collected, and both a merchant payment and a
+send to a person are signed as ONE atomic Tempo transaction with two calls.
 
-- `FEE_ROUTING_MODE=inside-transfer` (default) — one transfer of the gross to
-  the merchant. Fee recorded, **not collected**. This is the historical
-  behaviour.
-- `FEE_ROUTING_MODE=batch` — the customer signs an atomic batch of two
-  transfers: principal to the merchant, fee to `SETI_TREASURY_ADDRESS`
-  (`0x48cb25f9d82aF721e71437feAfb295da627BA475`). `recordPayment` then requires
-  BOTH `Transfer` logs in the single receipt and fails closed if either is
-  absent.
+Two claims this document used to leave open are now settled, both by execution
+rather than by reading:
+
+1. **A batched transaction lands on Tempo.** `npm run prove:batch` funds a
+   throwaway key from the Moderato faucet and signs the real shape:
+   0.5 pathUSD to a recipient plus 0.01 pathUSD (the 2%) to
+   `SETI_TREASURY_ADDRESS`, in one transaction. First proof:
+   `0x913060ec28c168c38494bd5b725dea2778f93d34275c766447be2c45c68a9dcf`
+   (block 39296367) — two Transfer logs plus the gas payment, all in one receipt.
+2. **The client can sign it.** Privy's embedded wallets expose a Tempo
+   transaction hook (`@privy-io/react-auth/tempo` → `useSendTransaction`) whose
+   parameter is exactly `{ type: 118, chainId, feeToken, calls: [{to, data, value}] }`.
+   That is what `web/hooks/useTempoSender.ts` calls; an EIP-1193
+   `eth_sendTransaction` cannot carry `calls` (viem's RPC formatter drops them),
+   which is why the batch does not go through the provider.
+
+The remaining unknown is narrower and named at the bottom: no *user's* wallet has
+signed a batch yet — the proof above used a local key. See "What is not proven".
+
+- `FEE_ROUTING_MODE=batch` (default) — the customer signs an atomic batch of two
+  transfers: principal to the recipient, fee to `SETI_TREASURY_ADDRESS`
+  (`0x48cb25f9d82aF721e71437feAfb295da627BA475`). `recordPayment` and
+  `recordSend` each require BOTH `Transfer` logs in the single receipt and fail
+  closed if either is absent.
+- `FEE_ROUTING_MODE=inside-transfer` — one transfer of the gross to the
+  recipient. Fee recorded, **not collected**. Sends are refused in this mode:
+  with no merchant in the path the single transfer would pay the 2% TO the
+  person being sent to.
 
 The mode is decided by the server and returned in the preview as
 `feeRoutingMode`, so a modified client cannot request the laxer path — it simply
 fails reconciliation. The batch leg amount travels as `feeInAsset` (0 in
 inside-transfer mode, because no second transfer exists there).
 
-**What is proven:** `npm run check:fee-batch` (run with `FEE_ROUTING_MODE=batch`)
-anchors on a real OUSD transfer (on whichever chain the configured env selects —
-currently Moderato), points a merchant at that transfer's
-genuine recipient so the principal leg genuinely resolves, and confirms the
-payment is then refused *specifically* for the missing treasury leg. It also
-asserts the treasury is a well-formed, non-zero address distinct from the
-merchant's.
+**What is proven:** `npm run prove:batch` (run with the default `batch` mode)
+signs a real two-leg batched transaction on Moderato and asserts both legs land
+in one receipt; `npm run check:send` (batch mode) drives `recordSend` against a
+real batched receipt — the happy path included — and against a plain transfer to
+prove the missing-fee-leg refusal is a genuine chain read. `npm run
+check:fee-batch` covers the same guards for `recordPayment`.
 
-**What is NOT proven:** no batched transaction has ever been signed on Tempo. The
-success path — both legs landing in one real receipt — is uncovered, and EIP-7702
-support on Tempo mainnet is inferred from TIP-1047 rather than confirmed. Prove
-it on Moderato before flipping the flag.
+**What is still not proven:** no **user's** wallet has signed a batch. The proof
+above used a locally-generated key with the same SDK call shapes the browser
+makes; Privy's Tempo hook has not been exercised from a real embedded wallet, so
+the last unknown is whether that hook accepts these params end to end. Prove it
+once, with a funded wallet, before operating on mainnet: flip
+`FEE_ROUTING_MODE=batch` (already the default) and pay one merchant on Moderato.
 
 Every claim about SDK behaviour was verified against the `tempoxyz/accounts`
-source and examples at v0.19.1, plus Privy's live docs; nothing has been executed
-against a live chain.
+source and examples at v0.19.1, plus Privy's live docs. The original version of
+this paragraph said nothing had been executed against a live chain — that is no
+longer true: see the status at the top of this file for the batched transaction
+and the two check suites that now run against real receipts.
 
 ## The problem
 
