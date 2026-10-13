@@ -1,5 +1,6 @@
-import Fastify, { type FastifyError } from 'fastify';
+import Fastify, { type FastifyError, type FastifyReply, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
+import { ZodError } from 'zod';
 import { env } from './config/env.js';
 import { healthRoutes } from './routes/health.js';
 import { authRoutes } from './routes/auth.js';
@@ -10,6 +11,77 @@ import { accountRoutes } from './routes/account.js';
 import { publicHandleRoutes } from './routes/public-handles.js';
 import { transactionRoutes } from './routes/transactions.js';
 import { receiptRoutes } from './routes/receipts.js';
+
+/**
+ * Response code for a request the client shaped wrongly.
+ *
+ * Distinct from `INTERNAL_ERROR` on purpose: a body that fails its route schema
+ * is the CLIENT's fault and must be a 4xx, while a fault inside a handler is
+ * the server's and must stay a 500. Sharing one code was what let a malformed
+ * claim body be reported as a server error.
+ */
+export const INVALID_REQUEST_BODY = 'INVALID_REQUEST_BODY';
+
+/** Fastify's own codes for a body it could not parse before any handler ran. */
+const CONTENT_TYPE_PARSER_ERROR_PREFIX = 'FST_ERR_CTP_';
+
+/**
+ * The one error handler for the API.
+ *
+ * The envelope (`{ error, code }`) is the contract every route already speaks,
+ * so a client error that never reached a handler still arrives in the same
+ * shape. The split is deliberate and narrow:
+ *
+ *   - A `ZodError` is a route schema refusing client input (the claim body,
+ *     a query string, a path param). It has no `statusCode`, so before this
+ *     branch existed it fell through to the 500 default and a merely
+ *     badly-shaped request was reported as a server fault. It is a 400.
+ *   - A content-type-parser error (`FST_ERR_CTP_*`) means the body was not even
+ *     parseable — same story, the client's fault, a typed 400 (Fastify already
+ *     assigns 400 to a bad JSON body; a wrong media type keeps its 415 but
+ *     carries the same typed code so the envelope is consistent).
+ *   - Everything else keeps the original behaviour: Fastify's `statusCode` if
+ *     it set one, otherwise 500 `INTERNAL_ERROR`. A genuine throw in a handler
+ *     has no `statusCode` and MUST stay a 500 — this is not a widened catch.
+ *
+ * Exported so `server.check.ts` can drive the real handler against a route that
+ * throws, proving that branch still 500s.
+ */
+export function apiErrorHandler(
+  error: FastifyError,
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  if (error instanceof ZodError) {
+    request.log.warn({ err: error }, 'request rejected: body failed its route schema');
+    return reply.status(400).send({
+      error: 'Request body is malformed.',
+      code: INVALID_REQUEST_BODY,
+    });
+  }
+
+  if (
+    typeof error.code === 'string' &&
+    error.code.startsWith(CONTENT_TYPE_PARSER_ERROR_PREFIX)
+  ) {
+    request.log.warn({ err: error }, 'request rejected: body could not be parsed');
+    return reply.status(error.statusCode ?? 400).send({
+      error: 'Request body could not be parsed.',
+      code: INVALID_REQUEST_BODY,
+    });
+  }
+
+  const status = error.statusCode ?? 500;
+  if (status >= 500) {
+    request.log.error(error);
+  } else {
+    request.log.warn(error);
+  }
+  return reply.status(status).send({
+    error: error.message || 'Internal server error',
+    code: error.code || 'INTERNAL_ERROR',
+  });
+}
 
 export async function buildServer() {
   const app = Fastify({
@@ -39,13 +111,7 @@ export async function buildServer() {
     credentials: true,
   });
 
-  app.setErrorHandler((error: FastifyError, _request, reply) => {
-    app.log.error(error);
-    reply.status(error.statusCode ?? 500).send({
-      error: error.message || 'Internal server error',
-      code: error.code || 'INTERNAL_ERROR',
-    });
-  });
+  app.setErrorHandler(apiErrorHandler);
 
   await app.register(healthRoutes, { prefix: '/health' });
   await app.register(authRoutes, { prefix: '/auth' });
