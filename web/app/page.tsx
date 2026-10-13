@@ -43,14 +43,15 @@ export default function Home() {
                 a neo-bank
               </h1>
               <p className="mt-6 max-w-lg text-body-lg text-on-dark-mute">
-                Scan a QR code. Spend your stable coins.
+                Scan a merchant&rsquo;s code — or type their name. The money goes straight
+                to their wallet, and we never hold it.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <a
-                  href="#download"
+                  href="/app"
                   className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-canvas-light px-8 text-button font-semibold text-canvas-dark transition-all duration-200 hover:bg-faint active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-canvas-light/60 focus:ring-offset-2 focus:ring-offset-canvas-dark"
                 >
-                  Install
+                  Open the app
                   <ArrowUpRight className="h-4 w-4" />
                 </a>
                 <a
@@ -94,14 +95,14 @@ export default function Home() {
             <div className="mb-16 md:mb-20">
               <p className="text-caption font-mono font-semibold uppercase tracking-widest text-mute">02 — How</p>
               <h2 className="mt-2 max-w-2xl text-display-md font-medium leading-tight tracking-tight text-ink">
-                We use QR Codes
+                Scan. Pay. Settled.
               </h2>
             </div>
             <div className="grid gap-6 md:grid-cols-3">
               {[
-                ["01", "Scan", "Scan a QR code."],
-                ["02", "Spend", "OUSD and pathUSD, among others supported."],
-                ["03", "Settlement", "Usually within seconds."],
+                ["01", "Scan", "Their QR code, their payment link, or their name."],
+                ["02", "Pay", "Straight from your wallet to theirs. No custodian in between, so there is no payout queue."],
+                ["03", "Settled", "Seconds, on Tempo. The 2% platform fee is charged once, inside the same transaction."],
               ].map(([num, title, desc]) => (
                 <div key={num} className="rounded-lg border border-hairline-light bg-surface-card p-8 transition-all duration-200 hover:-translate-y-0.5 hover:bg-surface-soft">
                   <p className="text-display-sm font-mono font-medium text-stone">{num}</p>
@@ -153,25 +154,26 @@ export default function Home() {
           <div className="mx-auto max-w-6xl px-6">
             <div className="grid items-start gap-12 md:grid-cols-12">
               <div className="md:col-span-7">
-                <p className="text-caption font-mono font-semibold uppercase tracking-widest text-on-dark-mute">04 — Download</p>
+                <p className="text-caption font-mono font-semibold uppercase tracking-widest text-on-dark-mute">04 — Get started</p>
                 <h2 className="mt-2 max-w-xl text-display-md font-medium leading-tight tracking-tight text-on-dark">
-                  Get the app.
+                  Open it in your browser.
                 </h2>
                 <p className="mt-4 max-w-md text-body-lg text-on-dark-mute">
-                  Install Seti and spend your stablecoins today.
+                  Seti runs on the web today. Sign in with a passkey — no seed phrase to
+                  write down, and no wallet address to manage.
                 </p>
               </div>
               <div className="flex flex-col items-start gap-4 md:col-span-5 md:items-end md:justify-center">
                 <a
-                  href="#download"
-                  aria-label="Install Seti for Android"
+                  href="/app"
+                  aria-label="Open Seti"
                   className="inline-flex h-14 items-center justify-center gap-2 rounded-md bg-canvas-light px-8 text-button font-semibold text-canvas-dark transition-all duration-200 hover:bg-faint active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-canvas-light/60 focus:ring-offset-2 focus:ring-offset-canvas-dark"
                 >
-                  Install for Android
+                  Open Seti
                   <ArrowUpRight className="h-4 w-4" />
                 </a>
                 <p className="text-body-sm font-medium text-on-dark-mute">
-                  iOS coming soon.
+                  Runs on Tempo testnet — no real money.
                 </p>
               </div>
             </div>

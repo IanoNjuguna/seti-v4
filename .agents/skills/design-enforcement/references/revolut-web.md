@@ -53,6 +53,14 @@ Radii: `sm`, `md`, `lg`, `xl`, `pill`.
   `text-body-md-bold`, amount `font-tabular`, inflow `text-accent-light-green`.
 - **Badges** — `surface-soft` background + semantic text colour; the system has no
   coloured-fill badge token.
+- **Checkbox (the sign-up terms gate, `components/auth/TermsAcceptance.tsx`)** — a real
+  `<input type="checkbox">`, `h-4 w-4 accent-primary`, with the focus ring the other
+  controls use (`focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2
+  focus-visible:ring-offset-canvas-light`). The `<label htmlFor>` wraps the whole statement
+  *including* the `/terms` link: verified in Chrome that clicking that link navigates and
+  does **not** toggle the control, and the accessible name is the full sentence. Because a
+  `disabled` CTA is skipped by Tab, the reason it is blocked is rendered as text beside the
+  checkbox and wired with `aria-describedby`, not left to the dead button to explain.
 
 ## Gotchas paid for once already
 

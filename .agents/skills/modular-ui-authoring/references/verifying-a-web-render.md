@@ -48,6 +48,25 @@ message (and no wallet prompt), and the computed colours match the tokens you in
 The first `GET /app` compiles for well over a minute — curl with a long timeout before
 concluding the server is down.
 
+### The copy's env decides whether `/app` boots at all
+
+`web/.env.local` is a per-machine file and it has held **abbreviated** Tempo token
+addresses (`0x20c0...0000`, `0x20c0...74be`). `chain.constants.ts` validates them at
+module load and refuses a non-address, so every `/app` route that pulls the chain graph
+answers **500** with `NEXT_PUBLIC_TEMPO_TOKEN_OUSD is not a valid 20-byte address` —
+before any component runs, so it reads like a broken app rather than a bad env value.
+Put the full Moderato values from `backend/src/config/networks.ts` in the **copy**
+(`pathUSD 0x20c0000000000000000000000000000000000000`, `OUSD
+0x20c0000000000000000000006a37da5c996874be`) and delete its `.next`.
+
+### When the harness itself gets flaky
+
+`Runtime.evaluate` and `capture_screenshot` intermittently time out on this box while
+Turbopack is compiling — the same call succeeds on retry, so wrap both in a 3–4 attempt
+loop. Scroll with real key events (`PageDown`, `End` via `Input.dispatchKeyEvent`)
+instead of `window.scrollTo`, which failed most; a screenshot taken after a failed
+scroll is a **blank frame**, so inspect the image rather than trusting the exit code.
+
 ## Cleanup
 
 `rm -rf .web-check` and stop both processes. Nothing else in the tree should change —
@@ -84,7 +103,6 @@ Turbopack production build of this app measured ~15 min on a loaded box, so budg
 it rather than concluding the build hung.
 
 ## Warm the route before you drive a browser
-
 `next dev` compiles a route on its **first** request. Measured in this repo, the first
 `GET /app/activity` on a warm filesystem cache took **2m02s**. A browser tool that gives
 up after ~60s (Playwright MCP's `page.goto`, `browser-use`'s `Page.navigate`) fails
@@ -125,3 +143,49 @@ balance-card panels are) will render its empty state instead of its form. To exe
 the form, temporarily force the wallet status inside the **copy** — never in `web/` —
 and say so in your report, because the screenshot then shows one branch of the code as
 it is not shipped.
+
+### A flow that SIGNS cannot be driven from a dev session at all — shim the wallet
+
+Anything that asks the wallet for a signature (a handle claim, a payment) throws
+`NoEmbeddedWalletError` on the dev path, so the flow stops at the button. Do not
+conclude the feature is broken, and do not test it by hand: replace
+`hooks/useEmbeddedWallet.ts` **in the copy** with a shim returning a fixed test key's
+account, and have its EIP-1193 `request({method:'eth_signTypedData_v4', params:[addr,
+json]})` sign via `privateKeyToAccount(key).signTypedData(JSON.parse(json))`. viem
+accepts the app's typed data with no `EIP712Domain` entry, so the shim needs no
+knowledge of the message. The backend still verifies for real — recovery, the
+ownership check and the stored row are production code; only the key's custodian is
+fake. Say so in the report.
+
+The shimmed address must be one the account OWNS, or the claim is refused
+(`address-not-owned`). Registering it is the trap: `Wallet` has
+`@@unique([userId, asset, status])`, so a user can hold exactly ONE row per
+(asset, status) — and `POST /auth/dev`'s own `registerWallet` deprecates the active
+row on every login. `INSERT`ing a second `ousd` row therefore collides (P2002,
+`wallets_userId_asset_status_key`) either immediately or on the next dev login.
+Two recipes that work: (a) point the dev user's single `ousd` row at the harness
+address and let the next `/auth/dev` deprecate it and insert its own — the claim's
+ownership check reads rows of ANY status (`getWalletsByUser`), so a deprecated row
+still proves ownership; or (b) keep `0xdede…` active and insert the harness row as
+`deprecated`. Restore the original address and delete the extra row afterwards.
+
+## A prerendered route does not see the query in a production build
+
+`params` and `searchParams` are resolved when the route is **prerendered**, so on a
+route the build reports as `○ (Static)` a client page that reads the `searchParams`
+prop gets `{}` — in production only. In `next dev` the same route is rendered
+on-demand and the values arrive, so `use(searchParams)` looks correct in every
+screenshot taken from the dev server. This silently disables every
+link-into-the-app handoff: a `?handle=`/`?to=`/`?kind=` page renders its empty state
+(often the signed-out card) with no error anywhere.
+
+Read the query with `useSearchParams()` from `next/navigation` inside a
+`<Suspense>` boundary instead — the boundary is required or the build fails with
+"Missing Suspense boundary with useSearchParams". It client-renders that subtree
+while the rest of the route stays static (verified: `/app/merchant?kind=person`
+showed business copy before, username copy after).
+
+**The general lesson: drive the flow against `next build && next start`, not only
+`next dev`.** A dev-only pass cannot see this class of defect, and the trap is that
+the page is not blank — it renders, just not as configured.
+
