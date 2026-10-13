@@ -1,136 +1,166 @@
-import { SITE, LEGAL_EFFECTIVE_DATE, PRIVACY_URL } from "./site";
+import { LEGAL_EFFECTIVE_DATE, PRIVACY_URL } from "./site";
 import type { LegalSection } from "./LegalDocument";
 
 /**
- * Website Terms of Use, adapted from the General Legal CC0 template
- * (https://github.com/General-Legal/legal-templates) for Seti.
+ * Terms of Use, written for Seti.
  *
- * Deviations from the template, all deliberate:
- *  - "Site" is defined as the website AND the mobile application, since the
- *    payment flow happens in the app.
- *  - Governing law moved from California to Kenya; the template's US
- *    state-specific notices are dropped as inapplicable.
- *  - The arbitration clause keeps JAMS (Option A) and drops DecisionLayer
- *    (Option B), which assumes a US-hosted process.
- *  - A new section covers the stablecoin payment flow, which the template has
- *    no equivalent for. This is the load-bearing section: Seti is
- *    non-custodial, so the app never takes possession of the funds.
+ * These are NOT an adaptation of a template, and they carry no template
+ * placeholders. Every factual claim below is one this repository can be held to:
+ *
+ *  - Non-custodial settlement and the "customer's wallet signs, the recipient's
+ *    address receives" flow: `AGENTS.md`, `README.md` ("Payments are
+ *    non-custodial — the customer's embedded wallet signs, the merchant's own
+ *    address receives the principal").
+ *  - The fee: a flat 2%, attributed to the merchant but funded by the customer,
+ *    charged once inside the same atomic transaction as the principal
+ *    (`README.md` §Fee model; `backend/src/services/fees.ts` is the source of
+ *    truth).
+ *  - The network being Tempo's TEST network, Moderato, with nothing defaulting
+ *    to mainnet (`web/lib/chain/chain.constants.ts`, `NEXT_PUBLIC_ALLOW_MAINNET`).
+ *  - The two assets in this version: pathUSD and OUSD (`SUPPORTED_ASSETS`).
+ *  - The wallet keys living on the customer's device through Privy, and the
+ *    backend never signing without an authorization the customer gives on their
+ *    device (`AGENTS.md` §Blockchain & security guardrails).
+ *  - The receipt check that fails closed before a payment is recorded
+ *    (`recordPayment` / `recordSend` in the backend).
+ *
+ * DELIBERATELY UNPUBLISHED — section 13 says so in the document itself rather
+ * than inventing any of it. These cannot be verified from this repository:
+ *
+ *  1. the registered legal entity that operates the Service, and its registered
+ *     address (`web/app/legal/site.ts` holds `[Registered address]`);
+ *  2. a contact address for formal notices (`legal@seti.example` there is a
+ *     placeholder, not a working address);
+ *  3. the governing law and the forum that would hear a dispute — the repo says
+ *     the product is built for Nairobi, which is a market, not a choice of law,
+ *     and the earlier draft's Kenyan governing law, JAMS arbitration and
+ *     KES 1,000 liability cap were all template text, not facts about Seti;
+ *  4. any licence, registration or regulatory approval.
+ *
+ * The age statement is the 18+ confirmation the customer gives at sign-up. There
+ * is deliberately no date-of-birth field and no birth year collected anywhere:
+ * a self-declaration carries the same legal weight at zero PII, and a real age
+ * gate belongs at the age-restricted product when one exists.
  *
  * LEGAL REVIEW REQUIRED before publishing.
  */
 
 const intro = [
-  `These Terms of Use ("Terms") govern your use of the Seti mobile application and the website at ${SITE.domain} (together, the "Service"). By creating an account, scanning a merchant QR code, or otherwise using the Service, you agree to these Terms on behalf of yourself and confirm you have the authority to do so. You must be at least 18 years old to use the Service. If you do not agree to these Terms, do not use the Service.`,
-  `These Terms were adapted from a public legal template published by General Legal under CC0 1.0. They have not been reviewed by a Kenyan attorney and require review before Seti is offered to the public.`,
-  `Your use of the Service is also governed by our Privacy Policy, available at ${PRIVACY_URL}, which is incorporated into these Terms by reference.`,
+  "These Terms of Use govern your use of the Seti app and the Seti website (together, the “Service”). You accept them by ticking the box when you sign up, and they apply from then on. If you do not accept them, do not use the Service.",
+  "Seti is a non-custodial way to pay with stablecoins on Tempo: your own wallet signs every payment, and the funds go straight from you to the person you are paying. Seti never takes possession of your money. Section 5 (the fee) and section 6 (the network) are the two parts of this document most likely to surprise you, so read those before you pay anyone.",
+  "You must be at least 18 years old to use the Service. We ask you to confirm that when you sign up. We do not ask for your date of birth.",
+  `What Seti records about you, and why, is set out in the Privacy Policy at ${PRIVACY_URL}.`,
 ];
 
 const sections: LegalSection[] = [
   {
-    title: "1. Accounts",
+    title: "1. What Seti is",
     paragraphs: [
-      "Creating an account. The Service uses Privy to manage authentication and your wallet keys. When you create an account you agree to provide accurate and complete information and to keep it current.",
-      "Account security. You are responsible for all activity under your account and for keeping your authentication credentials confidential. If you believe your account has been accessed without your authority, contact us immediately at the address in section 12.",
+      "Seti is a technology product for paying people and businesses with stablecoins on the Tempo network. You scan or enter a Seti-enabled QR code, the app reads the recipient's payout address and the asset to send from the code, and you authorize the transfer from your own wallet.",
+      "Seti is not a bank, not a deposit-taker, and not a payment institution. It does not hold your money, does not owe you a balance, and does not lend, invest or earn anything on what you hold. It is not a party to any transfer: the stablecoins move from your wallet to the recipient's own address when you sign.",
+      "There is no fiat off-ramp in this version of Seti. Nothing is converted into bank money or paid out to a bank account, by Seti or by anyone on its behalf.",
     ],
   },
   {
-    title: "2. Wallet custody and control",
+    title: "2. Your wallet, and who can move money from it",
     paragraphs: [
-      "Seti is non-custodial. Your wallet is created for you and its keys are held on your device through Privy's embedded wallet infrastructure. Seti does not hold, own, or take possession of the stablecoins in your wallet, and Seti cannot transfer funds from your wallet without a transaction that you authorize on your device.",
-      "This has consequences you should understand before using the Service. If you lose access to your device or your authentication credentials and cannot recover them, nobody — including Seti — can restore access to your wallet or the funds in it. Seti will never ask you for your recovery phrase, private key, or authentication credentials. If anyone does, it is not us.",
-      "Seti is a technology provider. It is not a bank, and it does not offer deposit accounts, hold customer funds, or guarantee any return on funds you hold.",
+      "Your wallet is created for you when you sign up, through Privy's embedded wallet infrastructure. The keys that control it are held on your device. Seti never holds, receives, copies or stores your keys.",
+      "You are responsible for your own access to that wallet: your device, and the credentials you sign in with. If you lose them, Seti cannot restore your access to the wallet or to anything in it, and cannot reverse a payment you have already authorized. Nobody at Seti can recover a wallet for you, because nobody at Seti holds the means to do so.",
+      "Seti cannot move funds from your wallet on its own. Every payment is a transaction you authorize on your device, and the app is built so that the backend never signs on your behalf.",
+      "Seti will never ask you for a recovery phrase, a private key, or your sign-in credentials. Anyone who asks you for any of them is not Seti.",
     ],
   },
   {
-    title: "3. Stablecoin payments",
+    title: "3. Signing up, and your username",
     paragraphs: [
-      "How a payment works. When you scan a merchant QR code, the Service reads the merchant's payout address and asset from the code. You authorize the transfer on your device. The stablecoins move directly from your wallet to the merchant's address on the Tempo blockchain. Seti records the transaction after verifying it against the on-chain receipt; Seti is not a party to the transfer itself.",
-      "Fees. The amount shown to you before you authorize is the total that leaves your wallet. This includes the merchant's fee, which Seti discloses in the confirmation screen. The fee rate and any minimum or maximum that applies are shown to you before each payment. Seti may change the fee model with notice in the app.",
-      "Irreversibility. Stablecoin transfers on Tempo are final. Once a transfer is confirmed on-chain it cannot be reversed by Seti or by any party. You are responsible for verifying the merchant, the amount, the asset, and the payout address before you authorize any payment.",
-      "Your responsibility for payment details. If you authorize a transfer to an incorrect, expired, or malicious address, or to an asset you did not intend to send, the loss is yours. Seti verifies that the amount claimed for a payment matches the on-chain receipt, but it cannot verify that the address you paid was the address you intended.",
-      "Exchange rates. Where the Service shows a fiat equivalent of a stablecoin amount, it is an estimate derived from a third-party exchange-rate source and is provided for information only. It is not an offer, a quote, or a guaranteed rate. Merchants determine their own prices in fiat terms.",
-      "No investment advice. Nothing in the Service is financial, investment, tax, or legal advice. Stablecoin values can fall as well as rise, and you can lose some or all of the value you hold. You decide what to pay, to whom, and when.",
-      "Prohibited use. You may not use the Service to violate Kenyan law, to fund activity that is unlawful or fraudulent, to evade sanctions, to launder proceeds of crime, or to attack, overload, or disrupt the Service or another user's use of it.",
+      "Signing up creates an account and a wallet. The one thing we ask you to choose is a username: the name other people use to pay you, subject to the rules shown in the app when you claim it. That is the whole of what this version asks for.",
+      "The age statement is yours to give. By ticking the box at sign-up you confirm that you are 18 or older. We do not ask for your date of birth and we do not store one: your confirmation is the statement Seti relies on.",
+      "Keep your sign-in credentials to yourself. You are responsible for what happens under your account.",
+      "You can delete your account from inside the app. Section 8 explains what that does and does not remove.",
     ],
   },
   {
-    title: "4. Access to the Service",
+    title: "4. How a payment works",
     paragraphs: [
-      "License. Subject to these Terms, Seti grants you a limited, non-exclusive, non-transferable, revocable licence to use the Service for your own personal, non-commercial purposes.",
-      "Ownership. All intellectual property rights in the Service and its content belong to Seti or its licensors. These Terms grant you no ownership rights except the limited access rights above. The Seti name and marks are our property.",
-      "Availability. The Service relies on third-party infrastructure including Privy for authentication and wallets and public blockchain RPC providers for chain data. We may modify, suspend, or discontinue any part of the Service at any time. We do not guarantee uninterrupted availability.",
-      "Feedback. If you send us feedback or suggestions, you grant us a perpetual, irrevocable, worldwide, non-exclusive, royalty-free licence to use it without attribution. Please do not send anything you consider confidential.",
+      "The app shows you the recipient, the amount, the asset, and the total that will leave your wallet — the payment plus Seti's fee. You then authorize the transfer from your own wallet. Nothing is sent, and no fee is charged, until you do.",
+      "The stablecoins move directly from your wallet to the recipient's address. Seti is not a party to that transfer and never holds the funds at any point in it.",
+      "After the transfer is confirmed, Seti checks it against the on-chain receipt before recording it in your Activity: the amount, the asset and the destination must match what was claimed. If they do not match, Seti refuses the record rather than write down a payment it cannot verify.",
+      "Transfers on Tempo are final. Once a transfer is confirmed on-chain, no one — including Seti — can reverse it, cancel it or refund it. Check the recipient, the amount and the asset before you authorize, because that is the last moment at which anything can be changed.",
     ],
   },
   {
-    title: "5. Third-party services",
+    title: "5. The fee, and who pays it",
     paragraphs: [
-      "The Service integrates with and links to third-party services, including Privy, Tempo, and merchants you pay. We do not control, endorse, or take responsibility for third-party services. You use them at your own risk, and their own terms and privacy practices apply to your use of them.",
-      "QR code content. The Service reads merchant details from QR codes it scans. It cannot guarantee that a QR code was issued by the merchant it identifies. Treat QR codes from untrusted sources with the same caution you would apply to any unfamiliar payment request.",
+      "Seti charges a platform fee of 2% of each payment. The fee is attributed to the recipient business, but it is funded by you: it is added to what you sign for, and the recipient receives exactly the payment amount, not the payment less the fee.",
+      "The fee is charged once, inside the same transaction as the payment itself. One atomic transfer carries the principal to the recipient and the fee to the address Seti publishes as its treasury. It cannot be charged separately, it cannot be charged twice, and if the transfer does not go through, no fee is charged.",
+      "The exact fee is shown to you before you authorize anything. The charge itself is in the stablecoin you pay with — pathUSD or OUSD in this version — and the fiat figure shown beside it is a label on that charge, converted at the rate displayed in the preview. The asset leaves your wallet; the fiat number does not.",
+      "Seti may change the fee. If it does, it will tell you in the app, and the fee shown to you before you authorize a payment is the fee that applies to it.",
     ],
   },
   {
-    title: "6. Suspension and termination",
+    title: "6. Which network this version runs on",
     paragraphs: [
-      "You may delete your account from within the Service. Deleting your account does not delete the transaction records Seti is required to retain, and it does not affect wallet addresses you previously used, which remain recorded on the blockchain permanently.",
-      "Seti may suspend or terminate your access if you breach these Terms, if we are required to do so by law or by a competent authority, or if we detect activity that creates a material risk to Seti, its users, or the integrity of the Service. Where we suspend for legal reasons, we will tell you why.",
-      "Provisions that by their nature should survive termination do survive, including sections 2, 3, 7, 8, and 9.",
+      "Seti is built on Tempo. This version is configured for Tempo's test network (Moderato), and nothing in it defaults to mainnet.",
+      "Test networks carry test assets. Amounts held there have no real-world value, and nothing in this version should be read as Seti holding money for you, owing you money, or being able to pay you money out. Do not use it to move value you cannot afford to lose, and do not treat a balance shown in the app as a bank balance.",
+      "Before Seti operates on a network where the assets do carry real value, the app and these Terms will be updated to say which network that is. Until then, the network in use is the test network named above.",
     ],
   },
   {
-    title: "7. Disclaimers",
+    title: "7. What Seti records, and what is public",
     paragraphs: [
-      "The Service is provided on an \"as is\" and \"as available\" basis. To the fullest extent permitted by law, Seti disclaims all warranties, express or implied, including implied warranties of merchantability, fitness for a particular purpose, title, and non-infringement.",
-      "Seti does not warrant that the Service will be error-free or uninterrupted, that the on-chain data it displays is complete or accurate, or that your wallet will be available at any particular time.",
-      "Third-party wallets, blockchains, and stablecoin issuers are outside Seti's control. Seti is not responsible for the failure of any third party, including a merchant's failure to honour a payment you made.",
+      "To show your Activity and to keep its own records, Seti records each payment: the amount, the asset, the fee charged, the recipient's address, the transaction hash, the block it settled in, and when it settled. Section 8 says how long that record lives, including after you delete your account.",
+      "The blockchain record is public and permanent. Anyone can read the addresses, the amounts and the timing of a payment on Tempo's block explorer. Seti cannot delete that record, and neither can you. This is a property of the network, not a choice Seti makes.",
     ],
   },
   {
-    title: "8. Limitation of liability",
+    title: "8. Accounts, suspension, and deletion",
     paragraphs: [
-      "To the fullest extent permitted by law, Seti and its officers, employees, and agents will not be liable for any indirect, incidental, special, consequential, or punitive damages, or any loss of profits, revenue, data, or funds, arising out of or in connection with your use of the Service, however caused and regardless of the theory of liability.",
-      "Seti is not liable for lost funds or lost wallet access resulting from your loss of device, your loss of authentication credentials, your disclosure of credentials to a third party, or your authorization of a transfer to an incorrect address.",
-      "Where liability cannot be excluded, Seti's total aggregate liability to you for all claims arising out of the Service is limited to KES 1,000 (one thousand Kenyan shillings). This does not limit liability that cannot lawfully be limited, including for fraud.",
+      "You may delete your account from inside the app. Deletion removes the account data Seti is not required to keep. It does not remove the transaction records Seti keeps for its own accounting and for disputes, and it cannot remove anything already written to the blockchain.",
+      "Seti may suspend or end your access if you break these Terms, if the law requires it, or if your account is being used in a way that puts other people, the recipients you pay, or the Service at risk. Where it does, it will tell you why unless it is not allowed to.",
+      "A wallet address you have used is not deleted by any of this: addresses and the payments to them remain on the chain permanently.",
     ],
   },
   {
-    title: "9. Indemnification",
+    title: "9. Acceptable use",
     paragraphs: [
-      "You agree to defend, indemnify, and hold harmless Seti and its officers, employees, and agents from claims and reasonable costs arising out of your use of the Service, your breach of these Terms, or your violation of any applicable law. Seti may assume control of the defence of any such claim, and you agree to cooperate. You agree not to settle any such claim without Seti's prior written consent.",
+      "Use Seti lawfully. Do not use it to defraud anyone, to launder money, to move the proceeds of a crime, or to evade sanctions. Do not use it to attack, overload or disrupt the Service, or to interfere with anyone else's use of it.",
+      "Payment requests can come from anyone. A QR code carries an address, not a promise: Seti reads the address out of the code it scans and cannot verify who issued that code. Treat an unfamiliar payment request with the same care you would treat any other unfamiliar request for money.",
     ],
   },
   {
-    title: "10. Kenya regulatory disclosures",
+    title: "10. The services Seti depends on",
     paragraphs: [
-      "Seti operates a technology platform that facilitates transfers of digital assets between users and merchants. Whether Seti requires a licence, registration, or approval under the Payment Service Providers Act, the Central Bank of Kenya Act, or the Capital Markets Act, and the treatment of digital assets under Kenyan law, is a question of legal interpretation that has not been settled for this business. This section is a disclosure, not a representation that Seti holds any licence or registration.",
-      "Seti is not a deposit-taker. Seti does not hold your funds, does not owe you a balance, and does not bear responsibility for the value of any asset.",
+      "Seti is built on other people's infrastructure: Privy, which manages authentication and the embedded wallets; Tempo and its RPC providers, which supply the chain and its data; and the recipients you pay, whose own systems you are transacting with. Seti does not control those services and is not responsible for them. Their own terms and privacy practices apply to your use of them.",
+      "Seti is an app, not the network. If Tempo is unavailable, if a recipient's address does not accept what you send, or if a third-party provider fails, Seti cannot intervene on your behalf in the transfer itself.",
     ],
   },
   {
-    title: "11. Governing law and dispute resolution",
+    title: "11. Availability, and the limits of Seti's responsibility",
     paragraphs: [
-      "Governing law. These Terms and any dispute arising out of or relating to them or the Service are governed by the laws of Kenya. For any claim or dispute not subject to arbitration, you and Seti consent to the exclusive jurisdiction of the courts of Kenya.",
-      "Arbitration. Before starting arbitration, the parties agree to try to resolve the dispute informally. The party raising the dispute must send written notice to Seti. Within 45 days of receiving that notice, the parties will meet by phone or video in good faith to try to resolve it. If the process does not resolve the dispute within 60 days, either party may start arbitration.",
-      "Arbitration will be administered by JAMS under its Comprehensive Arbitration Rules and Procedures, before a single arbitrator. Judgment on the award may be entered in any court of competent jurisdiction. The arbitrator may award reasonable costs and legal fees. All proceedings, including the existence of the dispute, the terms of these Terms, and any award, are confidential, except as required to enforce this clause.",
-      "Arbitration is on an individual basis. Neither you nor Seti may bring claims as a plaintiff or class member in any class, representative, or collective proceeding. If a court finds this class waiver unenforceable as to a specific claim, that claim may be litigated in court, and all other claims remain subject to arbitration.",
-      `Opt-out. You may opt out of this arbitration agreement within 30 days of first accepting these Terms by sending written notice to Seti at ${SITE.email} with your name, your email address associated with your account, and a clear statement that you wish to opt out. Opting out does not affect any other part of these Terms.`,
+      "The Service is provided as it is and as it is available. Seti does not promise that it will be uninterrupted or error-free, or that the on-chain data it displays will be complete or correct at every moment.",
+      "Seti does not hold your funds, so it cannot return them. Seti is not responsible for money lost because you lost access to your wallet or your credentials, because you gave your credentials or keys to someone else, or because you authorized a payment to an address, an asset or an amount you did not intend.",
+      "Where the Service records a payment, that record follows the on-chain receipt, not the app's display: if the two ever disagree, the chain governs.",
+      "Nothing in these Terms limits responsibility that cannot lawfully be limited, including for fraud by Seti.",
     ],
   },
   {
-    title: "12. General",
+    title: "12. Changes to these Terms",
     paragraphs: [
-      "Entire agreement. These Terms, together with our Privacy Policy, are the entire agreement between you and Seti regarding the Service and supersede any earlier statement about it.",
-      "Changes. Seti may update these Terms. Seti will notify you of material changes in the app or on the website before they take effect. Continuing to use the Service after a change takes effect means you accept the updated Terms.",
-      `Notices. Notices to Seti under these Terms must be sent to ${SITE.email} and must include your name, your email address associated with your account, and the substance of your notice.`,
-      "Assignment. You may not assign these Terms without our consent. Seti may assign these Terms to a successor of the business.",
-      "Severability. If any provision is found unenforceable, the remaining provisions stay in effect.",
-      "No waiver. A failure to enforce any provision is not a waiver of it.",
-      `Contact information. Seti, ${SITE.address}. Email: ${SITE.email}. Made in Thika, Kenya.`,
+      "Seti will publish a new version of these Terms here, with a new effective date, whenever they change. Where a change materially affects you, Seti will say so in the app before it takes effect. Continuing to use the Service after a change takes effect means you accept the updated Terms.",
+    ],
+  },
+  {
+    title: "13. The operator, the governing law, and notices — not yet published",
+    paragraphs: [
+      "Seti has not yet published the name and registered address of the legal entity that will operate the Service, an address for formal notices, or the law and the forum that will govern a dispute about these Terms. Section 13 exists to say so plainly instead of filling those gaps with placeholder text that pretends to be a fact.",
+      "All four will be published in this section, and users told when they are, before Seti is offered to the public generally. Until then, raise anything about these Terms or the Service through the app.",
+      "Nothing in these Terms is a claim that Seti holds a licence, registration or regulatory approval, or that the Service is regulated anywhere.",
     ],
   },
 ];
 
-const footnote = `Adapted from legal templates by General Legal, used under CC0 1.0 Universal. This document is a draft and has not been reviewed by a qualified Kenyan attorney. It is not legal advice, and it does not establish that Seti holds any licence, registration, or regulatory approval. Have it reviewed before publishing.`;
+const footnote =
+  "These Terms were written for Seti from how the product is actually built, and they describe the version running on Tempo's test network. They are a draft: they have not been reviewed by a lawyer, and that review is required before Seti is offered to the public. They are not legal advice. Where a fact about the business cannot be stated yet — the operating entity, a notices address, the governing law, a jurisdiction — section 13 names it as unpublished rather than inventing one.";
 
 export const termsContent = {
   title: "Terms of Use",
