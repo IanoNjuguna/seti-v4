@@ -12,6 +12,12 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Cloudflare/vinext build output. `dist/` is the Worker bundle
+    // (`vite build`), `.vinext/` and `.wrangler/` are the tool caches — all
+    // generated, all gitignored, and none of it source to lint.
+    "dist/**",
+    ".vinext/**",
+    ".wrangler/**",
   ]),
 ]);
 
