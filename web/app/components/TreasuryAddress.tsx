@@ -100,7 +100,7 @@ export function TreasuryAddress() {
                 ? "Treasury address copied"
                 : `Copy treasury address ${TREASURY_ADDRESS}`
             }
-            className="flex h-8 w-8 items-center justify-center rounded-sm border border-hairline-dark text-on-dark-mute transition-colors hover:text-on-dark focus:outline-none focus:ring-2 focus:ring-on-dark/60 focus:ring-offset-2 focus:ring-offset-canvas-dark"
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-hairline-dark text-on-dark-mute transition-colors hover:text-on-dark focus:outline-none focus:ring-2 focus:ring-on-dark/60 focus:ring-offset-2 focus:ring-offset-canvas-dark"
           >
             {state === "copied" ? (
               <CheckIcon className="h-4 w-4 text-accent-green-text" />

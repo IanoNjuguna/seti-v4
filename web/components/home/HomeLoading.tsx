@@ -18,12 +18,12 @@ export function HomeLoading() {
         <Card>
           <Skeleton className="h-3 w-24" />
           <Skeleton className="mt-3 h-10 w-48" />
-          <Skeleton className="mt-4 h-6 w-32 rounded-full" />
+          <Skeleton className="mt-4 h-6 w-32" />
         </Card>
       </div>
       <div className="flex gap-4">
-        <Skeleton className="h-20 w-20 rounded-full" />
-        <Skeleton className="h-20 w-16 rounded-full" />
+        <Skeleton className="h-20 w-20" />
+        <Skeleton className="h-20 w-16" />
       </div>
       <Skeleton className="h-5 w-40" />
     </div>

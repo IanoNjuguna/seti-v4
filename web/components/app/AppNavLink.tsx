@@ -13,10 +13,10 @@ import type { AppNavLinkProps } from './AppNavLink.types';
  * `on-dark` (white) on `surface-elevated` and the rest sit at `on-dark-mute`.
  *
  * The active state is a *shape* as well as a luminance step, because colour alone
- * cannot be an indicator: in the bar the mark sits in a 48×32 pill that is
+ * cannot be an indicator: in the bar the mark sits in a 48×32 well that is
  * transparent until it is active, and in the rail the whole row is the filled
  * block. Both take the same `surface-elevated` step, so the two layouts read as
- * one navigation. The pill is drawn around the icon rather than the whole tile so
+ * one navigation. The well is drawn around the icon rather than the whole tile so
  * nothing reflows when you navigate.
  *
  * Geometry is per layout and derived from the type inside it: the bar is a 64px
@@ -28,9 +28,9 @@ const LAYOUT: Record<AppNavLinkProps['layout'], string> = {
   rail: 'min-h-12 w-full flex-row items-center gap-3 rounded-md px-4',
 };
 
-/** The mark's well: the pill in the bar, a plain 24px box in the rail. */
+/** The mark's well: the 48×32 block in the bar, a plain 24px box in the rail. */
 const WELL: Record<AppNavLinkProps['layout'], string> = {
-  bar: 'h-8 w-12 rounded-full',
+  bar: 'h-8 w-12 rounded-md',
   rail: 'h-6 w-6',
 };
 

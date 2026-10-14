@@ -48,7 +48,7 @@ export function ReceiptSheet({ transactionId, onClose }: ReceiptSheetProps) {
         data-receipt-print=""
         onClick={(event) => event.stopPropagation()}
         onKeyDown={onKeyDown}
-        className="relative max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-xl bg-canvas-dark text-on-dark focus:outline-none sm:rounded-lg"
+        className="relative max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-md bg-canvas-dark text-on-dark focus:outline-none sm:rounded-md"
       >
         <button
           type="button"

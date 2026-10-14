@@ -8,11 +8,11 @@ import type { InputProps } from './Input.types';
 /**
  * A labelled text field in the web app's own token vocabulary.
  *
- * 48px tall and `rounded-lg` to match `Card`, `surface-soft` as the well, and the
- * cobalt `primary` token as the focus border — the system has no dedicated focus
- * token, and cobalt is its emphasis colour. The error state swaps the border to
- * `accent-danger` AND renders the message, because colour alone must never be the
- * only signal (design-enforcement).
+ * The spec's `text-input`: 56px tall and `rounded-md` (12px), `surface-soft` as
+ * the well, and the cobalt `primary` token as the focus border — the system has
+ * no dedicated focus token, and cobalt is its emphasis colour. The error state
+ * swaps the border to `accent-danger` AND renders the message, because colour
+ * alone must never be the only signal (design-enforcement).
  *
  * `label` and `error` are both wired to the input by id/aria so a screen reader
  * announces them; the label is visible rather than a placeholder, since a
@@ -55,7 +55,7 @@ export function Input({ label, hint, error, tone = 'light', className, id, ...pr
         aria-invalid={error ? true : undefined}
         aria-describedby={errorId ?? hintId}
         className={cn(
-          'mt-2 h-12 w-full rounded-lg border px-4 text-body-md outline-none transition-colors',
+          'mt-2 h-14 w-full rounded-md border px-4 text-body-md outline-none transition-colors',
           dark
             ? 'bg-canvas-dark text-on-dark placeholder:text-on-dark-mute'
             : 'bg-surface-soft text-ink placeholder:text-stone',

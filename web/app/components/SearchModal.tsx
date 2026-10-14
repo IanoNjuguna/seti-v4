@@ -119,7 +119,7 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg overflow-hidden rounded-lg border border-hairline-dark bg-surface-elevated"
+        className="w-full max-w-lg overflow-hidden rounded-md border border-hairline-dark bg-surface-elevated"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3 border-b border-hairline-dark px-4 py-3">
@@ -132,7 +132,7 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
             placeholder="Search sections..."
             className="flex-1 bg-transparent text-body-md text-on-dark placeholder:text-on-dark-mute focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/60"
           />
-          <span className="rounded bg-surface-deep px-1.5 py-0.5 text-[10px] font-semibold text-on-dark-mute">
+          <span className="rounded-sm bg-surface-deep px-1.5 py-0.5 text-[10px] font-semibold text-on-dark-mute">
             ESC
           </span>
         </div>

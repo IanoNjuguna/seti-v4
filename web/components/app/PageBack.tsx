@@ -27,7 +27,7 @@ export function PageBack({ href = '/app', label = 'Back' }: PageBackProps) {
   return (
     <Link
       href={href}
-      className="inline-flex min-h-11 items-center gap-1 self-start rounded-full py-2 pl-3 pr-4 text-body-sm font-semibold text-ink transition-colors hover:bg-surface-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      className="inline-flex min-h-11 items-center gap-1 self-start rounded-md py-2 pl-3 pr-4 text-body-sm font-semibold text-ink transition-colors hover:bg-surface-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
     >
       <Icon name="chevronRight" className="h-5 w-5 rotate-180" />
       {label}

@@ -55,7 +55,7 @@ export function DepositPanel() {
             type="button"
             onClick={copy}
             aria-live="polite"
-            className="mt-3 rounded-full bg-canvas-light px-5 py-2 text-body-sm font-semibold text-canvas-dark transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-dark/60"
+            className="mt-3 rounded-md bg-canvas-light px-5 py-2 text-body-sm font-semibold text-canvas-dark transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-dark/60"
           >
             {copied ? 'Copied' : 'Copy address'}
           </button>

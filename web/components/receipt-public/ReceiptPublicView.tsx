@@ -35,14 +35,14 @@ export function ReceiptPublicView({ receipt, receiptId, token }: ReceiptPublicVi
 
   if (!mounted || shareUrl === null) {
     return (
-      <div className="rounded-lg bg-canvas-dark p-6">
+      <div className="rounded-md bg-canvas-dark p-6">
         <ReceiptLoading />
       </div>
     );
   }
 
   return (
-    <div className="rounded-lg bg-canvas-dark p-6">
+    <div className="rounded-md bg-canvas-dark p-6">
       <ReceiptCard card={card} shareUrl={shareUrl} />
     </div>
   );

@@ -6,7 +6,7 @@ import { PROFILE_INTENT_COPY } from './ProfileIntent.constants';
 import type { ProfileIntentSwitchProps } from './ProfileIntent.types';
 
 /**
- * The mode switch — two pressed-state pills.
+ * The mode switch — two pressed-state buttons.
  *
  * Buttons with `aria-pressed` rather than a radio group, and that is a keyboard
  * decision: a radio group fires on ARROW keys, so sweeping across the two options
@@ -31,7 +31,7 @@ export function ProfileIntentSwitch({ intent, switching, onSwitch }: ProfileInte
             disabled={switching !== null}
             onClick={() => onSwitch(mode)}
             className={cn(
-              'min-touch h-10 rounded-full px-5 text-body-sm font-semibold transition-colors',
+              'min-touch h-10 rounded-md px-5 text-body-sm font-semibold transition-colors',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-light',
               'disabled:cursor-not-allowed disabled:opacity-60',
               active ? 'bg-canvas-dark text-on-dark' : 'bg-surface-soft text-ink hover:bg-faint'

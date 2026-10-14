@@ -15,7 +15,7 @@ export const PUBLIC_COPY = {
 } as const;
 
 /**
- * The pay action as a black pill — the `button-dark` recipe from
+ * The pay action as a black button — the `button-dark` recipe from
  * `design/revolut.md`, whose only CTA on a white band is black.
  *
  * Written as classes on a `next/link` rather than composing `Button` inside a
@@ -24,7 +24,7 @@ export const PUBLIC_COPY = {
  * matches `components/ui/Button.constants.ts` → `primary`.
  */
 export const PAY_ACTION_CLASS =
-  'bg-canvas-dark text-on-dark hover:bg-charcoal rounded-full min-touch h-12 w-full px-7 ' +
+  'bg-canvas-dark text-on-dark hover:bg-charcoal rounded-md min-touch h-12 w-full px-7 ' +
   'inline-flex items-center justify-center text-button font-semibold transition-colors ' +
   'duration-200 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 ' +
   'focus-visible:ring-primary focus-visible:ring-offset-2';

@@ -61,7 +61,7 @@ export function SendFeeSummary({ preview, loading }: SendFeeSummaryProps) {
   const approxGas = preview.networkFeeSource === 'estimate' ? '≈ ' : '';
 
   return (
-    <div className="space-y-2 rounded-sm bg-canvas-dark p-3">
+    <div className="space-y-2 rounded-md bg-canvas-dark p-3">
       <Row
         label="They receive"
         value={formatFiat(Number(preview.fiatAmount), preview.fiatCurrency)}

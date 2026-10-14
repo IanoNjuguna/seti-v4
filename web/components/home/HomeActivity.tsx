@@ -38,7 +38,7 @@ export function HomeActivity({ transactions }: HomeActivityProps) {
       {transactions.length === 0 ? (
         <EmptyActivity />
       ) : (
-        <ul className="mt-4 divide-y divide-hairline-light overflow-hidden rounded-lg border border-hairline-light">
+        <ul className="mt-4 divide-y divide-hairline-light overflow-hidden rounded-md border border-hairline-light">
           {transactions.map((transaction) => (
             <li key={transaction.id}>
               <TransactionRow transaction={transaction} />

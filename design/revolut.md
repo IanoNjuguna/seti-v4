@@ -9,8 +9,9 @@ description: |
   Aeonik Pro display headlines, generous whitespace, photography-led hero
   bands, and full-width product mockups (cards, phones, terminals) shown as
   hero objects inside near-black sections. Most surfaces are either black or
-  off-white; pill-shaped buttons and rounded-12/20px content cards carry the
-  consumer-financial-app feel without crossing into playful territory.
+  off-white; one 12px radius on buttons, cards and inputs — square with rounded
+  edges, not roundish — carries the consumer-financial-app feel without
+  crossing into playful territory.
 
 colors:
   primary: "#494fdf"
@@ -169,47 +170,47 @@ components:
     backgroundColor: "{colors.canvas-light}"
     textColor: "{colors.canvas-dark}"
     typography: "{typography.button-md}"
-    rounded: "{rounded.full}"
+    rounded: "{rounded.md}"
     padding: 14px 28px
     height: 48px
   button-primary-pressed:
     backgroundColor: "{colors.faint}"
     textColor: "{colors.canvas-dark}"
     typography: "{typography.button-md}"
-    rounded: "{rounded.full}"
+    rounded: "{rounded.md}"
   button-dark:
     backgroundColor: "{colors.canvas-dark}"
     textColor: "{colors.on-dark}"
     typography: "{typography.button-md}"
-    rounded: "{rounded.full}"
+    rounded: "{rounded.md}"
     padding: 14px 28px
     height: 48px
   button-soft:
     backgroundColor: "{colors.surface-soft}"
     textColor: "{colors.ink}"
     typography: "{typography.button-md}"
-    rounded: "{rounded.full}"
+    rounded: "{rounded.md}"
     padding: 14px 28px
     height: 48px
   button-outline-light:
     backgroundColor: "{colors.canvas-light}"
     textColor: "{colors.ink}"
     typography: "{typography.button-md}"
-    rounded: "{rounded.full}"
+    rounded: "{rounded.md}"
     padding: 13px 27px
     height: 48px
   button-outline-dark:
     backgroundColor: "{colors.canvas-dark}"
     textColor: "{colors.on-dark}"
     typography: "{typography.button-md}"
-    rounded: "{rounded.full}"
+    rounded: "{rounded.md}"
     padding: 13px 27px
     height: 48px
   button-pill-sm:
     backgroundColor: "{colors.surface-soft}"
     textColor: "{colors.ink}"
     typography: "{typography.button-sm}"
-    rounded: "{rounded.full}"
+    rounded: "{rounded.md}"
     padding: 8px 16px
     height: 36px
   text-input:
@@ -235,25 +236,25 @@ components:
     backgroundColor: "{colors.canvas-light}"
     textColor: "{colors.ink}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.lg}"
+    rounded: "{rounded.md}"
     padding: 32px
   feature-card-dark:
     backgroundColor: "{colors.surface-elevated}"
     textColor: "{colors.on-dark}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.lg}"
+    rounded: "{rounded.md}"
     padding: 32px
   plan-card:
     backgroundColor: "{colors.surface-elevated}"
     textColor: "{colors.on-dark}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.lg}"
+    rounded: "{rounded.md}"
     padding: 32px
   plan-card-featured:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.on-primary}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.lg}"
+    rounded: "{rounded.md}"
     padding: 32px
   product-mockup:
     backgroundColor: "{colors.canvas-dark}"
@@ -271,13 +272,13 @@ components:
     backgroundColor: "{colors.surface-soft}"
     textColor: "{colors.ink}"
     typography: "{typography.caption}"
-    rounded: "{rounded.full}"
+    rounded: "{rounded.sm}"
     padding: 4px 12px
   badge-feature:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.on-primary}"
     typography: "{typography.caption}"
-    rounded: "{rounded.full}"
+    rounded: "{rounded.sm}"
     padding: 4px 12px
   nav-bar:
     backgroundColor: "{colors.canvas-dark}"
@@ -289,7 +290,7 @@ components:
     backgroundColor: "{colors.surface-elevated}"
     textColor: "{colors.on-dark}"
     typography: "{typography.button-sm}"
-    rounded: "{rounded.full}"
+    rounded: "{rounded.sm}"
     padding: 8px 16px
   footer:
     backgroundColor: "{colors.canvas-dark}"
@@ -318,7 +319,7 @@ slightly more mechanical precision.
 
 The brand accent is `{colors.primary}` (`#494fdf`) — a saturated cobalt
 violet — but it appears scarcely on marketing surfaces. The actual primary
-CTA on the hero is the **white pill on black** ("Choose your subscription"),
+CTA on the hero is the **white button on black** ("Choose your subscription"),
 and the cobalt violet is reserved for featured plan cards, secondary CTAs in
 white sections, and the brand glyph itself. A wide secondary palette of deep
 teal, light-blue, deep-pink, light-green, warning orange, and yellow appears
@@ -327,9 +328,9 @@ inside product mockups and feature illustrations — never as button surfaces.
 **Key Characteristics:**
 - Two-mode canvas system — `{colors.canvas-dark}` (true black) for storytelling, `{colors.canvas-light}` (white) for browsing — switched in full-bleed bands.
 - Display typography is **Aeonik Pro 500** at sizes 20–136px with tight `lineHeight: 1.0` and large negative letter-spacing on display sizes.
-- The actual primary CTA is `{component.button-primary}` — a **white pill with black text**, sitting on the dark canvas as the brightest pixel. Cobalt-violet `{colors.primary}` is reserved for featured plan cards and secondary CTAs.
+- The actual primary CTA is `{component.button-primary}` — a **white button with black text**, sitting on the dark canvas as the brightest pixel. Cobalt-violet `{colors.primary}` is reserved for featured plan cards and secondary CTAs.
 - Eight saturated accent colours live inside product mockups and illustrations only, never as button surfaces — teal, light-blue, deep-pink, light-green, warning orange, yellow, brown, danger red.
-- All buttons are pill-shaped (`{rounded.full}`); content cards use `{rounded.lg}` (20px); inputs and small chips use `{rounded.md}` (12px).
+- One radius language. Surfaces (cards, panels, sheets, modals) and controls (buttons, inputs, selects) share `{rounded.md}` (12px); small chips and badges use `{rounded.sm}` (8px); `{rounded.full}` is reserved for circles — avatars, status dots and round icon buttons stay round.
 - Photography is product-led — phone mockups, card mockups, terminal mockups — shown full-bleed inside dark sections with no caption overlay.
 
 ## Colors
@@ -404,7 +405,7 @@ When Aeonik Pro cannot be licensed, **Inter Display**, **General Sans**, or **S�
 | `{typography.body-sm}` | 14px | 400 | 1.43 | 0 | Captions, metadata. |
 | `{typography.button-lg}` | 20px | 500 | 1.4 | 0 | Hero CTAs (Aeonik Pro). |
 | `{typography.button-md}` | 16px | 600 | 1.5 | 0.24px | Default button label. |
-| `{typography.button-sm}` | 14px | 600 | 1.43 | 0 | Pill chips, sub-nav. |
+| `{typography.button-sm}` | 14px | 600 | 1.43 | 0 | Chips, sub-nav. |
 | `{typography.caption}` | 13px | 400 | 1.4 | 0 | Footer disclosure, regulatory text. |
 | `{typography.link-emph}` | 16px | 700 | 1.5 | 0.24px | Emphatic inline link in dark mode. |
 
@@ -461,11 +462,20 @@ The system has **no traditional drop-shadow language**. Surfaces register depth 
 | Token | Value | Use |
 |---|---|---|
 | `{rounded.none}` | 0px | Hero bands, full-bleed sections, footer. |
-| `{rounded.sm}` | 8px | Inline tags, small chips. |
-| `{rounded.md}` | 12px | Form inputs, download tiles. |
-| `{rounded.lg}` | 20px | Feature cards, plan cards. |
-| `{rounded.xl}` | 28px | Product mockup containers. |
-| `{rounded.full}` | 9999px | Buttons, pills, badges, tabs. |
+| `{rounded.sm}` | 8px | Inline tags, small chips, badges, keyboard chips. |
+| `{rounded.md}` | 12px | **The default.** Every surface (cards, panels, sheets, modals) and every control (buttons, inputs, selects, download tiles). |
+| `{rounded.lg}` | 20px | Photography chrome only — card mockups and lifestyle crops. Never a web surface or control. |
+| `{rounded.xl}` | 28px | Photography chrome only — phone and terminal mockup corners. |
+| `{rounded.full}` | 9999px | **Circles only** — avatars, status dots, spinners, round icon buttons. |
+
+**One radius language.** The product is *square with rounded edges, not
+roundish*: a surface and a control share one shape, `{rounded.md}` (12px), so a
+card and the button on it read as the same object at two sizes. Chips and
+badges drop to `{rounded.sm}` (8px). `{rounded.full}` means a circle and
+nothing else — an avatar, a status dot, a spinner or a round icon button is
+round and must never be squared, and conversely no button, card or input is a
+pill. `{rounded.lg}` and `{rounded.xl}` survive only as corners on photography,
+where the asset is an image rather than a CSS surface.
 
 ### Photography Geometry
 - Phone mockups: 9:19.5 (vertical) with `{rounded.xl}` corners on the device chrome.
@@ -478,29 +488,29 @@ The system has **no traditional drop-shadow language**. Surfaces register depth 
 ### Buttons
 
 **`button-primary`** — white CTA on dark
-- Background `{colors.canvas-light}`, label `{colors.canvas-dark}`, type `{typography.button-md}`, padding `14px 28px`, `rounded: {rounded.full}`, height 48px.
+- Background `{colors.canvas-light}`, label `{colors.canvas-dark}`, type `{typography.button-md}`, padding `14px 28px`, `rounded: {rounded.md}`, height 48px.
 - The brand's primary CTA, used on every dark hero band ("Choose your subscription", "Get started").
 - Pressed state lives in `button-primary-pressed` (background `{colors.faint}`).
 
 **`button-dark`** — dark CTA on light
-- Background `{colors.canvas-dark}`, label `{colors.on-dark}`, type `{typography.button-md}`, `rounded: {rounded.full}`.
+- Background `{colors.canvas-dark}`, label `{colors.on-dark}`, type `{typography.button-md}`, `rounded: {rounded.md}`.
 - The reverse-canvas equivalent of `{component.button-primary}` — used inside white catalogue bands.
 
 **`button-soft`** — soft surface CTA
-- Background `{colors.surface-soft}`, label `{colors.ink}`, type `{typography.button-md}`, `rounded: {rounded.full}`.
+- Background `{colors.surface-soft}`, label `{colors.ink}`, type `{typography.button-md}`, `rounded: {rounded.md}`.
 - Tertiary action in white-canvas regions ("Learn more", "View FAQs").
 
 **`button-outline-light`** — outlined CTA on light
-- Background `{colors.canvas-light}`, label `{colors.ink}`, 1px solid `{colors.hairline-strong}`, type `{typography.button-md}`, `rounded: {rounded.full}`.
+- Background `{colors.canvas-light}`, label `{colors.ink}`, 1px solid `{colors.hairline-strong}`, type `{typography.button-md}`, `rounded: {rounded.md}`.
 - Secondary action when paired with `{component.button-dark}`.
 
 **`button-outline-dark`** — outlined CTA on dark
-- Background `{colors.canvas-dark}`, label `{colors.on-dark}`, 1px solid `{colors.on-dark}`, type `{typography.button-md}`, `rounded: {rounded.full}`, padding `13px 27px`, height 48px.
+- Background `{colors.canvas-dark}`, label `{colors.on-dark}`, 1px solid `{colors.on-dark}`, type `{typography.button-md}`, `rounded: {rounded.md}`, padding `13px 27px`, height 48px.
 - Dark-canvas counterpart of `{component.button-outline-light}`; used inside dark hero bands as a tertiary action when paired with `{component.button-primary}`.
 
-**`button-pill-sm`** — small pill chip
-- Background `{colors.surface-soft}`, label `{colors.ink}`, type `{typography.button-sm}`, `rounded: {rounded.full}`, padding `8px 16px`, height 36px.
-- Sub-nav chips, filter pills.
+**`button-pill-sm`** — small soft chip (36px)
+- Background `{colors.surface-soft}`, label `{colors.ink}`, type `{typography.button-sm}`, `rounded: {rounded.md}`, padding `8px 16px`, height 36px.
+- Sub-nav chips, filter chips.
 
 ### Cards & Containers
 
@@ -513,19 +523,19 @@ The system has **no traditional drop-shadow language**. Surfaces register depth 
 - Used on product pages — phone or card mockup as the full-band canvas.
 
 **`feature-card-light`** — feature card on white
-- Background `{colors.surface-card}`, text `{colors.ink}`, 1px solid `{colors.hairline-light}`, type `{typography.body-md}`, `rounded: {rounded.lg}`, padding `{spacing.xxl}` (32px).
+- Background `{colors.surface-card}`, text `{colors.ink}`, 1px solid `{colors.hairline-light}`, type `{typography.body-md}`, `rounded: {rounded.md}`, padding `{spacing.xxl}` (32px).
 - Used in white catalogue bands for feature comparisons.
 
 **`feature-card-dark`** — feature card on dark
-- Background `{colors.surface-elevated}`, text `{colors.on-dark}`, type `{typography.body-md}`, `rounded: {rounded.lg}`, padding `{spacing.xxl}`.
+- Background `{colors.surface-elevated}`, text `{colors.on-dark}`, type `{typography.body-md}`, `rounded: {rounded.md}`, padding `{spacing.xxl}`.
 - Used inside dark storytelling sections.
 
 **`plan-card`** — subscription plan card
-- Background `{colors.surface-elevated}`, text `{colors.on-dark}`, type `{typography.body-md}`, `rounded: {rounded.lg}`, padding `{spacing.xxl}` (32px).
+- Background `{colors.surface-elevated}`, text `{colors.on-dark}`, type `{typography.body-md}`, `rounded: {rounded.md}`, padding `{spacing.xxl}` (32px).
 - Plan name in `{typography.heading-lg}` ("Standard", "Plus", "Premium", "Metal", "Ultra").
 
 **`plan-card-featured`** — featured plan card
-- Background `{colors.primary}`, text `{colors.on-primary}`, type `{typography.body-md}`, `rounded: {rounded.lg}`, padding `{spacing.xxl}`.
+- Background `{colors.primary}`, text `{colors.on-primary}`, type `{typography.body-md}`, `rounded: {rounded.md}`, padding `{spacing.xxl}`.
 - Cobalt-violet inversion of `{component.plan-card}` — used on the recommended tier.
 
 **`product-mockup`** — full-bleed product asset
@@ -552,16 +562,16 @@ The system has **no traditional drop-shadow language**. Surfaces register depth 
 - Same height 64px, collapses centre nav into a hamburger icon. Logo stays left, sign-in CTA stays right.
 
 **`sub-nav-pill`** — sub-nav chip
-- Pill chips set in a horizontal row inside dark sections (e.g. "Personal", "Business", "Premium"), `{component.sub-nav-pill}` styling.
+- Square chips with rounded edges (`{rounded.sm}`) set in a horizontal row inside dark sections (e.g. "Personal", "Business", "Premium"), `{component.sub-nav-pill}` styling.
 
 ### Signature Components
 
 **`badge-tag`** — neutral tag
-- Background `{colors.surface-soft}`, text `{colors.ink}`, type `{typography.caption}`, `rounded: {rounded.full}`, padding `4px 12px`.
+- Background `{colors.surface-soft}`, text `{colors.ink}`, type `{typography.caption}`, `rounded: {rounded.sm}`, padding `4px 12px`.
 - Inline tags inside feature cards.
 
 **`badge-feature`** — feature highlight badge
-- Background `{colors.primary}`, text `{colors.on-primary}`, type `{typography.caption}`, `rounded: {rounded.full}`, padding `4px 12px`.
+- Background `{colors.primary}`, text `{colors.on-primary}`, type `{typography.caption}`, `rounded: {rounded.sm}`, padding `4px 12px`.
 - "New", "Most popular" badges anchored on plan cards.
 
 **`footer`** — global footer
@@ -572,11 +582,11 @@ The system has **no traditional drop-shadow language**. Surfaces register depth 
 
 ### Do
 - Switch full bands between `{colors.canvas-dark}` (storytelling) and `{colors.canvas-light}` (catalogue). The two-mode rhythm is core.
-- Use `{component.button-primary}` (white pill on dark) as the primary CTA on every dark hero band. It's the brand's loudest action.
+- Use `{component.button-primary}` (white button on dark) as the primary CTA on every dark hero band. It's the brand's loudest action.
 - Reserve `{colors.primary}` for the featured plan card and the brand wordmark — the cobalt should feel like a deliberate stamp, not a colour theme.
 - Set hero headlines in **Aeonik Pro 500** at 80–136px with `lineHeight: 1.0` and large negative letter-spacing.
 - Use **Inter** for body, button labels, captions — never substitute Aeonik Pro for body type.
-- Apply `{rounded.full}` to every button and pill; `{rounded.lg}` (20px) to feature and plan cards; `{rounded.md}` (12px) to inputs.
+- Apply one radius language: `{rounded.md}` (12px) to every surface and control — feature and plan cards, panels, sheets, modals, buttons, inputs, selects; `{rounded.sm}` (8px) to chips and badges; `{rounded.full}` to circles only.
 - Show product mockups full-bleed inside dark sections — the asset IS the section.
 - Use the wide accent palette (`{colors.accent-teal}`, `{colors.accent-pink}`, `{colors.accent-light-green}`, etc.) inside product illustrations and iconography only.
 
@@ -589,6 +599,7 @@ The system has **no traditional drop-shadow language**. Surfaces register depth 
 - Don't loosen Aeonik Pro `lineHeight` past 1.0 on display sizes. Tight stacking is structural.
 - Don't bump body Inter to weight 500. Use 400 (default) or 600 (emphatic) — never the in-between.
 - Don't pair `{colors.canvas-dark}` with another dark surface beyond `{colors.surface-elevated}`. The surface ladder has only two dark steps.
+- Don't use a pill (`{rounded.full}`) on a button, card or input, and don't square a circle: avatars, status dots and round icon buttons stay `{rounded.full}`. The product is square with rounded edges, not roundish.
 
 ## Responsive Behavior
 
@@ -613,7 +624,7 @@ The system has **no traditional drop-shadow language**. Surfaces register depth 
 - Hero `{typography.display-xxl}` clamps: 136px → 80px → 64px → 48px across the breakpoint ladder.
 - Plan grid steps from 4-up to 2-up at < 1024px to 1-up at < 768px.
 - Product mockup bands maintain full-bleed at every breakpoint; the asset crops inward rather than letterboxing.
-- Sub-nav pills convert from a wrap row to a horizontal scroll-rail at < 768px.
+- Sub-nav chips convert from a wrap row to a horizontal scroll-rail at < 768px.
 
 ### Image Behavior
 - Phone and card mockups are served at 1.5× and 2× DPR; below 768px the system swaps to a smaller hero crop.
@@ -621,8 +632,8 @@ The system has **no traditional drop-shadow language**. Surfaces register depth 
 
 ## Iteration Guide
 
-1. Focus on ONE component at a time. Most surfaces share the `{colors.canvas-dark}` / `{colors.canvas-light}` pair with `{rounded.full}` for buttons and `{rounded.lg}` for cards.
-2. Reference component names and tokens directly (`{colors.primary}`, `{component.plan-card-featured}`, `{rounded.lg}`) — do not paraphrase.
+1. Focus on ONE component at a time. Most surfaces share the `{colors.canvas-dark}` / `{colors.canvas-light}` pair with `{rounded.md}` for surfaces and controls and `{rounded.sm}` for chips.
+2. Reference component names and tokens directly (`{colors.primary}`, `{component.plan-card-featured}`, `{rounded.md}`) — do not paraphrase.
 3. Run `npx @google/design.md lint DESIGN.md` after edits; orphaned-tokens warnings will catch unused entries.
 4. Add new variants as separate entries (`-pressed`, `-featured`, `-disabled`) — do not bury them in prose.
 5. Default body type to `{typography.body-md}` (Inter 400 with positive tracking); reach for `{typography.body-md-bold}` only on emphasis.

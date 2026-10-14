@@ -27,7 +27,7 @@ export function BalanceCard({ data }: BalanceCardProps) {
   return (
     <section
       aria-labelledby="balance-heading"
-      className="rounded-lg bg-canvas-dark p-6 text-on-dark sm:p-8"
+      className="rounded-md bg-canvas-dark p-6 text-on-dark sm:p-8"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">

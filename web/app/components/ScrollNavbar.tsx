@@ -57,7 +57,7 @@ export function ScrollNavbar() {
   return (
     <>
       <div className="fixed left-0 right-0 top-0 z-50 px-6 py-4">
-        <nav className="relative mx-auto flex h-16 max-w-5xl items-center justify-between rounded-lg border border-hairline-dark bg-canvas-dark/50 px-4 backdrop-blur-lg">
+        <nav className="relative mx-auto flex h-16 max-w-5xl items-center justify-between rounded-md border border-hairline-dark bg-canvas-dark/50 px-4 backdrop-blur-lg">
           <a href="#hero" className="flex items-center">
             <img src="/red-phoenix-mark.png" alt="Seti" className="h-10 w-auto" />
           </a>
@@ -84,7 +84,7 @@ export function ScrollNavbar() {
                 <SearchIcon className="h-4 w-4" />
                 <span className="hidden sm:inline">Search</span>
               </span>
-              <span className="hidden items-center gap-0.5 rounded bg-surface-elevated px-1.5 py-0.5 text-[10px] font-semibold text-on-dark-mute sm:flex">
+              <span className="hidden items-center gap-0.5 rounded-sm bg-surface-elevated px-1.5 py-0.5 text-[10px] font-semibold text-on-dark-mute sm:flex">
                 <CommandIcon className="h-3 w-3" />
                 <span>K</span>
               </span>
@@ -99,7 +99,7 @@ export function ScrollNavbar() {
              */}
             <Link
               href="/app"
-              className="inline-flex h-12 shrink-0 items-center rounded-full bg-canvas-light px-7 text-button font-semibold text-canvas-dark transition-opacity duration-200 hover:opacity-90 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-on-dark/60 focus:ring-offset-2 focus:ring-offset-canvas-dark"
+              className="inline-flex h-12 shrink-0 items-center rounded-md bg-canvas-light px-7 text-button font-semibold text-canvas-dark transition-opacity duration-200 hover:opacity-90 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-on-dark/60 focus:ring-offset-2 focus:ring-offset-canvas-dark"
             >
               Log in
             </Link>

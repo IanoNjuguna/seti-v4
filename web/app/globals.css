@@ -159,7 +159,7 @@
  *
  * There is deliberately no second token block here. The app's canonical
  * vocabulary IS this file's: `bg-canvas-light`, `text-ink`, `border-hairline-light`,
- * `rounded-lg`, `text-display-md`, `font-brand`. A parallel vocabulary under a
+ * `rounded-md`, `text-display-md`, `font-brand`. A parallel vocabulary under a
  * different prefix is how two systems start disagreeing about what "surface"
  * means, so the app adopts these names and the doc says what each one is for.
  *
@@ -172,8 +172,10 @@
  *    Depth comes from colour-blocking and luminance shifts
  *    (`canvas-dark` → `surface-elevated`), plus 1px hairlines. A drop shadow on
  *    a card is off-system, which is why `shadow-ambient` is gone.
- *  - **Radii:** cards/tiles `rounded-lg` (20px), inputs `rounded-md` (12px),
- *    every button and badge `rounded-full`.
+ *  - **Radii — one scale, three jobs.** Surfaces (cards, panels, sheets, modals)
+ *    and controls (buttons, inputs, selects) are `rounded-md` (12px); chips and
+ *    badges are `rounded-sm` (8px); `rounded-full` is reserved for CIRCLES —
+ *    avatars, status dots and round icon buttons stay round and are never squared.
  *  - **Typography:** display sizes are Aeonik Pro at 500 with negative tracking
  *    → `font-brand` (Space Grotesk) is the loaded substitute; body/UI is
  *    `font-sans` at 400/600 with positive tracking (the `text-*` tokens).

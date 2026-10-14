@@ -45,10 +45,10 @@ export function SignInCard({ onSignIn, error, source, pending }: SignInCardProps
       {source === 'dev' ? (
         <p className="text-body-sm text-mute">
           Local development session. Needs
-          <code className="mx-1 rounded-md bg-surface-soft px-1">DEV_BYPASS_AUTH=true</code>
+          <code className="mx-1 rounded-sm bg-surface-soft px-1">DEV_BYPASS_AUTH=true</code>
           and
-          <code className="mx-1 rounded-md bg-surface-soft px-1">NODE_ENV=development</code>
-          in <code className="rounded-md bg-surface-soft px-1">backend/.env</code> — and a backend
+          <code className="mx-1 rounded-sm bg-surface-soft px-1">NODE_ENV=development</code>
+          in <code className="rounded-sm bg-surface-soft px-1">backend/.env</code> — and a backend
           started <em>after</em> they were added, because it reads that file once at boot.
         </p>
       ) : null}

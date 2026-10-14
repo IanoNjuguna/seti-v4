@@ -19,7 +19,7 @@ import { Icon } from '@/components/ui/Icon';
  */
 export function EmptyActivity() {
   return (
-    <div className="mt-4 flex flex-col items-center gap-3 rounded-lg bg-surface-soft px-6 py-10 text-center">
+    <div className="mt-4 flex flex-col items-center gap-3 rounded-md bg-surface-soft px-6 py-10 text-center">
       <span
         aria-hidden="true"
         className="flex h-14 w-14 items-center justify-center rounded-full bg-canvas-light text-mute"

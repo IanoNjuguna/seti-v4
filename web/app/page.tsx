@@ -79,7 +79,7 @@ export default function Home() {
                 ["01", "Currency debasement", "Inflation and currency volatility erode money held in KES denominated accounts over time."],
                 ["02", "Global trade", "Receiving or sending money across countries takes days and high FX fees."],
               ].map(([num, title, desc]) => (
-                <div key={num} className="rounded-lg bg-surface-elevated p-8 transition-all duration-200 hover:-translate-y-0.5 hover:bg-surface-deep">
+                <div key={num} className="rounded-md bg-surface-elevated p-8 transition-all duration-200 hover:-translate-y-0.5 hover:bg-surface-deep">
                   <p className="text-display-sm font-mono font-medium text-on-dark-mute">{num}</p>
                   <p className="mt-4 text-heading-sm font-medium text-on-dark">{title}</p>
                   <p className="mt-2 text-body-md text-on-dark-mute">{desc}</p>
@@ -104,7 +104,7 @@ export default function Home() {
                 ["02", "Pay", "Straight from your wallet to theirs. No custodian in between, so there is no payout queue."],
                 ["03", "Settled", "Seconds, on Tempo. The 2% platform fee is charged once, inside the same transaction."],
               ].map(([num, title, desc]) => (
-                <div key={num} className="rounded-lg border border-hairline-light bg-surface-card p-8 transition-all duration-200 hover:-translate-y-0.5 hover:bg-surface-soft">
+                <div key={num} className="rounded-md border border-hairline-light bg-surface-card p-8 transition-all duration-200 hover:-translate-y-0.5 hover:bg-surface-soft">
                   <p className="text-display-sm font-mono font-medium text-stone">{num}</p>
                   <p className="mt-6 text-heading-sm font-medium text-ink">{title}</p>
                   <p className="mt-2 text-body-md text-body">{desc}</p>
@@ -130,7 +130,7 @@ export default function Home() {
               ].map(([name, role, desc, logo]) => (
                 <div
                   key={name}
-                  className="flex flex-col justify-between rounded-lg border border-hairline-light bg-surface-card p-8 transition-all duration-200 hover:-translate-y-0.5 hover:bg-surface-soft"
+                  className="flex flex-col justify-between rounded-md border border-hairline-light bg-surface-card p-8 transition-all duration-200 hover:-translate-y-0.5 hover:bg-surface-soft"
                 >
                   <div>
                     {logo ? (

@@ -17,7 +17,7 @@ export function ActivityDay({ group, onSelect }: ActivityDayGroupProps) {
         {group.label}
       </Text>
 
-      <ul className="mt-2 divide-y divide-hairline-light overflow-hidden rounded-lg border border-hairline-light">
+      <ul className="mt-2 divide-y divide-hairline-light overflow-hidden rounded-md border border-hairline-light">
         {group.transactions.map((transaction) => (
           <li key={transaction.id}>
             <TransactionRow

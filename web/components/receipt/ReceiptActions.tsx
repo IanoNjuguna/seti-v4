@@ -12,7 +12,7 @@ import type { ReceiptActionsProps } from './Receipt.types';
  * announces it without moving focus.
  */
 const ACTION_BUTTON =
-  'flex-1 rounded-full bg-surface-elevated px-3 py-2.5 text-body-sm font-semibold text-on-dark transition-colors hover:bg-charcoal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-dark/60';
+  'flex-1 rounded-md bg-surface-elevated px-3 py-2.5 text-body-sm font-semibold text-on-dark transition-colors hover:bg-charcoal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-dark/60';
 
 export function ReceiptActions({ actions }: ReceiptActionsProps) {
   return (

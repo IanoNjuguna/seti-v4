@@ -8,7 +8,7 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
 
 /**
  * `feature-card-light` from `design/revolut.md`: white on the white canvas, 1px
- * `hairline-light`, `rounded-lg` (20px), `spacing.xxl` (32px) padding.
+ * `hairline-light`, `rounded-md` (12px), `spacing.xxl` (32px) padding.
  *
  * No shadow, deliberately — the system has no drop-shadow language, so depth is
  * the hairline plus the canvas/soft colour blocking.
@@ -18,7 +18,7 @@ export function Card({ inset = false, className, ...props }: CardProps) {
     <div
       {...props}
       className={cn(
-        'rounded-lg p-8',
+        'rounded-md p-8',
         inset ? 'bg-surface-soft' : 'bg-surface-card border border-hairline-light',
         className
       )}

@@ -37,7 +37,7 @@ export function IntentOption({
       disabled={busy}
       aria-describedby={descriptionId}
       aria-busy={isSigning}
-      className="min-touch w-full rounded-lg border border-hairline-light bg-surface-card p-5 text-left transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-light disabled:cursor-not-allowed disabled:opacity-60"
+      className="min-touch w-full rounded-md border border-hairline-light bg-surface-card p-5 text-left transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-light disabled:cursor-not-allowed disabled:opacity-60"
     >
       <Text variant="card-title" as="span" className="block">
         {title}

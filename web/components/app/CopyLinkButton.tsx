@@ -32,7 +32,7 @@ export function CopyLinkButton({ link, caption }: CopyLinkButtonProps) {
         onClick={copy}
         aria-live="polite"
         aria-label={copyLinkAriaLabel(state, caption)}
-        className="mt-2 inline-flex min-touch items-center rounded-full border border-hairline-dark px-4 text-body-sm font-semibold text-on-dark-mute transition-colors duration-200 hover:text-on-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        className="mt-2 inline-flex min-touch items-center rounded-md border border-hairline-dark px-4 text-body-sm font-semibold text-on-dark-mute transition-colors duration-200 hover:text-on-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
         {copyLinkLabel(state)}
       </button>
