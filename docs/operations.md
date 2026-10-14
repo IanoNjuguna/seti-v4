@@ -206,3 +206,132 @@ npm ci  →  prisma generate  →  prisma migrate deploy (throwaway Postgres)  �
 So the only things CI requires are npm, a throwaway Postgres, and public internet
 access to the Tempo RPC. If a future suite needs a secret, that is a signal to
 reconsider the suite, not to add the secret.
+
+---
+
+## 7. Deploying the web app
+
+**Only `web/` is in scope.** It is a client-rendered Next.js app with no
+server-only APIs, so it fits Cloudflare's free tier. The **backend cannot move**
+and stays on its own host: the indexer is a long-running loop (Workers have no
+long-running processes; the free tier gives 5 cron triggers at 10 ms CPU each),
+and Prisma + Postgres would need Hyperdrive **plus** a driver adapter — D1 is
+SQLite, not Postgres. So the API keeps its host and the web app reaches it
+directly over `NEXT_PUBLIC_API_URL`.
+
+### 7.1 The adapter: `vinext`
+
+Cloudflare's Next.js guide now recommends **`vinext`** — a Vite plugin that
+reimplements the Next.js API surface — as the default way to run Next.js 16 on
+Workers, and keeps **`@opennextjs/cloudflare`** documented for compatibility
+gaps. This app takes the vinext path:
+
+- `npx vinext check` reports **100% compatible** (0 unsupported): only
+  `next/navigation`, `next/link`, `next/font/google`, App Router, Tailwind. No
+  server-only APIs, no `next/image`.
+- `vinext init` is non-destructive: `next dev` keeps working exactly as before,
+  so the Cloudflare path is additive.
+
+`web/wrangler.jsonc` is the Worker config — `main: vinext/server/fetch-handler`,
+static assets from `dist/client`, and the **required** `nodejs_compat`
+compatibility flag. The other config shape vinext can emit —
+`cloudflare.config.ts`, the typed `cf/config` variant from its non-legacy init —
+is **not used here**: nothing in this path reads it, and it is excluded in
+`web/tsconfig.json` so a stray copy cannot fail `tsc` (a build config that
+breaks the project's own gate is not deployable). If a future feature lands
+outside vinext's support matrix, switch to `@opennextjs/cloudflare` and follow
+its guide; nothing else here changes.
+
+### 7.2 Commands
+
+```bash
+npm install                                   # from the repo root, once
+
+npx vinext check                             # compatibility report (read-only, run inside web/)
+
+# Build the Worker. NEXT_PUBLIC_API_URL MUST be the public API URL.
+NEXT_PUBLIC_API_URL=https://api.seti.example npm run build:vinext --workspace web
+
+npm run preview:worker --workspace web        # run the built Worker locally (wrangler dev, port 8787)
+
+npm run deploy:vinext --workspace web         # OWNER ONLY — authenticated deploy
+```
+
+- **`build:vinext`** = the production build guard, then `vite build`, then
+  `next typegen`. Output: `dist/client` (assets) and `dist/server` (the Worker).
+  The last step is not padding: `vinext` and Next both write
+  `.next/types/routes.d.ts`, and `tsconfig.json` includes `.next/types/**`
+  (Next maintains that include), so a freshly built Worker would otherwise leave
+  `tsc` reading Next's `validator.ts` against vinext's `routes.d.ts` — three
+  "has no exported member" errors in the gate until the next `next dev` happened
+  to regenerate it. The build restores Next's generated types so the tree is
+  left consistent.
+- **`preview:worker`** runs `wrangler dev` against the built output on **8787**
+  (a spare port — 3000 and 4000 belong to the dev servers). This is the honest
+  local test: it executes the app in the real `workerd` runtime, which is what
+  the deploy will run.
+- **`deploy:vinext`** is the only step that needs a Cloudflare login. It is the
+  owner's to run; the gate and CI never invoke it.
+- **The docs site is separate and static.** `docs-site/` is its own Docusaurus
+  package; build it with `npm run build` in that directory and publish
+  `docs-site/build/` as a **Cloudflare Pages** static site. There is no Worker,
+  no adapter and no build-time secret in that path — Pages serves static files.
+
+CI is unaffected: `npm run verify` builds nothing, so no Cloudflare credential
+ever enters the pipeline.
+
+### 7.3 The three traps
+
+**1. `NEXT_PUBLIC_API_URL` is inlined at build time — a `vars` entry cannot fix
+it.** Next replaces every `process.env.NEXT_PUBLIC_*` in the client bundle with a
+literal at build time. Unset, `web/lib/api/api.constants.ts` falls back to
+`http://localhost:4000`, so a careless production build ships an app that talks
+to the developer's laptop and **nothing at runtime can correct it** — not a
+Wrangler `vars` entry, not an environment variable, because the value is already
+a string in the shipped JavaScript. (`web/dist/server/.dev.vars` shows the
+trap: it can carry the value for a local preview, but the client bundle already
+holds the literal.)
+
+So the build refuses. **`web/scripts/guard-production-env.mjs`** runs first in
+both `build` and `build:vinext` and **fails the build** when the variable is
+unset or resolves to localhost / a private address, naming the variable, the
+file it resolved from, and why it cannot be corrected after the build. It runs
+only as a build step — a development server is never blocked — and
+`npm run check:build-env` pins it (part of `npm run verify`). A bare
+`vite build` that bypasses the npm script is covered too: `vite.config.ts`
+registers the same guard as a build-only Vite plugin (`apply: "build"`, so
+`vite dev` is untouched).
+
+**2. `CORS_ALLOWED_ORIGINS` is mandatory in production.** The backend refuses to
+boot without it (`backend/src/config/env.ts`), because in production that list
+*is* the cross-origin policy: an empty one denies every browser origin and the
+deploy boots healthy and then 403s every call from the web app as an opaque
+browser CORS error. The deployed web app's origin — `https://<worker>.workers.dev`
+or the custom domain — must be on the list, **before** it is exercised.
+`npm run check:cors` proves the plumbing rather than trusting it: the real server
+is booted and driven by real `Origin` headers, an origin in the list is allowed,
+one missing from it is refused, changing the variable changes the verdict, and
+the production boot refusal still fires when it is unset.
+
+**3. `ALLOW_MAINNET` stays `false`.** This is a **practice deployment**: public,
+on **testnet** (Tempo Moderato, chain `42431`), `ALLOW_MAINNET=false` and the web
+app's `NEXT_PUBLIC_ALLOW_MAINNET=false`. A mainnet chain id without the flag is
+refused at module load on both sides — never default to mainnet for a public
+deploy, and treat the URL as a testnet sandbox, not a product launch. The flip is
+its own owner-run procedure (`internal/mainnet-flip.md`).
+
+### 7.4 What the free tier gives, and what to watch
+
+Workers Free is 100k requests/day, 10 ms CPU per request, 128 MB memory, 5 cron
+triggers at 10 ms CPU; Hyperdrive is included free; static assets from
+`dist/client` do not run the Worker at all. Because the app is client-rendered,
+per-request CPU is small — but **10 ms CPU** is the number to watch if SSR or a
+server route is ever added to this deploy, and the daily request cap is the limit
+to watch on a shared or spammed URL.
+
+**The deploy step is unproven.** No authenticated Cloudflare action was taken —
+the owner's account is not ours to touch — so what is proven is the build and the
+Worker running locally (`wrangler dev`, as above). The first `deploy:vinext` is
+the owner's, and it is the point at which the account, the Worker name and the
+custom domain are actually confirmed.
+
