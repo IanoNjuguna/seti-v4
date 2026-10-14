@@ -585,16 +585,29 @@ async function main() {
     process.exit(1);
   }
 
-  await prisma.wallet.upsert({
-    where: { userId_asset_status: { userId: user.id, asset: 'ousd', status: 'active' } },
-    update: { address: anchorSender },
-    create: {
-      userId: user.id,
-      chain: 'tempo',
-      asset: 'ousd',
-      address: anchorSender,
-    },
+  // The `(userId, asset, status)` unique selector is gone: `wallets` now allows
+  // any number of deprecated rows and enforces only one ACTIVE row per
+  // (userId, asset) — via a partial index Prisma cannot express as a unique
+  // selector. Look the ACTIVE row up and create it only when the fixture lacks
+  // one.
+  const existingActiveWallet = await prisma.wallet.findFirst({
+    where: { userId: user.id, asset: 'ousd', status: 'active' },
   });
+  if (existingActiveWallet) {
+    await prisma.wallet.update({
+      where: { id: existingActiveWallet.id },
+      data: { address: anchorSender },
+    });
+  } else {
+    await prisma.wallet.create({
+      data: {
+        userId: user.id,
+        chain: 'tempo',
+        asset: 'ousd',
+        address: anchorSender,
+      },
+    });
+  }
 
   // payoutAddress MUST be the transfer's real recipient, or reconciliation
   // correctly rejects the payment and the fee arithmetic is never reached.

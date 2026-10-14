@@ -75,7 +75,14 @@ model Wallet {
   user         User          @relation(fields: [userId], references: [id])
   transactions Transaction[]
 
-  @@unique([userId, asset, status])
+  // One ACTIVE wallet per (userId, asset) is enforced by a PARTIAL unique index
+  // (`wallets_userId_asset_active_key`), created in migration
+  // 20261013210000_wallet_one_active_per_asset. It is deliberately NOT expressed
+  // here: Prisma's schema cannot model `WHERE status = 'active'`, and the index
+  // it replaces — `@@unique([userId, asset, status])` — COUNTED the deprecated
+  // row, so deprecating the current active row on rotation collided with the
+  // deprecated row a previous rotation had left behind. Deprecated rows are
+  // history and must be unbounded; only the ACTIVE row is capped.
   @@unique([address])
   @@index([userId, status])
   @@map("wallets")

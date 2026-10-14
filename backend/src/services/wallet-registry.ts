@@ -171,10 +171,8 @@ export async function registerWallet(input: RegisterWalletInput) {
   // DEPRECATED row invisible here while it still held the address in the global
   // index. Re-registering that address therefore could never succeed: the guard
   // saw nothing, the insert hit the index, and the failure surfaced as a P2002
-  // naming `wallet.create()` rather than the collision. Dev login was broken
-  // exactly that way — its placeholder address was already held by a deprecated
-  // row for the same user — and any real rotation or recovery back to a prior
-  // address would have failed identically.
+  // naming `wallet.create()` rather than the collision. Any real rotation or
+  // recovery back to a prior address would have failed identically.
   const byAddress = await prisma.wallet.findUnique({
     where: { address: input.address },
   });
@@ -187,38 +185,57 @@ export async function registerWallet(input: RegisterWalletInput) {
     );
   }
 
-  // Stand down this user's other active wallet for the asset. `@@unique([userId,
-  // asset, status])` allows only one active row per asset, so this has to happen
-  // before either a reactivation or a fresh insert.
-  await prisma.wallet.updateMany({
-    where: {
-      userId: input.userId,
-      asset: input.asset,
-      status: 'active',
-      ...(byAddress ? { id: { not: byAddress.id } } : {}),
-    },
-    data: { status: 'deprecated' },
-  });
+  // One transaction: the stand-down and the write land together, so a failure
+  // part-way through (a competing registration, say) cannot leave the account
+  // with no active wallet at all.
+  return prisma.$transaction(async (tx) => {
+    // Stand down this user's OTHER active wallet(s).
+    //
+    // `wallets` allows at most one ACTIVE row per `(userId, asset)` — a PARTIAL
+    // unique index (`wallets_userId_asset_active_key`, migration
+    // 20261013210000_wallet_one_active_per_asset) — and any number of
+    // DEPRECATED rows per asset. It used to be unique over
+    // `(userId, asset, status)`, which COUNTED the deprecated row, so
+    // deprecating the current active row on rotation collided with the
+    // deprecated row a previous rotation had left behind. That is exactly the
+    // shape the dev account held, and it is why a fresh registration failed.
+    //
+    // The asset set also covers the row being reused, in case it is labelled
+    // with a different asset than the one being registered: reactivating it
+    // would otherwise leave that asset with two active rows.
+    const assets = byAddress ? [input.asset, byAddress.asset] : [input.asset];
 
-  if (byAddress) {
-    if (byAddress.status === 'active') return byAddress;
-
-    // Same owner, previously deprecated address coming back into service.
-    return prisma.wallet.update({
-      where: { id: byAddress.id },
-      data: { status: 'active' },
+    await tx.wallet.updateMany({
+      where: {
+        userId: input.userId,
+        asset: { in: assets },
+        status: 'active',
+        ...(byAddress ? { id: { not: byAddress.id } } : {}),
+      },
+      data: { status: 'deprecated' },
     });
-  }
 
-  return prisma.wallet.create({
-    data: {
-      userId: input.userId,
-      chain: input.chain,
-      asset: input.asset,
-      address: input.address,
-      keyId: input.keyId,
-      status: 'active',
-    },
+    if (byAddress) {
+      // Re-registering an address the account already holds is a no-op.
+      if (byAddress.status === 'active') return byAddress;
+
+      // Same owner, previously deprecated address coming back into service.
+      return tx.wallet.update({
+        where: { id: byAddress.id },
+        data: { status: 'active' },
+      });
+    }
+
+    return tx.wallet.create({
+      data: {
+        userId: input.userId,
+        chain: input.chain,
+        asset: input.asset,
+        address: input.address,
+        keyId: input.keyId,
+        status: 'active',
+      },
+    });
   });
 }
 

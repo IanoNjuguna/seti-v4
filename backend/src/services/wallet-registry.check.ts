@@ -21,8 +21,12 @@ import { registerWallet, resolveSigningWallet, resolveWalletAddress } from './wa
 
 const FIXTURE_EMAIL_A = 'check-wallet-a@seti.test';
 const FIXTURE_EMAIL_B = 'check-wallet-b@seti.test';
+const FIXTURE_EMAIL_C = 'check-wallet-c@seti.test';
 const ADDR_1 = `0x${'c0'.repeat(20)}`;
 const ADDR_2 = `0x${'c1'.repeat(20)}`;
+const ADDR_3 = `0x${'c2'.repeat(20)}`;
+const ADDR_4 = `0x${'c3'.repeat(20)}`;
+const ADDR_5 = `0x${'c4'.repeat(20)}`;
 
 let failures = 0;
 function check(label: string, actual: unknown, expected: unknown): void {
@@ -35,7 +39,7 @@ function check(label: string, actual: unknown, expected: unknown): void {
 
 async function cleanup() {
   const users = await prisma.user.findMany({
-    where: { email: { in: [FIXTURE_EMAIL_A, FIXTURE_EMAIL_B] } },
+    where: { email: { in: [FIXTURE_EMAIL_A, FIXTURE_EMAIL_B, FIXTURE_EMAIL_C] } },
     select: { id: true },
   });
   const ids = users.map((user) => user.id);
@@ -50,7 +54,7 @@ async function main() {
   // row points at where a customer's money lands; clobbering one is not a test
   // failure, it is a lost payout.
   const realBefore = await prisma.wallet.count({
-    where: { user: { email: { notIn: [FIXTURE_EMAIL_A, FIXTURE_EMAIL_B] } } },
+    where: { user: { email: { notIn: [FIXTURE_EMAIL_A, FIXTURE_EMAIL_B, FIXTURE_EMAIL_C] } } },
   });
 
   await cleanup();
@@ -109,6 +113,104 @@ async function main() {
     await prisma.wallet.count({ where: { userId: userA.id, status: 'active' } }),
     1
   );
+
+  // --- Pre-existing rows must never block a fresh registration ---------------
+  //
+  // Sign-in must work whatever the wallets table already holds. The dev
+  // account's real shape is the hard one: an ACTIVE row for `ousd` AND a
+  // DEPRECATED row for the SAME asset. `wallets` used to enforce uniqueness
+  // over `(userId, asset, status)` — which COUNTS the deprecated row — so a
+  // rotation (registering a new address, which deprecates the active one)
+  // collided with the deprecated row a PREVIOUS rotation had left behind and
+  // failed with a P2002 naming `wallet.create()`. The rule is now "at most one
+  // ACTIVE row per `(userId, asset)`" (a partial unique index), so deprecated
+  // rows are unbounded and a new registration always has room. These are the
+  // three shapes that used to break it.
+  const userC = await prisma.user.create({ data: { email: FIXTURE_EMAIL_C } });
+
+  // Case 2's precondition AND case 1's: the dev shape — one active, one
+  // deprecated, same asset. (Creating both is legal under both the old and the
+  // new rule; it is the REGISTRATION below that the old rule refused.)
+  const preexistingActive = await prisma.wallet.create({
+    data: { userId: userC.id, chain: 'tempo', asset: 'ousd', address: ADDR_3, status: 'active' },
+  });
+  const preexistingDeprecated = await prisma.wallet.create({
+    data: { userId: userC.id, chain: 'tempo', asset: 'ousd', address: ADDR_4, status: 'deprecated' },
+  });
+
+  // Case 1 (an existing ACTIVE row) + case 2 (a DEPRECATED row for the SAME
+  // asset): registering a NEW address must succeed and settle on exactly one
+  // active row, leaving the other two deprecated.
+  let fresh: Awaited<ReturnType<typeof registerWallet>> | null = null;
+  try {
+    fresh = await registerWallet({
+      userId: userC.id,
+      chain: 'tempo',
+      asset: 'ousd',
+      address: ADDR_5,
+    });
+  } catch (error) {
+    failures += 1;
+    console.log(
+      `FAIL  a new address registers past an active row and a deprecated row  ` +
+        `${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+
+  if (fresh) {
+    check('a new address registers despite a pre-existing active row', fresh.status, 'active');
+    check('and despite a deprecated row for the same asset', fresh.address, ADDR_5);
+    check(
+      'exactly one active row survives the registration',
+      await prisma.wallet.count({ where: { userId: userC.id, status: 'active' } }),
+      1
+    );
+    check(
+      'the previous active row is deprecated, not deleted',
+      (await prisma.wallet.findUniqueOrThrow({ where: { id: preexistingActive.id } })).status,
+      'deprecated'
+    );
+    check(
+      'the pre-existing deprecated row is left alone',
+      (await prisma.wallet.findUniqueOrThrow({ where: { id: preexistingDeprecated.id } })).status,
+      'deprecated'
+    );
+  }
+
+  // Case 3 (re-registration of an address already held): a no-op — the same row,
+  // still active, and no second row. This is the dev login path, which registers
+  // the address it already holds on every boot.
+  const rowsBeforeReRegister = await prisma.wallet.count({ where: { userId: userC.id } });
+  let reregistered: Awaited<ReturnType<typeof registerWallet>> | null = null;
+  try {
+    reregistered = await registerWallet({
+      userId: userC.id,
+      chain: 'tempo',
+      asset: 'ousd',
+      address: ADDR_5,
+    });
+  } catch (error) {
+    failures += 1;
+    console.log(
+      `FAIL  re-registering a held address is a no-op  ` +
+        `${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+
+  if (fresh && reregistered) {
+    check('re-registering a held address reuses its row', reregistered.id, fresh.id);
+    check('and it stays active', reregistered.status, 'active');
+    check(
+      'with no new row created',
+      await prisma.wallet.count({ where: { userId: userC.id } }),
+      rowsBeforeReRegister
+    );
+    check(
+      'no registration path left a second active row',
+      await prisma.wallet.count({ where: { userId: userC.id, status: 'active' } }),
+      1
+    );
+  }
 
   // --- Another user may not claim a registered address ---------------------
   let refused = false;
@@ -256,7 +358,7 @@ async function main() {
   await cleanup();
 
   const realAfter = await prisma.wallet.count({
-    where: { user: { email: { notIn: [FIXTURE_EMAIL_A, FIXTURE_EMAIL_B] } } },
+    where: { user: { email: { notIn: [FIXTURE_EMAIL_A, FIXTURE_EMAIL_B, FIXTURE_EMAIL_C] } } },
   });
   check('real wallets were not touched', realAfter, realBefore);
 
