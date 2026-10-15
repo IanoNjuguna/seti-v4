@@ -36,8 +36,6 @@ export interface UseRailIdentityReturn {
    * a name to nobody, is worse than the empty canvas it replaced.
    */
   signedIn: boolean;
-  /** The account the session resolves to, or null while unknown. */
-  signedInAs: string | null;
   /** The active mode's handle, or null while unknown and when the mode has no name. */
   handle: RailIdentityHandle | null;
   /** Where to go when the mode has no name — null while the names are unknown. */

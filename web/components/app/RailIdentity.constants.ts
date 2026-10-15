@@ -1,5 +1,3 @@
-import type { CopyLinkState } from './RailIdentity.types';
-
 /**
  * Copy for the identity card at the foot of the rail.
  *
@@ -10,21 +8,10 @@ import type { CopyLinkState } from './RailIdentity.types';
  */
 export const RAIL_IDENTITY_COPY = {
   signedInAs: 'Signed in as',
+  /** The control beside the name copies what a sender types — no `@`. */
+  copyHandle: 'Copy username',
+  /** The control beside the link copies the absolute URL. */
   copyLink: 'Copy link',
   copied: 'Copied',
-  copyBlocked: 'Copy blocked',
-  copyFailed: 'Select the link above to copy it.',
+  copyFailed: 'Select the value above to copy it.',
 } as const;
-
-/** The control's label per state — the state is said in words, never in colour. */
-export function copyLinkLabel(state: CopyLinkState): string {
-  if (state === 'copied') return RAIL_IDENTITY_COPY.copied;
-  if (state === 'failed') return RAIL_IDENTITY_COPY.copyBlocked;
-  return RAIL_IDENTITY_COPY.copyLink;
-}
-
-/** What the control copies, named for a reader who cannot see the caption. */
-export function copyLinkAriaLabel(state: CopyLinkState, caption: string): string {
-  const verb = state === 'copied' ? RAIL_IDENTITY_COPY.copied : RAIL_IDENTITY_COPY.copyLink;
-  return `${verb} ${caption}`;
-}

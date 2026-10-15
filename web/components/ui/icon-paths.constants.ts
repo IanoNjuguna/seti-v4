@@ -28,6 +28,9 @@ export const ICON_PATHS = {
   chevronRight: ['m9.5 5.5 6.5 6.5-6.5 6.5'],
   arrowRight: ['M4 12h15', 'm13 6 6 6-6 6'],
   close: ['m6 6 12 12', 'm18 6-12 12'],
+  /* Two sheets, sharp corners like the rest of the set: the front one whole, the
+     back one open on the edges the front covers. */
+  copy: ['M9 9h12v12H9z', 'M15 6V4.5A1.5 1.5 0 0 0 13.5 3h-9A1.5 1.5 0 0 0 3 4.5v9A1.5 1.5 0 0 0 4.5 15H6'],
   /* Status marks. The word beside them carries the meaning; these carry it to a
      reader who cannot see the colour. */
   check: ['m5 12.5 4.5 4.5L19 7.5'],
