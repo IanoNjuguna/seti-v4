@@ -33,16 +33,28 @@ export function ReceiveAddressPanel() {
   const { state } = useReceiveAddress();
 
   return (
-    <Card padding="sm">
-      {state.status === 'loading' ? (
-        <Text variant="body" as="p" color="secondary">
-          {ADDRESS_COPY.loading}
+    <div className="flex flex-col gap-3">
+      <Card padding="sm">
+        {state.status === 'loading' ? (
+          <Text variant="body" as="p" color="secondary">
+            {ADDRESS_COPY.loading}
+          </Text>
+        ) : state.status === 'ready' ? (
+          <AddressQrCard state={state} />
+        ) : (
+          <AddressFailure state={state} />
+        )}
+      </Card>
+
+      {/* The chain, named once, at the foot of the half — outside the card, because
+          it is context for the section rather than part of the address object. It
+          only stands when there IS an address: naming the network under a refusal
+          would read as "send anyway". */}
+      {state.status === 'ready' ? (
+        <Text variant="micro" as="p" color="secondary">
+          {ADDRESS_COPY.tempoNote(state.network)}
         </Text>
-      ) : state.status === 'ready' ? (
-        <AddressQrCard state={state} />
-      ) : (
-        <AddressFailure state={state} />
-      )}
-    </Card>
+      ) : null}
+    </div>
   );
 }

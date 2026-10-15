@@ -23,6 +23,16 @@
 export const RECEIVE_PAGE_COPY = {
   title: 'Receive money',
   loading: 'Loading your receive details',
+  /**
+   * Which half to use, said once, above the switch.
+   *
+   * The two labels ("By name" / "By address") name the mechanisms, not the
+   * choice — a person with a customer on the phone still has to guess which tab
+   * answers "where do I send this from?". One sentence, parallel, one clause per
+   * tab: the name works from another Seti account, the address works from any
+   * other wallet. That is the whole decision.
+   */
+  lead: 'Your name works from another Seti account. Your address works from any other wallet.',
   /** The two halves, named for what the SENDER has rather than for what the code is. */
   name: 'By name',
   address: 'By address',

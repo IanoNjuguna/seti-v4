@@ -19,14 +19,29 @@ import { NETWORK_LABEL, type Network } from '@/lib/network';
 export const ADDRESS_COPY = {
   loading: 'Finding your deposit address…',
   title: 'Send to this address',
-  /** Beside the code, in words. The chain is not left to the code alone. */
-  network: (network: Network) =>
-    `Send on ${NETWORK_LABEL[network]}. This is your ${NETWORK_LABEL[network]} deposit address.`,
   qrTitle: (network: Network) =>
     `Your ${NETWORK_LABEL[network]} deposit address, as a QR code a wallet can scan.`,
   copyAction: 'Copy address',
   copiedAction: 'Copied',
   copyFailed: 'Could not copy. Select the address and copy it by hand.',
+  /**
+   * The one line under the address half: which network to send on, and the chain
+   * behind it.
+   *
+   * It replaces "Send on Live. This is your Live deposit address." — the owner
+   * called that redundant and it was: the network twice in one breath, plus the
+   * word "deposit" on a surface called Receive. What survives is the half that
+   * carries a FACT a sender has to act on: an EVM address exists on every chain, so
+   * the network has to be said in words or the sender is guessing which one to send
+   * on. Said once, and then the chain itself — the word a sender needs when they
+   * ask "which network is this?".
+   *
+   * Practice and Live are the product's words for a network; Tempo is the name of
+   * the network. Neither is "testnet"/"mainnet" (the database's words), and no token
+   * is named (which stablecoin a sender picks is theirs to choose).
+   */
+  tempoNote: (network: Network) =>
+    `Send on ${NETWORK_LABEL[network]}. Money arrives on Tempo, in seconds.`,
   unavailable: (network: Network) =>
     `No ${NETWORK_LABEL[network]} address is registered for this account yet, so ` +
     'nothing is shown to send to. It is registered when you sign in, and signing in ' +

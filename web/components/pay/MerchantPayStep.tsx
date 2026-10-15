@@ -1,9 +1,9 @@
 'use client';
 
 import { Input, StateMessage } from '@/components/ui';
+import { FeeQuote } from '@/components/money/FeeQuote';
 import { MerchantCard } from './MerchantCard';
 import { PayActions } from './PayActions';
-import { PayPreviewSummary } from './PayPreviewSummary';
 import { PaySuccess } from './PaySuccess';
 import type { UsePayMerchantReturn } from '@/hooks/usePayMerchant.types';
 
@@ -92,9 +92,11 @@ export function MerchantPayStep({ payment, onCancel }: MerchantPayStepProps) {
         disabled={payment.isBusy}
       />
 
-      <PayPreviewSummary
+      <FeeQuote
         preview={payment.preview}
         loading={payment.previewLoading || payment.step === 'previewing'}
+        tone="light"
+        subject="payment"
       />
 
       {blockError ? (

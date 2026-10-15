@@ -86,11 +86,6 @@ export interface SendResolvedRecipientProps {
   recipient: HandleIdentity;
 }
 
-export interface SendFeeSummaryProps {
-  preview: SendPreview | null;
-  loading: boolean;
-}
-
 export interface SendFormProps {
   /** The amount field's label, with the customer's currency in it. */
   amountLabel: string;

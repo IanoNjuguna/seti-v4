@@ -1,6 +1,5 @@
 'use client';
 
-import { Text } from '@/components/ui';
 import { QrPlate } from '@/components/qr/QrPlate';
 import { CopyRow } from '@/components/copy/CopyRow';
 import { ADDRESS_COPY } from './address.constants';
@@ -27,9 +26,11 @@ import type { AddressQrCardProps } from './address.types';
  * line: the button was the largest thing in the card and said what the row already
  * said.
  *
- * The network line is the one sentence that stays INSIDE the card, because it is
- * the caption on this object ("send on Practice") rather than framing for the page.
- * Everything else that frames the page lives on the page (`ReceivePage`).
+ * The network line that used to sit here — "Send on Live. This is your Live deposit
+ * address." — is GONE (the owner called it redundant, and it said the network twice
+ * before saying it a third time in the QR's own title). The one sentence that
+ * remains stands under the card (`ReceiveAddressPanel`), outside it, where it is
+ * context for the half rather than a caption on this object.
  */
 export function AddressQrCard({ state }: AddressQrCardProps) {
   return (
@@ -49,10 +50,6 @@ export function AddressQrCard({ state }: AddressQrCardProps) {
           wrap
         />
       </div>
-
-      <Text variant="body" as="p" color="secondary">
-        {ADDRESS_COPY.network(state.network)}
-      </Text>
     </div>
   );
 }

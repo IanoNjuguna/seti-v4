@@ -3,8 +3,8 @@
 import type { FormEvent } from 'react';
 import { Text } from '@/components/ui';
 import { PracticeNote } from '@/components/app/PracticeNote';
+import { FeeQuote } from '@/components/money/FeeQuote';
 import { SEND_COPY } from './SendPanel.constants';
-import { SendFeeSummary } from './SendFeeSummary';
 import { SendField } from './SendField';
 import { SendResolvedRecipient } from './SendResolvedRecipient';
 import { SendSubmit } from './SendSubmit';
@@ -69,7 +69,7 @@ export function SendForm({
         disabled={busy}
       />
 
-      <SendFeeSummary preview={preview} loading={previewLoading} />
+      <FeeQuote preview={preview} loading={previewLoading} tone="dark" subject="send" />
 
       {/* What the money in the table above IS. On practice it is the one line on
           this screen that says the figures are not real, and it is directly under

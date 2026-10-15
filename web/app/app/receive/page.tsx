@@ -47,12 +47,13 @@ export default function ReceivePage() {
   );
 }
 
-/** This screen's own shape, so the placeholder does not promise another page's layout. */
+/** This screen's own shape: back, title, the line that tells you which half to use, the switch, then the half. */
 function ReceiveLoading() {
   return (
     <div className="flex flex-col gap-4" aria-busy aria-label={RECEIVE_PAGE_COPY.loading}>
       <Skeleton className="h-11 w-24" />
-      <Skeleton className="h-8 w-40" />
+      <Skeleton className="h-6 w-44" />
+      <Skeleton className="h-5 w-full max-w-md" />
       <Skeleton className="h-10 w-56" />
       <Skeleton className="h-48 w-full" />
     </div>
@@ -83,6 +84,9 @@ function ReceiveScreen() {
       <PageBack />
       <Text variant="section" as="h1">
         {RECEIVE_PAGE_COPY.title}
+      </Text>
+      <Text variant="body" color="secondary" as="p">
+        {RECEIVE_PAGE_COPY.lead}
       </Text>
 
       <ReceiveSwitch view={view} />
