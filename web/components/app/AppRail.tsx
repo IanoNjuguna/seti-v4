@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Text } from '@/components/ui';
 import { AppNavLink } from './AppNavLink';
 import { RailIdentityCard } from './RailIdentityCard';
+import { RailNetworkRow } from './RailNetworkRow';
 import { useAppNav } from './useAppNav';
 
 /**
@@ -34,13 +35,15 @@ export function AppRail() {
     >
       <Link
         href="/app"
-        className="mb-2 flex h-16 shrink-0 items-center gap-3 border-b border-hairline-dark px-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        className="mb-2 flex h-[var(--app-nav-bar)] shrink-0 items-center gap-3 border-b border-hairline-dark px-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
         <img src="/red-phoenix-mark.png" alt="" className="h-8 w-auto" />
         <Text variant="section" as="span" color="inverse" className="text-heading-md">
           Seti
         </Text>
       </Link>
+
+      <RailNetworkRow />
 
       <div className="flex flex-col gap-1">
         {items.map((item) => (

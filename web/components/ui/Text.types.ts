@@ -2,6 +2,8 @@ import type { AriaRole, ReactNode } from 'react';
 
 export type TextVariant =
   | 'balance'
+  | 'balance-compact'
+  | 'balance-tight'
   | 'section'
   | 'card-title'
   | 'body'
@@ -18,6 +20,13 @@ export type TextColor =
   | 'accent'
   | 'success'
   | 'warning'
+  /**
+   * The reserved warning-ORANGE product accent (`accent-warning`). Distinct from
+   * `warning`, which is the status role (`accent-yellow`) a caution line wears on
+   * a light card: this is the colour the chrome marks PRACTICE in on black, where
+   * yellow would read as a status and orange reads as a state of the account.
+   */
+  | 'attention'
   | 'alert';
 
 export interface TextProps {

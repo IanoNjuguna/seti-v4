@@ -119,6 +119,11 @@ export function deriveReceiptCard(
       label: receipt.status === 'confirmed' ? RECEIPT_COPY.confirmed : RECEIPT_COPY.failed,
       tone: statusTone(receipt),
     },
+    // The network rides on the card so a screenshot or a shared link says which
+    // chain moved the money. Falls back to the raw value if the backend did not
+    // send a label, rather than to a guess about which network it was.
+    networkLabel: receipt.networkLabel || receipt.network,
+    network: receipt.network,
     fee: feeLine(receipt, currency),
     explorerUrl: receipt.explorerUrl,
   };
@@ -137,6 +142,8 @@ export function buildReceiptText(receipt: ReceiptDocument, fallbackCurrency: str
 
   return [
     `Seti — Payment receipt`,
+    '',
+    `${RECEIPT_COPY.networkPrefix} ${card.networkLabel}`,
     '',
     card.word,
     card.figure,

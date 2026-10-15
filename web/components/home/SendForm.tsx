@@ -2,10 +2,10 @@
 
 import type { FormEvent } from 'react';
 import { Text } from '@/components/ui';
+import { PracticeNote } from '@/components/app/PracticeNote';
 import { SEND_COPY } from './SendPanel.constants';
 import { SendFeeSummary } from './SendFeeSummary';
 import { SendField } from './SendField';
-import { SendFormHeader } from './SendFormHeader';
 import { SendResolvedRecipient } from './SendResolvedRecipient';
 import { SendSubmit } from './SendSubmit';
 import type { SendFormProps } from './SendPanel.types';
@@ -47,8 +47,6 @@ export function SendForm({
 
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
-      <SendFormHeader />
-
       <SendField
         label={SEND_COPY.recipientLabel}
         hint={SEND_COPY.recipientHint}
@@ -72,6 +70,12 @@ export function SendForm({
       />
 
       <SendFeeSummary preview={preview} loading={previewLoading} />
+
+      {/* What the money in the table above IS. On practice it is the one line on
+          this screen that says the figures are not real, and it is directly under
+          the figures — the chrome's strip is 32px at the top of the page and this
+          is the screen people screenshot. */}
+      <PracticeNote surface="dark" />
 
       {/* A wallet, chain or server failure is not the customer's entry, so it is
           not rendered on a field — and it names what failed, not just that it did.

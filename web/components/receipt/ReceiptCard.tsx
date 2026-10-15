@@ -27,7 +27,7 @@ import type { ReceiptCardProps } from './Receipt.types';
 export function ReceiptCard({ card, shareUrl }: ReceiptCardProps) {
   return (
     <article className="text-on-dark">
-      <ReceiptLetterhead />
+      <ReceiptLetterhead network={card.network} networkLabel={card.networkLabel} />
       <ReceiptFigure word={card.word} figure={card.figure} titleId={RECEIPT_TITLE_ID} />
       <ReceiptPartyLine party={card.party} />
       <ReceiptWhen dateTime={card.dateTime} status={card.status} />

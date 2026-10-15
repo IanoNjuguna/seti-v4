@@ -1,4 +1,5 @@
 import type { ReceiptDocument } from '@/lib/api';
+import type { Network } from '@/lib/network';
 
 /** How a share attempt ended. Drives the confirmation, not the UI's shape. */
 export type ShareOutcome = 'shared' | 'copied' | 'failed' | 'dismissed';
@@ -35,6 +36,22 @@ export interface ReceiptCard {
   /** Date and time, on one line. */
   dateTime: string;
   status: ReceiptStatusLine;
+  /**
+   * The network's product word — Practice | Live.
+   *
+   * The card states it so a screenshot or a shared link is never ambiguous about
+   * which chain the money moved on.
+   */
+  networkLabel: string;
+  /**
+   * Which network it was, as the backend recorded it.
+   *
+   * `networkLabel` is a string the server may fall back to the raw `testnet` /
+   * `mainnet` value, so the card's own TREATMENT keys off this and not off the
+   * label's spelling: a practice receipt has to be marked as practice even when
+   * the label is the raw value.
+   */
+  network: Network;
   /** The one combined fee line, or null when no fee figure can be stated. */
   fee: ReceiptFeeLine | null;
   explorerUrl: string;

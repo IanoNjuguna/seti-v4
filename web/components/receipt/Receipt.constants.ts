@@ -80,6 +80,8 @@ export const RECEIPT_COPY = {
   json: 'JSON',
   confirmed: 'Confirmed',
   failed: 'Failed',
+  /** Prefixed to the network on the card and in every export. */
+  networkPrefix: 'Network:',
   loading: 'Loading receipt',
   errorTitle: "Couldn't load this receipt",
   retry: 'Try again',

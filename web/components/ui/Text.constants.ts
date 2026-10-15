@@ -20,6 +20,11 @@ export const VARIANT_CLASSES: Record<TextVariant, string> = {
   // of card, which 32px text overflows for a compact 8-char amount, so the number
   // broke mid-value — the one thing a balance must never do.
   balance: 'font-brand font-medium text-heading-md sm:text-display-md',
+  // The same figure, one step down per length. A balance must never be rounded and must
+  // never wrap mid-value, so the SIZE gives way as the number grows: the amount stays
+  // exactly what the ledger says, and the type shrinks to fit it.
+  'balance-compact': 'font-brand font-medium text-heading-sm sm:text-heading-md',
+  'balance-tight': 'font-brand font-medium text-heading-sm',
   // 20px / 1.4 / 500 — list headers ("Recent activity").
   section: 'font-brand font-medium text-heading-sm',
   // 16px / 600 / 0.16px — body-md-bold, the emphatic row title.
@@ -43,6 +48,8 @@ export const VARIANT_CLASSES: Record<TextVariant, string> = {
  */
 export const DEFAULT_COLOR_CLASSES: Record<TextVariant, string> = {
   balance: 'text-ink',
+  'balance-compact': 'text-ink',
+  'balance-tight': 'text-ink',
   section: 'text-ink',
   'card-title': 'text-ink',
   body: 'text-ink',
@@ -70,5 +77,8 @@ export const COLOR_CLASSES: Record<TextColor, string> = {
   accent: 'text-primary',
   success: 'text-accent-light-green',
   warning: 'text-accent-yellow',
+  // The doc's warning orange, used where the app marks a STATE rather than a
+  // problem — the practice marks on the frame and the rail.
+  attention: 'text-accent-warning',
   alert: 'text-accent-danger',
 };
