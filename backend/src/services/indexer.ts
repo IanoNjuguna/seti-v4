@@ -285,6 +285,35 @@ export async function indexOnce(chainKey: string = CHAIN_KEY): Promise<IndexPass
 }
 
 /**
+ * One line for a transport fault, the whole tree for anything else.
+ *
+ * A public RPC endpoint intermittently refuses a cold connection, and viem's
+ * `HttpRequestError` carries a forty-line cause tree — an `AggregateError` of
+ * per-address `ETIMEDOUT`s — that says nothing a reader can act on. What a reader
+ * CAN act on is which endpoint failed and what it said, so a transport fault is
+ * collapsed to that (including the provider's own words when it rejected the call,
+ * which is where a cap like "up to a 10 block range" appears). Everything else
+ * keeps its stack, because a stack is how it gets diagnosed.
+ */
+function logIndexerError(scope: 'indexer' | 'sweep', error: unknown): void {
+  const transport = error as {
+    url?: string;
+    shortMessage?: string;
+    message?: string;
+    cause?: { message?: string };
+  };
+
+  if (transport?.url) {
+    const detail =
+      transport.cause?.message ?? transport.shortMessage ?? transport.message ?? 'request failed';
+    console.error(`[${scope}] RPC ${transport.url} — ${detail}`);
+    return;
+  }
+
+  console.error(`[${scope}] error`, error);
+}
+
+/**
  * Starts the periodic indexer.
  *
  * No bootstrap RPC call is needed any more: the cursor is durable, so the
@@ -297,7 +326,7 @@ export function startIndexer(intervalMs = 15000) {
     try {
       await indexOnce();
     } catch (error) {
-      console.error('[indexer] error', error);
+      logIndexerError('indexer', error);
     }
 
     // Resolving stuck rows deliberately lives here rather than inside
@@ -322,7 +351,7 @@ export function startIndexer(intervalMs = 15000) {
         );
       }
     } catch (error) {
-      console.error('[sweep] error', error);
+      logIndexerError('sweep', error);
     }
   };
 
