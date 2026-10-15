@@ -9,11 +9,15 @@
  * pay immediately — without it the user signs in and has nothing to sign with.
  */
 import type { Chain } from 'viem';
-import { tempoChain } from '@/lib/chain';
+import { DEPLOYMENT_NETWORK, tempoChainFor } from '@/lib/chain';
+import type { Network } from '@/lib/network';
 
 export const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? '';
 
 export const PRIVY_LOGIN_METHODS = ['email'] as const;
+
+/** The network that is NOT the deployment's own — the one an account may switch to. */
+const OTHER_NETWORK: Network = DEPLOYMENT_NETWORK === 'mainnet' ? 'testnet' : 'mainnet';
 
 /**
  * The chains Privy's SDK is allowed to talk to, and the network the embedded
@@ -25,12 +29,33 @@ export const PRIVY_LOGIN_METHODS = ['email'] as const;
  * signature is requested. Tempo Moderato is not a "custom" chain for Privy: the
  * SDK imports `tempoModerato` from viem itself, it just has to be in this list.
  *
- * `tempoChain` is the repo's own chain object (`lib/chain`), so the RPC URL and
- * chain id stay the ones the rest of the app validates — not a second copy.
+ * The list carries BOTH networks, not just the served one. The SDK resolves a
+ * chain by id against this list, and the chain that gets signed is the ACCOUNT's
+ * (`chainConfigFor` in `lib/pay/build-transfer.ts`) — so a build that serves live
+ * must still have Moderato in the list for a practice account to sign at all.
+ * Including the other network cannot widen what may be signed: `chainConfigFor`
+ * refuses mainnet unless `NEXT_PUBLIC_ALLOW_MAINNET` is "true", so on a practice
+ * build the second entry simply does not exist.
+ *
+ * `defaultChain` stays the deployment's own network — the one to sit on before any
+ * account has answered.
  */
-export const PRIVY_SUPPORTED_CHAINS = [tempoChain] as unknown as Chain[];
+function supportedChains(): Chain[] {
+  const chains: Chain[] = [tempoChainFor(DEPLOYMENT_NETWORK)];
 
-export const PRIVY_DEFAULT_CHAIN = tempoChain as unknown as Chain;
+  try {
+    chains.push(tempoChainFor(OTHER_NETWORK));
+  } catch {
+    // The other network is not permitted in this build (mainnet with no opt-in).
+    // Absent from the list on purpose: the same guard that refuses to sign it.
+  }
+
+  return chains;
+}
+
+export const PRIVY_SUPPORTED_CHAINS = supportedChains();
+
+export const PRIVY_DEFAULT_CHAIN = tempoChainFor(DEPLOYMENT_NETWORK) as unknown as Chain;
 
 export const PRIVY_CONFIG = {
   // Spread into a mutable array: Privy's `PrivyClientConfig.loginMethods` is a

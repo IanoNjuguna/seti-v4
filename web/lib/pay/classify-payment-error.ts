@@ -46,7 +46,22 @@ export function classifyPaymentError(error: unknown): ClassifiedPaymentError {
     };
   }
 
-  if (text.includes('insufficient funds') || text.includes('exceeds balance')) {
+  // The token contract's own refusal, which is what a Tempo transfer that cannot
+  // be paid for actually returns:
+  //
+  //   Execution reverted with reason: TIP20 token error: InsufficientBalance(
+  //     InsufficientBalance { available: 0, required: 154172089, token: 0x20c0… })
+  //
+  // Before this case existed the text matched none of the markers below, so it fell
+  // through to the fallback and printed the whole revert — a Rust enum, a raw token
+  // amount and a contract address — on a payment screen. `available: 0` and
+  // `required` in base units are ours to translate, not the customer's to decode.
+  if (
+    text.includes('insufficientbalance') ||
+    text.includes('insufficient balance') ||
+    text.includes('insufficient funds') ||
+    text.includes('exceeds balance')
+  ) {
     return {
       kind: 'insufficient-funds',
       message: 'Not enough {ASSET} to cover this payment.',
@@ -63,11 +78,46 @@ export function classifyPaymentError(error: unknown): ClassifiedPaymentError {
     return { kind: 'rejected', message: 'Payment cancelled.' };
   }
 
+  // The wallet SDK refusing the chain. Privy reports `Unsupported chainId 42431`
+  // (PrivyConnectorError 4901) when the chain it is asked to sign for is not in
+  // `config.supportedChains`, and a connector mismatch when the wallet is sitting
+  // on a different chain than the transaction names. Both are one thing to the
+  // customer — this wallet cannot sign this transfer right now — and neither is
+  // retryable without something changing first.
+  if (
+    text.includes('unsupported chain') ||
+    text.includes('privyconnectorerror') ||
+    text.includes('chain mismatch') ||
+    text.includes('connectorchainmismatch')
+  ) {
+    return {
+      kind: 'unknown',
+      message: 'This wallet cannot sign for the network this transfer is on. Nothing was sent.',
+    };
+  }
+
+  // Nothing matched, and the customer gets the calm line rather than whatever the
+  // wallet or the node said. A vendor's phrasing in the middle of a payment screen
+  // is the failure this classifier exists to prevent — an unrecognised error is the
+  // case where that matters MOST, because it is the one nobody has translated yet.
+  //
+  // The cause still goes to the console. A refusal whose reason is invisible is a
+  // bug report with no evidence, and this branch is only reachable for an error no
+  // marker above recognises — so the log is the one place it can be found.
+  console.error('[payment] unclassified failure', error);
+
+  // And on a DEV build the cause also rides in the sentence, because a stack in a
+  // console the developer has not opened is the same as no evidence at all. Gated
+  // on NODE_ENV so a customer never sees it: the shipped line is the calm one, and
+  // an unclassified error is exactly the case where somebody has to see the raw
+  // text to add the marker it is missing.
+  const cause = error instanceof Error ? error.message : String(error ?? 'unknown error');
+
   return {
     kind: 'unknown',
     message:
-      error instanceof Error && error.message
-        ? error.message
-        : 'Payment failed. Please try again.',
+      process.env.NODE_ENV === 'production'
+        ? 'Payment failed. Please try again.'
+        : `Payment failed. Please try again. — dev: ${cause.split('\n')[0].slice(0, 180)}`,
   };
 }

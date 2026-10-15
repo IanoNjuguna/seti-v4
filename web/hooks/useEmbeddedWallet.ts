@@ -3,7 +3,8 @@
 import { useWallets } from '@privy-io/react-auth';
 import { useCallback, useMemo } from 'react';
 import type { Address, EIP1193Provider } from 'viem';
-import { tempoChain } from '@/lib/chain';
+import { tempoChainFor } from '@/lib/chain';
+import { useAppNetwork } from '@/components/app/useAppNetwork';
 import { PRIVY_APP_ID } from '@/components/providers/PrivyAppProvider.constants';
 import {
   NoEmbeddedWalletError,
@@ -20,6 +21,13 @@ import {
  */
 function usePrivyEmbeddedWallet(): EmbeddedWalletValue {
   const { wallets, ready } = useWallets();
+  /**
+   * The network the ACCOUNT is acting on. The wallet is switched to it before
+   * signing, so a practice account is not first moved onto the live chain — the
+   * deployment's chain is the wrong answer here for the same reason it is on the
+   * signing path itself.
+   */
+  const { network } = useAppNetwork();
 
   const wallet = useMemo(
     () => wallets.find((candidate) => candidate.walletClientType === 'privy') ?? wallets[0] ?? null,
@@ -34,14 +42,14 @@ function usePrivyEmbeddedWallet(): EmbeddedWalletValue {
       // another one, and signing for the wrong chain is a silent money bug. Not
       // fatal if it fails — the transaction carries its own chainId, and some
       // providers report the chain as already-set this way.
-      await wallet.switchChain(tempoChain.id);
+      await wallet.switchChain(tempoChainFor(network).id);
     } catch {
       // Fall through: the tx below is chain-specific anyway.
     }
 
     const provider = (await wallet.getEthereumProvider()) as EIP1193Provider;
     return { provider, address: wallet.address as Address };
-  }, [wallet]);
+  }, [wallet, network]);
 
   return {
     status: !ready ? 'loading' : wallet ? 'ready' : 'missing',

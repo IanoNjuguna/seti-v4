@@ -4,9 +4,16 @@ export {
   SUPPORTED_ASSETS,
   ASSET_DECIMALS,
   PRIMARY_ASSET,
+  DEPLOYMENT_SERVES_MAINNET,
+  DEPLOYMENT_NETWORK,
   network,
   tempoChain,
   getTokenContract,
   getExplorerTxUrl,
+  CHAIN_ID_FOR,
+  chainConfigFor,
+  tempoChainFor,
+  getTokenContractFor,
+  getExplorerTxUrlFor,
 } from './chain.constants';
 export type { NetworkConfig, SupportedAsset } from './chain.types';
