@@ -6,7 +6,6 @@ import { HomeActivity } from '@/components/home/HomeActivity';
 import { HomeGreeting } from '@/components/home/HomeGreeting';
 import { HomeLoading } from '@/components/home/HomeLoading';
 import { QuickActions } from '@/components/home/QuickActions';
-import { ScanPayCard } from '@/components/home/ScanPayCard';
 import { SignInCard } from '@/components/auth/SignInCard';
 import { useSession } from '@/lib/auth';
 import { mapRecentToUiTransaction, useHomeData } from '@/hooks/useHomeData';
@@ -45,7 +44,8 @@ export default function HomePage() {
   if (error && !data) {
     return (
       <StateMessage
-        tone="alert"
+        variant="failure"
+        padding="sm"
         title="Could not load account"
         body={error}
         action={<Button onClick={refetch}>Try Again</Button>}
@@ -71,7 +71,6 @@ export default function HomePage() {
         <BalanceCard data={data} />
       </div>
       <QuickActions />
-      <ScanPayCard />
 
       <HomeActivity transactions={transactions} />
     </div>

@@ -1,66 +1,48 @@
 'use client';
 
-import { useCallback, useState } from 'react';
-import { Text } from '@/components/ui';
-import { useEmbeddedWallet } from '@/hooks/useEmbeddedWallet';
+import { Card, Text } from '@/components/ui';
+import { AddressFailure } from './address/AddressFailure';
+import { AddressQrCard } from './address/AddressQrCard';
+import { ADDRESS_COPY } from './address/address.constants';
+import { useReceiveAddress } from './address/useReceiveAddress';
 
 /**
- * Where to send money to — the body of `/app/deposit`.
+ * The "by address" half of Receive: where money from OUTSIDE Seti arrives.
  *
- * In a non-custodial app there is no "add money" — nothing is added, it arrives.
- * So this is a receive address, not a form: the user's own embedded wallet on
- * Tempo, with one instruction and a copy button.
+ * In a non-custodial app there is no "add money" — nothing is added, it arrives. So
+ * this is a receive address, not a form: one address, the code a wallet scans, the
+ * network said in words, and a copy control.
  *
- * The address comes from the embedded wallet rather than an API call, because
- * the browser is the only side that knows it at the moment it matters (Privy
- * creates it at login, and `POST /auth/verify` registers that same address).
+ * THE ADDRESS IS THE SERVER'S, and that is the change this surface exists to make.
+ * It used to render the browser's own embedded wallet, which cannot know which
+ * network the deployment serves: a stale build, or a client whose chain was
+ * switched, would state the wrong CHAIN to send on — and the wrong network view the
+ * deposit would land in — which is the whole of what the network label and the
+ * EIP-681 chain id are for. It renders what `GET /account/deposit` answers for the
+ * network THIS DEPLOYMENT SERVES, and refuses to render anything when the browser
+ * and the server disagree (`useReceiveAddress`, which states each refusal as its own
+ * type).
  *
- * This is a whole surface now, not a panel inside the balance card, so the page's
- * Back control is the way out — in every state, including the ones with no
- * address yet. Those states still render inside the same well: a receive address
- * that is still being found is not a reason to show a different surface.
+ * A WHITE card, like the name half beside it in the switch: the two halves are one
+ * surface now, and a dark well on one half and a white card on the other read as
+ * two different products in the same tab. The loading and failure states render
+ * inside the same card — an address that is still being found is not a reason to
+ * change the shape of the page.
  */
-export function DepositPanel() {
-  const { address, status } = useEmbeddedWallet();
-  const [copied, setCopied] = useState(false);
-
-  const copy = useCallback(() => {
-    if (!address) return;
-    void navigator.clipboard.writeText(address).then(() => {
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    });
-  }, [address]);
-
-  const message =
-    status === 'loading'
-      ? 'Finding your wallet…'
-      : address
-        ? null
-        : 'No wallet yet. Sign in with Privy and one is created for you.';
+export function ReceiveAddressPanel() {
+  const { state } = useReceiveAddress();
 
   return (
-    <div className="rounded-md bg-surface-elevated p-4">
-      {message ? (
-        <p className="text-body-sm text-on-dark-mute">{message}</p>
+    <Card padding="sm">
+      {state.status === 'loading' ? (
+        <Text variant="body" as="p" color="secondary">
+          {ADDRESS_COPY.loading}
+        </Text>
+      ) : state.status === 'ready' ? (
+        <AddressQrCard state={state} />
       ) : (
-        <>
-          <Text variant="micro" as="p" color="inverse-muted">
-            Send to this address
-          </Text>
-          <code className="mt-2 block break-all font-mono text-body-sm text-on-dark">
-            {address}
-          </code>
-          <button
-            type="button"
-            onClick={copy}
-            aria-live="polite"
-            className="mt-3 rounded-md bg-canvas-light px-5 py-2 text-body-sm font-semibold text-canvas-dark transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-dark/60"
-          >
-            {copied ? 'Copied' : 'Copy address'}
-          </button>
-        </>
+        <AddressFailure state={state} />
       )}
-    </div>
+    </Card>
   );
 }
