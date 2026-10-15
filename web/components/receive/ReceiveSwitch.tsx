@@ -3,32 +3,31 @@
 import Link from 'next/link';
 import { cn } from '@/lib/cn';
 import { RECEIVE_PAGE_COPY } from './ReceivePage.constants';
-import type { ReceiveSwitchProps, ReceiveView } from './ReceivePage.types';
-
-/** The two halves, in the order they are offered. */
-const VIEWS: ReceiveView[] = ['name', 'address'];
+import type { ReceiveSwitchProps } from './ReceivePage.types';
 
 /**
- * Which half of Receive is on screen: the name a Seti account can send to, or the
- * address that works from any wallet.
+ * Which half of Receive is on screen: the username a Seti account can send to, the
+ * address that works from any wallet, or the business name a customer pays.
  *
- * Two choices in one control rather than two cards on one page, because the two
+ * The halves are a SWITCH rather than three sets of codes on one page, because the
  * codes look alike and mean different things: a person holding the phone up must
- * never be able to scan the address when they meant the name. One code per frame.
+ * never be able to show the address when they meant the username. One code per
+ * frame.
  *
  * It is LINKS, not buttons, and the state lives in the URL (`?view=`). That is what
  * keeps a reload, a bookmark and an old `/app/deposit` link landing on the half
- * they refer to instead of resetting to the first one — and the control can only
- * ever show one of the two, so there is no third state to get wrong.
+ * they refer to instead of resetting to the first one — and the page only ever
+ * renders a half that exists, so there is no state the switch can display without a
+ * body behind it.
  *
  * The marks follow the Profile network switch: the chosen half is the dark block,
- * the other is `surface-soft`. Colour is never the only signal — `aria-current`
- * says which one is current, and both are labelled in words.
+ * the others are `surface-soft`. Colour is never the only signal — `aria-current`
+ * says which one is current, and every option is labelled in words.
  */
-export function ReceiveSwitch({ view }: ReceiveSwitchProps) {
+export function ReceiveSwitch({ view, views }: ReceiveSwitchProps) {
   return (
     <div role="group" aria-label={RECEIVE_PAGE_COPY.title} className="flex flex-wrap gap-2">
-      {VIEWS.map((option) => {
+      {views.map((option) => {
         const active = view === option;
 
         return (

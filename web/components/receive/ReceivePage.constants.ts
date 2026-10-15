@@ -1,40 +1,34 @@
 /**
- * The receive page's own words.
+ * Every word `/app/receive` renders around its halves.
  *
- * The page carries the FRAMING — its title, which half is which, and the sentence
- * that explains the half on screen — while each card carries only the objects that
- * half hands over. That split is deliberate: the first version of this surface put
- * a heading, a paragraph and a code inside one card, and the card then sat under a
- * page heading that said the same thing, so one screen stated the same fact four
- * times and every card was a wall to read before it could be used.
+ * The page's own framing — title, the lead that tells a person which half to use,
+ * and the three labels on the switch.
  *
- * `nameLead` is the name half's sentence, moved out of the card verbatim. It is the
- * owner's wording and it names the three things that half hands over — the code, the
- * name, the link — in the order they appear on it.
- *
- * The address half has no lead sentence on purpose: its card states the network in
- * words ("Send on Practice. This is your Practice deposit address."), which is the
- * only thing a person must read there, and repeating it above the code would be the
- * same clutter in a different place.
- *
- * Practice | Live and never "testnet"/"mainnet": those are the database's words,
- * not a customer's.
+ * The LEAD earns its place: "By name" and "By address" name a mechanism, not a
+ * choice, so a person with a customer on the phone still has to guess where to
+ * send from. One sentence, one clause per route, and it names all three by the
+ * thing the SENDER has: another Seti account can pay the username or the merchant
+ * name, any other wallet can only pay the address.
  */
 export const RECEIVE_PAGE_COPY = {
   title: 'Receive money',
   loading: 'Loading your receive details',
   /**
-   * Which half to use, said once, above the switch.
-   *
-   * The two labels ("By name" / "By address") name the mechanisms, not the
-   * choice — a person with a customer on the phone still has to guess which tab
-   * answers "where do I send this from?". One sentence, parallel, one clause per
-   * tab: the name works from another Seti account, the address works from any
-   * other wallet. That is the whole decision.
+   * Which half to use, said once, above the switch. "Your username and merchant
+   * name" rather than "your name" because a business account holds both and would
+   * otherwise read the lead as being about the other one.
    */
-  lead: 'Your name works from another Seti account. Your address works from any other wallet.',
-  /** The two halves, named for what the SENDER has rather than for what the code is. */
-  name: 'By name',
-  address: 'By address',
-  nameLead: 'Send them your qr code, user name, or address link.',
+  lead: 'Your username and merchant name work from another Seti account. Your address works from any other wallet.',
+  /** The three halves, in the order they are offered, named for what the sender has. */
+  name: 'Your username',
+  address: 'Your address',
+  merchant: 'Your merchant name',
+  /**
+   * The username half's line. Scanning leads, because it is the one a sender can do
+   * without typing — and the only one that opens the recipient's app directly. The
+   * two typed routes follow in the order they are drawn below the code.
+   */
+  nameLead: 'Let them scan your QR code or send them your username or link.',
+  /** The merchant half's line, same shape, said to a customer instead of a friend. */
+  merchantLead: 'Let them scan your QR code or send them your business link.',
 } as const;

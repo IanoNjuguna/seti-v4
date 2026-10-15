@@ -42,6 +42,13 @@ export const ADDRESS_COPY = {
    */
   tempoNote: (network: Network) =>
     `Send on ${NETWORK_LABEL[network]}. Money arrives on Tempo, in seconds.`,
+  /**
+   * The file a saved address code writes. The network is in the name because an
+   * address is per-network and a folder holding two of them should say which is
+   * which — in the product's own word for it, never the database's.
+   */
+  qrFilename: (network: Network) =>
+    `seti-${NETWORK_LABEL[network].toLowerCase()}-address-qr.png`,
   unavailable: (network: Network) =>
     `No ${NETWORK_LABEL[network]} address is registered for this account yet, so ` +
     'nothing is shown to send to. It is registered when you sign in, and signing in ' +

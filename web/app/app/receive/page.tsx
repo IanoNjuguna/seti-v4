@@ -4,8 +4,10 @@ import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { PageBack } from '@/components/app/PageBack';
 import { SignInCard } from '@/components/auth/SignInCard';
+import { useAccountIdentity } from '@/lib/account';
 import { ReceiveAddressPanel } from '@/components/receive/ReceiveAddressPanel';
-import { ReceiveNameCard } from '@/components/receive/ReceiveNameCard';
+import { ReceiveMerchantHalf } from '@/components/receive/ReceiveMerchantHalf';
+import { ReceiveNameHalf } from '@/components/receive/ReceiveNameHalf';
 import { RECEIVE_PAGE_COPY } from '@/components/receive/ReceivePage.constants';
 import { ReceiveSwitch } from '@/components/receive/ReceiveSwitch';
 import { Skeleton, Text } from '@/components/ui';
@@ -15,25 +17,30 @@ import type { ReceiveView } from '@/components/receive/ReceivePage.types';
 /**
  * Receive — `/app/receive`.
  *
- * The one place money arrives, in two halves: BY NAME (another Seti account sends
- * to the handle or the link) and BY ADDRESS (a wallet outside Seti sends to this
- * account's own Tempo address). They were two surfaces — a card on Home and the old
- * `/app/deposit` page — and the pair was a hazard, because the two codes look alike
- * and mean different things: a person could hand out an address when they meant a
- * name, and an address is per-network while a name is not.
+ * The one place money arrives, in halves: BY NAME (another Seti account sends to
+ * the username or the link), BY ADDRESS (a wallet outside Seti sends to this
+ * account's own Tempo address), and BY MERCHANT NAME once the account holds a
+ * business name (a customer pays that name). They were separate surfaces — a card
+ * on Home and the old `/app/deposit` page — and the set was a hazard, because the
+ * codes look alike and mean different things: a person could hand out an address
+ * when they meant a name, and an address is per-network while a name is not.
  *
- * One page with a switch, so the choice is made once, in words, BEFORE either code
- * is on screen. One code per frame, always — the reason the halves are not two
- * cards stacked on one page.
+ * One page with a switch, so the choice is made once, in words, BEFORE any code is
+ * on screen. One code per frame, always — the reason the halves are not three cards
+ * stacked on one page.
  *
- * The PAGE carries the framing (title, the switch, the lead sentence) and the cards
- * carry the objects. That is the balance this surface was rebuilt for: the old
- * deposit page put a heading, a paragraph, a code, an address and a button inside
- * one dark well, so the card was a wall to read and the page around it said nothing.
+ * The PAGE carries every word: the title, the lead sentence for the half that is
+ * showing, the switch, and the chain line under the address. The halves carry the
+ * objects. There are no cards left here on purpose — a card that carries its own
+ * explanation and then sits under a heading that says the same thing is how this
+ * surface ended up with four lines of prose around one code.
  *
- * The view lives in the URL (`?view=name|address`), and `?view=address` is what the
- * old `/app/deposit` link redirects to — a bookmark or a printed QR pointing at the
- * deposit page still lands on the address rather than resetting to the name half.
+ * The view lives in the URL (`?view=name|address|merchant`), and `?view=address` is
+ * what the old `/app/deposit` link redirects to — a bookmark or a printed QR
+ * pointing at the deposit page still lands on the address rather than resetting to
+ * the username half. A view the account cannot offer (a merchant name it does not
+ * hold) falls back to the username half rather than rendering a tab with nothing
+ * behind it.
  *
  * The `Suspense` boundary is required, not decorative: `useSearchParams` inside a
  * route that is prerendered as static content fails the build without one (the pay
@@ -62,9 +69,10 @@ function ReceiveLoading() {
 
 function ReceiveScreen() {
   const session = useSession();
-  const view: ReceiveView = useSearchParams().get('view') === 'address' ? 'address' : 'name';
+  const { identity, loading: identityLoading } = useAccountIdentity();
+  const requested = useSearchParams().get('view');
 
-  if (session.status === 'loading') {
+  if (session.status === 'loading' || identityLoading) {
     return <ReceiveLoading />;
   }
 
@@ -79,6 +87,10 @@ function ReceiveScreen() {
     );
   }
 
+  const business = identity?.handles.find((candidate) => candidate.kind === 'business');
+  const views: ReceiveView[] = business ? ['name', 'address', 'merchant'] : ['name', 'address'];
+  const view: ReceiveView = views.find((option) => option === requested) ?? 'name';
+
   return (
     <div className="flex flex-col gap-4">
       <PageBack />
@@ -89,17 +101,21 @@ function ReceiveScreen() {
         {RECEIVE_PAGE_COPY.lead}
       </Text>
 
-      <ReceiveSwitch view={view} />
+      <ReceiveSwitch view={view} views={views} />
 
-      {view === 'name' ? (
+      {view === 'address' ? (
+        <ReceiveAddressPanel />
+      ) : (
         <>
           <Text variant="body" color="secondary" as="p">
-            {RECEIVE_PAGE_COPY.nameLead}
+            {view === 'merchant' ? RECEIVE_PAGE_COPY.merchantLead : RECEIVE_PAGE_COPY.nameLead}
           </Text>
-          <ReceiveNameCard />
+          {view === 'merchant' && business ? (
+            <ReceiveMerchantHalf name={business.name} handle={business.handle} />
+          ) : (
+            <ReceiveNameHalf />
+          )}
         </>
-      ) : (
-        <ReceiveAddressPanel />
       )}
     </div>
   );

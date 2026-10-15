@@ -51,10 +51,6 @@ export type AddressFailureState = Extract<
   { status: 'wrong-network' | 'address-mismatch' | 'unavailable' | 'unreachable' }
 >;
 
-export interface AddressQrCardProps {
-  state: AddressReadyState;
-}
-
 export interface AddressFailureProps {
   state: AddressFailureState;
 }
