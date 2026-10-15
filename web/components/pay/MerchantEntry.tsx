@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Button, Card, Input, Text } from '@/components/ui';
+import { Button, Card, Input } from '@/components/ui';
 
 export interface MerchantEntryProps {
   onResolve: (payload: string) => void;
@@ -19,32 +19,35 @@ export interface MerchantEntryProps {
  * accepts the same three formats the QR carries.
  *
  * Parsing happens server-side (`GET /merchants/resolve`), so this component sends
- * the string verbatim and reports whatever the backend says. Accepted formats are
- * shown as a hint because an unparseable string is the most likely user error.
+ * the string verbatim and reports whatever the backend says.
+ *
+ * The placeholder is a merchant's name as a person would type it (`kfc`), NOT a
+ * `seti://` URL. A scheme in the placeholder was the first thing it showed, and it
+ * read as the only accepted input — which the field's own label refuses ("Merchant
+ * name or link"), and which is the opposite of what a sticker-carrying merchant
+ * types. A real name, lower case as handles are, shows the field's everyday use.
+ *
+ * The card is the FORM ONLY. The heading above it belongs to the page
+ * (`PayHeading`), because the same words are the page's title once a merchant
+ * resolves — see that component. It also used to carry a second set of
+ * instructions under the field ("Accepts a name, or a seti:// link.") echoing the
+ * sentence already above it: two lines saying one thing, which is what made this
+ * card read as three levels of the same note. One instruction, one field, one
+ * action.
  */
 export function MerchantEntry({ onResolve, error, disabled }: MerchantEntryProps) {
   const [payload, setPayload] = useState('');
 
   return (
     <Card className="space-y-4">
-      <div>
-        <Text variant="section" as="h2">
-          Pay merchant
-        </Text>
-        <Text variant="micro" as="p" className="mt-1">
-          Type the merchant’s name, or paste the link they gave you.
-        </Text>
-      </div>
-
       <Input
         label="Merchant name or link"
-        placeholder="seti://merchant?name=…"
+        placeholder="kfc"
         autoCapitalize="none"
         autoCorrect="off"
         spellCheck={false}
         value={payload}
         onChange={(event) => setPayload(event.target.value)}
-        hint="Accepts a name, or a seti:// link."
         error={error ?? undefined}
         disabled={disabled}
         onKeyDown={(event) => {

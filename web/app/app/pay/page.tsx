@@ -6,9 +6,11 @@ import { SignInCard } from '@/components/auth/SignInCard';
 import { MerchantCard } from '@/components/pay/MerchantCard';
 import { MerchantEntry } from '@/components/pay/MerchantEntry';
 import { PayActions } from '@/components/pay/PayActions';
+import { PayHeading } from '@/components/pay/PayHeading';
+import { PAY_HEADING_COPY } from '@/components/pay/PayHeading.constants';
 import { PayPreviewSummary } from '@/components/pay/PayPreviewSummary';
 import { PaySuccess } from '@/components/pay/PaySuccess';
-import { Input, Skeleton, StateMessage, Text } from '@/components/ui';
+import { Input, Skeleton, StateMessage } from '@/components/ui';
 import { usePayMerchant } from '@/hooks/usePayMerchant';
 import { useSession } from '@/lib/auth';
 
@@ -35,19 +37,37 @@ import { useSession } from '@/lib/auth';
  * `formKey` exists because the entry field owns its own local state: bumping the
  * key on cancel remounts it empty, which is cheaper and less error-prone than
  * pushing the payload up into this component just to clear it.
+ *
+ * Two layout notes, because both were measurable defects:
+ *
+ *  - **The heading belongs to the page** (`PayHeading`), so the title is the
+ *    same words at the same level in the same place before and after a merchant
+ *    resolves. It used to live inside the entry card and then outside it, and
+ *    moved up the screen mid-flow.
+ *  - **The body is one `gap-6` ladder** (24px `spacing.xl`), with 4px inside a
+ *    heading pair. It used to be a flat 16px between every element, which left the
+ *    title, the merchant, the amount and the quote all equally far apart — a list
+ *    of controls rather than a sequence of decisions.
  */
 export default function PayPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="space-y-4">
-          <Skeleton className="h-40 w-full" />
-          <Skeleton className="h-24 w-full" />
-        </div>
-      }
-    >
+    <Suspense fallback={<PayLoading />}>
       <PayScreen />
     </Suspense>
+  );
+}
+
+/** The screen's own shape, used for both boundaries. */
+function PayLoading() {
+  return (
+    <div className="flex flex-col gap-6" aria-busy aria-label="Loading the pay screen">
+      <div>
+        <Skeleton className="h-6 w-40" />
+        <Skeleton className="mt-1 h-4 w-56" />
+      </div>
+      <Skeleton className="h-40 w-full" />
+      <Skeleton className="h-24 w-full" />
+    </div>
   );
 }
 
@@ -58,12 +78,7 @@ function PayScreen() {
   const [formKey, setFormKey] = useState(0);
 
   if (session.status === 'loading') {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-40 w-full" />
-        <Skeleton className="h-24 w-full" />
-      </div>
-    );
+    return <PayLoading />;
   }
 
   if (!session.isAuthenticated) {
@@ -78,7 +93,26 @@ function PayScreen() {
   }
 
   if (payment.step === 'done') {
-    return <PaySuccess txHash={payment.txHash} onDone={() => payment.reset()} />;
+    const preview = payment.preview;
+    return (
+      <PaySuccess
+        txHash={payment.txHash}
+        onDone={() => payment.reset()}
+        summary={
+          preview && payment.merchant
+            ? {
+                merchant: payment.merchant.name,
+                amountFiat: preview.fiatAmount,
+                feeFiat: preview.feeFiat,
+                networkFeeFiat: preview.networkFeeFiat,
+                totalFiat: preview.totalFiat,
+                fiatCurrency: preview.fiatCurrency,
+                gasEstimated: preview.networkFeeSource === 'estimate',
+              }
+            : null
+        }
+      />
+    );
   }
 
   const handleCancel = () => {
@@ -88,9 +122,15 @@ function PayScreen() {
 
   // No merchant yet: the entry form is the whole screen, and any error at this
   // point can only be a resolution failure.
+  //
+  // The entry instruction is the pay card's sentence, passed as the heading's
+  // subtitle: it says what to type, and it sits exactly where the card was —
+  // above the field, in the page's own voice rather than in a box of its own.
+  // Its wording is the owner's (`PAY_HEADING_COPY`), not the card's verbatim.
   if (!payment.merchant) {
     return (
-      <div className="space-y-4">
+      <div className="flex flex-col gap-6">
+        <PayHeading subtitle={PAY_HEADING_COPY.entrySubtitle} />
         <MerchantEntry
           key={formKey}
           onResolve={(payload) => void payment.resolve(payload)}
@@ -118,15 +158,8 @@ function PayScreen() {
   const blockError = payment.error && !amountError ? payment.error : null;
 
   return (
-    <div className="space-y-4">
-      <div>
-        <Text variant="section" as="h2">
-          Pay merchant
-        </Text>
-        <Text variant="micro" as="p" className="mt-1">
-          {payment.merchant.category ?? 'Enter the amount to send.'}
-        </Text>
-      </div>
+    <div className="flex flex-col gap-6">
+      <PayHeading subtitle={payment.merchant.category ?? 'Enter the amount to send.'} />
 
       <MerchantCard merchant={payment.merchant} resolving={payment.step === 'resolving'} />
 
@@ -146,7 +179,15 @@ function PayScreen() {
       />
 
       {blockError ? (
-        <StateMessage tone="alert" title="Payment not sent" body={blockError} />
+        <StateMessage
+          variant="failure"
+          title="Payment not sent"
+          /* The question a failed payment has to answer is "did my money move?".
+             No broadcast means no: say so. Once a transaction hash exists the
+             money DID move and only the recording failed, so nothing is added —
+             the code's own sentence already sends the customer to their wallet. */
+          body={payment.txHash ? blockError : `${blockError} Nothing left your wallet.`}
+        />
       ) : null}
 
       <PayActions
