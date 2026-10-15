@@ -8,8 +8,6 @@
  * "Seti takes 2%", which only became true when the fee leg was wired up.
  */
 export const SEND_COPY = {
-  title: 'Send to a wallet',
-  subtitle: 'To a person, not a merchant code.',
   recipientLabel: 'Their address or username',
   recipientHint: 'A 0x address, or a Seti username like javahouse.',
   /** Only used before the dashboard's currency reaches the panel. */
@@ -18,7 +16,7 @@ export const SEND_COPY = {
   submit: 'Send',
   receiptTitle: 'Transfer sent',
   another: 'Send another',
-  /** Same two wallet states `DepositPanel` names, in the same words. */
+  /** Same two wallet states `ReceiveAddressPanel` names, in the same words. */
   findingWallet: 'Finding your wallet…',
   noWallet: 'No wallet yet. Sign in with Privy and one is created for you.',
   /** What the fee is, and that it is taken — charged once, no separate approval. */

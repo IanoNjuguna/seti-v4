@@ -53,5 +53,4 @@ export interface QuickAction {
 export const QUICK_ACTIONS: QuickAction[] = [
   { key: 'receive', label: 'Receive', icon: 'add', href: '/app/receive' },
   { key: 'send', label: 'Send', icon: 'send', href: '/app/send' },
-  { key: 'pay', label: 'Pay', icon: 'scan', href: '/app/pay' },
 ];

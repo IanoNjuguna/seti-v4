@@ -29,15 +29,21 @@ export interface SendPanelProps {
  * This is a whole surface now, not a panel inside the balance card, so the page's
  * Back control is the way out — in every state. The amount field's currency is read
  * from the customer's own dashboard by `useUserCurrency`.
+ *
+ * The PANEL is the amount step's body, and the HEADING belongs to the flow above
+ * it (`/app/send`'s own `h1` and its progress bar). It used to render a heading of
+ * its own — "Send to a wallet / To a person, not a merchant code." — which was a
+ * second title under the flow's, and was simply WRONG once paying a merchant became
+ * this flow's business case. The form itself is unchanged.
  */
 export function SendPanel({ initialRecipient }: SendPanelProps) {
   const panel = useSendPanel(initialRecipient);
   const currency = useUserCurrency(true);
 
   return (
-    <div className="rounded-md bg-surface-elevated p-4">
+    <div className="space-y-4 rounded-md bg-surface-elevated p-4">
       {panel.walletStatus !== 'ready' ? (
-        <Text variant="micro" as="p" color="inverse-muted">
+        <Text variant="body" as="p" color="inverse-muted">
           {panel.walletStatus === 'loading' ? SEND_COPY.findingWallet : SEND_COPY.noWallet}
         </Text>
       ) : panel.sent ? (
