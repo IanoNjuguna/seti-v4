@@ -50,6 +50,17 @@ model User {
   /// a reversible one. It never gates anything: a user with this column set and
   /// no handle is still, correctly, not onboarded.
   intent        String     @default("personal")
+  /// Which NETWORK the account is acting on: `testnet` (Practice) or `mainnet`
+  /// (Live). A per-account PREFERENCE, server-decided and stored — never taken
+  /// from a client. Switching to `mainnet` is refused with a stated reason until
+  /// the deployment is mainnet-ready (`config/networks.ts`), and on the switch
+  /// the account's existing handles receive FIRST REFUSAL on the live network.
+  ///
+  /// Rows (Wallet, Handle, Transaction) carry their OWN network; this column only
+  /// answers which network the account is ACTING on right now, the way `intent`
+  /// answers which mode. It is a session property: a request is served under it,
+  /// so a client-supplied chain id has nothing to override.
+  network       String     @default("testnet")
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
@@ -67,6 +78,12 @@ model Wallet {
   chain     String // "tempo"
   asset     String // "ousd", "usdc.e", etc.
   address   String
+  /// The network this wallet belongs to: `testnet` (Practice) or `mainnet`
+  /// (Live). A wallet row is an address ON A NETWORK — the same key can be
+  /// registered for practice and for live, and a live deposit address is usually
+  /// a DIFFERENT key, funded from another wallet. Every uniqueness rule on this
+  /// table is scoped by it.
+  network   String       @default("testnet")
   status    WalletStatus @default(active)
   keyId     String? // opaque reference to KMS/HSM key; never the raw key
   createdAt DateTime     @default(now())
@@ -75,16 +92,22 @@ model Wallet {
   user         User          @relation(fields: [userId], references: [id])
   transactions Transaction[]
 
-  // One ACTIVE wallet per (userId, asset) is enforced by a PARTIAL unique index
-  // (`wallets_userId_asset_active_key`), created in migration
-  // 20261013210000_wallet_one_active_per_asset. It is deliberately NOT expressed
+  // One ACTIVE wallet per (userId, asset, network) is enforced by a PARTIAL
+  // unique index (`wallets_userId_asset_<network>_active_key`), created in
+  // migration 20261014090000_network_scope. It is deliberately NOT expressed
   // here: Prisma's schema cannot model `WHERE status = 'active'`, and the index
   // it replaces — `@@unique([userId, asset, status])` — COUNTED the deprecated
   // row, so deprecating the current active row on rotation collided with the
   // deprecated row a previous rotation had left behind. Deprecated rows are
   // history and must be unbounded; only the ACTIVE row is capped.
-  @@unique([address])
+  //
+  // The SAME rule is now scoped by `network`: one active row per asset PER
+  // NETWORK, so an account can hold a practice wallet and a live wallet at once.
+  // `address` is also unique PER NETWORK (a partial unique index, one per
+  // network), NOT globally — the same key may be registered for practice and for
+  // live, and the same address on two chains is two rows.
   @@index([userId, status])
+  @@index([network, userId, status])
   @@map("wallets")
 }
 
@@ -105,13 +128,44 @@ model Wallet {
 /// username cannot be replayed to claim a merchant name, or the reverse.
 model Handle {
   id             String    @id @default(cuid())
-  /// The ONE namespace key — lowercased, `[a-z0-9._-]`, unique across people and
-  /// businesses. Computed by `handleOf` in `lib/merchant-name.ts`, which the web
-  /// mirrors in `lib/merchant-link.ts`. STORED and UNIQUE because the rule DROPS
-  /// characters: `Mama's Grill` and `Mamas Grill` are two distinct NAMES that
-  /// reduce to one handle, and only a stored unique column makes
-  /// `seti.live/<x>/<handle>` unambiguous about who is paid.
-  handle         String    @unique
+  /// The ONE namespace key — lowercased, `[a-z0-9._-]`.
+  ///
+  /// Uniqueness is TWO rules, and which applies depends on `kind`:
+  ///
+  ///  - `kind = 'person'` — GLOBAL, across every network. A person's username is
+  ///    one name for one account on both Practice and Live, so a DIFFERENT account
+  ///    cannot take it on the other network (impersonation in the exact surface
+  ///    where the name is the trust signal). Enforced by the partial unique index
+  ///    `handles_person_handle_key`, created in migration
+  ///    `20261014140000_global_person_handles` — Prisma cannot express `WHERE`, so
+  ///    it is not declared here.
+  ///  - `kind = 'business'` — PER NETWORK (`handles_handle_<network>_key`, from
+  ///    migration 20261014090000_network_scope), and every kind still collides
+  ///    WITHIN one network.
+  ///
+  /// WHY A BUSINESS NAME STAYS PER NETWORK (the owner's ruling, 2026-10-14): when
+  /// KYB lands, the real merchant carries a VERIFIED MARK, so a squatter holding
+  /// `kfc` is visually distinguishable from the real one on the page a customer
+  /// pays from. The namespace is not the trust mechanism for a business — the
+  /// verification badge is. So the string may legitimately exist twice, once per
+  /// network, while a person's name must not. Do not "fix" this by making business
+  /// handles global: that would take a practice merchant's name away on live and
+  /// decide a question the owner has deliberately left open (what a practice
+  /// business name should mean on live).
+  ///
+  /// Computed by `handleOf` in `lib/merchant-name.ts`, which the web mirrors in
+  /// `lib/merchant-link.ts`. STORED and UNIQUE because the rule DROPS characters:
+  /// `Mama's Grill` and `Mamas Grill` are two distinct NAMES that reduce to one
+  /// handle, and only a stored unique column makes `seti.live/<x>/<handle>`
+  /// unambiguous about who is paid.
+  handle         String
+  /// `testnet` | `mainnet` — the network this claim is BOUND on.
+  ///
+  /// For a BUSINESS handle that is its scope: it resolves there and nowhere else.
+  /// For a PERSON handle it is PROVENANCE, not scope: the signature was made for
+  /// that network's EIP-712 domain, and the name itself is global (see `handle`
+  /// above) — it resolves and is honoured on both networks.
+  network        String    @default("testnet")
   /// `person` | `business` — a profile mode on the handle, not an identity.
   kind           String    @default("business")
   /// The username a person typed, or a business's name. Same rule for both.
@@ -141,7 +195,9 @@ model Handle {
   /// The business profile, when `kind = 'business'`. A person has none.
   merchantId     String?   @unique
   /// Brand-review state: NULL for a normal handle, `pending` for a claim whose
-  /// name matched a HELD BRAND (see `lib/held-brands.ts`).
+  /// name matched a HELD BRAND (see `lib/held-brands.ts`), and `reserved` for a
+  /// live-side hold that gives the SAME ACCOUNT first refusal on a name it already
+  /// holds while practising.
   ///
   /// Deliberately a second, SEPARATE state from verification. `verified` is
   /// recomputed from the signature on every read and is not stored; this column
@@ -151,6 +207,13 @@ model Handle {
   /// payer who resolves it gets a name that does not exist. It never reads as
   /// verified while parked. Refusing a parked claim deletes the row, freeing the
   /// string; the reason is recorded in `audit_logs` (`handle.brand.refused`).
+  ///
+  /// `reserved` is the same kind of invisible hold, for a different reason: on the
+  /// switch to live, a name the account holds while practising is written on the
+  /// live network SOLELY to hold its string for that account (no signature yet, so
+  /// it does not verify and does not resolve). A live claim of that string by
+  /// ANOTHER account is `handle-taken`; the holding account re-claims it with a
+  /// fresh live signature, which is what makes it live.
   reviewStatus   String?
   /// The held brand the name matched, as spelled on the list — so a parked row
   /// can name, later, what the claimer has to send. Informational.
@@ -162,7 +225,9 @@ model Handle {
   merchant Merchant? @relation(fields: [merchantId], references: [id])
 
   @@index([userId])
+  @@index([handle])
   @@index([name])
+  @@index([network, handle])
   /// The reviewer's queue: every parked claim (`reviewStatus = 'pending'`).
   @@index([reviewStatus])
   @@map("handles")
@@ -233,6 +298,12 @@ model Transaction {
   id            String            @id @default(cuid())
   userId        String
   walletId      String
+  /// The network this movement happened on: `testnet` (Practice) or `mainnet`
+  /// (Live). Activity is scoped by it, so a practice top-up can never appear
+  /// beside a live payment — and, because `txHash` uniqueness is scoped by it
+  /// too, the same transaction hash on two chains is two rows rather than a
+  /// collision.
+  network       String            @default("testnet")
   type          TransactionType
   status        TransactionStatus @default(pending)
   amount        Decimal           @db.Decimal(24, 8)
@@ -277,7 +348,9 @@ model Transaction {
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
-  // One row per user per on-chain transfer.
+  /// Activity is read per network, newest first.
+  @@index([network, userId, createdAt])
+  // One row per user per on-chain transfer PER NETWORK.
   //
   // `txHash` alone used to be unique, which meant one transfer could only ever have
   // ONE ledger row — written by whoever recorded it first, always the sender. A
@@ -285,7 +358,12 @@ model Transaction {
   // money, and the recipient's side had nowhere to go. Scoping the uniqueness to
   // the user lets both sides exist while still refusing to record the same transfer
   // twice for one account.
-  @@unique([txHash, userId])
+  //
+  // Scoping it ALSO by network is what keeps practice and live apart: the same hash
+  // can legitimately exist on two chains, and without the network in the key the
+  // second chain's row would collide with the first's — cross-contaminating two
+  // ledgers that must never mix.
+  @@unique([txHash, userId, network])
   @@map("transactions")
 }
 
@@ -346,11 +424,16 @@ enum KycTier {
   tier_2
 }
 
-/// Durable indexer progress, one row per chain.
+/// Durable indexer progress, ONE ROW PER NETWORK (keyed by the network's chain
+/// name, e.g. "tempo-testnet").
 ///
 /// The cursor lives in Postgres rather than process memory so that a restart
 /// resumes where it left off instead of re-scanning, and so that two backend
 /// replicas cannot both advance the same cursor independently.
+///
+/// Per-network is what keeps practice and live apart: testnet's progress is not
+/// mainnet's, so the two cursors advance INDEPENDENTLY and neither can drag the
+/// other forward or backwards.
 model IndexerCursor {
   /// Chain name, e.g. "tempo-testnet". Part of the primary key: switching
   /// networks gets its own cursor rather than inheriting an incompatible one.

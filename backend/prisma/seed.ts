@@ -1,7 +1,26 @@
 import { prisma } from '../src/lib/prisma.js';
 import { merchantHandle } from '../src/lib/merchant-name.js';
+import { servedNetwork } from '../src/config/networks.js';
 
+/**
+ * The demo dataset.
+ *
+ * Seeded on the network this deployment SERVES (`servedNetwork`), because that
+ * is where the app runs: a fresh deployment's demo rows belong on its own
+ * network, and seeding them onto the deployment's nominal default would put
+ * them somewhere the running server cannot see.
+ *
+ * The wallet and handle writes are find-then-create rather than `upsert`, and
+ * that is deliberate: `Wallet.address` and `Handle.handle` are unique PER NETWORK
+ * — partial unique indexes (migration 20261014090000_network_scope) that Prisma
+ * cannot express, so it cannot build the `WHERE` clause an `upsert` needs. A
+ * global-unique `upsert` on either column no longer compiles, and relying on one
+ * is exactly the bug this seed used to carry. The find is scoped by network, the
+ * same way `registerWallet` and `claimHandle` scope theirs.
+ */
 async function main() {
+  const network = servedNetwork;
+
   const user = await prisma.user.upsert({
     where: { email: 'demo@seti.app' },
     update: {},
@@ -10,19 +29,26 @@ async function main() {
       phone: '+254****5678',
       firstName: 'Demo',
       lastName: 'User',
+      network,
     },
   });
 
-  const wallet = await prisma.wallet.upsert({
-    where: { address: '0x2dea7ad32bab196b7606be88f636093d6b5b1890' },
-    update: {},
-    create: {
-      userId: user.id,
-      chain: 'tempo',
-      asset: 'ousd',
-      address: '0x2dea7ad32bab196b7606be88f636093d6b5b1890',
-    },
+  const demoAddress = '0x2dea7ad32bab196b7606be88f636093d6b5b1890';
+  const existingWallet = await prisma.wallet.findFirst({
+    where: { address: demoAddress, network },
   });
+
+  const wallet =
+    existingWallet ??
+    (await prisma.wallet.create({
+      data: {
+        userId: user.id,
+        chain: 'tempo',
+        asset: 'ousd',
+        address: demoAddress,
+        network,
+      },
+    }));
 
   const javaHouseAddress = '0x20C000000000000000000000b9537d11c60E8b50';
   const safaricomAddress = '0x20c0000000000000000000009e8d7eb59b783726';
@@ -57,28 +83,20 @@ async function main() {
 
   // The handle is the identity; the Merchant row is the business PROFILE it turns
   // on. Seed both halves of that shape so `seti.live/m/javahouse` resolves.
-  await prisma.handle.upsert({
-    where: { handle: merchantHandle('Java House') },
-    update: { merchantId: merchant.id },
-    create: {
-      handle: merchantHandle('Java House'),
-      kind: 'business',
-      name: 'Java House',
-      address: javaHouseAddress,
-      merchantId: merchant.id,
-    },
+  await upsertSeededHandle({
+    handle: merchantHandle('Java House'),
+    name: 'Java House',
+    address: javaHouseAddress,
+    merchantId: merchant.id,
+    network,
   });
 
-  await prisma.handle.upsert({
-    where: { handle: merchantHandle('Safaricom Shop') },
-    update: { merchantId: safari.id },
-    create: {
-      handle: merchantHandle('Safaricom Shop'),
-      kind: 'business',
-      name: 'Safaricom Shop',
-      address: safaricomAddress,
-      merchantId: safari.id,
-    },
+  await upsertSeededHandle({
+    handle: merchantHandle('Safaricom Shop'),
+    name: 'Safaricom Shop',
+    address: safaricomAddress,
+    merchantId: safari.id,
+    network,
   });
 
   await prisma.transaction.createMany({
@@ -87,6 +105,7 @@ async function main() {
       {
         userId: user.id,
         walletId: wallet.id,
+        network,
         type: 'top_up',
         status: 'completed',
         amount: '15000.00',
@@ -100,6 +119,7 @@ async function main() {
       {
         userId: user.id,
         walletId: wallet.id,
+        network,
         type: 'payment',
         status: 'completed',
         amount: '250.00',
@@ -114,6 +134,7 @@ async function main() {
       {
         userId: user.id,
         walletId: wallet.id,
+        network,
         type: 'payment',
         status: 'completed',
         amount: '100.00',
@@ -128,6 +149,38 @@ async function main() {
   });
 
   console.log('Seeded demo user, wallet, merchant, handles, and transactions.');
+}
+
+/** A seeded business handle, kept as one row per network. */
+async function upsertSeededHandle(input: {
+  handle: string;
+  name: string;
+  address: string;
+  merchantId: string;
+  network: string;
+}) {
+  const existing = await prisma.handle.findFirst({
+    where: { handle: input.handle, network: input.network },
+  });
+
+  if (existing) {
+    await prisma.handle.update({
+      where: { id: existing.id },
+      data: { merchantId: input.merchantId, name: input.name, address: input.address },
+    });
+    return;
+  }
+
+  await prisma.handle.create({
+    data: {
+      handle: input.handle,
+      network: input.network,
+      kind: 'business',
+      name: input.name,
+      address: input.address,
+      merchantId: input.merchantId,
+    },
+  });
 }
 
 main()
