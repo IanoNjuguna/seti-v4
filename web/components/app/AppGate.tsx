@@ -29,7 +29,7 @@ export function AppGate({ children }: AppGateProps) {
   const router = useRouter();
 
   const placement = decideGatePlacement({
-    sessionLoading: session.status === 'loading',
+    sessionLoading: session.status === 'restoring',
     identityLoading: account.loading,
     authenticated: session.isAuthenticated,
     onboarded: account.onboarded,

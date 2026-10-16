@@ -15,7 +15,7 @@ export function AppLoading() {
   return (
     <div className="min-h-dvh bg-canvas-light text-ink">
       <main
-        className="mx-auto w-full max-w-3xl px-5 pt-6 pb-28 md:pb-10"
+        className="mx-auto w-full max-w-3xl px-5 pt-6 pb-[calc(var(--app-nav-reserved)_+_var(--app-nav-clearance))] md:pb-10"
         aria-busy="true"
       >
         <p className="sr-only">Loading your account…</p>

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import './motion.css';
 import { AppGate } from '@/components/app/AppGate';
 import { PrivyAppProvider } from '@/components/providers/PrivyAppProvider';
 import { AccountIdentityProvider } from '@/lib/account';

@@ -34,7 +34,17 @@ export function isOnboardingRoute(pathname: string | null, onboardingPath: strin
  *     "already set up" state for an account that arrives there finished.
  */
 export function decideGatePlacement(input: GateInput): GatePlacement {
-  if (input.sessionLoading || input.identityLoading) return 'loading';
+  // A session RESTORE is not a reason to hold the paint. `restoring` and
+  // `anonymous` are both unknowns the surfaces can state truthfully for
+  // themselves in place ("One moment…" / "Sign in to see your balance"), and a
+  // wallet or network fault that stalls the restore must never become a blank
+  // app — that is the failure this gate produced in the wild (`Failed to
+  // connect to MetaMask` on a page that had nothing to do with wallets).
+  //
+  // The ACCOUNT row is different, and stays a loader: by then the session is
+  // known to be signed in, so a moment of empty balance would be read as no
+  // money rather than as a page still arriving.
+  if (input.identityLoading) return 'loading';
 
   if (input.onOnboardingRoute) return 'onboarding';
 

@@ -19,6 +19,14 @@ import type { AppNavLinkProps } from './AppNavLink.types';
  * one navigation. The well is drawn around the icon rather than the whole tile so
  * nothing reflows when you navigate.
  *
+ * A tap is answered on the way there, not after. `active:` fills the same well (or
+ * the rail row) while the finger is down, so the destination lights up on the
+ * press rather than on the route change — the tab bar is the most-tapped control in
+ * the app and a control that answers only on release reads as dead. It is the
+ * app's own `active:scale-[0.98]` idea in the bar's material: a tab bar takes a
+ * fill, not a scale. Both transitions run on `--duration-quick`; a literal 200ms
+ * was a fourth duration nothing else in the app used.
+ *
  * Geometry is per layout and derived from the type inside it: the bar is a 64px
  * `nav-bar` row — 24px mark, 8px, 20px label — and the rail is a 48px row, whose
  * 24px mark and 20px label share one centred axis.
@@ -40,17 +48,18 @@ export function AppNavLink({ item, active, layout }: AppNavLinkProps) {
       href={item.href}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'inline-flex transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+        'inline-flex transition-colors duration-(--duration-quick) ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
         active ? 'text-on-dark' : 'text-on-dark-mute',
-        layout === 'rail' && (active ? 'bg-surface-elevated' : 'hover:bg-surface-deep'),
+        layout === 'rail' &&
+          (active ? 'bg-surface-elevated' : 'hover:bg-surface-deep active:bg-surface-elevated'),
         LAYOUT[layout]
       )}
     >
       <span
         className={cn(
-          'flex items-center justify-center transition-colors duration-200',
+          'flex items-center justify-center transition-colors duration-(--duration-quick) ease-out',
           WELL[layout],
-          layout === 'bar' && active && 'bg-surface-elevated'
+          layout === 'bar' && (active ? 'bg-surface-elevated' : 'active:bg-surface-elevated')
         )}
       >
         <Icon name={item.icon} className="h-6 w-6" />

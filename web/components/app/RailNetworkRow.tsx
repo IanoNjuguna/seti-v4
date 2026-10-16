@@ -15,7 +15,9 @@ const SWITCH_HREF = '/app/profile';
  *
  * It replaced a badge plus a `Network: Practice` label that said one word twice
  * and wrapped to three lines in a 224px rail. One row, one fact, at the nav rows'
- * own geometry (`min-h-12`, `rounded-md px-4`) so the rail's rhythm is untouched.
+ * own geometry (`min-h-12`, `rounded-md px-4`) so the rail's rhythm is untouched —
+ * including their press, `active:bg-surface-elevated` on `--duration-quick`, so a
+ * row that opens a control answers the same way the rows that change screens do.
  *
  * It is a LINK, not a label: the rail is chrome, and chrome that only reports a
  * state leaves the customer to go and find the control. Clicking it opens the
@@ -36,7 +38,7 @@ export function RailNetworkRow() {
     <Link
       href={SWITCH_HREF}
       aria-label={APP_FRAME_COPY.railRowHint}
-      className="mb-2 flex min-h-12 w-full items-center gap-3 rounded-md px-4 transition-colors duration-200 hover:bg-surface-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      className="mb-2 flex min-h-12 w-full items-center gap-3 rounded-md px-4 transition-colors duration-(--duration-quick) ease-out hover:bg-surface-deep active:bg-surface-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
     >
       <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-accent-warning" />
       <Text variant="tab" as="span" color="attention">

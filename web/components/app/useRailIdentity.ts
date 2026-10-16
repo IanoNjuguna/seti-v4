@@ -17,13 +17,20 @@ import type { UseRailIdentityReturn } from './RailIdentity.types';
  *
  * Three states, and they are not interchangeable:
  *
- *  - **signed out** — `signedIn: false`, and the card says nothing at all. The
- *    rail is drawn for a first-time visitor by the gate's own design;
- *  - **signed in, names unknown** — the account line only. Reachable for one
- *    frame at most inside the shell, but a claim link offered on a guess would be
- *    a link to the wrong kind of name;
+ *  - **signed out** — `signedIn: false`, and the card is the app's sign-in
+ *    affordance. This hook is not even mounted for that visitor
+ *    (`RailIdentityCard` renders `RailIdentitySignedOut` instead), so the account
+ *    identity behind it is never consulted for handles that cannot exist;
+ *  - **signed in, names unknown** — the label only. Reachable for one frame at
+ *    most inside the shell, but a claim link offered on a guess would be a link to
+ *    the wrong kind of name;
  *  - **signed in, names known** — the mode's handle and its link, or the claim
  *    route for that same kind when the mode has no name yet.
+ *
+ * No email is exposed. The card shows the handle because that is the identity
+ * money reaches; the account's address is a fact about the ACCOUNT and lives on
+ * the Profile card, not in the rail. Leaving it on this hook as an unused field
+ * would keep the email plumbed into rail chrome for nothing.
  *
  * The handle passed to `handleLink` is the STORED one rather than the name: the
  * route on the card and the string on the card are then the same string by
@@ -43,7 +50,6 @@ export function useRailIdentity(): UseRailIdentityReturn {
 
   return {
     signedIn: session.isAuthenticated,
-    signedInAs: session.user?.email ?? null,
     handle: held
       ? {
           handle: held.handle,

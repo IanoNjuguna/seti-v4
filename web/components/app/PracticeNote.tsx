@@ -7,10 +7,11 @@ import { useAppNetwork } from './useAppNetwork';
 
 export interface PracticeNoteProps {
   /**
-   * Which surface the line is drawn on. The send panel prices on black and the
-   * merchant step prices in a light well (`FeeQuote`, one table with a `tone`), so
-   * the same sentence has to be told which half of the palette it is sitting on —
-   * `Text` resolves exactly one colour role and a caller cannot fix it afterwards.
+   * Which surface the line is drawn on. The send amount step and the merchant step
+   * both price on `canvas-light` now, so the live call site passes `light`; `dark`
+   * remains for a caller on the black canvas. `Text` resolves exactly one colour
+   * role and a caller cannot fix it afterwards, so the same sentence has to be told
+   * which half of the palette it is sitting on.
    */
   surface?: 'dark' | 'light';
 }
