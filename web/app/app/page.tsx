@@ -1,78 +1,32 @@
 'use client';
 
-import { Button, StateMessage } from '@/components/ui';
-import { BalanceCard } from '@/components/home/BalanceCard';
-import { HomeActivity } from '@/components/home/HomeActivity';
-import { HomeGreeting } from '@/components/home/HomeGreeting';
-import { HomeLoading } from '@/components/home/HomeLoading';
-import { QuickActions } from '@/components/home/QuickActions';
-import { SignInCard } from '@/components/auth/SignInCard';
+import { HomeScreen } from '@/components/home/HomeScreen';
+import { HomeSignedOut } from '@/components/home/HomeSignedOut';
 import { useSession } from '@/lib/auth';
-import { mapRecentToUiTransaction, useHomeData } from '@/hooks/useHomeData';
 
 /**
- * Home: the greeting, the balance, then what the account is opened for — pay,
- * move money, review activity — and where the money goes last.
+ * Home — `/app`, and the app's front door.
  *
- * One column at every width (see the note in the body): the shell caps content
- * at `max-w-2xl`, so a second column here squeezed the balance until a 9-figure
- * amount wrapped.
+ * The page's whole job is the ONE decision this demo rests on: is there an
+ * account behind this screen? It is answered by the session hook's own `status`
+ * — pinned to `restoring` / `anonymous` / `signed-in` — and the two answers are
+ * two components: `HomeScreen` when the server confirmed an account, and
+ * `HomeSignedOut` for everybody else, which renders the product's shape with one
+ * sentence where each figure would be.
+ *
+ * The signed-in side owns the account-scoped read (`useHomeData`) and is not
+ * rendered until the session confirms an account, so a visitor fires no request
+ * for a dashboard they do not have. The branch is written as
+ * `status !== 'signed-in'` so TypeScript narrows the view to the two states
+ * `HomeSignedOut` can actually render — a `signed-in` screen can never render
+ * "sign in to see your balance".
  */
 export default function HomePage() {
   const session = useSession();
-  const { data, loading, error, refetch } = useHomeData(session.user?.id);
 
-  if (session.status === 'loading') {
-    return <HomeLoading />;
+  if (session.status !== 'signed-in') {
+    return <HomeSignedOut view={session.status} />;
   }
 
-  if (!session.isAuthenticated) {
-    return (
-      <SignInCard
-        onSignIn={() => void session.signIn()}
-        error={session.error}
-        source={session.source}
-        pending={session.signingIn}
-      />
-    );
-  }
-
-  if (loading && !data) {
-    return <HomeLoading />;
-  }
-
-  if (error && !data) {
-    return (
-      <StateMessage
-        variant="failure"
-        padding="sm"
-        title="Could not load account"
-        body={error}
-        action={<Button onClick={refetch}>Try Again</Button>}
-      />
-    );
-  }
-
-  const transactions = (data?.recentTransactions ?? []).map(mapRecentToUiTransaction);
-
-  return (
-    <div className="flex flex-col gap-6 md:gap-8">
-      {/* One column on purpose: the shell caps content at `max-w-2xl`, and a
-          second column here squeezed the balance until a 9-figure amount wrapped.
-
-          The rhythm is one ladder off `design/revolut.md`'s spacing scale,
-          grouped so it reads as a rhythm: the greeting and the balance are one
-          unit (`gap-4` = 16px `spacing.lg`) because the line labels the card,
-          then each working section is one step apart (`gap-6` = 24px
-          `spacing.xl`; 32px `spacing.xxl` from `md` up). Flat 32px left the
-          greeting floating, and `HomeActivity` used to add its own 8px on top. */}
-      <div className="flex flex-col gap-4">
-        <HomeGreeting />
-        <BalanceCard data={data} />
-      </div>
-      <QuickActions />
-
-      <HomeActivity transactions={transactions} />
-    </div>
-  );
+  return <HomeScreen />;
 }

@@ -1,3 +1,5 @@
+import { TERMS_EFFECTIVE_DATE } from '@/lib/legal/terms';
+
 /**
  * Canonical company + document metadata for Seti's legal pages.
  *
@@ -20,8 +22,16 @@ export const SITE = {
   domain: "https://seti.example",
 } as const;
 
-/** Effective date of the currently published version of both documents. */
-export const LEGAL_EFFECTIVE_DATE = "5 February 2026";
+/**
+ * Effective date of the currently published version of both documents.
+ *
+ * READ, not restated: it comes from `@/lib/legal/terms`, the web app's single
+ * import of `backend/src/legal/terms.ts`. That module is also what the backend
+ * records as the accepted version at sign-up, so the date printed on this page
+ * and the version on the audit row are the same value by construction — a
+ * revision cannot update one and leave the other behind.
+ */
+export const LEGAL_EFFECTIVE_DATE = TERMS_EFFECTIVE_DATE;
 
 /** Contact address for formal notices under the Terms. */
 export const NOTICES_EMAIL = "legal@seti.example";

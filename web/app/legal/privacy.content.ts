@@ -120,7 +120,7 @@ const sections: LegalSection[] = [
     paragraphs: [
       "The website does not use advertising or analytics cookies and does not run third-party advertising or tracking scripts. The app does not track you across other apps or websites. If that changes, we will update this policy and, where the law requires it, ask for consent before deploying non-essential tracking.",
       "The Service relies on Privy, which manages sign-in and your session and may set its own cookies or storage when you sign in. Those are set by Privy, not by Seti, and Privy describes its own processing in its privacy policy.",
-      `The website loads one video asset from a content delivery network, which necessarily discloses your IP address and browser information to that provider. We do not load third-party advertising or tracking scripts. Our full Cookie Notice is available at ${COOKIES_URL}.`,
+      `The website loads no video and no media from a third-party content delivery network: its background is drawn in CSS by the page itself. We do not load third-party advertising or tracking scripts. Our full Cookie Notice is available at ${COOKIES_URL}.`,
     ],
   },
   {

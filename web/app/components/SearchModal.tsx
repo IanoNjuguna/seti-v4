@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { SEARCH_SECTIONS } from "./landing/LandingNav.constants";
 
-const sections = [
-  { id: "hero", label: "Home", keywords: "home hero spend stablecoins stablecoin" },
-  { id: "why", label: "Why seti.live?", keywords: "why problem fees savings borders mobile money kenya" },
-  { id: "solution", label: "How", keywords: "solution how scan qr spend stablecoins settle local currency" },
-  { id: "partners", label: "Partners", keywords: "partners infrastructure tempo privy" },
-  { id: "download", label: "Download", keywords: "download install android ios app" },
-];
+/**
+ * The section list the palette jumps to lives with the nav's own links
+ * (`landing/LandingNav.constants.ts`) rather than here. It used to be a private
+ * copy in this file, which is exactly how a palette ends up offering sections
+ * that the page renamed three months ago.
+ */
 
 function SearchIcon({ className }: { className?: string }) {
   return (
@@ -69,8 +69,8 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
   }
   const results = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    if (!normalized) return sections;
-    return sections.filter(
+    if (!normalized) return SEARCH_SECTIONS;
+    return SEARCH_SECTIONS.filter(
       (section) =>
         section.label.toLowerCase().includes(normalized) ||
         section.keywords.toLowerCase().includes(normalized)

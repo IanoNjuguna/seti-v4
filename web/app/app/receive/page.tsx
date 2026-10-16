@@ -72,19 +72,12 @@ function ReceiveScreen() {
   const { identity, loading: identityLoading } = useAccountIdentity();
   const requested = useSearchParams().get('view');
 
-  if (session.status === 'loading' || identityLoading) {
+  if (session.status === 'restoring' || identityLoading) {
     return <ReceiveLoading />;
   }
 
   if (!session.isAuthenticated) {
-    return (
-      <SignInCard
-        onSignIn={() => void session.signIn()}
-        error={session.error}
-        source={session.source}
-        pending={session.signingIn}
-      />
-    );
+    return <SignInCard error={session.error} />;
   }
 
   const business = identity?.handles.find((candidate) => candidate.kind === 'business');

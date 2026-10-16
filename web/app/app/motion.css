@@ -1,0 +1,82 @@
+/* ---------------------------------------------------------------------------
+ * DIAL TWO — the product app: FEEDBACK ONLY (`design/motion.md`).
+ *
+ * The vocabulary (durations, easings, distances) lives in `globals.css`; this
+ * file is the app's dial, kept beside the app's layout so the two dials cannot
+ * drift into one another. Nothing here is ambient: every rule below exists to
+ * explain a change of state, and each one answers *what does this communicate?*
+ *
+ *   .row-enter       a list is arriving, in order, and here is where it ends
+ *   .value-changed   the figure you are pricing just changed — re-read it
+ *   .check-in        the payment landed (the one deliberate moment in the app)
+ *
+ * Every rule uses tokens, animates transform/opacity (colour for the one value
+ * rule, which `design/motion.md` specifies as a colour fade rather than a count),
+ * and freezes under `prefers-reduced-motion` instead of slowing down.
+ *
+ * Durations used, all from the shared vocabulary: `--duration-base` (240ms) for a
+ * row and the changed figure, `--duration-slow` (400ms) for the success moment —
+ * the largest change in the product. Nothing here runs longer than 400ms.
+ * ------------------------------------------------------------------------- */
+
+@layer utilities {
+  /* A row arriving. `--i` is the row's index, set inline, and the delay is
+     capped at six so a long list settles rather than performing. */
+  .row-enter {
+    animation: row-enter var(--duration-base) var(--ease-out) both;
+    animation-delay: calc(min(var(--i, 0), 5) * var(--stagger-row));
+  }
+
+  /* A figure that just changed. Only `from` is declared: the implicit `to` is the
+     element's own colour, so the value lands back on the design system's colour
+     instead of a hard-coded one. */
+  .value-changed {
+    animation: value-changed var(--duration-base) var(--ease-out);
+  }
+
+  /* The receipt's check. Played once, on mount of the success state — never on a
+     re-render, because a CSS animation does not restart without a remount, and
+     nothing on that screen remounts. */
+  .check-in {
+    animation: check-in var(--duration-slow) var(--ease-out) both;
+  }
+}
+
+@keyframes row-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, var(--distance-micro), 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes value-changed {
+  from {
+    color: var(--color-primary);
+  }
+}
+
+@keyframes check-in {
+  from {
+    opacity: 0;
+    /* Never `scale(0)`: nothing appears from nothing. */
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Guardrail 4: less motion is INSTANT appearance, not slower motion. The row and
+   the check then simply are there, and a changed figure keeps its colour. */
+@media (prefers-reduced-motion: reduce) {
+  .row-enter,
+  .value-changed,
+  .check-in {
+    animation: none;
+  }
+}
