@@ -7,6 +7,12 @@ product/design documents are elsewhere (`internal/`).
 The mainnet flip is a separate, owner-run procedure:
 [`internal/mainnet-flip.md`](./internal/mainnet-flip.md).
 
+The backend's host — the API, the indexer, Postgres and the nightly backup — has
+its own runbook: [`deploy-oracle.md`](./deploy-oracle.md). It covers the free-tier
+choices that are permanent, the two-firewall trap, exposing the API with
+Cloudflare Tunnel, and the off-provider backup with its restore commands. The web
+app's deploy is §7 below.
+
 ---
 
 ## 1. Configuration that must never reach production
@@ -40,6 +46,13 @@ asserts the process refuses — and that the dev behaviour above still boots.
 
 - **`ALLOW_MAINNET`** — stays opt-in. Defaults to `false`; `check:env` proves a
   mainnet chain id without it is refused.
+- **`DEFAULT_NETWORK`** — the network this deployment defaults to (`mainnet` |
+  `testnet`). Optional; the **code** default is `testnet`, so a box that sets
+  nothing cannot default to real money. A live deployment sets `mainnet`, but
+  mainnet still needs `ALLOW_MAINNET=true` on top, and an unrecognised value is a
+  boot refusal. It is only the fallback for the served network when no
+  `TEMPO_CHAIN_ID` names one — an omitted per-row network always resolves to the
+  network the deployment **serves**. Pinned by `check:env` and `check:network`.
 - **`SETI_TREASURY_ADDRESS`** — already refuses the zero (burn) address at boot.
 - **`MERCHANT_FEE_PERCENT` / `MIN_KES` / `MAX_PERCENT`** — no insecure default.
   Floor and cap `0` is the intended flat 2%, and the customer funds it.
@@ -69,7 +82,10 @@ gone from Seti's view even though they are still on chain.
   pooler for the application if connection count is a concern.
 - **A backup you have never restored is a hope, not a backup.** Restore into a
   scratch database once and confirm the cursor row and recent `Transaction` rows
-  are present.
+  are present. The nightly job that makes the backup, and the exact restore
+  commands, are in [`deploy-oracle.md`](./deploy-oracle.md) §8 and §9; the copy
+  goes **off-provider** (Cloudflare R2), because a backup in the same account as
+  the instance dies with the account.
 - Keep migrations as the only way the schema changes (§3). Never hand-edit a
   production table.
 
@@ -159,13 +175,21 @@ best-effort and self-healing.
 
 - Fastify's logger writes JSON to stdout (level `info` in production). Every
   handler error passes through the server's error handler.
+- **Every request now carries a correlation id.** `server.ts` mints a UUID per
+  request (`genReqId`), pino binds it to every line that request writes as
+  `reqId`, and the server returns the same id on the `x-request-id` response
+  header. An internal fault is answered with one stable code (`INTERNAL_ERROR`)
+  and one plain sentence — never the driver's message or its `P2xxx` code — so
+  the sentence a user reports names a request id that resolves to the full
+  error, in the log, with the schema, the column and the SQL code intact.
 - `recordPayment` / `recordSend` fail closed — a mismatch beyond 1%, an
   unverifiable receipt, or a missing payout address is refused with a message —
   and the indexer logs `[indexer] error` / `[sweep] error` on an RPC failure.
-- There is **no aggregation, no alerting, and no correlation id.** A refusal or a
-  crash produces one line in the process log, and if nobody is reading that
-  stream, it is indistinguishable from nothing happening. A payment that fails
-  mid-flight does not page anyone.
+- There is still **no aggregation and no alerting.** The correlation id is what
+  makes both possible — a single payment's lines can now be found together — but
+  a refusal or a crash still produces log lines in the process log, and if
+  nobody is reading that stream, it is indistinguishable from nothing
+  happening. A payment that fails mid-flight does not page anyone.
 
 **First steps, in order, when this becomes the priority:**
 
@@ -173,8 +197,8 @@ best-effort and self-healing.
    ephemeral buffer.
 2. Alert on error rate, and on `processing` transactions older than
    `STUCK_TX_AGE_MINUTES` — that is a payment stuck for real.
-3. Add a request id so one payment's lines can be found together.
-4. Page on the refusal patterns from the reconciliation paths.
+3. Page on the refusal patterns from the reconciliation paths.
+4. Surface the `x-request-id` in the app's failure UI so a user can quote it.
 
 Until then: **the logs are the pager**, and silence is not success.
 
@@ -334,4 +358,45 @@ the owner's account is not ours to touch — so what is proven is the build and 
 Worker running locally (`wrangler dev`, as above). The first `deploy:vinext` is
 the owner's, and it is the point at which the account, the Worker name and the
 custom domain are actually confirmed.
+
+---
+
+## 8. Deploying the backend (API + indexer + database)
+
+The backend **cannot** use the web app's serverless path: the indexer is a
+long-running loop, and Prisma + Postgres would need Hyperdrive plus a driver
+adapter (D1 is SQLite). It runs on a real host instead.
+
+The full runbook — the Oracle Cloud Always Free walkthrough, the permanent
+signup choices, the **two-firewall trap** (the VCN Security List *and* the
+instance's own iptables, rules inserted ABOVE its REJECT line), exposing the API
+with **Cloudflare Tunnel** so no inbound port is opened at all, and the
+**$1 budget alert** — is [`deploy-oracle.md`](./deploy-oracle.md).
+
+The same runbook covers the **AWS path** for when credits are the funding source:
+[Lightsail recommended](./deploy-oracle.md#lightsail--the-recommendation-on-aws)
+(2 GB bundle ~$12/mo: 2 vCPU, 2 GB RAM, 60 GB SSD, static IPv4, 3 TB transfer — a
+single networking page instead of Oracle's two firewalls), with EC2 as the
+fallback and one warning box that matters: **never create a NAT Gateway** (~$32.85
+/month before it moves a byte). Credits are only usable on the **paid** plan, so
+set a **spend limit** rather than a budget alert. The artefacts — `Dockerfile`,
+`docker-compose.yml`, the systemd units, `pg-backup.sh` — are identical on every
+provider; only host provisioning differs.
+
+The shape is three services on one box (Postgres + API + indexer), in
+`docker-compose.yml`, or two systemd units on the no-Docker path
+(`deploy/systemd/`). The API and the indexer are separate processes: the API is
+started with `INDEXER_ENABLED=false` and the indexer runs `dist/worker.js`, so a
+redeploy of one never interrupts the other. The database is never published.
+
+**Other hosts.** Nothing about the application changes on Northflank's free
+Sandbox or a Railway Hobby plan — the `Dockerfile` and `docker-compose.yml` are
+the contract. What changes is the *wiring*: Postgres becomes a managed addon, the
+API and indexer become two platform services off the same image, and migrations
+run as a pre-deploy step. The differences are spelled out in
+[`deploy-oracle.md` → Other hosts](./deploy-oracle.md#other-hosts).
+
+Nightly backups go **off-provider** (rclone → Cloudflare R2), driven by
+`deploy/backup/pg-backup.sh` and `seti-backup.timer`, with the restore commands in
+`deploy-oracle.md` §9.
 

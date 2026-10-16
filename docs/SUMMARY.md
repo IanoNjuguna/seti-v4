@@ -16,6 +16,7 @@
 
 * [Internal documents](internal/README.md)
 * [Operations](operations.md)
+* [Deploy the backend (Oracle free tier / AWS Lightsail)](deploy-oracle.md)
 * [Product requirements](internal/prd.md)
 * [Fee routing](internal/fee-routing.md)
 * [The mainnet flip (owner-run)](internal/mainnet-flip.md)

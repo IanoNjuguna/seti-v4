@@ -23,5 +23,8 @@ is built and what is unresolved — not how to integrate with it.
 4. **v1 supports two assets only** — pathUSD and OUSD, the only two with deployed
    bytecode on both Tempo chains.
 5. **Mainnet is one config edit away.** The tree currently points at Moderato
-   (testnet, `42431`); `TEMPO_CHAIN_ID` plus `ALLOW_MAINNET` are the only things
-   between the same code and real funds.
+   (testnet, `42431`); `TEMPO_CHAIN_ID` (or `DEFAULT_NETWORK`) plus `ALLOW_MAINNET`
+   are the only things between the same code and real funds — and the code cannot
+   verify the mainnet batch proof, so setting `MAINNET_BATCH_PROOF_TX` opens Live
+   at once and the proof is a process gate the operator honours first
+   (`mainnet-flip.md`).

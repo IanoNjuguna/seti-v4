@@ -229,19 +229,44 @@ Every refusal is a typed code the UI branches on, in the envelope
 | `invalid-issued-at` | `400` | `issuedAt` is not a parseable date |
 | `invalid-signature` | `400` | The signature could not be read at all |
 | `signature-mismatch` | `400` | Signed by a different key than the claimed address |
-| `address-not-owned` | `403` | The recovered address is not a wallet registered to your account |
+| `address-not-owned` | `403` | The recovered address is not a wallet this account holds (on either network) |
 | `name-taken` | `409` | The name is already claimed (names are first-come) |
-| `handle-taken` | `409` | A different name already reduces to the same link |
+| `handle-taken` | `409` | A different name already reduces to the same link, or the name is held on the other network |
 
 A missing or invalid token is `401` before any of that. The order is deliberate —
 cheap local validation, then the signature, then ownership, then the collision — so a
 bad name or a bad signature costs no query, and **a caller who does not control the
 address is refused before anything is looked up about who else holds the name**, so a
 failed claim cannot be used to probe which names exist. Ownership is checked through
-the existing wallet registry. The name-collision check matches the normalised name key
-**and** the raw name case-insensitively, so a row written before claims existed still
-blocks its own name. The two `409`s are decided by the unique indexes when two claims
-race: whichever index (`nameKey` or `handle`) rejects the row decides the code.
+the existing wallet registry: the signer must be a wallet this account holds, on the
+claim's network **or** on the other one — a claim binds a name to an ADDRESS, and the
+same key is the account's on both networks (`registerWallet` registers on the served
+network, so an account that signed in on Practice has its embedded wallet registered
+on Practice only, and that must not be a reason its first Live claim is refused).
+The name-collision check matches the normalised name key **and** the raw name
+case-insensitively, so a row written before claims existed still blocks its own name.
+The two `409`s are decided by the unique indexes when two claims race: whichever index
+(`nameKey` or `handle`) rejects the row decides the code.
+
+#### The namespace rule — one username, two networks
+
+- **A person's username is ONE name for ONE account on BOTH networks.** `handle` is
+  globally unique for `kind = 'person'` (partial unique index
+  `handles_person_handle_key`, migration `20261014140000_global_person_handles`), so a
+  *different* account cannot claim it on the other network — that was the
+  impersonation hole while the namespace was per network — and the same account does
+  not re-claim or lose it when it switches: the single row resolves on both networks
+  and `GET /account` lists it on both, so the onboarding gate does not re-trigger.
+- **A business name stays PER NETWORK** (`handles_handle_<network>_key`), deliberately.
+  When KYB lands, the real merchant carries a verified mark, so a squatter holding
+  `kfc` is distinguishable from the real one on the page a customer pays from: the
+  namespace is not the trust mechanism for a business, the badge is. What a practice
+  business name should mean on live is an OPEN question, not something to settle in
+  passing — so nothing here makes a business name global.
+- The stored handle is always the LOWERCASED form (constraint
+  `handles_handle_lowercase_check`: `handle = lower(handle)`), so `@Ianllc`, `@IANLLC`
+  and `@ianllc` are one claim on one network and across networks, and the reserved list
+  is matched on that same normalised value (`@Seti` is `seti` is reserved).
 
 ### `GET /public/merchants/:handle`
 

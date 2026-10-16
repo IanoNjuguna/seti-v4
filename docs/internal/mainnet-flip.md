@@ -17,6 +17,36 @@ path is designed but never executed against the chain that holds the funds.
 
 ---
 
+## The gate the code enforces — and the part it cannot
+
+The readiness gate is **executable** (`backend/src/config/networks.ts`,
+`mainnetReadiness`, pinned by `npm run check:network`). Live is refused with a
+stated reason — `POST /account/network` answers `mainnet-not-ready`, and the app
+disables the Live control with that same sentence — until **all** of these hold:
+
+- the deployment **serves mainnet** (`TEMPO_CHAIN_ID=4217`, or `DEFAULT_NETWORK=mainnet`
+  with `ALLOW_MAINNET=true`);
+- `ALLOW_MAINNET=true`;
+- the **mainnet treasury address** is a well-formed 20-byte address and is not
+  the zero address, so the fee leg can never be sent nowhere; and
+- `MAINNET_BATCH_PROOF_TX` is set.
+
+**What the gate cannot do is verify that hash.** The code has no mainnet node to
+read it from and no way to know whether the receipt at that hash carries both
+legs — the gate checks only that the variable is non-empty. So flipping
+`ALLOW_MAINNET=true` **and** a mainnet `DEFAULT_NETWORK` (or `TEMPO_CHAIN_ID=4217`)
+**OPEN LIVE IMMEDIATELY** the moment `MAINNET_BATCH_PROOF_TX` holds any string at
+all. The proof is therefore a **process gate the operator must honour FIRST**, not
+something the software can hold shut:
+
+> Land step 8's real receipt first, then set `MAINNET_BATCH_PROOF_TX` to that hash
+> as part of the flip. Do not set it to a placeholder to "switch Live on", and do
+> not read the variable's presence as evidence that a batched fee path has ever
+> run on chain 4217. The only proof the code accepts is the one you verified by
+> hand.
+
+---
+
 ## Preconditions
 
 - [ ] **30a is done and proven.** A production process refuses to boot with
@@ -55,10 +85,14 @@ Mainnet is refused unless this is exactly `"true"` (§1 of `docs/operations.md`)
 It stays opt-in for a reason: never default to mainnet.
 
 ### 4. Point the network at mainnet 🔑
-Set `TEMPO_CHAIN_ID=4217` and the mainnet RPC — either `TEMPO_RPC_URL` (takes
-precedence) or `ALCHEMY_API_KEY` for the Alchemy mainnet endpoint. Keep
-**`INDEXER_BOOTSTRAP_LOOKBACK=0`**: a non-zero value on mainnet is now a boot
-refusal, because it would write pre-existing history as fabricated `top_up` rows.
+Set `TEMPO_CHAIN_ID=4217` and the mainnet RPC — either `TEMPO_RPC_URL` (it
+applies to the chain it names; with `TEMPO_CHAIN_ID=4217` that is mainnet and it
+is no longer inherited by the practice config) or `ALCHEMY_API_KEY` for the
+Alchemy mainnet endpoint. Alternatively leave `TEMPO_CHAIN_ID` unset and set
+`DEFAULT_NETWORK=mainnet` (with `ALLOW_MAINNET=true`) to make mainnet this
+deployment's default. Keep **`INDEXER_BOOTSTRAP_LOOKBACK=0`**: a non-zero value on
+mainnet is now a boot refusal, because it would write pre-existing history as
+fabricated `top_up` rows.
 
 ### 5. Seed the indexer cursor to the current head 🗄️ — do NOT backfill
 There is no mainnet cursor yet. Seed it so the indexer starts at the head and
@@ -126,8 +160,9 @@ receipt verifies, and the **fee leg reaches `SETI_TREASURY_ADDRESS`** (in `batch
 mode both legs land in one receipt). Confirm the treasury balance rose by the fee.
 
 ### 12. Rollback
-- Set `ALLOW_MAINNET=false` (or `TEMPO_CHAIN_ID` back to `42431`) and restore the
-  previous environment; redeploy.
+- Set `ALLOW_MAINNET=false` (or `TEMPO_CHAIN_ID` back to `42431`, and
+  `DEFAULT_NETWORK` back to `testnet`) and restore the previous environment;
+  redeploy.
 - **Migrations are not rolled back.** A migration applied during the flip stays;
   this is why they must be backward compatible (`docs/operations.md` §3).
 - The cursor row for `tempo-mainnet` should be left in place — do not delete it.
