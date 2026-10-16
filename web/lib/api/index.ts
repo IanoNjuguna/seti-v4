@@ -1,5 +1,13 @@
-export { ApiError, setAuthToken, setTokenProvider, get, post } from './client';
-export type { TokenProvider } from './client';
+export { ApiError, setAuthToken, setTokenProvider, get, getFile, post } from './client';
+export type { ApiFile, TokenProvider } from './client';
+export { refusal, refusalMessage } from './refusal';
+export type { Refusal, RefusalContext } from './refusal';
+export {
+  REFUSAL_BY_CODE,
+  REFUSAL_NETWORK,
+  REFUSAL_UNKNOWN,
+  refusalMessageFor,
+} from './refusal.constants';
 export { API_BASE_URL } from './api.constants';
 export { fetchHomeDashboard } from './home';
 export type { HomeDashboard, RecentTransaction, RecentTransactionStatus } from './home.types';
@@ -26,8 +34,8 @@ export type {
 export { previewSend, recordSend } from './send';
 export type { SendPreview, RecordSendInput, RecordSendResult } from './send.types';
 export { resolveHandle, fetchHandleStatus, claimHandle, fetchPublicHandle } from './handles';
-export { fetchAccountIdentity, setAccountIntent } from './account';
-export type { AccountIdentity, AccountIntent } from './account.types';
+export { fetchAccountIdentity, setAccountIntent, setAccountNetwork, fetchDepositTarget } from './account';
+export type { AccountIdentity, AccountIntent, DepositTarget } from './account.types';
 export type {
   HandleIdentity,
   HandleKind,
@@ -38,4 +46,6 @@ export type {
   HandleStatusPreview,
   HandleStatusResult,
 } from './handles.types';
+export { fetchStatement } from './statement';
+export type { StatementFile, StatementFormat } from './statement';
 export { merchantVerification } from './merchant-verification';

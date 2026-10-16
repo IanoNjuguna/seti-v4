@@ -6,7 +6,9 @@ import {
   previewPayment,
   recordPayment,
   resolveHandle,
+  refusalMessage,
   type PaymentPreview,
+  type RefusalContext,
   type SupportedAsset,
 } from '@/lib/api';
 import { classifyPaymentError } from '@/lib/pay/classify-payment-error';
@@ -15,6 +17,7 @@ import { PRIMARY_ASSET } from '@/lib/chain';
 import { quoteArrived } from '@/lib/feedback';
 import { useEmbeddedWallet } from '@/hooks/useEmbeddedWallet';
 import { useTempoSender } from '@/hooks/useTempoSender';
+import { useAppNetwork } from '@/components/app/useAppNetwork';
 import type { PayState, UsePayMerchantReturn } from './usePayMerchant.types';
 
 /** The asset the money path signs, from the ONE setting. OUSD is the decided money
@@ -38,9 +41,20 @@ const INITIAL: PayState = {
   errorKind: null,
 };
 
-function toErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof ApiError) return error.message;
-  if (error instanceof Error && error.message) return error.message;
+/**
+ * The sentence for a failed step.
+ *
+ * An `ApiError` always wins, because its CODE says more than any generic line —
+ * and its `message` is already our own copy. Anything else (a wallet SDK error, a
+ * TypeError) falls back to the caller's line for this step rather than surfacing a
+ * vendor's phrasing to a customer.
+ */
+function toErrorMessage(
+  error: unknown,
+  fallback: string,
+  context: RefusalContext = 'payment'
+): string {
+  if (error instanceof ApiError) return refusalMessage(error, context);
   return fallback;
 }
 
@@ -70,6 +84,12 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
   const quoted = useRef(false);
   const { getSigningWallet } = useEmbeddedWallet();
   const { sendTempoTransaction } = useTempoSender();
+  /**
+   * The network the ACCOUNT is acting on — the chain this payment is signed on.
+   * Read here (a hook can read it, a plain module cannot) and handed to
+   * `signPayment`, which resolves the chain id and the token contract from it.
+   */
+  const { network } = useAppNetwork();
 
   const setPartial = useCallback((partial: Partial<PayState>) => {
     setState((prev) => ({ ...prev, ...partial }));
@@ -174,7 +194,7 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
         if (!active) return;
         setPartial({
           step: 'error',
-          error: toErrorMessage(error, 'Could not resolve that code. Try again.'),
+          error: toErrorMessage(error, 'Could not resolve that code. Try again.', 'lookup'),
           errorKind: 'unknown',
         });
       });
@@ -262,6 +282,9 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
         // hook, because an EIP-1193 provider cannot carry `calls`.
         sendTempoTransaction,
         from: address,
+        // The ACCOUNT's network, not the deployment's: this is the chain the
+        // signature is for and the chain the token contract is read from.
+        network,
       });
 
       setPartial({ step: 'recording', txHash });
@@ -338,7 +361,7 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
         errorKind: kind,
       });
     }
-  }, [state, userId, setPartial, getSigningWallet, sendTempoTransaction]);
+  }, [state, userId, setPartial, getSigningWallet, sendTempoTransaction, network]);
 
   const reset = useCallback(() => setState(INITIAL), []);
 

@@ -1,4 +1,5 @@
 import { isAddress, type Chain } from 'viem';
+import type { Network } from '@/lib/network';
 import type { NetworkConfig, SupportedAsset } from './chain.types';
 
 /**
@@ -15,6 +16,16 @@ import type { NetworkConfig, SupportedAsset } from './chain.types';
  */
 export const TEMPO_MAINNET_CHAIN_ID = 4217;
 export const TEMPO_TESTNET_CHAIN_ID = 42431;
+
+/**
+ * The chain's own name, in the one place the word is written.
+ *
+ * Both Tempo networks are Tempo: `lib/network` names which WORLD of data an
+ * account is in (Practice | Live), and this names the chain that carries it. A
+ * surface that has to print the chain reads it here rather than writing the word
+ * a second time.
+ */
+export const CHAIN_NAME = 'Tempo';
 
 export const SUPPORTED_ASSETS = ['pathusd', 'ousd'] as const;
 
@@ -75,6 +86,80 @@ const NETWORKS: Record<number, Omit<NetworkConfig, 'tokens'>> = {
   },
 };
 
+/** The chain id behind each of the client's two network words. */
+export const CHAIN_ID_FOR: Record<Network, number> = {
+  testnet: TEMPO_TESTNET_CHAIN_ID,
+  mainnet: TEMPO_MAINNET_CHAIN_ID,
+};
+
+/**
+ * A network's chain config, resolved AT RUNTIME — the fix for a chain id that
+ * used to be frozen into the build.
+ *
+ * `NEXT_PUBLIC_TEMPO_CHAIN_ID` answers one question: which chain does THIS
+ * DEPLOYMENT serve. It cannot answer which chain a CUSTOMER is on, because the
+ * account's network is per-account (the Practice ⇄ Live switch writes it, the
+ * server decides it) and arrives well after the bundle is built. Reading the
+ * build constant on the signing path meant an account practising on Moderato
+ * signed a mainnet transfer from an address holding nothing there — the chain
+ * refused it with `TIP20 token error: InsufficientBalance { available: 0 }`.
+ *
+ * So the addresses a payment signs are now derived from the network the ACCOUNT
+ * is acting on, and the build constant only sets the DEFAULT (and the deployment's
+ * consent — see below).
+ *
+ * Mainnet still requires `NEXT_PUBLIC_ALLOW_MAINNET=true`: that flag is the
+ * deployment saying live money may be moved at all, and it is checked here per
+ * request rather than once at import. A practice build therefore cannot be steered
+ * onto mainnet by anything the client sends, and the guard fails closed.
+ */
+export function chainConfigFor(target: Network): NetworkConfig {
+  const chainId = CHAIN_ID_FOR[target];
+  const selected = NETWORKS[chainId];
+
+  if (!selected) {
+    throw new Error(
+      `No chain configuration for "${target}" (chain id ${chainId}). Known: ` +
+        `${TEMPO_TESTNET_CHAIN_ID} (testnet) and ${TEMPO_MAINNET_CHAIN_ID} (mainnet).`
+    );
+  }
+
+  if (selected.isMainnet && ENV.allowMainnet !== 'true') {
+    throw new Error(
+      `This build is asked for a mainnet chain (${TEMPO_MAINNET_CHAIN_ID}) but ` +
+        'NEXT_PUBLIC_ALLOW_MAINNET is not "true". Set it explicitly before operating on mainnet.'
+    );
+  }
+
+  return { ...selected, tokens: { ousd: requireToken('ousd'), pathusd: requireToken('pathusd') } };
+}
+
+/** The viem chain for a network, for anything that needs one (wallets, links). */
+export function tempoChainFor(target: Network): Chain {
+  const config = chainConfigFor(target);
+
+  return {
+    id: config.chainId,
+    name: config.displayName,
+    nativeCurrency: { name: CHAIN_NAME, symbol: 'TEMPO', decimals: 18 },
+    rpcUrls: {
+      default: { http: [config.rpcUrl] },
+      public: { http: [config.rpcUrl] },
+    },
+    blockExplorers: { default: { name: 'Tempo Explorer', url: config.explorerUrl } },
+  } satisfies Chain;
+}
+
+/** The TIP-20 contract for an asset ON A NETWORK — the address that gets signed. */
+export function getTokenContractFor(asset: SupportedAsset, target: Network): `0x${string}` {
+  return chainConfigFor(target).tokens[asset];
+}
+
+/** The explorer link for a transaction, on the network it happened on. */
+export function getExplorerTxUrlFor(txHash: string, target: Network): string {
+  return `${chainConfigFor(target).explorerUrl}/tx/${txHash}`;
+}
+
 function requireToken(asset: SupportedAsset): `0x${string}` {
   const name = `NEXT_PUBLIC_TEMPO_TOKEN_${asset.toUpperCase()}`;
   const value = ENV[asset];
@@ -97,28 +182,58 @@ function requireToken(asset: SupportedAsset): `0x${string}` {
   return value as `0x${string}`;
 }
 
+/**
+ * The DEPLOYMENT's network, from its own build config.
+ *
+ * One question only: which chain does this build serve by default. The answer is
+ * available before any account read, which is what lets a control render the right
+ * initial state — and it is the fallback for the signing path while the account's
+ * network is still unknown. It is NOT the account's network: see `chainConfigFor`.
+ */
 function resolveNetwork(): NetworkConfig {
   const chainId = Number(ENV.chainId);
-  const selected = NETWORKS[chainId];
+  const word: Network | null =
+    chainId === TEMPO_MAINNET_CHAIN_ID
+      ? 'mainnet'
+      : chainId === TEMPO_TESTNET_CHAIN_ID
+        ? 'testnet'
+        : null;
 
-  if (!selected) {
+  if (!word) {
     throw new Error(
       `NEXT_PUBLIC_TEMPO_CHAIN_ID is ${ENV.chainId ?? 'unset'}. Use ${TEMPO_TESTNET_CHAIN_ID} ` +
         `(testnet) or ${TEMPO_MAINNET_CHAIN_ID} (mainnet).`
     );
   }
 
-  if (selected.isMainnet && ENV.allowMainnet !== 'true') {
-    throw new Error(
-      `Mainnet chain id ${TEMPO_MAINNET_CHAIN_ID} is configured but NEXT_PUBLIC_ALLOW_MAINNET ` +
-        'is not "true". Set it explicitly before operating on mainnet.'
-    );
-  }
-
-  return { ...selected, tokens: { ousd: requireToken('ousd'), pathusd: requireToken('pathusd') } };
+  return chainConfigFor(word);
 }
 
 export const network = resolveNetwork();
+
+/**
+ * Whether THIS BUILD serves mainnet.
+ *
+ * The browser learns the served network the same way the backend does: from the
+ * configured chain (`NEXT_PUBLIC_TEMPO_CHAIN_ID`, gated by
+ * `NEXT_PUBLIC_ALLOW_MAINNET`). Because it is the DEPLOYMENT's own answer — and
+ * is therefore known before any account read — a control can disable Live for
+ * the real reason from the first render instead of guessing, and can never offer
+ * Live on a build that does not serve it. It must agree with the backend's
+ * served network (`TEMPO_CHAIN_ID` / `DEFAULT_NETWORK` / `ALLOW_MAINNET`).
+ */
+export const DEPLOYMENT_SERVES_MAINNET: boolean = network.isMainnet;
+
+/**
+ * The network this BUILD serves — `testnet` is Practice, `mainnet` is Live.
+ *
+ * The deployment's own answer, available before any account read, for a control
+ * that has to render the right initial state (and the right reason) before the
+ * server has spoken.
+ */
+export const DEPLOYMENT_NETWORK: 'testnet' | 'mainnet' = DEPLOYMENT_SERVES_MAINNET
+  ? 'mainnet'
+  : 'testnet';
 
 export const tempoChain = {
   id: network.chainId,

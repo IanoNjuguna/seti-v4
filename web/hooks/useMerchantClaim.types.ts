@@ -25,6 +25,15 @@ export interface MerchantClaimState {
   error: string | null;
   /** The backend's machine-readable refusal code, when it refused. */
   errorCode: string | null;
+  /**
+   * The server's correlation id for a refusal, when it sent one.
+   *
+   * Carried on the CLAIM state (not only on the `ApiError`) because the claim
+   * form prints it: a refused claim shows the specific reason and the reference
+   * that finds the log line for it. Null when the failure never reached the server
+   * (a wallet prompt the person dismissed, an offline request).
+   */
+  errorRequestId: string | null;
 }
 
 export interface UseMerchantClaimReturn extends MerchantClaimState {

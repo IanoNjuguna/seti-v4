@@ -3,6 +3,7 @@ import { API_BASE_URL } from './api.constants';
 import type {
   ClaimHandleRequest,
   HandleIdentity,
+  HandleKind,
   HandleStatusPreview,
   HandleStatusResult,
   ResolveHandleResult,
@@ -30,11 +31,22 @@ export async function resolveHandle(q: string): Promise<ResolveHandleResult> {
  * the preview cannot call a handle free that the claim would then refuse. It sits
  * behind the same auth as the claim: a signed-in user checking a handle they are
  * about to sign for, not anonymous enumeration.
+ *
+ * The KIND goes with the question because it decides WHICH rule applies to
+ * availability: a person's username is global (one name, both networks), a
+ * business's name is the acting network's. Asking without it would let the form
+ * call a username free that the claim then refuses as taken on the other network.
+ * Omitted when it is not known yet — onboarding's name step, before the intent is
+ * chosen — and the backend answers conservatively under both rules.
  */
-export async function fetchHandleStatus(name: string): Promise<HandleStatusPreview> {
-  const { status } = await get<HandleStatusResult>(
-    `/handles/status?name=${encodeURIComponent(name)}`
-  );
+export async function fetchHandleStatus(
+  name: string,
+  kind?: HandleKind
+): Promise<HandleStatusPreview> {
+  const query = new URLSearchParams({ name });
+  if (kind) query.set('kind', kind);
+
+  const { status } = await get<HandleStatusResult>(`/handles/status?${query}`);
   return status;
 }
 

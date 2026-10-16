@@ -1,0 +1,147 @@
+/**
+ * What a refusal reads like to a person.
+ *
+ * The server sends a machine-readable `code`, one plain sentence, and a
+ * `requestId`; the sentence is written for a log, not for a customer, and it is
+ * the raw text of whatever failed — a Prisma error naming a column, a validation
+ * message naming a field, a stack-adjacent string. Rendering it verbatim is how
+ * the owner came to read a database's vocabulary while signing in.
+ *
+ * So this file is the OTHER end of that contract: the code goes in, OUR sentence
+ * comes out. Three rules hold it together:
+ *
+ *  1. **Nothing here is the server's text.** Every string is written for a person
+ *     and matched by code only.
+ *  2. **A payments app says what to do next.** The sentence names the next action
+ *     ("check your wallet before trying again"), not the internal fault.
+ *  3. **An unknown code is not a hole.** Anything unmapped falls back to a calm,
+ *     generic sentence rather than leaking the server's own words.
+ *
+ * `requestId` is carried (on `ApiError`) rather than rendered: it is what support
+ * needs to find the log line, and a customer reading a hex id is being handed the
+ * server's problem. A network failure has no code at all and reads as calmly as a
+ * refusal, because from the customer's side the two are the same event.
+ */
+
+/** One sentence per refusal code. The code is the contract; the words are ours. */
+export const REFUSAL_BY_CODE: Record<string, string> = {
+  // --- entry the customer can correct -------------------------------------
+  'amount-invalid':
+    'That is not an amount we can send. Enter a figure with up to two decimal places.',
+  'recipient-invalid':
+    'That is not a valid address or username. Check it and try again.',
+  'recipient-is-self': 'That is this account’s own address. Enter someone else’s.',
+  'invalid-address': 'That address is not valid on this network. Check it and try again.',
+  'invalid-handle-name':
+    'That name is not one Seti can issue. Use 2–64 letters, digits, spaces or . , & ( ) - _ +',
+  'handle-taken': 'That name is already taken. Choose another one.',
+  'reserved-handle': 'That name is reserved. Choose another one.',
+  'merchant-not-found':
+    'No merchant matches that name or link. Check the spelling, or paste the link again.',
+
+  // --- the claim, once the signature is in ---------------------------------
+  // Every one of these is a SPECIFIC reason the claim was refused, so none of
+  // them may fall through to the generic sentence: a claim that failed for a
+  // reason the person can act on has to say which reason. `address-not-owned` is
+  // the one that used to have no sentence at all — the owner's mainnet claim was
+  // refused 403 `address-not-owned` and the form could only say "Seti could not
+  // complete that. Try again in a moment."
+  'address-not-owned':
+    'That wallet does not belong to this account. Sign in with the wallet that will receive the payments.',
+  'signature-mismatch': 'Your wallet’s signature could not be verified. Try signing again.',
+  'invalid-signature': 'Your wallet’s signature could not be verified. Try signing again.',
+  'purpose-mismatch': 'Your wallet signed for a different action. Try again.',
+  'invalid-issued-at': 'Your wallet’s signature timestamp was rejected. Try signing again.',
+
+  // A brand review acts on a NAME, not on money: these are the reviewer script's
+  // refusals, and they read as such.
+  'review-not-found': 'No name is under review by that handle. Nothing was changed.',
+  'review-not-pending': 'That name is not under review, so there is nothing to decide.',
+  'evidence-required':
+    'Reassigning a name needs the evidence that proves the brand. Nothing was changed.',
+  'reason-required':
+    'Reassigning a name needs the reason the current holder is released. Nothing was changed.',
+
+  // --- a precondition of the payment itself -------------------------------
+  'no-active-wallet':
+    'This account has no wallet for that token yet. Add money, then try again.',
+  'insufficient-funds': 'Not enough to cover this payment. Add money, then try again.',
+  'merchant-no-payout-address': 'This merchant has no payout address yet, so it cannot be paid.',
+  'send-requires-batch':
+    'Sending is not available in this configuration, and nothing left your wallet.',
+
+  // --- the quote moved under the customer ---------------------------------
+  'quote-expired': 'That price has expired. Review the new figure before paying.',
+  'quote-missing': 'That price has expired. Review the new figure before paying.',
+  'quote-invalid': 'That price did not check out. Review the figure before paying again.',
+  'quote-not-yours': 'That price was issued for a different account. Start the payment again.',
+  'quote-wrong-network': 'That price was issued for another network. Start the payment again.',
+  'quote-check-frozen': 'That price could not be confirmed. Review the figure before paying again.',
+
+  // --- the wallet, which the customer can retry ---------------------------
+  // (`signature-mismatch`, `invalid-signature`, `purpose-mismatch` and
+  // `invalid-issued-at` are above, with the claim they belong to.)
+  'signer-mismatch':
+    'The wallet that signed is not the one this account is registered with. Sign in again, then retry.',
+  'signer-not-declared':
+    'The wallet that signed did not identify itself. Sign in again, then retry.',
+  'signer-not-owned':
+    'That wallet does not belong to this account. Sign in again, then retry.',
+  'not-a-token': 'Your session token was not recognised. Sign in again to continue.',
+  'session-identity-unknown':
+    'Your session does not resolve to an account. Sign in again to continue.',
+
+  // --- the chain, after a signature --------------------------------------
+  'receipt-reverted': 'The chain rejected that transfer, and nothing was sent. Try again.',
+  'receipt-unavailable':
+    'We could not read that transaction from the chain yet. Try again in a moment.',
+  'transfer-not-found':
+    'That transaction is not visible on-chain yet. Try again in a moment.',
+  'amount-mismatch':
+    'The amount that settled on-chain did not match the quote, so nothing was recorded. Check your wallet before trying again.',
+  'fee-leg-unverified':
+    'The fee transfer could not be verified on-chain, so nothing was recorded. Check your wallet before paying again.',
+
+  // --- account, session, configuration ------------------------------------
+  unauthorized: 'Your session has ended. Sign in again to continue.',
+  'bad-request': 'Something about that request was incomplete. Check the details and try again.',
+  'invalid-intent': 'That account mode is not one we recognise. Reload and choose again.',
+  'invalid-kind': 'That account mode is not one we recognise. Reload and choose again.',
+  'invalid-network': 'That network is not one this build serves. Reload and try again.',
+  'mainnet-not-ready': 'Live payments are not switched on for this build yet.',
+  'inside-transfer':
+    'Sending to a person is paused while this server collects fees inside the transfer. Try again later.',
+
+  // --- the server's own two fault codes -----------------------------------
+  // Mapped so they can never be mistaken for "an unknown failure": the generic
+  // sentence is reserved for a code this build does not know, and these two ARE
+  // known. Both mean nothing was changed, which is the first thing a person needs
+  // to hear about a payment app.
+  INTERNAL_ERROR:
+    'Seti had a problem on our side, and nothing was changed. Try again in a moment.',
+  INVALID_REQUEST_BODY: 'That request was incomplete. Reload the page and try again.',
+  'client-network-refused':
+    'This build decides which network your account is on, so that request was refused. Reload and try again.',
+};
+
+/** Anything with no code of its own. Calm, and never the server's words. */
+export const REFUSAL_UNKNOWN =
+  'Seti could not complete that. Try again in a moment.';
+
+/** Nothing answered at all — offline, DNS, blocked, or the API is down. */
+export const REFUSAL_NETWORK =
+  'We could not reach Seti. Check your connection and try again.';
+
+/** A request that never reached a verdict is worth trying again. */
+export const REFUSAL_NETWORK_STATUS = 0;
+
+/**
+ * The sentence for one refusal code, or the generic one.
+ *
+ * Exported separately from the map so a caller can never accidentally render a
+ * code that is in the map but was written for a log line.
+ */
+export function refusalMessageFor(code: string | undefined | null): string {
+  if (!code) return REFUSAL_UNKNOWN;
+  return REFUSAL_BY_CODE[code] ?? REFUSAL_UNKNOWN;
+}

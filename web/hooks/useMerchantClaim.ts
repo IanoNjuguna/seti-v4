@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ApiError } from '@/lib/api';
+import { ApiError, refusalMessage } from '@/lib/api';
 import { claimHandle } from '@/lib/api/handles';
 import { fetchHandleStatus } from '@/lib/api/handles';
 import { merchantHandle } from '@/lib/merchant-link';
@@ -20,15 +20,29 @@ const INITIAL: MerchantClaimState = {
   claimed: null,
   error: null,
   errorCode: null,
+  errorRequestId: null,
 };
 
 /** How long to wait after the last keystroke before asking about the handle. */
 const HANDLE_PREVIEW_DEBOUNCE_MS = 350;
 
-function toError(error: unknown): { message: string; code: string | null } {
-  if (error instanceof ApiError) return { message: error.message, code: error.code ?? null };
-  if (error instanceof Error && error.message) return { message: error.message, code: null };
-  return { message: 'Could not claim that name. Try again.', code: null };
+function toError(error: unknown): {
+  message: string;
+  code: string | null;
+  requestId: string | null;
+} {
+  return {
+    message: refusalMessage(error, 'claim'),
+    code: errorCode(error),
+    // The server's correlation id, when the failure came from the server. It is
+    // what makes a reported sentence findable in the log.
+    requestId: error instanceof ApiError ? (error.requestId ?? null) : null,
+  };
+}
+
+/** The machine-readable refusal code, when the server sent one. */
+function errorCode(error: unknown): string | null {
+  return error instanceof ApiError ? (error.code ?? null) : null;
 }
 
 /**
@@ -60,14 +74,14 @@ export function useMerchantClaim(initialKind: HandleKind = 'business'): UseMerch
 
   const setKind = useCallback(
     (kind: HandleKind) => {
-      setPartial({ kind, error: null, errorCode: null });
+      setPartial({ kind, error: null, errorCode: null, errorRequestId: null });
     },
     [setPartial]
   );
 
   const setName = useCallback(
     (name: string) => {
-      setPartial({ name, error: null, errorCode: null });
+      setPartial({ name, error: null, errorCode: null, errorRequestId: null });
     },
     [setPartial]
   );
@@ -88,7 +102,11 @@ export function useMerchantClaim(initialKind: HandleKind = 'business'): UseMerch
     let active = true;
 
     const timer = setTimeout(() => {
-      fetchHandleStatus(name)
+      // The KIND is part of the question: availability is global for a person's
+      // username and per network for a business name, so the preview asks under the
+      // same rule the claim will apply. (This is also a dependency below — changing
+      // how you will use the name can change whether the name is free.)
+      fetchHandleStatus(name, state.kind)
         .then((status) => {
           if (!active) return;
           setPreview(status);
@@ -104,7 +122,7 @@ export function useMerchantClaim(initialKind: HandleKind = 'business'): UseMerch
       active = false;
       clearTimeout(timer);
     };
-  }, [state.name]);
+  }, [state.name, state.kind]);
 
   const claim = useCallback(async (kindOverride?: HandleKind) => {
     const name = state.name.trim();
@@ -119,11 +137,12 @@ export function useMerchantClaim(initialKind: HandleKind = 'business'): UseMerch
         step: 'error',
         error: kind === 'person' ? 'Enter the username you want.' : 'Enter the business name you want to claim.',
         errorCode: 'invalid-handle-name',
+        errorRequestId: null,
       });
       return;
     }
 
-    setPartial({ step: 'signing', claimed: null, error: null, errorCode: null });
+    setPartial({ step: 'signing', claimed: null, error: null, errorCode: null, errorRequestId: null });
 
     try {
       // The wallet only exists once the embedded wallet does; asking for it is
@@ -136,8 +155,8 @@ export function useMerchantClaim(initialKind: HandleKind = 'business'): UseMerch
 
       setPartial({ step: 'done', claimed });
     } catch (error) {
-      const { message, code } = toError(error);
-      setPartial({ step: 'error', error: message, errorCode: code });
+      const { message, code, requestId } = toError(error);
+      setPartial({ step: 'error', error: message, errorCode: code, errorRequestId: requestId });
     }
   }, [state.name, state.kind, getSigningWallet, setPartial]);
 

@@ -5,6 +5,7 @@
  * chain receipt, so every figure here is what actually moved — nothing is echoed
  * back from the request that created the transfer.
  */
+import type { Network } from '@/lib/network';
 
 /** What a movement was, in the customer's terms. */
 export type ReceiptLegRole = 'payment' | 'platform-fee' | 'gas';
@@ -58,6 +59,16 @@ export interface ReceiptLedger {
 
 export interface ReceiptDocument {
   hash: string;
+  /**
+   * The network this receipt is from — `testnet` (Practice) or `mainnet` (Live),
+   * with its product word in `networkLabel`.
+   *
+   * EVERY receipt names its network, so a shared link is never ambiguous about
+   * which chain moved the money. The backend scopes the document by the row's own
+   * network, so a practice receipt and a live one are told apart by construction.
+   */
+  network: Network;
+  networkLabel: string;
   blockNumber: number;
   /** ISO 8601, from the block's own timestamp. */
   timestamp: string;

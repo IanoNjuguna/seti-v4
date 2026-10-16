@@ -1,15 +1,18 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ApiError, fetchHomeDashboard } from '@/lib/api';
+import { fetchHomeDashboard, refusalMessage } from '@/lib/api';
 import type { HomeDashboard, RecentTransaction } from '@/lib/api';
 import type { Transaction } from '@/lib/types';
 import type { HomeDataState } from './useHomeData.types';
 
+/**
+ * The sentence for a failed read. `refusalMessage` maps the server's CODE to our
+ * own copy and never lets the server's sentence (or a raw JS error) reach the
+ * screen — see `lib/api/refusal.ts`.
+ */
 function toErrorMessage(error: unknown): string {
-  if (error instanceof ApiError) return error.message;
-  if (error instanceof Error) return error.message;
-  return 'Something went wrong. Please try again.';
+  return refusalMessage(error, 'account');
 }
 
 const SIGNED_OUT = 'You must be signed in to view your account.';
