@@ -8,15 +8,15 @@ v4, and the Calm Finance design system.
 
 One page (`app/page.tsx`) with four numbered sections:
 
-- **Hero** — "a neo-bank", with `Open the app` and `See how it works` anchors, over
-  a background video
+- **Hero** — "Get paid.", with a live payment QR in the right half
+  (see [Hero payment QR](#hero-payment-qr)) and `Open Seti` / `See how it works`
+  anchors
 - **01 — Hello, World.** — the problem framing (currency debasement, global trade)
 - **02 — How** — scan / pay / settlement
-- **03 — Rails** — infrastructure & partners: Tempo and Privy only. Stripe and
-  Bridge are deliberately absent — v1 has no fiat off-ramp and no
-  Stripe/Bridge integration in the code, so listing them as "planned" invented a
-  roadmap the product does not have.
-- **04 — Get started** — `Open Seti`, on Tempo testnet
+- **03 — Rails** — infrastructure & partners: Tempo and Privy run today. Stripe and
+  Bridge are listed as PLANNED and labelled as such on the tile — a roadmap the owner
+  wants visible, written so it cannot be read as an integration this version has.
+- **04 — Get started** — `Open Seti`
 
 Plus:
 
@@ -24,9 +24,11 @@ Plus:
   data in `app/legal/*.content.ts` rendered by `app/legal/LegalDocument.tsx`
 - `components/ScrollNavbar.tsx` with a ⌘K `SearchModal.tsx` index over the
   sections
-- A footer that publishes Seti's treasury (fee-collection) address
-  (`components/TreasuryAddress.tsx`). Labelled as what it is — a transparency
-  item, not an address to send money to; no imperative and no scan-to-pay QR.
+- **The footer no longer publishes the treasury address.** It used to render a
+  treasury block (its component has since been deleted) under a `#treasury`
+  anchor the fee band linked to. Both are gone — the owner removed the treasury
+  surface from the landing — so the page currently makes no claim a reader can
+  verify independently, and the fee band states its 2% unbacked.
 
 There is no waitlist form and no backend call anywhere on the site; every CTA is
 an in-page anchor.
@@ -69,12 +71,70 @@ Colors, typography, radii and shadows are CSS variables in `app/globals.css`,
 mirroring the root `design.tokens.json`. The page is **dark-canvas by design**:
 there is no `prefers-color-scheme` media query and no light-mode variant.
 
+The landing's vertical rhythm comes from **one** token, `--band-pad-block`
+(4rem / 5rem / 5.5rem at the three widths, stepped in `@layer base` because an
+`@theme` block cannot hold a media query). Every band's top and bottom padding
+reads it — `py-[var(--band-pad-block)]` — so no band can drift from its
+neighbours and no band's bottom can exceed its top. The hero (a viewport-tall
+centred box) and the footer (chrome) are the only two surfaces deliberately off
+it.
+
+The desktop step is `{spacing.section}` (88px), not `{spacing.band}` (120px):
+`design/revolut.md` gives 120px to "the hero band and the closing planning
+section" and 88px to the padding "between bands". Every band running at the
+hero's number is what overflowed the how-it-works band on a laptop — 693px of
+band against a 656px fold at 1280x720, 240px of it padding — and 88px brings
+that band to 629px. The measured before/after table is in `app/globals.css`
+above the ladder.
+
+## Hero payment QR
+
+The hero's right half is a **live payment link**, drawn as a QR — not an
+illustration of one. It encodes a real merchant's public payment page, so
+scanning it opens the thing the product actually does, signed out, the way a
+customer meets a printed sticker.
+
+- **The code** comes from `react-qr-code` (already a dependency of the receipt
+  and the merchant surfaces) and is drawn as SVG — never `public/treasury-qr.png`,
+  which is a few hundred pixels of raster and visibly soft at this size. The QR's
+  own modules stay square; the plate around it is a real surface at `rounded-md`
+  (12px) with `p-9`/`md:p-10`, which is both the slot's internal padding and the
+  code's quiet zone (the spec wants ~14% of the code's width of clean field).
+- **What it opens** — `HERO_PAYMENT_URL`, built by `merchantPaymentUrl()` in
+  `lib/site.ts` from `NEXT_PUBLIC_SITE_ORIGIN` + `/m/<handle>`. Set
+  `NEXT_PUBLIC_SITE_ORIGIN` to the origin a deployment is actually served from; it
+  defaults to `https://seti.live`. It is **never** `window.location` and never a
+  relative path: the page is prerendered at build time, where there is no
+  `window`, and a code carrying the host that happened to serve a preview build
+  ends up printed on a sticker where it cannot be corrected.
+- **What it says** — the caption names the merchant and what the link is for, in
+  the owner's own wording. Note what it does **not** do: it names no network. The
+  sentence is picked by `NEXT_PUBLIC_TEMPO_CHAIN_ID` (practice by default), but
+  the practice sentence is now network-agnostic — **and the closing band's
+  "Runs on Tempo testnet — no real money yet." line has since been deleted — so
+  nothing on the landing states which network it runs on.** On a testnet
+  deployment that is a live money claim held up to visitors; it is recorded here
+  and in `ClosingSection` rather than silently papered over. The `live` variant
+  (mainnet) has not been reviewed by the owner. No imperative and no
+  send-funds-to-this-address phrasing — the page's own lesson, from when a
+  scan-to-pay code sat under a label that did not say what it was.
+- **The label** is on the code (`role="img"` plus the SVG's own `<title>`), and
+  the payload is printed beneath it in mono so a person can read the URL the
+  picture carries.
+
+`HERO_PAYMENT_URL` is one constant used by both the code and the printed line, so
+the picture and the text cannot describe different URLs.
+
+`public/hero-banner.png` (1400 × 592, RGBA) is still in the tree — the owner
+resized it and asked for it to stay — but it is **no longer the hero visual**.
+
 ## Notes
 
-- **The hero background video is hotlinked from a third-party CDN**
-  (`d8j0ntlcm91z4.cloudfront.net`). Replace it with an owned asset before launch:
-  a hotlinked asset can change or disappear without notice, and it sits in the
-  critical path of the first screen.
+- **The hero's right half is a live payment QR**, not an image. The
+  third-party background video that used to sit there is gone — the drifting
+  field replaced it — and `public/hero-banner.png` is retained but unused. See
+  [Hero payment QR](#hero-payment-qr) for what the code encodes and the one env
+  var (`NEXT_PUBLIC_SITE_ORIGIN`) that decides it.
 - **Legal placeholders are published.** `app/legal/site.ts` holds `legalName`,
   `entitySuffix`, `address` (`[Registered address]`), `email` and
   `NOTICES_EMAIL` (`legal@seti.example`) and `domain` (`https://seti.example`).
@@ -84,6 +144,10 @@ there is no `prefers-color-scheme` media query and no light-mode variant.
 - **The donations QR is generated, not hand-made.** `public/treasury-qr.png`
   comes from `scripts/generate-treasury-qr.py`, which reads
   `SETI_TREASURY_ADDRESS`. Regenerate it whenever the address changes — otherwise
-  the QR points somewhere the visible text does not.
+  the QR points somewhere the visible text does not. NOTE: nothing renders this
+  image any more (the footer block that published the address is gone), so the
+  file and its script are now artefacts with no reader; delete both or give the
+  address a surface, but do not leave a QR nobody displays looking like a live
+  part of the page.
 - Keep this directory focused on marketing content only. Product logic lives in
   `mobile/` and `backend/`.

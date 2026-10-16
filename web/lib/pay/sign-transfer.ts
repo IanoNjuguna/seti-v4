@@ -1,5 +1,7 @@
 import type { Address } from 'viem';
-import type { SendPreview, SupportedAsset } from '@/lib/api';
+import type { SendPreview } from '@/lib/api';
+import type { SupportedAsset } from '@/lib/chain';
+import type { Network } from '@/lib/network';
 import { buildBatchTransfer, buildTempoTransaction } from './build-transfer';
 import type { SendTempoTransaction } from './build-transfer.types';
 
@@ -33,6 +35,12 @@ export interface SignSendInput {
   asset: SupportedAsset;
   /** The batch mechanism, from the Privy Tempo hook. */
   sendTempoTransaction: SendTempoTransaction;
+  /**
+   * The network the ACCOUNT is acting on. Required: it decides which chain id and
+   * which token contract get signed, and the account's network is the only correct
+   * answer — not the one this deployment happens to serve.
+   */
+  network: Network;
 }
 
 export interface SignSendResult {
@@ -40,7 +48,7 @@ export interface SignSendResult {
 }
 
 export async function signSend(input: SignSendInput): Promise<SignSendResult> {
-  const { preview, asset, sendTempoTransaction } = input;
+  const { preview, asset, sendTempoTransaction, network } = input;
 
   if (preview.feeRoutingMode !== 'batch') {
     throw new Error(
@@ -55,9 +63,10 @@ export async function signSend(input: SignSendInput): Promise<SignSendResult> {
     principalAmount: preview.amount,
     feeAmount: preview.feeInAsset,
     treasuryAddress: preview.treasuryAddress as Address,
+    network,
   });
 
-  const txHash = await sendTempoTransaction(buildTempoTransaction({ asset, calls }));
+  const txHash = await sendTempoTransaction(buildTempoTransaction({ asset, calls, network }));
 
   if (!txHash || typeof txHash !== 'string') {
     throw new Error('The wallet returned no transaction hash.');

@@ -1,0 +1,64 @@
+# Build context for the backend image is the REPOSITORY ROOT (the npm workspace
+# lockfile lives there — see backend/Dockerfile). Everything below keeps the
+# context small and, more importantly, keeps secrets and build noise out of the
+# image.
+
+# Dependencies are reinstalled inside the image; never ship the host's.
+**/node_modules
+
+# Build output is produced inside the image.
+**/dist
+**/.next
+backend/dist
+web/.next
+web/dist
+
+# Secrets. A container image is a poor place for a DATABASE_URL or a treasury
+# key, and the backend's `.env` is the owner's local one. The image reads its
+# configuration from the environment at run time, never from a baked file.
+**/.env
+**/.env.*
+**/.env.bak-*
+
+# Git and CI metadata are not needed to build.
+.git
+.gitignore
+.github
+
+# Agent scratch and skills — never part of the product.
+agent
+.agents
+.claude
+.kimi-code
+.hermes
+.playwright-mcp
+**/.claude
+
+# Local scratch trees the repo keeps around.
+tmp-*
+*.log
+
+# Docs and the separate static docs site do not affect the image.
+docs
+docs-site
+design
+design-kit
+mobile
+README.md
+CONTRIBUTING.md
+DESIGN.md
+design.tokens.json
+
+# The web app is a separate deployable. Only its package.json is needed, so that
+# `npm ci` at the workspace root resolves the lockfile without failing on the
+# missing workspace — none of its source or assets belong in the backend image.
+web/*
+!web/package.json
+
+# The compose file and systemd units are host-side artefacts.
+docker-compose.yml
+deploy
+
+# Anything already ignored by git and obviously local.
+.env
+.env.*

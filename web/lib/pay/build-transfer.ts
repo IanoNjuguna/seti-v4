@@ -1,7 +1,8 @@
 import { encodeFunctionData, erc20Abi, parseUnits, type Address } from 'viem';
 import type { TempoCall, TempoTransactionRequest, TokenTransfer } from './build-transfer.types';
 import type { SupportedAsset } from '@/lib/chain';
-import { ASSET_DECIMALS, getTokenContract, network } from '@/lib/chain';
+import type { Network } from '@/lib/network';
+import { ASSET_DECIMALS, chainConfigFor, getTokenContractFor } from '@/lib/chain';
 
 /** Tempo's native transaction type (EIP-2718 envelope, serialized as `0x76`). */
 export const TEMPO_TRANSACTION_TYPE = 118;
@@ -34,6 +35,12 @@ export function buildTransfer(input: {
   recipientAddress: Address;
   /** The gross in the asset's own units, as a decimal string. */
   grossAmount: string;
+  /**
+   * The network the ACCOUNT is acting on — where this transfer will be signed.
+   * Required, with no default on purpose: the client used to read the deployment's
+   * chain here, which is the bug this parameter exists to close. See `chainConfigFor`.
+   */
+  network: Network;
 }): TokenTransfer {
   const decimals = ASSET_DECIMALS[input.asset];
   const value = parseUnits(input.grossAmount, decimals);
@@ -45,7 +52,7 @@ export function buildTransfer(input: {
   }
 
   return {
-    to: getTokenContract(input.asset),
+    to: getTokenContractFor(input.asset, input.network),
     data: encodeFunctionData({
       abi: erc20Abi,
       functionName: 'transfer',
@@ -78,6 +85,8 @@ export function buildBatchTransfer(input: {
   feeAmount: string;
   /** Where the fee goes. Server-supplied — never invented here. */
   treasuryAddress: Address;
+  /** The network the ACCOUNT is acting on. See {@link buildTransfer}. */
+  network: Network;
 }): TempoCall[] {
   const decimals = ASSET_DECIMALS[input.asset];
 
@@ -88,7 +97,7 @@ export function buildBatchTransfer(input: {
   // That is not a cheaper payment, it is a mis-signed one: refuse before the
   // wallet sees it.
   const encode = (recipient: Address, value: bigint): TempoCall => ({
-    to: getTokenContract(input.asset),
+    to: getTokenContractFor(input.asset, input.network),
     data: encodeFunctionData({
       abi: erc20Abi,
       functionName: 'transfer',
@@ -120,14 +129,16 @@ function toPositiveUnits(amount: string, decimals: number, label: string): bigin
 export function buildTempoTransaction(input: {
   asset: SupportedAsset;
   calls: TempoCall[];
+  /** The network the ACCOUNT is acting on. See {@link buildTransfer}. */
+  network: Network;
 }): TempoTransactionRequest {
   return {
     type: TEMPO_TRANSACTION_TYPE,
-    // The same chain the token contracts came from: `lib/chain` refuses an
-    // unsupported chain — or mainnet without the explicit flag — at import time,
-    // so this cannot name a different network than the addresses do.
-    chainId: network.chainId,
-    feeToken: getTokenContract(input.asset),
+    // The same network the token contracts were resolved for — one call, one
+    // source. `chainConfigFor` refuses mainnet unless the build opted in, so the
+    // chain id and the addresses can never name different networks.
+    chainId: chainConfigFor(input.network).chainId,
+    feeToken: getTokenContractFor(input.asset, input.network),
     calls: input.calls,
   };
 }

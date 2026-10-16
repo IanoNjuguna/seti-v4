@@ -2,7 +2,7 @@
 export type CopyRowSurface = 'light' | 'dark';
 
 export interface CopyRowProps {
-  /** What the row SHOWS. */
+  /** What the row SHOWS. The control is drawn immediately after it. */
   display: string;
   /**
    * What the control WRITES. Not always `display`: a handle is shown with its
@@ -31,6 +31,11 @@ export interface CopyRowProps {
    * For a value that has to be readable in full even when it does not fit: a
    * 42-character address, which the failure path tells the person to select and
    * copy by hand, so clipping it would hide the very string they were sent to get.
+   *
+   * A wrapped value and its control are ONE unit: the value flows first and the
+   * control sits on the line the value's last character is on, stepping to the
+   * next line rather than being pushed off the edge. Without it the value is a
+   * single truncated line and the control follows the truncation.
    */
   wrap?: boolean;
 }

@@ -25,14 +25,13 @@ export const NETWORK_LABEL: Record<Network, string> = {
 /**
  * A one-line description of what a network's money is, said plainly.
  *
- * It does NOT name the network: the app's word for the network is
- * `NETWORK_LABEL` and it is always rendered beside this sentence (the frame's
- * strip, the switch's selected button). Repeating the word inside the sentence is
- * how one screen ended up saying "Practice" four times.
+ * Only PRACTICE carries one: the frame's strip says what a practice payment is,
+ * and it renders nothing on Live, where the money needs no caption. The sentence
+ * does NOT name the network — the app's word for it is `NETWORK_LABEL`, rendered
+ * beside this line.
  */
-export const NETWORK_NOTE: Record<Network, string> = {
+export const NETWORK_NOTE: Partial<Record<Network, string>> = {
   testnet: 'Nothing here moves real money.',
-  mainnet: 'Real money, on Tempo mainnet.',
 };
 
 export function isNetwork(value: unknown): value is Network {

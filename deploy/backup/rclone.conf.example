@@ -1,0 +1,36 @@
+# rclone remote for the Seti backup job — Cloudflare R2.
+#
+# Install for the service user (seti-backup.service runs as `seti`):
+#   sudo install -d -m 0700 -o seti -g seti /var/lib/seti/.config/rclone
+#   sudo install -m 0600 -o seti -g seti rclone.conf /var/lib/seti/.config/rclone/rclone.conf
+# (or set HOME=/var/lib/seti in backup.env if the service's HOME differs).
+#
+# R2 speaks the S3 API, so the remote is `type = s3` with `provider = Cloudflare`.
+# The remote NAME here (`r2`) is what R2_REMOTE in backup.env refers to.
+#
+# Get the credentials from the Cloudflare dashboard: R2 → Manage API Tokens →
+# Create API token (Object Read & Write). The S3 endpoint is
+# https://<ACCOUNT_ID>.r2.cloudflarestorage.com — the account id is in the
+# dashboard URL. You must also CREATE the bucket (e.g. seti-backups) first;
+# rclone will not create it for a `copy`.
+#
+# rclone obscures secrets on disk when configured with `rclone config`; writing
+# the file by hand keeps them in plaintext, which is acceptable ONLY because the
+# file is 0600 and owned by the service user. Prefer `rclone config` if you can.
+
+[r2]
+type = s3
+provider = Cloudflare
+access_key_id = REPLACE_WITH_R2_ACCESS_KEY_ID
+secret_access_key = REPLACE_WITH_R2_SECRET_ACCESS_KEY
+endpoint = https://REPLACE_WITH_ACCOUNT_ID.r2.cloudflarestorage.com
+# R2 ignores the region for most operations but the S3 client requires one.
+region = auto
+# The bucket is created BY HAND in the Cloudflare dashboard, and the API token
+# is scoped to that bucket — it usually has no permission to create one. rclone
+# otherwise probes (and may try to create) the bucket on every copy and fails
+# with `BucketAlreadyExists` / `AccessDenied`. This tells it to trust that the
+# bucket exists.
+no_check_bucket = true
+# R2 is strongly consistent for these operations; keep the default ACL behaviour
+# untouched (no `acl = public-read` — the backups stay private).

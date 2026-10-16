@@ -1,0 +1,191 @@
+# Seti — single-box production shape.
+#
+# Everything the backend needs, on one host: Postgres, the API, and the indexer
+# as three separate services. This is the shape that fits Oracle Cloud Always
+# Free (one Ampere A1 VM, 2 OCPU / 12 GB) and any other single VM you point it
+# at. The provider-specific parts — the firewall, the tunnel, the backup target —
+# live in docs/deploy-oracle.md, not here.
+#
+# Why three services and not one:
+#   * Postgres is the ledger. It is never published to the host — it has no
+#     `ports:` entry at all, so it is reachable only from the compose network.
+#   * The API serves HTTP and is the only thing bound to a host port, and that
+#     binding is 127.0.0.1 — never 0.0.0.0. Exposing it to the internet is the
+#     tunnel's job (Cloudflare Tunnel), not a published port's.
+#   * The indexer is a long-running loop with no HTTP surface. Running it as its
+#     own service means an API restart never interrupts a scan (and vice versa),
+#     and the API is started with INDEXER_ENABLED=false so the cursor loop runs
+#     in exactly one place.
+#
+# Bring it up:
+#   1. cp backend/.env.production.example backend/.env.production && edit it
+#   2. cp .env.example .env && edit POSTGRES_PASSWORD
+#   3. docker compose run --rm migrate        # applies committed migrations
+#   4. docker compose up -d
+#   5. curl http://127.0.0.1:4000/health
+#
+# There is a SECOND, older compose file at backend/docker-compose.yml. That one
+# is development-only: it publishes Postgres on 127.0.0.1:5433 so a dev server
+# can reach it, and runs no application. Do not confuse the two.
+
+name: seti
+
+services:
+  # ---------------------------------------------------------------------------
+  # Postgres — the ledger. Note the ABSENCE of a `ports:` key: publishing the
+  # database is the single most common way a small stack on a public VM gets
+  # owned, and it is never necessary here because the API and the indexer reach
+  # it over the compose network by service name.
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-seti}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set — put it in ./.env next to this file}
+      POSTGRES_DB: ${POSTGRES_DB:-seti}
+      # Keep the cluster in UTC so timestamps in the ledger do not depend on the
+      # box's locale.
+      TZ: UTC
+      PGTZ: UTC
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-seti} -d ${POSTGRES_DB:-seti}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    # Bound the log so a runaway container cannot fill the free-tier disk.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # migrate — one-shot release step, not a long-running service. It is behind a
+  # profile so `docker compose up -d` never starts it by accident; run it
+  # explicitly BEFORE bringing a new revision up:
+  #   docker compose run --rm migrate
+  # It runs `prisma migrate deploy` (the non-interactive command docs/operations.md
+  # §3 prescribes — never `migrate dev`), which only applies committed migrations.
+  # ---------------------------------------------------------------------------
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: migrate
+    profiles: ["tools"]
+    env_file:
+      - backend/.env.production
+    environment:
+      DATABASE_URL: ${SETI_DATABASE_URL:-postgresql://${POSTGRES_USER:-seti}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set — put it in ./.env next to this file}@postgres:5432/${POSTGRES_DB:-seti}?schema=public}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # ---------------------------------------------------------------------------
+  # api — the HTTP surface. The ONLY service with a published port, and it is
+  # bound to the loopback interface: `127.0.0.1:4000` on the host, never
+  # `0.0.0.0`. Cloudflare Tunnel reaches 127.0.0.1:4000 from inside the box, so
+  # the oracle's two firewalls never need an inbound rule for it.
+  #
+  # API_HOST_PORT exists so a developer can run this stack beside the dev servers
+  # on 3000/4000 without a conflict. Leave it unset on the VM.
+  # ---------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: runner
+    restart: unless-stopped
+    env_file:
+      - backend/.env.production
+    environment:
+      # The API must not also run the loop — the `indexer` service owns it.
+      INDEXER_ENABLED: "false"
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "4000"
+      # Overrides whatever is in backend/.env.production: inside the compose
+      # network the database is reached by service name, not by localhost.
+      DATABASE_URL: ${SETI_DATABASE_URL:-postgresql://${POSTGRES_USER:-seti}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set — put it in ./.env next to this file}@postgres:5432/${POSTGRES_DB:-seti}?schema=public}
+    ports:
+      - "127.0.0.1:${API_HOST_PORT:-4000}:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # /health is the cheap liveness route: it answers from a literal and does
+      # no database round-trip (routes/health.ts), so a probe here means "the
+      # process is up and serving", exactly what an orchestrator should act on.
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    stop_grace_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # indexer — the cursor loop, as its own process (backend/dist/worker.js). No
+  # ports: it binds nothing. Its durable state is the indexer_cursors row in the
+  # same database, which is why it shares DATABASE_URL with the API and why the
+  # nightly backup covers it.
+  #
+  # The healthcheck cannot be an HTTP probe, so it asserts the one thing the loop
+  # cannot work without: a live connection to Postgres. A crashed worker is caught
+  # by the restart policy; a worker that is up but cannot reach its database is
+  # what this check is for.
+  # ---------------------------------------------------------------------------
+  indexer:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: runner
+    restart: unless-stopped
+    command: ["node", "dist/worker.js"]
+    env_file:
+      - backend/.env.production
+    environment:
+      NODE_ENV: production
+      INDEXER_ENABLED: "true"
+      DATABASE_URL: ${SETI_DATABASE_URL:-postgresql://${POSTGRES_USER:-seti}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set — put it in ./.env next to this file}@postgres:5432/${POSTGRES_DB:-seti}?schema=public}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "const s=require('net').connect(5432,'postgres');s.setTimeout(3000,()=>process.exit(1));s.on('connect',()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1));",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    # A scan in flight is interrupted on stop; the 60s cursor lock TTL reclaims it
+    # on the next start, so a short grace period is enough.
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  postgres_data:

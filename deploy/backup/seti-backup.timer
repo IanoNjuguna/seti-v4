@@ -1,0 +1,20 @@
+[Unit]
+# Nightly trigger for seti-backup.service. 01:00 is a quiet hour for the API, so
+# the dump runs against a still ledger.
+Description=Run the Seti nightly database backup
+Documentation=file:///opt/seti/docs/deploy-oracle.md
+
+[Timer]
+# 01:00 every day, in the box's timezone. Set the box to UTC (see the runbook) so
+# this is 01:00 UTC, well clear of the US evening and EU morning.
+OnCalendar=*-*-* 01:00:00
+# Spread load off the exact minute; harmless here, correct if the box ever hosts
+# a second timer.
+RandomizedDelaySec=15m
+# If the machine was off at 01:00 (or the timer was installed at noon), run once
+# shortly after boot rather than skipping the night.
+Persistent=true
+Unit=seti-backup.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,62 @@
+[Unit]
+# Seti indexer — the on-chain cursor loop, as its own process.
+#
+# It is deliberately separate from seti-api.service: the loop is long-running and
+# has no HTTP surface, so a redeploy or restart of the API must not interrupt a
+# scan, and a crash of one must not take down the other. The API is started with
+# INDEXER_ENABLED=false so this is the only process running the loop.
+#
+# The loop's durable state is the indexer_cursors row in Postgres — it is DATA,
+# backed up with the database (docs/operations.md §4). Losing it with lookback 0
+# leaves a permanent hole in the ledger, so this unit shares DATABASE_URL with
+# the API and must point at the same database.
+Description=Seti indexer (on-chain transaction cursor loop)
+Documentation=file:///opt/seti/docs/deploy-oracle.md
+
+After=network-online.target
+Wants=network-online.target
+After=postgresql.service
+
+# Same reasoning as the API: a refused configuration must surface in `failed`
+# rather than loop. The loop also stops cleanly on SIGTERM (src/worker.ts clears
+# its interval), so a restart during a scan is safe — the 60s cursor lock is
+# reclaimed on the next start.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=seti
+Group=seti
+WorkingDirectory=/opt/seti/backend
+EnvironmentFile=/etc/seti/indexer.env
+
+# dist/worker.js, NOT dist/index.js: the worker starts the indexer loop and binds
+# no port. Its environment must carry INDEXER_ENABLED=true (see the template).
+ExecStart=/usr/bin/node /opt/seti/backend/dist/worker.js
+
+Restart=always
+RestartSec=10
+# Let a scan in flight finish if it can; the cursor lock TTL covers an
+# interrupted one.
+TimeoutStopSec=30
+KillSignal=SIGTERM
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=seti-indexer
+
+# --- Hardening ---------------------------------------------------------------
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictNamespaces=true
+
+[Install]
+WantedBy=multi-user.target

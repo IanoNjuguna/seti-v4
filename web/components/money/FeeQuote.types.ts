@@ -24,7 +24,14 @@ export interface FeeQuotePreview {
   hasEnoughBalance: boolean;
 }
 
-/** Which canvas the table is drawn on. The send panel prices on black; a card is white. */
+/**
+ * Which canvas the table is drawn on: `light` for a white product surface
+ * (`bg-surface-soft` well, ink/secondary text), `dark` for a table sitting on the
+ * black canvas (`bg-canvas-dark`, `on-dark` text). Both send-flow branches price on
+ * `canvas-light` now — the amount step included — so no caller passes `dark`; the
+ * tone stays because the table is ONE component for either surface rather than two
+ * that drift, not because a dark caller is live.
+ */
 export type FeeQuoteTone = 'light' | 'dark';
 
 /** The noun in the short-balance sentence — the branch knows which it is. */

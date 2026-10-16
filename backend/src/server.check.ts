@@ -14,13 +14,27 @@
  * a 500. The 500 case below is the load-bearing one: it proves the fix narrows
  * the handler to actual client-shape errors rather than widening a catch.
  *
+ * The same mistake, in the same request, on the other field: `POST /auth/verify`
+ * let a Privy verification failure escape as an untyped throw, so a token the
+ * server simply could not verify came back as `500 INTERNAL_ERROR` — "Seti had a
+ * problem on our side, and nothing was changed" — on EVERY sign-in. A refused
+ * token is the client's failure and must be a typed 401; that case is pinned
+ * here too, against the real route, and the mapping itself is pinned through the
+ * shared handler with no credentials and no database (so CI proves it as well).
+ *
  * The claim cases run against the REAL server (`buildServer`), so they exercise
  * the handler the server actually installs. The fault case needs a route that
  * throws, which no shipped route does, so it runs against a minimal app built
  * from the same exported `apiErrorHandler`.
  */
 import Fastify from 'fastify';
-import { buildServer, apiErrorHandler, INVALID_REQUEST_BODY } from './server.js';
+import { buildServer, apiErrorHandler, INTERNAL_ERROR, INTERNAL_ERROR_MESSAGE, INVALID_REQUEST_BODY } from './server.js';
+import {
+  AUTH_UNAUTHORIZED,
+  AUTH_UNAUTHORIZED_MESSAGE,
+  PrivyTokenVerificationError,
+  isPrivyConfigured,
+} from './services/auth.js';
 
 let total = 0;
 let failures = 0;
@@ -105,6 +119,64 @@ async function main() {
   await server.close();
 
   // -------------------------------------------------------------------------
+  // A token the server cannot verify is the CALLER's failure: a typed 401
+  // -------------------------------------------------------------------------
+  // The bug this pins, quoted from the sign-in UI: "Seti had a problem on our
+  // side, and nothing was changed." `POST /auth/verify` let the verification
+  // failure escape as an untyped throw, so the shared handler reported it as a
+  // fault — a 500 `INTERNAL_ERROR` for a token that was simply wrong. EVERY
+  // sign-in failed that way: the sentence a person read said Seti was broken
+  // when the only thing wrong was the token they presented.
+  console.log('\na token that cannot be verified is not a server fault:');
+
+  const bogusServer = await buildServer();
+  const bogus = await bogusServer.inject({
+    method: 'POST',
+    url: '/auth/verify',
+    payload: { token: 'bogus-token-for-diagnosis' },
+  });
+  const bogusBody = bogus.json<Envelope>();
+  await bogusServer.close();
+
+  check(
+    'a bogus Privy token is never reported as a server fault',
+    bogus.statusCode !== 500 && bogusBody.code !== INTERNAL_ERROR,
+    `got ${bogus.statusCode} code=${bogusBody.code}`
+  );
+  check(
+    '...and never the server-fault sentence',
+    bogusBody.error !== INTERNAL_ERROR_MESSAGE,
+    `error=${JSON.stringify(bogusBody.error)}`
+  );
+
+  if (isPrivyConfigured()) {
+    // Only where THIS box has Privy credentials, because that is the only place
+    // a token can actually be put to Privy. A box without them refuses earlier
+    // and by name, which is the correct behaviour rather than a weaker version
+    // of this one — so the branch below asserts that instead of pretending.
+    check('...it is a 401, the client\u2019s failure', bogus.statusCode === 401, `got ${bogus.statusCode}`);
+    check(
+      '...with the refusal code the web app already knows',
+      bogusBody.code === AUTH_UNAUTHORIZED,
+      `code=${bogusBody.code}`
+    );
+    check(
+      '...and one authored sentence',
+      bogusBody.error === AUTH_UNAUTHORIZED_MESSAGE,
+      `error=${JSON.stringify(bogusBody.error)}`
+    );
+    // A stale session is not something to retry with the same token, and the web
+    // app decides that from the code alone (`web/lib/api/refusal.ts`).
+    check('...which is the code the app treats as not retryable', bogusBody.code === 'unauthorized');
+  } else {
+    check(
+      '...a box with no Privy credentials refuses sign-in by name',
+      bogus.statusCode === 503,
+      `got ${bogus.statusCode}`
+    );
+  }
+
+  // -------------------------------------------------------------------------
   // A genuine server fault is STILL a 500 — the fix is not a widened catch
   // -------------------------------------------------------------------------
   console.log('\na genuine server fault is still a 500:');
@@ -120,6 +192,17 @@ async function main() {
       code: 'bad-request',
     });
   });
+  // The refusal the verification path raises, left UNCAUGHT on purpose: even a
+  // caller that forgets to map it cannot turn a refused token into an
+  // INTERNAL_ERROR, because the refusal carries its own 401 and typed code. This
+  // case needs no Privy credentials and no database, so the mapping is pinned on
+  // every box — CI included.
+  probe.get('/refused-token', async () => {
+    throw new PrivyTokenVerificationError(
+      'Invalid Compact JWS',
+      Object.assign(new Error('Invalid Compact JWS'), { code: 'ERR_JWS_INVALID' })
+    );
+  });
   await probe.ready();
 
   const fault = await probe.inject({ method: 'GET', url: '/fault' });
@@ -134,6 +217,20 @@ async function main() {
     "a handler's own 4xx passes through unchanged",
     clientFault.statusCode === 400 && clientFaultEnvelope.code === 'bad-request',
     `got ${clientFault.statusCode} code=${clientFaultEnvelope.code}`
+  );
+
+  // The refusal the verification path raises, driven through the SAME handler.
+  const refused = await probe.inject({ method: 'GET', url: '/refused-token' });
+  const refusedEnvelope = refused.json<Envelope>();
+  check(
+    'an uncaught token refusal is a 401 unauthorized, not a 500',
+    refused.statusCode === 401 && refusedEnvelope.code === AUTH_UNAUTHORIZED,
+    `got ${refused.statusCode} code=${refusedEnvelope.code}`
+  );
+  check(
+    '...and hands the client the authored sentence, not the SDK\u2019s',
+    refusedEnvelope.error === AUTH_UNAUTHORIZED_MESSAGE && !refused.body.includes('JWS'),
+    `error=${JSON.stringify(refusedEnvelope.error)}`
   );
 
   await probe.close();

@@ -1,0 +1,39 @@
+[Unit]
+# Nightly off-provider database backup. Runs pg-backup.sh, which dumps the whole
+# ledger, verifies the archive is readable, and uploads it to Cloudflare R2.
+#
+# Driven by seti-backup.timer (not by a cron line) so a missed run is replayed:
+# Persistent=true means a night the box was down is backed up when it comes back.
+Description=Seti nightly Postgres backup to off-provider storage (R2)
+Documentation=file:///opt/seti/docs/deploy-oracle.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=seti
+Group=seti
+
+# /etc/seti/backup.env carries DATABASE_URL (host mode) or the compose file and
+# Postgres user/db (docker mode), plus the rclone remote and bucket. See
+# backup.env.example. chmod 640.
+EnvironmentFile=/etc/seti/backup.env
+
+ExecStart=/opt/seti/deploy/backup/pg-backup.sh
+# A backup that only runs for a moment and exits is a oneshot; report a clean run
+# in the journal as `seti-backup.service: Succeeded`.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=seti-backup
+
+# Hardening: the job needs the network and the local DB, nothing else.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target

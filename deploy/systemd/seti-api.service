@@ -1,0 +1,69 @@
+[Unit]
+# Seti API — the HTTP surface. Runs the compiled backend directly on the host,
+# with no Docker: this is the "bare VM" path Oracle Always Free is most likely to
+# be used for. The compose path lives in docker-compose.yml; pick one, not both.
+Description=Seti API (Fastify backend)
+Documentation=file:///opt/seti/docs/deploy-oracle.md
+
+After=network-online.target
+Wants=network-online.target
+# Order after a local Postgres when one is installed on the box. Not a hard
+# dependency (`Wants`, not `Requires`) because the database may be managed
+# elsewhere — the API retries its own connection either way.
+After=postgresql.service
+
+# The production boot guard EXITS rather than retrying when the configuration is
+# insecure or incomplete (DEV_BYPASS_AUTH, a short QUOTE_SIGNING_SECRET, the
+# example JWT_SECRET, missing Privy keys, unset CORS_ALLOWED_ORIGINS). Retrying
+# that forever would bury the message in the journal, so stop after a handful of
+# attempts and leave the unit in `failed` where it is visible:
+#   systemctl status seti-api ; journalctl -u seti-api -n 50
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=seti
+Group=seti
+WorkingDirectory=/opt/seti/backend
+
+# The application's production configuration. See /etc/seti/api.env.example.
+# It is the ONLY place the process reads its environment from.
+EnvironmentFile=/etc/seti/api.env
+
+# `npm run build` produced /opt/seti/backend/dist. Node comes from nodesource's
+# package on Oracle's Ubuntu images (/usr/bin/node). Confirm with `which node`
+# after installing and adjust if it lives elsewhere.
+ExecStart=/usr/bin/node /opt/seti/backend/dist/index.js
+
+Restart=always
+RestartSec=5
+# Give an in-flight request a moment to drain before the process is killed.
+TimeoutStopSec=20
+KillSignal=SIGTERM
+
+# Logs go to the journal, which is where docs/operations.md §5 says they must be
+# read from: `journalctl -u seti-api -f`. Nothing is written to the container's
+# ephemeral buffer because there is no container here.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=seti-api
+
+# --- Hardening ---------------------------------------------------------------
+# The API needs no privileges: it binds one high port and talks to Postgres and
+# an RPC endpoint. The filesystem is read-only apart from a private /tmp.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictNamespaces=true
+# NOT set: MemoryDenyWriteExecute — V8's JIT needs writable-executable pages and
+# this option breaks Node.
+
+[Install]
+WantedBy=multi-user.target

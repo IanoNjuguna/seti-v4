@@ -1,4 +1,15 @@
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive' | 'pill';
+export type ButtonVariant =
+  | 'primary'
+  | 'secondary'
+  | 'ghost'
+  | 'destructive'
+  | 'pill'
+  /* `button-primary` from `design/revolut.md` — the white CTA on a dark band,
+     which is the brand's loudest action and had no variant in this app. */
+  | 'on-dark'
+  /* `button-outline-dark` — its secondary, a hairline outline on the dark
+     canvas. Both are only ever used on a dark band. */
+  | 'outline-dark';
 
 export type BadgeVariant = 'success' | 'neutral' | 'warning' | 'danger';
 

@@ -10,7 +10,16 @@ function formatPercent(value: string): string {
   return Number.isFinite(percent) ? String(percent) : value;
 }
 
-/** One line of the quote: a quiet label, the money in the louder half. */
+/**
+ * One line of the quote: a quiet label, the money beside it.
+ *
+ * On the dark canvas both halves drop to the small role. The card exists to make
+ * the TOTAL the loudest thing on it — that is the number the customer is deciding
+ * about — and three rows of body-sized figures competing with it is how a summary
+ * turns into a table nobody's eye lands on. Small rows, one big total: the
+ * neobank review block, and the reason the white-on-black contrast is worth having
+ * at all.
+ */
 function Row({ label, value, tone }: { label: string; value: string; tone: FeeQuoteProps['tone'] }) {
   const dark = tone === 'dark';
 
@@ -19,7 +28,7 @@ function Row({ label, value, tone }: { label: string; value: string; tone: FeeQu
       <Text variant="micro" as="span" color={dark ? 'inverse-muted' : 'secondary'}>
         {label}
       </Text>
-      <Text variant="body" as="span" color={dark ? 'inverse' : undefined} tabular>
+      <Text variant="micro" as="span" color={dark ? 'inverse' : undefined} tabular>
         {value}
       </Text>
     </div>
@@ -64,7 +73,10 @@ function Total({
       </Text>
       <span
         ref={ref}
-        className={cn('font-tabular text-body-md-bold', dark ? 'text-on-dark' : 'text-ink')}
+        className={cn(
+          'font-tabular',
+          dark ? 'text-body-lg font-semibold text-on-dark' : 'text-body-md-bold text-ink'
+        )}
       >
         {value}
       </span>
@@ -81,7 +93,9 @@ function Total({
  * grammar, in two files that had already drifted (13px labels in one, 14px in the
  * other) and that would have kept drifting, because nothing kept them in step.
  * The `tone` prop is the only real difference between them, exactly as `Input`
- * already does for a field on either canvas.
+ * already does for a field on either canvas. `dark` is the send flow's review
+ * block — black well, small rows, one loud total — and `light` is the merchant
+ * step's, where the quote sits on the page beside the merchant it is paying.
  *
  * The rate is the share of the PRINCIPAL, which is what the fee is charged on:
  * quoting it against the total would overstate it, and a customer checking the

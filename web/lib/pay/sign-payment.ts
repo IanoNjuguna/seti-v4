@@ -1,4 +1,5 @@
 import type { Address, EIP1193Provider } from 'viem';
+import type { Network } from '@/lib/network';
 import type { HandleIdentity, PaymentPreview, SupportedAsset } from '@/lib/api';
 import { buildBatchTransfer, buildTempoTransaction, buildTransfer } from './build-transfer';
 import type { SendTempoTransaction } from './build-transfer.types';
@@ -56,6 +57,12 @@ export interface SignPaymentInput {
   sendTempoTransaction?: SendTempoTransaction;
   /** The embedded wallet's address — the `from` of the transfer. */
   from: Address;
+  /**
+   * The network the ACCOUNT is acting on. Required: it decides the chain id and the
+   * token contract this payment is signed against, and the account's network is the
+   * only correct answer — see `chainConfigFor`.
+   */
+  network: Network;
 }
 
 export interface SignPaymentResult {
@@ -84,7 +91,7 @@ export class BatchSignerUnavailableError extends Error {
 }
 
 export async function signPayment(input: SignPaymentInput): Promise<SignPaymentResult> {
-  const { preview, merchant, asset, provider, from } = input;
+  const { preview, merchant, asset, provider, from, network } = input;
 
   if (!merchant.address) {
     throw new Error('This merchant has no payout address, so there is nowhere to send.');
@@ -104,9 +111,10 @@ export async function signPayment(input: SignPaymentInput): Promise<SignPaymentR
       principalAmount: preview.amount,
       feeAmount: preview.feeInAsset,
       treasuryAddress: preview.treasuryAddress as Address,
+      network,
     });
 
-    return { txHash: await sendTempoTransaction(buildTempoTransaction({ asset, calls })) };
+    return { txHash: await sendTempoTransaction(buildTempoTransaction({ asset, calls, network })) };
   }
 
   const transfer = buildTransfer({
@@ -115,6 +123,7 @@ export async function signPayment(input: SignPaymentInput): Promise<SignPaymentR
     // `grossAsset`, not `total`: total includes the gas figure, and gas is paid
     // to the chain — sending it to the merchant would overpay them by it.
     grossAmount: preview.grossAsset,
+    network,
   });
 
   // No `value` leg: TIP-20 has no native transfer, so the call carries calldata
