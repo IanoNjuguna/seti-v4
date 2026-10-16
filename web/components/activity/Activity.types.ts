@@ -1,4 +1,5 @@
 import type { Transaction } from '@/lib/types';
+import type { NoIdentityView } from '@/components/app/no-account.types';
 
 /** A day's rows, in the order the server returned them (newest first). */
 export interface ActivityDayGroup {
@@ -21,6 +22,17 @@ export interface ActivityDayGroupProps {
 /** The list itself. */
 export interface ActivityListProps {
   onSelect?: (transaction: Transaction) => void;
+}
+
+/**
+ * The screen with no account behind it.
+ *
+ * `view` is the session's own state, narrowed to the two that have no account
+ * (`NoIdentityView`), so this component cannot be asked to render the state that
+ * HAS data.
+ */
+export interface ActivitySignedOutProps {
+  view: NoIdentityView;
 }
 
 /** The history itself, before the screen decides what to show. */

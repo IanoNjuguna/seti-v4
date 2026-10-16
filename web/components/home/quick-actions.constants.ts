@@ -32,9 +32,9 @@ export interface QuickAction {
  * and Send rather than only behind a card further down — the strip is the row a
  * thumb finds without reading.
  *
- * `scan`, not `qr`, for that tile. The QR mark is the set's *illustration* glyph
- * (`EmptyActivity` at 56px, the receive card's code plate), and a copy of it on a
- * tile would read as the same object repeated rather than as a destination. The
+ * `scan`, not a QR mark, for that tile. A QR mark is an *illustration* — the code
+ * plate on the receive card draws a real one — and a redrawn copy of it on a tile
+ * would read as the same object repeated rather than as a destination. The
  * viewfinder — corner brackets around a scan line — is a distinct silhouette next
  * to a plus and a paper plane, and it is the mark people already read as "scan to
  * pay". It is the set's existing `scan` glyph (`icon-paths.constants.ts`); no icon

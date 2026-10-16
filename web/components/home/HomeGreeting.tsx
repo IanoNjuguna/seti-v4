@@ -15,6 +15,10 @@ import type { HomeGreetingProps } from './HomeGreeting.types';
  * `useGreeting`). `h-6` is exactly the `body-md` line box, so the reserved height
  * is the height the real line takes and the card below does not move a pixel when
  * it lands; the flex centring keeps the null box from sitting high in the gap.
+ *
+ * The name is the primitive's `body-medium` role (16/600) in the `primary` colour
+ * role, which is exactly what the hand-spelled `font-semibold text-ink` span it
+ * replaces rendered — one spelling of that emphasis, not two.
  */
 export function HomeGreeting({ username }: HomeGreetingProps) {
   const greeting = useGreeting(username);
@@ -24,9 +28,9 @@ export function HomeGreeting({ username }: HomeGreetingProps) {
       {greeting ? (
         <Text variant="body" as="p" color="secondary">
           {greeting.timeOfDay}{' '}
-          <span className="font-semibold text-ink">
+          <Text variant="body-medium" as="span" color="primary">
             {greeting.name} {GREETING_SMILE}
-          </span>
+          </Text>
         </Text>
       ) : null}
     </div>

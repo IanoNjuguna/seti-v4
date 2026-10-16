@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ASSET_DECIMALS, PRIMARY_ASSET, type SupportedAsset } from '@/lib/chain';
+import { useAppNetwork } from '@/components/app/useAppNetwork';
 import {
   ApiError,
   previewSend,
   recordSend,
   resolveHandle,
+  refusalMessage,
   type HandleIdentity,
   type SendPreview,
 } from '@/lib/api';
@@ -44,8 +46,10 @@ const INITIAL: SendPanelState = {
 };
 
 function toErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof ApiError) return error.message;
-  if (error instanceof Error && error.message) return error.message;
+  // An `ApiError` is mapped from its code to our own copy; anything else (a wallet
+  // SDK error, a TypeError) falls back to the caller's line for this step rather
+  // than showing a vendor's phrasing — see `lib/api/refusal.ts`.
+  if (error instanceof ApiError) return refusalMessage(error, 'send');
   return fallback;
 }
 
@@ -123,6 +127,12 @@ function destinationFor(
  */
 export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
   const [state, setState] = useState<SendPanelState>({ ...INITIAL, recipient: initialRecipient });
+  /**
+   * The network the ACCOUNT is acting on — the chain this send will be signed on.
+   * Read here (a hook can read it, a plain module cannot) and handed to `signSend`,
+   * which resolves the chain id and the token contract from it.
+   */
+  const { network: appNetwork } = useAppNetwork();
 
   /**
    * Whether a quote has already landed in this flow, so the arrival pulse fires once
@@ -290,7 +300,12 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
         patch({ step: 'signing' });
         // One Tempo transaction, two calls: principal to the recipient, fee to
         // the treasury. Atomic, so the fee cannot go missing.
-        const { txHash } = await signSend({ preview, asset: ASSET, sendTempoTransaction });
+        const { txHash } = await signSend({
+          preview,
+          asset: ASSET,
+          sendTempoTransaction,
+          network: appNetwork,
+        });
 
         patch({ step: 'recording', sent: null });
 
@@ -344,7 +359,7 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
         patch({ step: 'idle', formError: message.replace('{ASSET}', ASSET_LABEL) });
       }
     })();
-  }, [state.recipient, state.amountFiat, address, resolved, sendTempoTransaction, patch]);
+  }, [state.recipient, state.amountFiat, address, resolved, sendTempoTransaction, appNetwork, patch]);
 
   const reset = useCallback(() => setState(INITIAL), []);
 

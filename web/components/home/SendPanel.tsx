@@ -1,79 +1,40 @@
 'use client';
 
-import { Text } from '@/components/ui';
-import { useUserCurrency } from '@/hooks/useUserCurrency';
-import { SendForm } from './SendForm';
-import { SendResult } from './SendResult';
-import { SEND_COPY } from './SendPanel.constants';
-import { useSendPanel } from './useSendPanel';
-
-export interface SendPanelProps {
-  /**
-   * A recipient handed in by the URL — a `seti.live/u/<handle>` page's Send
-   * action sends `/app/send?to=<handle>`. It is the same string a typed handle
-   * would be, resolved through the same path, so the panel shows a name AND an
-   * address before anything is signed.
-   */
-  initialRecipient?: string;
-}
+import { SignInPrompt } from '@/components/auth/SignInPrompt';
+import { SEND_SIGNED_OUT_COPY } from '@/components/send/Send.constants';
+import { useSession } from '@/lib/auth';
+import { SendPanelForm } from './SendPanelForm';
+import type { SendPanelProps } from './SendPanel.types';
 
 /**
- * Send to a person — the body of `/app/send`.
+ * Send to a person — the body of `/app/send`'s amount step.
  *
- * The other half of Deposit's question: money arriving, money leaving. Unlike
- * Deposit, this one signs: a recipient (an address, or a username the server
- * resolves to a name AND an address) and an amount quoted by the server, signed
- * as ONE Tempo transaction with two calls, and then verified against the receipt
- * before it appears in Activity.
+ * ## The gate is here, with the money
  *
- * This is a whole surface now, not a panel inside the balance card, so the page's
- * Back control is the way out — in every state. The amount field's currency is read
- * from the customer's own dashboard by `useUserCurrency`.
+ * Sending is the action that needs an account, so the account is asked for at
+ * the step that sends: a visitor meets the sign-in prompt where the form would
+ * be, and NOTHING this panel owns is reachable without a session — no currency
+ * is read from the customer's dashboard, no recipient is resolved, no fee is
+ * quoted, no wallet is asked to sign. The account-scoped reads live in
+ * `SendPanelForm`, which is a separate component precisely so this branch can
+ * return before any of them run (a hook cannot be called conditionally; a child
+ * component can simply not be rendered).
  *
- * The PANEL is the amount step's body, and the HEADING belongs to the flow above
- * it (`/app/send`'s own `h1` and its progress bar). It used to render a heading of
- * its own — "Send to a wallet / To a person, not a merchant code." — which was a
- * second title under the flow's, and was simply WRONG once paying a merchant became
- * this flow's business case. The form itself is unchanged.
+ * The route refuses first and this makes the money step itself unable to price
+ * or sign for anybody else — the guard belongs to the component whose whole job
+ * is moving money, not only to the screen that renders it.
  *
- * There is no card around it either. The panel used to be a `surface-elevated`
- * block on the white page — the amount step priced on that dark well — and both are
- * gone the way the receive halves' cards went. Every word the panel carries (the
- * wallet states, the field errors, the fee note) is page text on `canvas-light`
- * now, and the only surfaces left are the field wells and the quote table's own
- * inset, which is what the customer came here to read. The card was never carrying
- * a boundary the page needed.
+ * The form itself is unchanged: a recipient (an address, or a username the
+ * server resolves to a name AND an address) and an amount quoted by the server,
+ * signed as ONE Tempo transaction with two calls, then verified against the
+ * receipt before it appears in Activity.
  */
 export function SendPanel({ initialRecipient }: SendPanelProps) {
-  const panel = useSendPanel(initialRecipient);
-  const currency = useUserCurrency(true);
+  const session = useSession();
 
-  return (
-    <div className="space-y-4">
-      {panel.walletStatus !== 'ready' ? (
-        <Text variant="body" as="p" color="secondary">
-          {panel.walletStatus === 'loading' ? SEND_COPY.findingWallet : SEND_COPY.noWallet}
-        </Text>
-      ) : panel.sent ? (
-        <SendResult sent={panel.sent} onReset={panel.reset} />
-      ) : (
-        <SendForm
-          recipient={panel.recipient}
-          amountFiat={panel.amountFiat}
-          recipientError={panel.recipientError}
-          amountError={panel.amountError}
-          formError={panel.formError}
-          resolved={panel.resolved}
-          preview={panel.preview}
-          previewLoading={panel.previewLoading}
-          step={panel.step}
-          busy={panel.isBusy}
-          onRecipientChange={panel.setRecipient}
-          onAmountChange={panel.setAmountKes}
-          onSubmit={panel.submit}
-          amountLabel={currency ? `Amount (${currency})` : SEND_COPY.amountLabelFallback}
-        />
-      )}
-    </div>
-  );
+  if (session.status !== 'signed-in') {
+    return <SignInPrompt title={SEND_SIGNED_OUT_COPY.title} body={SEND_SIGNED_OUT_COPY.body} />;
+  }
+
+  return <SendPanelForm initialRecipient={initialRecipient} />;
 }

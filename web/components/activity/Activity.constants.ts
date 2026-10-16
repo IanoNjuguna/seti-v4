@@ -12,7 +12,6 @@ export const ACTIVITY_PAGE_SIZE = 20;
  */
 export const ACTIVITY_COPY = {
   title: 'Activity',
-  subtitle: 'Everything that has moved in or out of your account.',
   /** Announced while the first page is in flight, not just drawn as a skeleton. */
   loading: 'Loading your activity',
   emptyTitle: 'No activity yet',

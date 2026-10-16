@@ -1,17 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ApiError } from '@/lib/api';
+import { refusalMessage } from '@/lib/api';
 import { fetchActivityPage } from '@/lib/api/activity';
 import { mapRecentToUiTransaction } from '@/hooks/useHomeData';
 import { ACTIVITY_PAGE_SIZE } from './Activity.constants';
 import { appendPage, countRows, groupByDay } from './activity.format';
 import type { ActivityPagesValue, ActivityDayGroup } from './Activity.types';
 
+/** Our copy for a failed page, mapped from the code. Never the server's words. */
 function toMessage(error: unknown): string {
-  if (error instanceof ApiError) return error.message;
-  if (error instanceof Error) return error.message;
-  return 'Something went wrong.';
+  return refusalMessage(error, 'activity');
 }
 
 /**

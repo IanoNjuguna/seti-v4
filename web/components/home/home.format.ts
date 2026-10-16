@@ -21,18 +21,21 @@ export function formatBalance(balance: string | undefined, currency?: string): s
     }).format(value);
   }
 
-  // Compact at the top end. A nine-figure balance cannot fit a phone-width hero at
-  // display size — it wraps mid-number — and nobody reads the last six digits of a
-  // large balance anyway. Below a million it still renders exactly.
-  if (Math.abs(value) >= 1_000_000_000) return `${currency} ${(value / 1_000_000_000).toFixed(1)}B`;
-  if (Math.abs(value) >= 1_000_000) return `${currency} ${(value / 1_000_000).toFixed(1)}M`;
-
+  // EXACT, always. Compacting a large balance ("KES 4.8M") puts a rounded figure where
+  // spendable money belongs: at the top end that is tens of thousands of shillings of
+  // ambiguity, and it contradicts the same account's Activity list, which prints every
+  // figure to the shilling. Two figures for one balance teaches a user to trust neither.
+  //
+  // The width problem that motivated the compaction is real — a long figure at display
+  // size wraps mid-number on a phone — so it is solved where it belongs, in the TYPE:
+  // `BalanceCard` steps the figure down as it grows (balance → balance-compact →
+  // balance-tight) and pins it to a single line. The number stays true; the size gives way.
   return formatFiat(value, currency);
 }
 
 /** `monthToDateDelta` is a ratio, not a percentage: 0.12 renders as 12%. */
 export function formatDelta(delta: number): string {
-  return `${delta > 0 ? '↑' : '↓'} ${(Math.abs(delta) * 100).toFixed(1)}% this month`;
+  return `${delta > 0 ? '↑' : '↓'} ${(Math.abs(delta) * 100).toFixed(1)}%`;
 }
 
 /**

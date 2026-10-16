@@ -1,6 +1,16 @@
 import type { EmbeddedWalletStatus } from '@/hooks/useEmbeddedWallet.types';
 import type { HandleIdentity, SendPreview } from '@/lib/api';
 
+export interface SendPanelProps {
+  /**
+   * A recipient handed in by the URL — a `seti.live/u/<handle>` page's Send
+   * action sends `/app/send?to=<handle>`. It is the same string a typed handle
+   * would be, resolved through the same path, so the panel shows a name AND an
+   * address before anything is signed.
+   */
+  initialRecipient?: string;
+}
+
 /** Only `previewing`, `signing` and `recording` are busy. A receipt is `sent`. */
 export type SendStep = 'idle' | 'previewing' | 'signing' | 'recording';
 

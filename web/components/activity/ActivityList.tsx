@@ -4,6 +4,7 @@ import { Button, Text } from '@/components/ui';
 import { ActivityDay } from './ActivityDay';
 import { ActivityEmpty, ActivityError, ActivityLoading } from './ActivityStates';
 import { ACTIVITY_COPY } from './Activity.constants';
+import { StatementRow } from './StatementRow';
 import { useActivity } from './useActivity';
 import type { ActivityListProps } from './Activity.types';
 
@@ -13,6 +14,12 @@ import type { ActivityListProps } from './Activity.types';
  * Every state the page can be in is rendered from the hook's own flags rather than
  * guessed in JSX: a failed first page shows the error and a retry, an empty account
  * says so, and a page still arriving shows the shape of what is coming.
+ *
+ * The statement row comes first, under the title and above the day groups: it acts
+ * on the whole account rather than on a page of it, so it does not belong inside a
+ * day and it is available whether the list is loading, empty or failed. It is its
+ * own module (`StatementRow`) because its state — a format being generated — has
+ * nothing to do with the list's.
  *
  * "Load more" is a button rather than an infinite scroll: the customer decides when
  * to ask for more, and the control they used stays where they left it.
@@ -26,10 +33,9 @@ export function ActivityList({ onSelect }: ActivityListProps) {
         <Text variant="section" as="h1">
           {ACTIVITY_COPY.title}
         </Text>
-        <Text variant="micro" as="p" className="mt-1">
-          {ACTIVITY_COPY.subtitle}
-        </Text>
       </header>
+
+      <StatementRow />
 
       {activity.loading ? <ActivityLoading /> : null}
 

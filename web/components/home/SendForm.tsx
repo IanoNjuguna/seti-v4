@@ -74,8 +74,11 @@ export function SendForm({
       {/* What the money in the table above IS. On practice it is the one line on
           this screen that says the figures are not real, and it is directly under
           the figures — the chrome's strip is 32px at the top of the page and this
-          is the screen people screenshot. */}
-      <PracticeNote surface="dark" />
+          is the screen people screenshot. The card that used to hold the panel is
+          gone, so the sentence is drawn on the page's white canvas and takes the
+          light surface for its contrast role; its prominence is untouched, because
+          it is still the loud mark at the point of commitment. */}
+      <PracticeNote surface="light" />
 
       {/* A wallet, chain or server failure is not the customer's entry, so it is
           not rendered on a field — and it names what failed, not just that it did.
@@ -89,7 +92,7 @@ export function SendForm({
 
       <SendSubmit step={step} />
 
-      <p className="text-caption text-on-dark-mute">{SEND_COPY.feeNote}</p>
+      <p className="text-caption text-mute">{SEND_COPY.feeNote}</p>
     </form>
   );
 }

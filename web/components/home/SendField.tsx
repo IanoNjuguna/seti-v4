@@ -4,9 +4,10 @@ import { Input } from '@/components/ui/Input';
 import type { SendFieldProps } from './SendPanel.types';
 
 /**
- * One labelled field on the dark canvas.
+ * One labelled field, on the page's own white canvas.
  *
- * A thin wrapper over `components/ui/Input`, which now takes a `tone`. This used to be
+ * A thin wrapper over `components/ui/Input` with `tone` left at its `light` default,
+ * because the amount step draws on `canvas-light`. This used to be
  * a second implementation of the same field — label bound by id, message addressable
  * through `aria-describedby`, `aria-invalid` when refused — because the primitive was
  * light-canvas only; two copies of an accessibility contract is how the two drift.
@@ -30,7 +31,6 @@ export function SendField({
       label={label}
       hint={hint ?? undefined}
       error={error ?? undefined}
-      tone="dark"
       value={value}
       onChange={(event) => onChange(event.target.value)}
       inputMode={inputMode}
