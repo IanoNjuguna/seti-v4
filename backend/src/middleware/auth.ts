@@ -3,12 +3,21 @@ import { prisma } from '../lib/prisma.js';
 import { env } from '../config/env.js';
 import { verifyPrivySubject } from '../services/auth.js';
 import { resolveSessionIdentity } from '../services/session-identity.js';
+import { normalizeNetwork, type Network } from '../lib/network.js';
+import { servedNetwork } from '../config/networks.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
     user?: {
       id: string;
       email: string;
+      /**
+       * The NETWORK this request is served under — resolved by the SERVER from
+       * the account's stored preference, never from the request. A route that
+       * scopes by network reads `request.user.network`; there is no code path
+       * that reads a network out of the body or the query.
+       */
+      network: Network;
     };
   }
 }
@@ -27,14 +36,33 @@ function looksLikeJwt(token: string): boolean {
   return token.split('.').length === 3;
 }
 
+/**
+ * The dev-bypass user, attached to every request when the bypass is on.
+ *
+ * Its NETWORK is written explicitly on every attach, and that is deliberate. This
+ * account is not a person with a preference — it is a single shared fixture of THIS
+ * process, so the network it acts on must be the network this process SERVES. Left
+ * to the column default it would be `testnet` on a mainnet-serving box, which is the
+ * cross-scope hazard the `network` column exists to prevent: every bypass request
+ * would be served under a network this deployment does not serve, and a suite that
+ * drives the real routes would be reading handles, wallets and ledger rows from a
+ * namespace the app it is testing never uses. (Same rule as the schema doc on an
+ * omitted scope: it resolves to what the deployment SERVES, never to a stale
+ * default.) It is also why the bypass cannot silently disagree with the box it runs
+ * on — the value is re-derived per request rather than remembered.
+ */
 async function attachDevTestUser(request: FastifyRequest) {
   const user = await prisma.user.upsert({
     where: { email: DEV_TEST_EMAIL },
-    update: {},
-    create: { email: DEV_TEST_EMAIL },
+    update: { network: servedNetwork },
+    create: { email: DEV_TEST_EMAIL, network: servedNetwork },
   });
 
-  request.user = { id: user.id, email: user.email };
+  request.user = {
+    id: user.id,
+    email: user.email,
+    network: normalizeNetwork(user.network, servedNetwork),
+  };
 }
 
 export async function authMiddleware(request: FastifyRequest, reply: FastifyReply) {
@@ -77,7 +105,7 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
     // The email attached here is the SNAPSHOT stored on the account at
     // establishment — not whatever Privy reports now — so the rest of the API
     // cannot disagree with the identity this session was created as.
-    request.user = { id: identity.id, email: identity.email };
+    request.user = { id: identity.id, email: identity.email, network: identity.network };
   } catch {
     return reply.status(401).send({ error: 'Invalid or expired token' });
   }

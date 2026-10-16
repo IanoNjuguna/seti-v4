@@ -22,7 +22,7 @@ export async function walletRoutes(app: FastifyInstance) {
       return reply.status(403).send({ error: 'Forbidden' });
     }
 
-    const wallets = await getWalletsByUser(id);
+    const wallets = await getWalletsByUser(id, request.user?.network);
     return { wallets };
   });
 
@@ -48,6 +48,9 @@ export async function walletRoutes(app: FastifyInstance) {
       asset: body.asset,
       address: body.address,
       keyId: body.keyId,
+      // The SESSION's network — a wallet is registered FOR the network the
+      // account is acting on, and the practice and live addresses are separate.
+      network: request.user?.network,
     });
 
     return reply.status(201).send({ wallet });

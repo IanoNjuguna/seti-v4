@@ -5,6 +5,7 @@ import { authMiddleware } from '../middleware/auth.js';
 import { getHomeDashboard } from '../services/wallet.js';
 import { getUserBalance } from '../services/balance.js';
 import { PRIMARY_ASSET } from '../services/chain.js';
+import { normalizeNetwork } from '../lib/network.js';
 
 const paramsSchema = z.object({
   id: z.string().cuid(),
@@ -51,7 +52,7 @@ export async function userRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: 'User not found' });
     }
 
-    const dashboard = await getHomeDashboard(id);
+    const dashboard = await getHomeDashboard(id, request.user?.network);
     return dashboard;
   });
 
@@ -65,7 +66,10 @@ export async function userRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: 'User not found' });
     }
 
-    const balance = await getUserBalance(id, PRIMARY_ASSET);
+    // The ACCOUNT's network, not the served one: the wallet row was already found
+    // by it, and the address is only meaningful on that chain. Without this the
+    // balance of a practice account was read off the live chain and came back 0.
+    const balance = await getUserBalance(id, PRIMARY_ASSET, normalizeNetwork(user.network));
     return balance;
   });
 }

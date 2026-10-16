@@ -14,6 +14,19 @@ import {
   isHandleKind,
   toHandleIdentityView,
 } from '../services/handle-claims.js';
+import { servedNetwork } from '../config/networks.js';
+import type { Network } from '../lib/network.js';
+
+/**
+ * The network this request is served under — the SESSION's network, resolved by
+ * the server from the account's stored preference. Never read from the request:
+ * `middleware/network-scope.ts` refuses a client-supplied chain id or network
+ * before any handler runs, so by the time a route reads this there is nothing the
+ * client could have asserted.
+ */
+function sessionNetwork(request: { user?: { network: Network } }): Network {
+  return request.user?.network ?? servedNetwork;
+}
 
 /**
  * A claim as it arrives from the browser.
@@ -42,6 +55,7 @@ export async function handleRoutes(app: FastifyInstance) {
   app.get('/resolve', async (request, reply) => {
     const query = z.object({ q: z.string() }).parse(request.query);
     const payload = parseQrPayload(query.q);
+    const network = sessionNetwork(request);
 
     if (payload.type !== 'merchant' || !payload.merchantId) {
       return reply.status(400).send({ error: 'Unrecognized QR format' });
@@ -60,9 +74,9 @@ export async function handleRoutes(app: FastifyInstance) {
      * is last, and only runs when nothing else matched.
      */
     const handle =
-      (await findHandleByMerchantId(payload.merchantId)) ??
-      (await findHandleByHandle(payload.merchantId)) ??
-      (await findHandleByName(payload.merchantId));
+      (await findHandleByMerchantId(payload.merchantId, network)) ??
+      (await findHandleByHandle(payload.merchantId, network)) ??
+      (await findHandleByName(payload.merchantId, network));
 
     if (!handle) {
       return reply.status(404).send({ error: 'Handle not found' });
@@ -90,7 +104,18 @@ export async function handleRoutes(app: FastifyInstance) {
    */
   app.get('/status', async (request) => {
     const query = z.object({ name: z.string(), kind: z.string().optional() }).parse(request.query);
-    return { status: await handleStatus(query.name) };
+    // The kind decides WHICH namespace rule the answer comes from (a person's
+    // username is global, a business's name is this network's), so it is passed
+    // through rather than ignored: the preview must apply the same rule the claim
+    // will. An unrecognised or absent kind is left undefined and the service falls
+    // back to the conservative union of both rules.
+    return {
+      status: await handleStatus(
+        query.name,
+        sessionNetwork(request),
+        isHandleKind(query.kind) ? query.kind : undefined
+      ),
+    };
   });
 
   /**
@@ -117,7 +142,12 @@ export async function handleRoutes(app: FastifyInstance) {
     }
 
     try {
-      const handle = await claimHandle({ ...body, kind: body.kind, userId: user.id });
+      const handle = await claimHandle({
+        ...body,
+        kind: body.kind,
+        userId: user.id,
+        network: sessionNetwork(request),
+      });
       return reply.status(201).send({ handle: await toHandleIdentityView(handle) });
     } catch (error) {
       if (error instanceof HandleClaimError) {

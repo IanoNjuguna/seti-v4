@@ -3,6 +3,27 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+/**
+ * A treasury address, validated once and reused for every network.
+ *
+ * The zero address is REFUSED: it is a valid 20-byte address and a burn
+ * destination, so a build that boots with it collects the 2% into a hole while
+ * `recordPayment`/`recordSend` verify the Transfer as legitimately collected and
+ * the ledger reports revenue nobody can spend. Extracted to a fragment when the
+ * treasury became per-network — the refusal must be identical whichever
+ * network's address it guards.
+ */
+const treasuryAddressSchema = z
+  .string()
+  .regex(/^0x[a-fA-F0-9]{40}$/, 'must be a 20-byte hex address')
+  .refine((value) => value.toLowerCase() !== `0x${'0'.repeat(40)}`, {
+    message:
+      'is the zero address, which is a burn address: the platform fee would be ' +
+      'destroyed while the ledger recorded it as collected. Set the address that ' +
+      'should receive the fee, or set FEE_ROUTING_MODE=inside-transfer if no fee is ' +
+      'to be collected at all.',
+  });
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.string().default('4000'),
@@ -37,6 +58,24 @@ const envSchema = z.object({
   DEV_BYPASS_AUTH: z.enum(['true', 'false']).default('false'),
   TEMPO_CHAIN_ID: z.string().optional(),
   TEMPO_RPC_URL: z.string().optional(),
+  /**
+   * The network this DEPLOYMENT defaults to: `mainnet` | `testnet`.
+   *
+   * Optional, and the CODE default is `testnet`: a box that sets nothing cannot
+   * default to real money, which is what AGENTS.md's "never default to mainnet
+   * in development" protects. A deployment that IS the live one sets
+   * `DEFAULT_NETWORK=mainnet`.
+   *
+   * Validated as an enum so a typo (`MainNet`, `prod`) FAILS THE BOOT by name
+   * rather than silently serving practice — `lib/network.ts` reads the raw value
+   * and falls back to testnet, so without this refusal a mistyped value would
+   * read as testnet, which is safe but invisible.
+   *
+   * It is the FALLBACK for the served network when no chain id names one; it
+   * never overrides an explicit `TEMPO_CHAIN_ID`, and it is not what an omitted
+   * per-row network resolves to (that is the network the deployment SERVES).
+   */
+  DEFAULT_NETWORK: z.enum(['mainnet', 'testnet']).default('testnet'),
   ALCHEMY_API_KEY: z.string().optional(),
   TEMPO_TOKEN_PATHUSD: z.string().min(1),
   TEMPO_TOKEN_OUSD: z.string().min(1),
@@ -72,16 +111,51 @@ const envSchema = z.object({
    * ever spend. `.env.example` ships the real address for the same reason — a
    * placeholder that is copied verbatim must not be able to destroy fees.
    */
-  SETI_TREASURY_ADDRESS: z
-    .string()
-    .regex(/^0x[a-fA-F0-9]{40}$/, 'SETI_TREASURY_ADDRESS must be a 20-byte hex address')
-    .refine((value) => value.toLowerCase() !== `0x${'0'.repeat(40)}`, {
-      message:
-        'SETI_TREASURY_ADDRESS is the zero address, which is a burn address: the platform fee ' +
-        'would be destroyed while the ledger recorded it as collected. Set the address that ' +
-        'should receive the fee, or set FEE_ROUTING_MODE=inside-transfer if no fee is to be ' +
-        'collected at all.',
-    }),
+  SETI_TREASURY_ADDRESS: treasuryAddressSchema,
+  /**
+   * Per-network overrides — the config these used to be single values for.
+   *
+   * Chain id, RPC, token addresses, treasury and the check anchors are now
+   * PER NETWORK (`config/networks.ts` builds both), selected by the network the
+   * deployment actually serves. These optional variables let an operator point
+   * ONE network at a private endpoint or a different treasury without touching
+   * the other, while the shared `TEMPO_RPC_URL` / `SETI_TREASURY_ADDRESS` /
+   * `TEMPO_TOKEN_*` above remain the fallback for whichever network is served.
+   */
+  TEMPO_TESTNET_RPC_URL: z.string().optional(),
+  TEMPO_MAINNET_RPC_URL: z.string().optional(),
+  TEMPO_TESTNET_TREASURY_ADDRESS: treasuryAddressSchema.optional(),
+  TEMPO_MAINNET_TREASURY_ADDRESS: treasuryAddressSchema.optional(),
+  TEMPO_TESTNET_TOKEN_PATHUSD: z.string().optional(),
+  TEMPO_TESTNET_TOKEN_OUSD: z.string().optional(),
+  TEMPO_MAINNET_TOKEN_PATHUSD: z.string().optional(),
+  TEMPO_MAINNET_TOKEN_OUSD: z.string().optional(),
+
+  /**
+   * Per-network check anchors. The payout/send/quote suites reconcile against a
+   * KNOWN receipt read by hash, and a receipt is per chain — so each network may
+   * pin its own. Unset falls back to the shared `PAYOUT_ANCHOR_TX` /
+   * `SEND_ANCHOR_TX` / `QUOTE_ANCHOR_TX`, then to the pinned default.
+   */
+  TEMPO_TESTNET_PAYOUT_ANCHOR_TX: z.string().optional(),
+  TEMPO_MAINNET_PAYOUT_ANCHOR_TX: z.string().optional(),
+  TEMPO_TESTNET_SEND_ANCHOR_TX: z.string().optional(),
+  TEMPO_MAINNET_SEND_ANCHOR_TX: z.string().optional(),
+  TEMPO_TESTNET_QUOTE_ANCHOR_TX: z.string().optional(),
+  TEMPO_MAINNET_QUOTE_ANCHOR_TX: z.string().optional(),
+
+  /**
+   * THE mainnet-readiness gate: a real mainnet batch receipt, chain id 4217.
+   *
+   * docs/internal/mainnet-flip.md makes one rule override everything — a mainnet
+   * batch proof must land before any real money moves. The Live side of an
+   * account is therefore refused with a stated reason until this carries the hash
+   * of that receipt, because a batched fee path that has only ever run on
+   * Moderato is a promise and not proof. Setting it does NOT enable mainnet by
+   * itself: `ALLOW_MAINNET` must also be `true` and the deployment must be
+   * serving chain 4217.
+   */
+  MAINNET_BATCH_PROOF_TX: z.string().optional(),
   /**
    * Comma-separated list of origins allowed to call the API cross-origin.
    *
@@ -181,6 +255,27 @@ const envSchema = z.object({
   MERCHANT_FEE_PERCENT: z.coerce.number().min(0).max(100).default(2),
   MERCHANT_FEE_MIN_KES: z.coerce.number().min(0).default(0),
   MERCHANT_FEE_MAX_PERCENT: z.coerce.number().min(0).max(100).default(0),
+  /**
+   * Whether THIS process runs the on-chain indexer loop.
+   *
+   * The API and the indexer are independent concerns: the API serves HTTP, the
+   * indexer scans Transfer logs and advances the durable cursor. In development
+   * one process does both (`src/index.ts` starts the server and the loop), which
+   * is what the default `true` preserves.
+   *
+   * In a deployed single box they are deliberately two services (the `indexer`
+   * service in `docker-compose.yml`, or `seti-indexer.service` on the systemd
+   * path). The API is then started with `INDEXER_ENABLED=false` so the loop runs
+   * in exactly one place rather than in every replica. Running it twice is not a
+   * correctness bug — `indexer_cursors.lockedBy` is a single-writer lock and the
+   * second replica skips the tick — but it is wasted RPC calls on a free-tier box
+   * and it makes "which process advanced the cursor" ambiguous in the logs.
+   *
+   * A dedicated worker (`src/worker.ts`) ignores this flag: it exists to run the
+   * loop, so it starts it unconditionally.
+   */
+  INDEXER_ENABLED: z.enum(['true', 'false']).default('true'),
+
   /**
    * Blocks to look back when no cursor exists yet.
    *

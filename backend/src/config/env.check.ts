@@ -226,6 +226,100 @@ const cases: Case[] = [
     expect: 'boots',
     bootsWith: 'BOOTED node_env=production network=tempo-mainnet',
   },
+
+  // --- DEFAULT_NETWORK: the deployment's default network ---------------------
+  // The CODE default is testnet — a box that sets nothing must not default to
+  // real money. A deployment that IS the live one sets DEFAULT_NETWORK=mainnet,
+  // and even then mainnet still needs the ALLOW_MAINNET opt-in.
+  {
+    name: 'a dev box that sets nothing serves testnet (the code default)',
+    overrides: { NODE_ENV: 'development', TEMPO_CHAIN_ID: undefined },
+    expect: 'boots',
+    bootsWith: 'BOOTED node_env=development network=tempo-testnet',
+  },
+  {
+    name: 'DEFAULT_NETWORK=mainnet with no chain id serves mainnet',
+    overrides: {
+      NODE_ENV: 'development',
+      TEMPO_CHAIN_ID: undefined,
+      DEFAULT_NETWORK: 'mainnet',
+      ALLOW_MAINNET: 'true',
+    },
+    expect: 'boots',
+    bootsWith: 'BOOTED node_env=development network=tempo-mainnet',
+  },
+  {
+    name: 'DEFAULT_NETWORK=mainnet without ALLOW_MAINNET still refuses',
+    overrides: {
+      NODE_ENV: 'development',
+      TEMPO_CHAIN_ID: undefined,
+      DEFAULT_NETWORK: 'mainnet',
+      ALLOW_MAINNET: 'false',
+    },
+    expect: 'refuses',
+    names: ['DEFAULT_NETWORK', 'ALLOW_MAINNET'],
+  },
+  {
+    name: 'an unrecognised DEFAULT_NETWORK refuses by name',
+    overrides: { DEFAULT_NETWORK: 'MainNet' },
+    expect: 'refuses',
+    names: ['DEFAULT_NETWORK'],
+  },
+
+  // --- RPC ⇄ network coherence: the endpoint must belong to the served chain ---
+  // The guard in `config/networks.ts` runs at module load and needs NO network.
+  // Case one is tonight's incident verbatim: `TEMPO_CHAIN_ID` moved to mainnet
+  // while the legacy `TEMPO_RPC_URL` still named the Moderato endpoint. The rest
+  // pin the surrounding surface — a shared endpoint is refused too, and the
+  // coherent shapes still boot.
+  {
+    name: "the coherence guard refuses tonight's config (TEMPO_CHAIN_ID=4217 + a Moderato TEMPO_RPC_URL)",
+    overrides: {
+      TEMPO_CHAIN_ID: '4217',
+      ALLOW_MAINNET: 'true',
+      TEMPO_RPC_URL: 'https://rpc.moderato.tempo.xyz',
+    },
+    expect: 'refuses',
+    names: [
+      'IncoherentRpcConfigError',
+      'INCOHERENT_RPC_CONFIG',
+      '4217',
+      'rpc.moderato.tempo.xyz',
+      'testnet',
+    ],
+  },
+  {
+    name: 'a shared endpoint is refused even without the legacy pair',
+    overrides: {
+      NODE_ENV: 'development',
+      TEMPO_CHAIN_ID: undefined,
+      DEFAULT_NETWORK: 'mainnet',
+      ALLOW_MAINNET: 'true',
+      TEMPO_MAINNET_RPC_URL: 'https://rpc.shared.example',
+      TEMPO_TESTNET_RPC_URL: 'https://rpc.shared.example',
+    },
+    expect: 'refuses',
+    names: ['INCOHERENT_RPC_CONFIG', 'https://rpc.shared.example', 'chain 4217'],
+  },
+  {
+    name: 'a legacy pair naming the chain its endpoint belongs to still boots (mainnet)',
+    overrides: {
+      TEMPO_CHAIN_ID: '4217',
+      ALLOW_MAINNET: 'true',
+      TEMPO_RPC_URL: 'https://rpc.tempo.xyz',
+    },
+    expect: 'boots',
+    bootsWith: 'BOOTED node_env=production network=tempo-mainnet',
+  },
+  {
+    name: 'a legacy pair naming the chain its endpoint belongs to still boots (testnet)',
+    overrides: {
+      TEMPO_CHAIN_ID: '42431',
+      TEMPO_RPC_URL: 'https://rpc.moderato.tempo.xyz',
+    },
+    expect: 'boots',
+    bootsWith: 'BOOTED node_env=production network=tempo-testnet',
+  },
 ];
 
 for (const testCase of cases) {

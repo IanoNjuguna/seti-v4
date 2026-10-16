@@ -5,10 +5,17 @@ import { startIndexer } from './services/indexer.js';
 async function start() {
   const app = await buildServer();
 
-  // Start the on-chain transaction indexer. The network config provides a
-  // default RPC for testnet, so it runs unless explicitly disabled.
-  startIndexer();
-  app.log.info('On-chain transaction indexer started');
+  // Start the on-chain transaction indexer unless this process is meant to be
+  // API-only. The network config provides a default RPC for testnet, so it runs
+  // unless explicitly disabled. A deployed box runs the loop in the dedicated
+  // `indexer` service (`dist/worker.js`) and starts the API with
+  // INDEXER_ENABLED=false — see docs/deploy-oracle.md.
+  if (env.INDEXER_ENABLED === 'true') {
+    startIndexer();
+    app.log.info('On-chain transaction indexer started');
+  } else {
+    app.log.info('Indexer disabled in this process (INDEXER_ENABLED=false)');
+  }
 
   try {
     await app.listen({ port: Number(env.PORT), host: env.HOST });

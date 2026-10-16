@@ -8,6 +8,13 @@ import {
   recordPayment,
   recordSend,
 } from '../services/transactions.js';
+import { buildStatement, renderStatement } from '../services/statement.js';
+import {
+  parseStatementRange,
+  isStatementFormat,
+  statementFileName,
+  STATEMENT_CONTENT_TYPE,
+} from '../services/statement-model.js';
 import { PaymentRefusalError } from '../services/payment-refusal.js';
 import { previewPayment, previewSend, SendRequiresBatchError } from '../services/payments.js';
 import { toRecentTransaction } from '../services/transaction-view.js';
@@ -129,8 +136,12 @@ export async function transactionRoutes(app: FastifyInstance) {
 
     // One row beyond the page: enough to answer "is there more?" without a second
     // query and without lying to the client about it.
+    //
+    // Scoped by the SESSION's network: Activity is one network's ledger. A
+    // practice top-up must never appear beside a live payment, and the network
+    // comes from the session — never from the request.
     const rows = await prisma.transaction.findMany({
-      where: { userId: user.id },
+      where: { userId: user.id, network: user.network },
       include: { merchant: true, wallet: true },
       orderBy: { createdAt: 'desc' },
       take: take + 1,
@@ -152,6 +163,63 @@ export async function transactionRoutes(app: FastifyInstance) {
     };
   });
 
+  /**
+   * The account's own statement, as a file: CSV, XLSX or PDF.
+   *
+   * The three formats are one document (`services/statement.ts`), serialised three
+   * ways, so what a customer opens in a spreadsheet and what they print say the
+   * same things in the same columns.
+   *
+   * ROUTE ORDER — `statement` is a LITERAL and is therefore declared BEFORE every
+   * `/:id…` route below. A literal registered after a parametric sibling is a
+   * literal the router can hand to the parameter instead, at which point
+   * `GET /transactions/statement` is read as `GET /transactions/:id` with the id
+   * "statement" — a statement that 404s as an unknown transaction. The check suite
+   * asserts this ordering against the built server's own route table rather than
+   * trusting the eyeball.
+   *
+   * AUTH: `authMiddleware` on the whole file, and the statement is the CALLER'S
+   * own ledger on the CALLER'S own network — there is no id in the path, so there
+   * is no way to ask for somebody else's statement. The response is `private,
+   * no-store`: it is a person's entire financial history, and a shared cache that
+   * kept a copy would hand it to the next reader of that cache.
+   */
+  app.get('/statement', async (request, reply) => {
+    const user = requireUser(request);
+    const query = request.query as { format?: unknown; from?: unknown; to?: unknown };
+
+    // The format is refused by NAME rather than by a schema: it names the three
+    // shapes the endpoint serves, which is an answer a client can act on.
+    const format = query.format;
+    if (!isStatementFormat(format)) {
+      return reply.status(400).send({
+        error: 'format must be one of csv, xlsx, pdf.',
+        code: 'invalid-statement-format',
+      });
+    }
+
+    const range = parseStatementRange(query.from, query.to);
+    if (!range.ok) {
+      return reply.status(400).send({ error: range.reason, code: range.code });
+    }
+
+    const statement = await buildStatement({
+      userId: user.id,
+      network: user.network,
+      from: range.from,
+      to: range.to,
+    });
+
+    return reply
+      .header('content-type', STATEMENT_CONTENT_TYPE[format])
+      .header(
+        'content-disposition',
+        `attachment; filename="${statementFileName(format, statement.from, statement.to)}"`
+      )
+      .header('cache-control', 'private, no-store')
+      .send(renderStatement(statement, format));
+  });
+
   app.post('/preview', async (request, reply) => {
     const user = requireUser(request);
     const body = previewSchema.parse(request.body);
@@ -159,6 +227,7 @@ export async function transactionRoutes(app: FastifyInstance) {
     const preview = await previewPayment({
       ...body,
       userId: user.id,
+      network: user.network,
       type: 'payment',
     });
 
@@ -174,6 +243,7 @@ export async function transactionRoutes(app: FastifyInstance) {
       transaction = await recordPayment({
         ...body,
         userId: user.id,
+        network: user.network,
       });
     } catch (error) {
       if (error instanceof PaymentRefusalError) {
@@ -183,7 +253,7 @@ export async function transactionRoutes(app: FastifyInstance) {
     }
 
     try {
-      await confirmTransactionByHash(body.txHash, user.id);
+      await confirmTransactionByHash(body.txHash, user.id, user.network);
     } catch (error) {
       console.error('[transactions/pay] confirmation failed', error);
     }
@@ -196,7 +266,7 @@ export async function transactionRoutes(app: FastifyInstance) {
     const body = sendPreviewSchema.parse(request.body);
 
     try {
-      const preview = await previewSend({ ...body, userId: user.id });
+      const preview = await previewSend({ ...body, userId: user.id, network: user.network });
       return reply.send({ preview });
     } catch (error) {
       // No txHash exists yet, so there is nothing to key an audit refusal to —
@@ -217,6 +287,7 @@ export async function transactionRoutes(app: FastifyInstance) {
       transaction = await recordSend({
         ...body,
         userId: user.id,
+        network: user.network,
       });
     } catch (error) {
       if (error instanceof PaymentRefusalError) {
@@ -226,7 +297,7 @@ export async function transactionRoutes(app: FastifyInstance) {
     }
 
     try {
-      await confirmTransactionByHash(body.txHash, user.id);
+      await confirmTransactionByHash(body.txHash, user.id, user.network);
     } catch (error) {
       console.error('[transactions/send] confirmation failed', error);
     }
@@ -239,7 +310,7 @@ export async function transactionRoutes(app: FastifyInstance) {
     const { id } = paramsSchema.parse(request.params);
 
     const transaction = await prisma.transaction.findFirst({
-      where: { id, userId: user.id },
+      where: { id, userId: user.id, network: user.network },
     });
 
     if (!transaction) {
@@ -300,7 +371,7 @@ export async function transactionRoutes(app: FastifyInstance) {
       return reply.status(403).send({ error: 'Forbidden' });
     }
 
-    const transaction = await createTransaction(body);
+    const transaction = await createTransaction({ ...body, network: user.network });
 
     return reply.status(201).send({ transaction });
   });
