@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { TERMS_URL } from '@/app/legal/site';
+import { cn } from '@/lib/cn';
 import {
   TERMS_BLOCKED_HINT,
   TERMS_CHECKBOX_HINT_ID,
@@ -9,6 +10,7 @@ import {
   TERMS_LABEL_PREFIX,
   TERMS_LABEL_SUFFIX,
   TERMS_LINK_LABEL,
+  TERMS_TONE_CLASSES,
 } from './TermsAcceptance.constants';
 import type { TermsAcceptanceProps } from './TermsAcceptance.types';
 
@@ -27,8 +29,15 @@ import type { TermsAcceptanceProps } from './TermsAcceptance.types';
  *
  * The hint is rendered only while unchecked and wired to the input by
  * `aria-describedby`, because a disabled button cannot say why it is disabled.
+ *
+ * `tone` is the one thing that varies by surface, and it is the SAME control on
+ * both: the front door (`/signin`) renders this instance rather than a second
+ * consent statement of its own, so the sentence the customer agreed to cannot read
+ * differently in the two places it is asked.
  */
-export function TermsAcceptance({ checked, onChange }: TermsAcceptanceProps) {
+export function TermsAcceptance({ checked, onChange, tone = 'light' }: TermsAcceptanceProps) {
+  const classes = TERMS_TONE_CLASSES[tone];
+
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-start gap-3">
@@ -38,17 +47,17 @@ export function TermsAcceptance({ checked, onChange }: TermsAcceptanceProps) {
           checked={checked}
           onChange={(event) => onChange(event.target.checked)}
           aria-describedby={checked ? undefined : TERMS_CHECKBOX_HINT_ID}
-          className="mt-0.5 h-4 w-4 shrink-0 accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-light"
+          className={cn(
+            'mt-0.5 h-4 w-4 shrink-0 accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+            classes.focusRing
+          )}
         />
         <label
           htmlFor={TERMS_CHECKBOX_ID}
-          className="text-body-sm leading-relaxed text-mute"
+          className={cn('text-body-sm leading-relaxed', classes.label)}
         >
           {TERMS_LABEL_PREFIX}{' '}
-          <Link
-            href={TERMS_URL}
-            className="font-semibold text-link underline underline-offset-4 transition-colors hover:text-primary-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-light"
-          >
+          <Link href={TERMS_URL} className={classes.link}>
             {TERMS_LINK_LABEL}
           </Link>
           {TERMS_LABEL_SUFFIX}
@@ -56,7 +65,7 @@ export function TermsAcceptance({ checked, onChange }: TermsAcceptanceProps) {
       </div>
 
       {checked ? null : (
-        <p id={TERMS_CHECKBOX_HINT_ID} className="text-caption text-stone">
+        <p id={TERMS_CHECKBOX_HINT_ID} className={classes.hint}>
           {TERMS_BLOCKED_HINT}
         </p>
       )}

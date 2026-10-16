@@ -49,7 +49,7 @@ export const ONBOARDING_COPY = {
     'Your name is how people pay you, so it is required. Four steps, no birth date, no document upload.',
   intentTitle: 'How will you use Seti?',
   intentIntro:
-    'This decides what your name is — a username or a business name — and which link it gets. You sign once, and the purpose is part of what your wallet signs.',
+    'This decides whether your name is a username or a business name, and which link it gets. You sign once, and the purpose is part of what your wallet signs.',
   intentReversible:
     'Reversible: you can switch this in Profile whenever you like, and an account can hold both a username and a business name.',
   intentError: 'That name could not be claimed',

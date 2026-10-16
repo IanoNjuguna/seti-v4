@@ -4,24 +4,16 @@ import { SignInCard } from '@/components/auth/SignInCard';
 import { useSession } from '@/lib/auth';
 
 /**
- * Step one: sign in — the surface that already exists, unchanged.
+ * Step one: sign in — the app's standard signed-out card, which points at `/signin`.
  *
  * Deliberately a wrapper and not a re-implementation. Signing up and signing in are
- * the same action here (the account is created on first sign-in), and
- * `SignInCard` already owns the gate that matters most on this screen: the terms
- * checkbox, which keeps the sign-in button `disabled` until it is ticked, by mouse,
- * Enter or Space. A second sign-in UI for onboarding would be a second place for
- * that gate to be missing.
+ * the same action here (the account is created on first sign-in), and the terms gate
+ * that belongs on that action lives at `/signin`, with the control that takes it. A
+ * second sign-in UI inside onboarding would be a second place for the gate to be
+ * missing, and a second front door.
  */
 export function OnboardingSignIn() {
   const session = useSession();
 
-  return (
-    <SignInCard
-      onSignIn={() => void session.signIn()}
-      error={session.error}
-      source={session.source}
-      pending={session.signingIn}
-    />
-  );
+  return <SignInCard error={session.error} />;
 }

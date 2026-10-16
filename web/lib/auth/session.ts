@@ -22,12 +22,23 @@ interface DevResponse {
  * against Privy's own wallet list for this user before registering it. Only the
  * browser knows which of a user's wallets `useWallets()` picked, and registering a
  * different one is how a funded account came to read a balance of zero.
+ *
+ * `acceptedTermsVersion` is the terms version this browser displayed and had
+ * accepted. It is the client's CLAIM about what it showed: the backend records its
+ * own version on the new account's audit row and refuses the sign-up if the two
+ * disagree, so a stale build cannot have a version it never displayed written down
+ * as accepted.
  */
 export async function verifyPrivyToken(
   token: string,
-  walletAddress?: string
+  walletAddress?: string,
+  acceptedTermsVersion?: string
 ): Promise<AuthUser> {
-  const { user } = await post<VerifyResponse>('/auth/verify', { token, walletAddress });
+  const { user } = await post<VerifyResponse>('/auth/verify', {
+    token,
+    walletAddress,
+    acceptedTermsVersion,
+  });
   return user;
 }
 
@@ -73,8 +84,9 @@ export async function devSignIn(): Promise<{ user: AuthUser; token: string }> {
  */
 export async function privySignIn(
   privyAccessToken: string,
-  walletAddress?: string
+  walletAddress?: string,
+  acceptedTermsVersion?: string
 ): Promise<{ user: AuthUser; token: string }> {
-  const user = await verifyPrivyToken(privyAccessToken, walletAddress);
+  const user = await verifyPrivyToken(privyAccessToken, walletAddress, acceptedTermsVersion);
   return { user, token: privyAccessToken };
 }

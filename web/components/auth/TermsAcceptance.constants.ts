@@ -27,3 +27,26 @@ export const TERMS_LABEL_SUFFIX = ', and I understand that Seti never holds my m
  * blocked button and the fix, rather than leaving a dead control unexplained.
  */
 export const TERMS_BLOCKED_HINT = 'Accept the Terms of Use to continue.';
+
+/**
+ * The control's token classes, per canvas — the same recipe as `Input`'s two tones.
+ *
+ * On the dark canvas the link steps up to `on-dark` at full contrast with the
+ * underline carrying the affordance (`design/revolut.md`: inline links on the dark
+ * canvas do not use the cobalt accent, which has no contrast there), and the focus
+ * ring offsets to the black canvas so the ring is not drawn in the wrong colour.
+ */
+export const TERMS_TONE_CLASSES = {
+  light: {
+    label: 'text-mute',
+    link: 'font-semibold text-link underline underline-offset-4 transition-colors hover:text-primary-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-light',
+    hint: 'text-caption text-stone',
+    focusRing: 'focus-visible:ring-offset-canvas-light',
+  },
+  dark: {
+    label: 'text-on-dark-mute',
+    link: 'font-semibold text-on-dark underline underline-offset-4 transition-colors hover:text-on-dark-mute focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-dark focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-dark',
+    hint: 'text-caption text-on-dark-mute',
+    focusRing: 'focus-visible:ring-offset-canvas-dark',
+  },
+} as const;

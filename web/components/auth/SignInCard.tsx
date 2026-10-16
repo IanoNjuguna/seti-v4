@@ -1,59 +1,41 @@
 'use client';
 
-import { Button, StateMessage } from '@/components/ui';
-import { useTermsAcceptance } from '@/hooks/useTermsAcceptance';
-import { PrivySignInButton } from './PrivySignInButton';
-import { TermsAcceptance } from './TermsAcceptance';
+import { StateMessage } from '@/components/ui';
+import { SIGN_IN_CARD_COPY } from './SignInCard.constants';
+import { SignInPrompt } from './SignInPrompt';
 
 export interface SignInCardProps {
-  onSignIn: () => void;
+  /**
+   * Why the last restore or sign-in attempt failed, when it did. Never a gate: the
+   * session still resolves to `anonymous`, which this card already knows how to
+   * render.
+   */
   error: string | null;
-  /** Which path this build uses, shown so a local build is not mistaken for real auth. */
-  source: 'privy' | 'dev';
-  pending: boolean;
 }
 
 /**
- * The signed-out state of the app.
+ * The app's signed-out state for a surface that is a page of its own.
  *
- * The source is named on the screen on purpose: a `dev` session is a local
- * shortcut, and a screenshot of it should never be mistaken for a real sign-in.
+ * It makes the same ask the compact `SignInPrompt` makes — what signing in is for,
+ * and one link to `/signin` — with the app's own standard words, plus the reason a
+ * restore or a previous attempt failed when there is one.
  *
- * Signing up and signing in are the same action from here (Privy creates the
- * account on first sign-in), so the terms gate sits in front of both ways in:
- * the button is `disabled`, not guarded inside its handler, and it stays that
- * way until the checkbox is ticked. Both branches read the same flag from
- * `useTermsAcceptance`, so one path cannot be left open.
+ * ## It no longer renders a sign-in flow, and that is the point
+ *
+ * This card used to own the terms checkbox, the Privy modal button and the dev-mode
+ * shortcut, which made an app page a second front door. Worse, a modal-started
+ * sign-in cannot carry the Terms version the page displayed, so the account it
+ * created recorded no acceptance — the `acceptedVersion: null` this work exists to
+ * remove. The acceptance has to be taken where the terms are shown, so this points
+ * at the one page that shows them and starts nothing itself.
  */
-export function SignInCard({ onSignIn, error, source, pending }: SignInCardProps) {
-  const { accepted, setAccepted } = useTermsAcceptance();
-
+export function SignInCard({ error }: SignInCardProps) {
   return (
     <div className="flex flex-col gap-4">
-      <StateMessage
-        title="Sign in to Seti"
-        body="Your balance and payments are tied to your account."
-      />
-      <TermsAcceptance checked={accepted} onChange={setAccepted} />
-      {source === 'privy' ? (
-        <PrivySignInButton disabled={!accepted} />
-      ) : (
-        <Button onClick={onSignIn} loading={pending} disabled={!accepted} fullWidth>
-          Sign in
-        </Button>
-      )}
-      {source === 'dev' ? (
-        <p className="text-body-sm text-mute">
-          Local development session. Needs
-          <code className="mx-1 rounded-sm bg-surface-soft px-1">DEV_BYPASS_AUTH=true</code>
-          and
-          <code className="mx-1 rounded-sm bg-surface-soft px-1">NODE_ENV=development</code>
-          in <code className="rounded-sm bg-surface-soft px-1">backend/.env</code> — and a backend
-          started <em>after</em> they were added, because it reads that file once at boot.
-        </p>
-      ) : null}
+      <SignInPrompt title={SIGN_IN_CARD_COPY.title} body={SIGN_IN_CARD_COPY.body} />
+
       {error ? (
-        <StateMessage tone="alert" title="Could not sign in" body={error} />
+        <StateMessage variant="failure" title={SIGN_IN_CARD_COPY.errorTitle} body={error} />
       ) : null}
     </div>
   );

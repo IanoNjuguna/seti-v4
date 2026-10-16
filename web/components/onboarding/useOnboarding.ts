@@ -95,7 +95,7 @@ export function useOnboarding(): UseOnboardingReturn {
   // and the step renders the result for the first and a short confirmation for the
   // second — never a name form the account does not need.
   const step: OnboardingStep =
-    session.status !== 'authenticated'
+    session.status !== 'signed-in'
       ? 'sign-in'
       : claim.claimed || account.onboarded
         ? 'done'

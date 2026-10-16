@@ -53,7 +53,7 @@ export function PrivySignOutControl() {
       <Button variant="secondary" onClick={() => void handleSignOut()}>
         Sign out
       </Button>
-      {error ? <StateMessage tone="alert" title="Could not sign out" body={error} /> : null}
+      {error ? <StateMessage variant="failure" title="Could not sign out" body={error} /> : null}
     </div>
   );
 }

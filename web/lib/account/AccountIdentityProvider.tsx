@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ApiError, fetchAccountIdentity } from '@/lib/api';
+import { fetchAccountIdentity, refusalMessage } from '@/lib/api';
 import type { AccountIdentity } from '@/lib/api';
 import { useSession } from '@/lib/auth';
 import type { AccountIdentityValue } from './account.types';
@@ -27,10 +27,17 @@ interface FailedIdentity {
 
 const AccountIdentityContext = createContext<AccountIdentityValue | null>(null);
 
+/**
+ * The sentence for a failed account read.
+ *
+ * This is the read that gated the whole app, and it was the one that put a raw
+ * Prisma error in front of the owner during sign-in: `error.message` was the
+ * server's own text, passed straight through. Now the code decides the words
+ * (`lib/api/refusal.ts`), and anything that is not an `ApiError` gets a line
+ * about the account rather than a stack.
+ */
 function toMessage(error: unknown): string {
-  if (error instanceof ApiError) return error.message;
-  if (error instanceof Error && error.message) return error.message;
-  return 'Could not read your account. Try again.';
+  return refusalMessage(error, 'account');
 }
 
 /**
@@ -47,7 +54,19 @@ function toMessage(error: unknown): string {
  */
 export function AccountIdentityProvider({ children }: { children: ReactNode }) {
   const session = useSession();
-  const userId = session.user?.id ?? null;
+  /**
+   * Nothing account-scoped is requested while the session is `restoring` or
+   * `anonymous`.
+   *
+   * The read below is the app's only account fetch and it needs a confirmed
+   * identity to be about. Asking during `restoring` would fire a request before
+   * the token has been re-resolved, and asking while `anonymous` would ask the
+   * server about nobody — which is also how a restore that failed used to turn
+   * into a second failed request instead of a simple signed-out screen. So the
+   * account is derived ONLY when `status === 'signed-in'`, and the effect is
+   * inert in the other two states.
+   */
+  const userId = session.status === 'signed-in' ? session.user?.id ?? null : null;
   const [loaded, setLoaded] = useState<LoadedIdentity | null>(null);
   const [failed, setFailed] = useState<FailedIdentity | null>(null);
   const [reloadKey, setReloadKey] = useState(0);

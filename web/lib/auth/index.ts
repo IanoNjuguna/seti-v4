@@ -7,4 +7,4 @@ export {
   describeDevSignInFailure,
   describePrivySignInFailure,
 } from './auth.constants';
-export type { AuthSource, AuthStatus, AuthUser, SessionValue } from './auth.types';
+export type { AuthSource, AuthStatus, AuthUser, SessionValue, SignInStatus } from './auth.types';

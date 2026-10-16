@@ -18,10 +18,10 @@ import { useOnboarding } from './useOnboarding';
  * branch here — the alternative is a second, subtly different loading state.
  *
  * There is deliberately no date of birth field, and adding one would be a
- * regression: the owner removed it. A self-declared tick of the terms (which
- * `SignInCard` already gates sign-in on, and which a `disabled` button makes
- * unskippable) carries the same weight at zero PII, and the age gate belongs at the
- * restricted product when one exists, not at a name.
+ * regression: the owner removed it. A self-declared tick of the terms — given at
+ * `/signin`, where the control that takes it stays `disabled` until it is ticked,
+ * by mouse, Enter or Space — carries the same weight at zero PII, and the age gate
+ * belongs at the restricted product when one exists, not at a name.
  */
 export function Onboarding() {
   const account = useAccountIdentity();
@@ -47,7 +47,7 @@ export function Onboarding() {
           // and let the person retry rather than showing a wizard whose first action
           // would fail.
           <StateMessage
-            tone="alert"
+            variant="failure"
             title={ONBOARDING_COPY.accountErrorTitle}
             body={account.error}
             action={<Button onClick={account.refresh}>{ONBOARDING_COPY.retry}</Button>}
