@@ -25,6 +25,8 @@ import { env } from '../config/env.js';
 // The signing scheme and the secret are shared with the receipt link — see
 // `lib/signed-token.ts`. One HMAC implementation, one `QUOTE_SIGNING_SECRET`.
 import { sign, signaturesMatch } from '../lib/signed-token.js';
+import { servedNetwork } from '../config/networks.js';
+import { NETWORK_LABEL, normalizeNetwork, type Network } from '../lib/network.js';
 
 /**
  * Typed reasons a quote cannot be used.
@@ -41,7 +43,16 @@ export type QuoteFailureCode =
   /** The token is genuine but has aged out of its TTL. */
   | 'quote-expired'
   /** The token is genuine but was issued to a different account. */
-  | 'quote-not-yours';
+  | 'quote-not-yours'
+  /**
+   * The token is genuine but was minted ON A DIFFERENT NETWORK.
+   *
+   * A practice quote must never settle a live payment, and vice versa — this is
+   * the money hazard the network dimension closes. The rate inside a practice
+   * quote is a practice rate for a practice transfer; redeeming it against live
+   * would write that figure into a ledger the money actually moved on.
+   */
+  | 'quote-wrong-network';
 
 export class QuoteError extends Error {
   readonly code: QuoteFailureCode;
@@ -63,6 +74,12 @@ export interface QuoteInput {
   asOf: Date;
   /** Overrides `QUOTE_TTL_SECONDS`. A ~0/negative value mints an already-expired quote. */
   ttlSeconds?: number;
+  /**
+   * The NETWORK the rate was quoted for. Defaults to the served network, so
+   * existing callers read as before, but a record path must present a quote
+   * minted for ITS network or the quote is refused (`quote-wrong-network`).
+   */
+  network?: Network;
 }
 
 /** The frozen rate a record path must write, recovered from a verified quote. */
@@ -82,6 +99,8 @@ export interface FrozenRate {
 interface QuotePayload {
   /** userId the quote belongs to. */
   u: string;
+  /** Network the rate was quoted for — `testnet` | `mainnet`. */
+  n: Network;
   /** fiatCurrency. */
   c: string;
   /** fiatPerUsd — the frozen rate. */
@@ -107,6 +126,7 @@ export function issueQuote(input: QuoteInput): string {
 
   const payload: QuotePayload = {
     u: input.userId,
+    n: normalizeNetwork(input.network, servedNetwork),
     c: input.fiatCurrency,
     r: input.fiatPerUsd,
     s: input.source,
@@ -127,7 +147,13 @@ export function issueQuote(input: QuoteInput): string {
  * those as a refusal — never as a reason to fall back to the live rate, which is
  * the exact bug this mechanism exists to close.
  */
-export function readQuote(token: string | null | undefined, userId: string): FrozenRate {
+export function readQuote(
+  token: string | null | undefined,
+  userId: string,
+  network: Network = servedNetwork
+): FrozenRate {
+  const expectedNetwork = normalizeNetwork(network);
+
   if (typeof token !== 'string' || token.length === 0) {
     throw new QuoteError(
       'quote-missing',
@@ -172,6 +198,19 @@ export function readQuote(token: string | null | undefined, userId: string): Fro
     throw new QuoteError(
       'quote-not-yours',
       'That price quote was issued to a different account.'
+    );
+  }
+
+  // The network check sits beside the ownership check and for the same reason:
+  // both are properties of the PROMISE the token carries. A practice quote
+  // presented against live is refused — never re-priced — because a practice
+  // figure must not reach a live ledger.
+  if (normalizeNetwork(payload.n, servedNetwork) !== expectedNetwork) {
+    throw new QuoteError(
+      'quote-wrong-network',
+      `That price quote was issued for ${NETWORK_LABEL[normalizeNetwork(payload.n, servedNetwork)]} and cannot be ` +
+        `used on ${NETWORK_LABEL[expectedNetwork]}. Fetch a fresh preview on the network the money ` +
+        'is moving on.'
     );
   }
 

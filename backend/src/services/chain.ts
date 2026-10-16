@@ -1,8 +1,24 @@
-import { createPublicClient, http, erc20Abi, formatUnits, type Hex } from 'viem';
-import { network, SUPPORTED_ASSETS, PRIMARY_ASSET } from '../config/networks.js';
-import type { SupportedAsset } from '../config/networks.js';
+import {
+  createPublicClient,
+  http,
+  erc20Abi,
+  formatUnits,
+  type EIP1193RequestFn,
+  type Hex,
+  type PublicClient,
+  type Transport,
+} from 'viem';
+import {
+  network,
+  networkConfigFor,
+  servedNetwork,
+  SUPPORTED_ASSETS,
+  PRIMARY_ASSET,
+  maskEndpoint,
+} from '../config/networks.js';
+import type { Network, SupportedAsset } from '../config/networks.js';
 
-export { network, SUPPORTED_ASSETS, PRIMARY_ASSET };
+export { network, networkConfigFor, servedNetwork, SUPPORTED_ASSETS, PRIMARY_ASSET };
 export { formatUnits };
 export type { SupportedAsset };
 
@@ -26,12 +42,168 @@ export const tempoChain = {
   },
 } as const;
 
+/**
+ * How hard we push a PUBLIC endpoint before giving up on one call.
+ *
+ * The chain's own RPC is a Cloudflare-fronted public node with no SLA, and it
+ * intermittently fails to ACCEPT a cold connection: 1 in ~16 single-request
+ * processes measured here dies with `ETIMEDOUT` before a byte is exchanged, which
+ * reaches viem as `fetch failed` and reaches the indexer as a lost pass. It is not
+ * dual-stack (this host has no IPv6 at all and pinning IPv4 changes nothing) and
+ * not the endpoint being down (the next request, milliseconds later, answers).
+ *
+ * So the transport is made patient rather than the endpoint trusted: more attempts
+ * with a longer gap, and a request timeout above viem's 10s default because a
+ * 2000-block `eth_getLogs` against a public node legitimately takes seconds. At the
+ * measured failure rate six attempts leave a per-call failure probability in the
+ * 1e-8 range — the difference between a log line every few minutes and a log line
+ * that means something.
+ */
+const RPC_TRANSPORT_OPTIONS = {
+  retryCount: 6,
+  retryDelay: 400,
+  timeout: 20_000,
+} as const;
+
+/**
+ * A transport that verifies the endpoint's chain id BEFORE its first real call.
+ *
+ * The served client is the one the product reads and the indexer scans through,
+ * so this is where a wrong-chain endpoint must be caught. Verification runs once
+ * (see `ensureServedChainId`), lazily, on the first request — deliberately NOT at
+ * boot, so no check suite needs the network to start.
+ */
+function createVerifyingTransport(url: string): Transport {
+  const base = http(url, RPC_TRANSPORT_OPTIONS);
+  return (params) => {
+    const inner = base(params);
+    const request: EIP1193RequestFn = async (args) => {
+      await ensureServedChainId();
+      return inner.request(args);
+    };
+    return { ...inner, request };
+  };
+}
+
 const publicClient = createPublicClient({
   chain: tempoChain,
-  transport: http(),
+  transport: createVerifyingTransport(network.rpcUrl),
 });
 
 export { publicClient };
+
+// ---------------------------------------------------------------------------
+// RPC chain-id verification — the RUNTIME, fail-closed guard
+// ---------------------------------------------------------------------------
+//
+// The static guard in `config/networks.ts` proves the CONFIGURATION is coherent
+// offline: the served network's endpoint is not the other network's, and the
+// legacy pair names the chain its URL belongs to. What it cannot prove offline is
+// the endpoint's OWN chain id — that the host actually serves the chain this
+// deployment claims. So it is verified here, at FIRST USE, and fails closed.
+//
+// It must NOT be a boot requirement: `npm run verify` runs with no network, so a
+// boot that dialled the RPC would break CI. The first real request through the
+// served client therefore pays for one `eth_chainId`; every request after it
+// reads the cached verdict and costs nothing.
+
+/**
+ * The endpoint reports a chain id this deployment does not serve. Raised at first
+ * use and cached, so it refuses every subsequent call rather than letting one
+ * wrong-chain read through.
+ */
+export class RpcChainIdMismatchError extends Error {
+  readonly code = 'RPC_CHAIN_ID_MISMATCH';
+  /** The chain id this deployment serves. */
+  readonly expectedChainId: number;
+  /** The chain id the endpoint reported. */
+  readonly reportedChainId: number;
+  /** The endpoint, MASKED. */
+  readonly endpoint: string;
+
+  constructor(expectedChainId: number, reportedChainId: number, endpoint: string) {
+    super(
+      `[RPC_CHAIN_ID_MISMATCH] Refusing to use the RPC endpoint: it reports chain id ` +
+        `${reportedChainId}, but this deployment serves chain ${expectedChainId}. ` +
+        `Endpoint: ${maskEndpoint(endpoint)}.\n\n` +
+        'Reading through an endpoint on the wrong chain would let this deployment treat another ' +
+        'chain\'s blocks, receipts and balances as its own — the failure the boot coherence ' +
+        'guard exists to prevent, reached by an endpoint that lies about which chain it holds. ' +
+        'Point the served network at an endpoint for its own chain. This check has no bypass.'
+    );
+    this.name = 'RpcChainIdMismatchError';
+    this.expectedChainId = expectedChainId;
+    this.reportedChainId = reportedChainId;
+    this.endpoint = maskEndpoint(endpoint);
+  }
+}
+
+/** The one in-flight/settled verification, so the whole process pays for one call. */
+let servedChainIdVerification: Promise<void> | undefined;
+
+/**
+ * Verify, ONCE, that the served endpoint reports the served chain id. Idempotent
+ * and cached: the first caller does the `eth_chainId`, every later caller awaits
+ * the same verdict.
+ *
+ * A MISMATCH is deterministic, so its rejection is cached and every later call
+ * fails the same way. An unreachable endpoint is transient — that verdict is NOT
+ * cached, so a later call retries — but this call still fails closed.
+ */
+export function ensureServedChainId(): Promise<void> {
+  if (!servedChainIdVerification) servedChainIdVerification = verifyServedChainId();
+  return servedChainIdVerification;
+}
+
+/** Forget the cached verdict, so the next call re-verifies. For checks only. */
+export function resetServedChainIdVerification(): void {
+  servedChainIdVerification = undefined;
+}
+
+async function verifyServedChainId(): Promise<void> {
+  // A SEPARATE, un-wrapped client on purpose: going through the served client
+  // would recurse into this very check.
+  const probe = createPublicClient({ transport: http(network.rpcUrl) });
+
+  let reported: number;
+  try {
+    reported = await probe.getChainId();
+  } catch (cause) {
+    // Could not read the chain id — not a verdict about the chain. Do not cache,
+    // so a later call retries, but fail closed for the caller now.
+    servedChainIdVerification = undefined;
+    throw cause;
+  }
+
+  if (reported !== network.chainId) {
+    throw new RpcChainIdMismatchError(network.chainId, reported, network.rpcUrl);
+  }
+}
+
+/**
+ * A read client for a NAMED network — the served one by default.
+ *
+ * The served client above is what the product reads through, because the product
+ * only ever acts on the network the deployment serves. A check suite is different:
+ * it verifies against a PINNED receipt, and a receipt belongs to one chain. A suite
+ * whose verdict must not depend on what the box happens to serve (its whole point —
+ * see `payout.check.ts`) therefore reads the receipt through a client for the
+ * network THAT RECEIPT is on, and says which one that is.
+ *
+ * Reads only: nothing here signs, and no caller can use it to send anything.
+ */
+export function publicClientFor(target: Network): PublicClient {
+  const config = networkConfigFor(target);
+  const chain = {
+    id: config.chainId,
+    name: config.displayName,
+    nativeCurrency: tempoChain.nativeCurrency,
+    rpcUrls: { default: { http: [config.rpcUrl] } },
+    blockExplorers: { default: { name: 'Tempo Explorer', url: config.explorerUrl } },
+  } as const;
+
+  return createPublicClient({ chain, transport: http(config.rpcUrl) });
+}
 
 const assetToContract: Record<SupportedAsset, Hex> = Object.fromEntries(
   SUPPORTED_ASSETS.map((asset) => [asset, network.tokens[asset]])
@@ -43,10 +215,15 @@ export const assetDecimals: Record<SupportedAsset, number> = Object.fromEntries(
 
 export async function getOnChainBalance(
   address: Hex,
-  asset: SupportedAsset = PRIMARY_ASSET
+  asset: SupportedAsset = PRIMARY_ASSET,
+  target: Network = servedNetwork
 ): Promise<string> {
   const contract = assetToContract[asset];
-  const rawBalance = await publicClient.readContract({
+  // The ADDRESS is on a network, and the caller knows which one — it found the
+  // wallet row by it. Reading the served chain for a practice address returns 0,
+  // which is a wrong answer rather than a missing one.
+  const client = target === servedNetwork ? publicClient : publicClientFor(target);
+  const rawBalance = await client.readContract({
     address: contract,
     abi: erc20Abi,
     functionName: 'balanceOf',
@@ -56,8 +233,23 @@ export async function getOnChainBalance(
   return formatUnits(rawBalance, assetDecimals[asset]);
 }
 
-export async function getTransactionReceipt(txHash: Hex) {
-  return publicClient.getTransactionReceipt({ hash: txHash });
+/**
+ * A transaction's receipt, read from the network it is actually ON.
+ *
+ * `target` exists because the account's network is PER-ACCOUNT: an account acting
+ * on practice while this deployment serves live has practice transactions and live
+ * transactions in the same table, and asking the served chain for a hash it has
+ * never seen throws `TransactionReceiptNotFoundError` — which is how a receipt
+ * fails to load while its row renders perfectly in Activity.
+ *
+ * The served network keeps the VERIFYING client (`publicClient`, whose transport
+ * checks the endpoint's chain id at first use); any other network gets a plain
+ * client for that chain. Defaulting to the served network is what keeps every
+ * existing caller — the money paths — behaving exactly as before.
+ */
+export async function getTransactionReceipt(txHash: Hex, target: Network = servedNetwork) {
+  const client = target === servedNetwork ? publicClient : publicClientFor(target);
+  return client.getTransactionReceipt({ hash: txHash });
 }
 
 /**
@@ -71,8 +263,19 @@ export async function getTransactionReceipt(txHash: Hex) {
  */
 export const FEE_AMM_ADDRESS = '0xfeec000000000000000000000000000000000000' as Hex;
 
-export async function getBlockTimestamp(blockNumber: bigint): Promise<Date> {
-  const block = await publicClient.getBlock({ blockNumber });
+/**
+ * The wall-clock time a block was mined, on the network that block is on.
+ *
+ * Network-scoped for the same reason as `getTransactionReceipt`: a practice block
+ * number means nothing on the live chain, and a receipt must print the time of the
+ * block it actually came from.
+ */
+export async function getBlockTimestamp(
+  blockNumber: bigint,
+  target: Network = servedNetwork
+): Promise<Date> {
+  const client = target === servedNetwork ? publicClient : publicClientFor(target);
+  const block = await client.getBlock({ blockNumber });
   return new Date(Number(block.timestamp) * 1000);
 }
 
@@ -94,9 +297,15 @@ export function assetForContract(address: string): SupportedAsset | null {
 export async function waitForTransactionReceipt(
   txHash: Hex,
   timeout = 30_000,
-  pollingInterval = 2_000
+  pollingInterval = 2_000,
+  target: Network = servedNetwork
 ) {
-  return publicClient.waitForTransactionReceipt({
+  // Network-scoped for the same reason as `getTransactionReceipt`: waiting on the
+  // served chain for a hash that lives on the account's chain waits forever and
+  // then reports a timeout, which reads as "the payment never landed".
+  const client: PublicClient = target === servedNetwork ? publicClient : publicClientFor(target);
+
+  return client.waitForTransactionReceipt({
     hash: txHash,
     timeout,
     pollingInterval,

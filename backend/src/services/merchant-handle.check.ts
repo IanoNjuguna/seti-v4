@@ -38,9 +38,11 @@ import {
   handleClaimVerifies,
   handleStatus,
   merchantHandle,
+  toHandleIdentityView,
   type HandleClaimMessage,
   type HandleKind,
 } from './handle-claims.js';
+import { findHandleByHandle } from './handles.js';
 import { handleRoutes } from '../routes/handles.js';
 import { publicHandleRoutes } from '../routes/public-handles.js';
 
@@ -236,13 +238,17 @@ async function main() {
   ).every(Boolean);
   check('every merchant profile is behind a handle', everyMerchantHasHandle, true);
 
-  const seededResolve = await app.inject({ method: 'GET', url: '/public/handles/javahouse' });
-  check('a seeded handle resolves publicly', seededResolve.statusCode, 200);
-  check(
-    'and returns the seeded handle',
-    seededResolve.json<{ handle: Record<string, unknown> }>().handle?.name,
-    'Java House'
-  );
+  // The seeded `javahouse` row is a PRACTICE row (backfilled to `testnet`), and a
+  // business handle is PER NETWORK — so the public route, which resolves on the
+  // network this deployment SERVES, cannot see it on a live box. Asserted through
+  // the same resolver the route uses, on the network the row is on: the promise
+  // being pinned is that the seeded row is intact, not that a practice merchant is
+  // payable on live. (Whether a practice business name should resolve on live is a
+  // product question the owner has left open.)
+  const seededRow = await findHandleByHandle('javahouse', 'testnet');
+  const seededView = seededRow ? await toHandleIdentityView(seededRow) : null;
+  check('a seeded handle still resolves on its own network', seededView !== null, true);
+  check('and returns the seeded handle', seededView?.name, 'Java House');
 
   // ---------------------------------------------------------------------------
   // (a) a claim stores a handle equal to the web's rule
@@ -275,7 +281,7 @@ async function main() {
   check('the second claimant is refused', collision?.code, 'handle-taken');
   check('and the refusal names the handle', collision?.message.includes(HANDLE_COLLISION) ?? false, true);
 
-  const stillHeld = await prisma.handle.findUnique({ where: { handle: HANDLE_COLLISION } });
+  const stillHeld = await prisma.handle.findFirst({ where: { handle: HANDLE_COLLISION } });
   check('the first handle still points at the first address', stillHeld?.address, owner.address);
   check(
     'and no second row was written for the colliding name',
@@ -409,7 +415,7 @@ async function main() {
   // ---------------------------------------------------------------------------
   await cleanup();
 
-  const seededAfter = await prisma.handle.findUnique({ where: { handle: 'javahouse' } });
+  const seededAfter = await prisma.handle.findFirst({ where: { handle: 'javahouse' } });
   check('the seeded handle is untouched', seededAfter?.address, '0x20C000000000000000000000b9537d11c60E8b50');
   check('and carries no claim signature', seededAfter?.claimSignature, 'null');
 

@@ -1,7 +1,8 @@
 import type { Hex } from 'viem';
 import { prisma } from '../lib/prisma.js';
 import { env } from '../config/env.js';
-import { publicClient } from './chain.js';
+import { getTransactionReceipt, servedNetwork } from './chain.js';
+import { normalizeNetwork } from '../lib/network.js';
 import { logAuditEvent } from './audit.js';
 
 /**
@@ -109,7 +110,7 @@ export async function sweepStuckTransactions(): Promise<StuckSweepResult> {
     },
     orderBy: { createdAt: 'asc' },
     take: env.STUCK_TX_SWEEP_LIMIT,
-    select: { id: true, userId: true, txHash: true, createdAt: true },
+    select: { id: true, userId: true, txHash: true, createdAt: true, network: true },
   });
 
   const result: StuckSweepResult = {
@@ -124,7 +125,14 @@ export async function sweepStuckTransactions(): Promise<StuckSweepResult> {
     const ageMinutes = Math.round((Date.now() - row.createdAt.getTime()) / 60_000);
 
     try {
-      const receipt = await publicClient.getTransactionReceipt({ hash: txHash as Hex });
+      // The ROW's network, not the deployment's. A practice payment's hash does not
+      // exist on the live chain, so reading the served chain returns "not found"
+      // forever and leaves the row `processing` for good — the state that makes a
+      // customer's Activity disagree with the chain indefinitely.
+      const receipt = await getTransactionReceipt(
+        txHash as Hex,
+        normalizeNetwork(row.network, servedNetwork)
+      );
 
       const to: Resolved = receipt.status === 'success' ? 'completed' : 'failed';
       if (await resolveRow(row.id, row.userId, txHash, to, receipt.blockNumber)) {

@@ -3,6 +3,8 @@ import type { HomeDashboard, RecentTransaction } from '../types/index.js';
 import { getUserTotalBalanceInFiat } from './balance.js';
 import { toRecentTransaction } from './transaction-view.js';
 import { getFiatPerUsd, resolveUserFiat } from './payments.js';
+import { servedNetwork } from '../config/networks.js';
+import type { Network } from '../lib/network.js';
 
 /**
  * What an activity row calls a transfer with no merchant behind it.
@@ -23,13 +25,18 @@ import { getFiatPerUsd, resolveUserFiat } from './payments.js';
  * the local ledger. The local transaction list is used for the recent activity
  * feed and spending trend calculations.
  */
-export async function getHomeDashboard(userId: string): Promise<HomeDashboard> {
+export async function getHomeDashboard(
+  userId: string,
+  network: Network = servedNetwork
+): Promise<HomeDashboard> {
+  // Scoped by the session's network: the home card is one network's money. A
+  // practice balance and a live balance are different numbers on different chains.
   const wallet = await prisma.wallet.findFirst({
-    where: { userId, status: 'active' },
+    where: { userId, status: 'active', network },
   });
 
   const transactions = await prisma.transaction.findMany({
-    where: { userId },
+    where: { userId, network },
     include: { merchant: true, wallet: true },
     orderBy: { createdAt: 'desc' },
     take: 20,
@@ -40,7 +47,7 @@ export async function getHomeDashboard(userId: string): Promise<HomeDashboard> {
   // the same balances.
   const fiatCurrency = await resolveUserFiat(userId);
   const balance = wallet
-    ? await getUserTotalBalanceInFiat(userId, await getFiatPerUsd(fiatCurrency))
+    ? await getUserTotalBalanceInFiat(userId, await getFiatPerUsd(fiatCurrency), network)
     : '0.00';
 
   const now = new Date();

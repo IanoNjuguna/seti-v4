@@ -14,6 +14,7 @@
  */
 import { prisma } from '../lib/prisma.js';
 import { describeMerchantName, normalizeMerchantName } from '../lib/merchant-name.js';
+import { servedNetwork, type Network } from '../config/networks.js';
 
 export interface QrPayload {
   type: 'merchant' | 'unknown';
@@ -79,19 +80,38 @@ export const HANDLE_PROFILE_SELECT = {
 /**
  * A handle by its stored string.
  *
- * `handle` is unique and indexed, so this filters on that column — NOT a scan
- * that reverse-engineers handles from names. Handles are stored lowercase (the
- * rule lowercases), so a caller's mixed case is lowered to match rather than
- * searched case-insensitively, which would not use the index.
+ * `handle` is indexed, so this filters on that column — NOT a scan that
+ * reverse-engineers handles from names. Handles are stored lowercase (the rule
+ * lowercases), so a caller's mixed case is lowered to match rather than searched
+ * case-insensitively, which would not use the index.
  *
  * `reviewStatus: null` is the whole of the brand-review protection on the read
  * side: a PARKED claim still holds its unique string but is invisible here, so a
  * payer who resolves it gets exactly what they get for a name that does not
  * exist — a 404, never an unverified name.
+ *
+ * TWO lookups, in order, because a person's username is GLOBAL while a business
+ * name is PER NETWORK:
+ *
+ *  1. the handle on THIS network (all kinds) — unchanged, and it wins, so a
+ *     practice merchant's name is never shadowed by a person's;
+ *  2. failing that, the GLOBAL person row, wherever it was claimed.
+ *
+ * (2) is what makes a username work on the network it was not claimed on. Without
+ * it every existing username vanishes the moment the deployment serves the other
+ * network — `seti.live/u/<name>` 404s and a send-by-username cannot resolve, on the
+ * person's OWN name, with no way for them to tell why.
  */
-export async function findHandleByHandle(handle: string) {
+export async function findHandleByHandle(handle: string, network: Network = servedNetwork) {
+  const scoped = await prisma.handle.findFirst({
+    where: { handle: handle.toLowerCase(), reviewStatus: null, network },
+    include: HANDLE_PROFILE_SELECT,
+  });
+
+  if (scoped) return scoped;
+
   return prisma.handle.findFirst({
-    where: { handle: handle.toLowerCase(), reviewStatus: null },
+    where: { handle: handle.toLowerCase(), reviewStatus: null, kind: 'person' },
     include: HANDLE_PROFILE_SELECT,
   });
 }
@@ -100,11 +120,19 @@ export async function findHandleByHandle(handle: string) {
  * A handle by the name a customer typed. Last resort, after id and handle.
  *
  * Filtered the same way, for the same reason: an under-review name must not be
- * reachable by typing it.
+ * reachable by typing it. And resolved the same two-step way, for the same reason:
+ * a person's username is global, a business's name is this network's.
  */
-export async function findHandleByName(name: string) {
+export async function findHandleByName(name: string, network: Network = servedNetwork) {
+  const scoped = await prisma.handle.findFirst({
+    where: { name: { equals: name, mode: 'insensitive' }, reviewStatus: null, network },
+    include: HANDLE_PROFILE_SELECT,
+  });
+
+  if (scoped) return scoped;
+
   return prisma.handle.findFirst({
-    where: { name: { equals: name, mode: 'insensitive' }, reviewStatus: null },
+    where: { name: { equals: name, mode: 'insensitive' }, reviewStatus: null, kind: 'person' },
     include: HANDLE_PROFILE_SELECT,
   });
 }
@@ -116,10 +144,13 @@ export async function findHandleByName(name: string) {
  * rather than a handle. The handle is linked by `merchantId`, so this is a
  * `findFirst` on one indexed column. Filtered like the others: a parked claim
  * carries no merchant profile at all, and this is belt and braces if one ever did.
+ *
+ * Scoped by network: a `seti.live/u/<handle>` link resolves on the network the
+ * deployment serves, so a practice name and a live name are never confused.
  */
-export async function findHandleByMerchantId(merchantId: string) {
+export async function findHandleByMerchantId(merchantId: string, network: Network = servedNetwork) {
   return prisma.handle.findFirst({
-    where: { merchantId, reviewStatus: null },
+    where: { merchantId, reviewStatus: null, network },
     include: HANDLE_PROFILE_SELECT,
   });
 }

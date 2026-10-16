@@ -74,6 +74,13 @@ export type PaymentRefusalCode =
   | 'signer-not-owned'
   | 'signer-mismatch'
   /**
+   * The frozen rate was signed for a DIFFERENT network than the one this record
+   * path is writing on. A practice quote must never settle a live payment (or the
+   * reverse): the figure it carries is a practice figure, and writing it into the
+   * other network's ledger is the money hazard the network dimension closes.
+   */
+  | 'quote-wrong-network'
+  /**
    * The FX rate is frozen at quote time and carried as a signed quote token. The
    * record path refuses — never falls back to the live rate — when that token is
    * absent, malformed or forged, has outlived its TTL, or belongs to another

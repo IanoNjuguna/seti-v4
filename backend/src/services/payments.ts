@@ -6,11 +6,18 @@ import { getUserBalance } from './balance.js';
 import { estimateNetworkFee, reserveNetworkFee } from './chain.js';
 import { calculateMerchantFee, minimumTicketForFloor } from './fees.js';
 import { issueQuote } from './quote.js';
+import { servedNetwork, treasuryAddressFor } from '../config/networks.js';
+import { normalizeNetwork, type Network } from '../lib/network.js';
 import type { SupportedAsset } from './chain.js';
 import type { TransactionType } from '../types/index.js';
 
 export interface PaymentPreviewInput {
   userId: string;
+  /**
+   * The network the preview prices for. Defaults to the served network; the
+   * signed quote carries it, so a practice quote cannot be redeemed on live.
+   */
+  network?: Network;
   /**
    * The amount the customer entered, in THEIR currency — not stablecoin units.
    *
@@ -316,9 +323,10 @@ export async function getFiatPerUsd(fiatCurrency: string = DEFAULT_FIAT): Promis
  * signed payload — which is what lets a record path write the exact figures the
  * preview showed instead of re-reading a live rate.
  */
-function signRateQuote(userId: string, quote: TransferQuote): string {
+function signRateQuote(userId: string, quote: TransferQuote, network: Network = servedNetwork): string {
   return issueQuote({
     userId,
+    network,
     fiatCurrency: quote.fiatCurrency,
     fiatPerUsd: quote.fxRate,
     source: quote.fxRateSource,
@@ -342,8 +350,13 @@ export async function previewPayment(input: PaymentPreviewInput): Promise<Paymen
     }
   }
 
-  const quote = await quoteTransfer({ userId: input.userId, amountFiat, asset: input.asset });
-  const quoteId = signRateQuote(input.userId, quote);
+  const quote = await quoteTransfer({
+    userId: input.userId,
+    amountFiat,
+    asset: input.asset,
+    network: input.network,
+  });
+  const quoteId = signRateQuote(input.userId, quote, normalizeNetwork(input.network, servedNetwork));
 
   return {
     // Principal in stablecoin units — what the merchant receives, and the
@@ -382,7 +395,7 @@ export async function previewPayment(input: PaymentPreviewInput): Promise<Paymen
      * reason the mode is: the client must never invent a treasury address, and
      * this is the value the fee and the reconciliation agree on.
      */
-    treasuryAddress: env.SETI_TREASURY_ADDRESS,
+    treasuryAddress: treasuryAddressFor(normalizeNetwork(input.network, servedNetwork)),
     merchant: merchant
       ? {
           id: merchant.id,
@@ -468,6 +481,8 @@ export async function quoteTransfer(input: {
   userId: string;
   amountFiat: number;
   asset: string;
+  /** The network the transfer is on. Absent means the network this deployment serves. */
+  network?: Network;
 }): Promise<TransferQuote> {
   const fiatCurrency = await resolveUserFiat(input.userId);
   const quote = await getFxQuote(fiatCurrency);
@@ -519,7 +534,14 @@ export async function quoteTransfer(input: {
   const feeLegInAsset = feeRoutingMode === 'batch' ? feeInAsset : 0;
 
   const asset = input.asset as SupportedAsset;
-  const balanceResult = await getUserBalance(input.userId, asset);
+  // The BALANCE of the network this payment is on. Sufficiency is a per-chain
+  // question: a practice payment checked against a live balance (or the reverse)
+  // refuses sends the customer can afford and admits ones they cannot.
+  const balanceResult = await getUserBalance(
+    input.userId,
+    asset,
+    normalizeNetwork(input.network, servedNetwork)
+  );
   const balance = Number(balanceResult.balance);
   // Sufficient balance is measured against the GROSS plus the RESERVATION — never
   // the bare estimate. The estimate is a point number that moves with the gas
@@ -564,6 +586,11 @@ export async function quoteTransfer(input: {
 
 export interface SendPreviewInput {
   userId: string;
+  /**
+   * The network the preview prices for. Defaults to the served network; the
+   * signed quote carries it, so a practice quote cannot be redeemed on live.
+   */
+  network?: Network;
   /**
    * The amount the customer entered, in KES — the same unit a merchant payment
    * takes, because the fee schedule, the balance and every persisted figure are
@@ -670,8 +697,9 @@ export async function previewSend(input: SendPreviewInput): Promise<SendPreview>
     userId: input.userId,
     amountFiat,
     asset: input.asset,
+    network: input.network,
   });
-  const quoteId = signRateQuote(input.userId, quote);
+  const quoteId = signRateQuote(input.userId, quote, normalizeNetwork(input.network, servedNetwork));
 
   if (quote.feeRoutingMode !== 'batch') {
     throw new SendRequiresBatchError();
@@ -707,7 +735,7 @@ export async function previewSend(input: SendPreviewInput): Promise<SendPreview>
     grossAsset: quote.grossAsset.toFixed(8),
     networkFee: quote.networkFeeInAsset.toFixed(8),
     networkFeeSource: quote.networkFeeSource,
-    treasuryAddress: env.SETI_TREASURY_ADDRESS,
+    treasuryAddress: treasuryAddressFor(normalizeNetwork(input.network, servedNetwork)),
     feeCollected: true,
   };
 }

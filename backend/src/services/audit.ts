@@ -12,6 +12,17 @@ export type AuditAction =
   | 'payment.recorded'
   /** A send to a person that was recorded after both legs verified on-chain. */
   | 'send.recorded'
+  /**
+   * A practice send that settled on-chain BEFORE its row existed was written into
+   * the ledger after the fact by `cli/backfill-sends.ts`.
+   *
+   * Deliberately distinct from `send.recorded`: a reconciliation must be able to
+   * tell a reconstructed row from one recorded as it happened, because a backfill
+   * prices in the currency at the rate in force WHEN IT RUNS, not at signing time.
+   * `metadata.backfill` is always `true` and `metadata.reason` states why the row
+   * was missing.
+   */
+  | 'send.backfilled'
   /** A payment that was refused before any row was written. See payment-refusal.ts. */
   | 'payment.rejected'
   | 'offramp.initiate'
@@ -33,11 +44,32 @@ export type AuditAction =
    */
   | 'handle.brand.expired'
   /**
+   * The terms version in force was recorded against a NEWLY CREATED account.
+   *
+   * Written once, at creation, by `services/signup.ts` — so the row's `createdAt`
+   * is when the account came into being, and `metadata.termsVersion` is the
+   * version the customer was shown when they accepted. An account that already
+   * existed gets no second row: re-recording on every sign-in would turn a
+   * one-time consent record into a login log and make "when did this account
+   * first accept these Terms?" unanswerable.
+   *
+   * `metadata.acceptedVersion` is the version the CLIENT claimed, kept only as
+   * the cross-check's evidence; the record that matters is `termsVersion`, which
+   * is always the server's own.
+   */
+  | 'user.consent-recorded'
+  /**
    * A brand proved a name was its own and took it over. The evidence and the
    * reason the previous holder was released ride in `metadata`, and the released
    * claim is preserved in `handle_releases`.
    */
-  | 'handle.brand.reassigned';
+  | 'handle.brand.reassigned'
+  /**
+   * On a switch to live, a name the account already holds while practising was
+   * written on the live network as a `reserved` hold, giving the account FIRST
+   * REFUSAL on it so a practice name is not stealable in the gap.
+   */
+  | 'handle.first-refusal';
 
 export interface AuditLogInput {
   userId?: string;

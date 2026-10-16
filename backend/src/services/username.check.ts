@@ -43,9 +43,11 @@ import {
   PURPOSE_FOR_KIND,
   RESERVED_HANDLES,
   claimHandle,
+  toHandleIdentityView,
   type HandleClaimMessage,
   type HandleKind,
 } from './handle-claims.js';
+import { findHandleByHandle } from './handles.js';
 
 const FIXTURE_EMAIL_A = 'check-username-a@seti.test';
 const FIXTURE_EMAIL_B = 'check-username-b@seti.test';
@@ -168,14 +170,21 @@ async function main() {
   // The six merchants still resolve and still verify (the migration's promise)
   // ---------------------------------------------------------------------------
   console.log('the six existing merchants, untouched:');
+  // Read on the network the rows are ON (`testnet` — they predate the network
+  // dimension and were backfilled to practice), through the same resolver the
+  // routes use. The public route resolves on the network this deployment SERVES,
+  // and a BUSINESS handle is per network by the owner's ruling, so a practice
+  // merchant is correctly invisible on a live deployment — asking the route would
+  // assert the opposite of the rule. What a practice business name should mean on
+  // live is a question the owner has left open; this pins that the rows are intact.
   for (const m of MERCHANTS) {
-    const res = await app.inject({ method: 'GET', url: `/public/handles/${m.handle}` });
-    const handle = view(res.json<Record<string, unknown>>());
-    check(`${m.handle}: resolves`, res.statusCode, 200);
-    check(`${m.handle}: name unchanged`, handle.name, m.name);
-    check(`${m.handle}: address unchanged`, handle.address, m.address);
-    check(`${m.handle}: verified unchanged`, handle.verified, m.verified);
-    check(`${m.handle}: is a business`, handle.kind, 'business');
+    const row = await findHandleByHandle(m.handle, 'testnet');
+    const handle = row ? await toHandleIdentityView(row) : null;
+    check(`${m.handle}: resolves on its own network`, handle !== null, true);
+    check(`${m.handle}: name unchanged`, handle?.name, m.name);
+    check(`${m.handle}: address unchanged`, handle?.address, m.address);
+    check(`${m.handle}: verified unchanged`, handle?.verified, m.verified);
+    check(`${m.handle}: is a business`, handle?.kind, 'business');
   }
 
   // ---------------------------------------------------------------------------

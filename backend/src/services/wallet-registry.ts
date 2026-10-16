@@ -1,6 +1,8 @@
 import { getAddress } from 'viem';
 import { prisma } from '../lib/prisma.js';
 import { describeEvmAddress } from '../lib/address.js';
+import { normalizeNetwork, type Network } from '../lib/network.js';
+import { servedNetwork } from '../config/networks.js';
 import type { Wallet, WalletStatus } from '@prisma/client';
 import type { PaymentRefusalCode } from './payment-refusal.js';
 
@@ -10,21 +12,34 @@ export interface RegisterWalletInput {
   asset: string;
   address: string;
   keyId?: string;
+  /**
+   * The network this address is registered ON.
+   *
+   * Optional so existing callers (login, the checks) read exactly as before: an
+   * omitted network is the network this deployment SERVES — an account may only
+   * act on a served network, so that is the only sane default. A LIVE deposit
+   * address is a separate registration with `network: 'mainnet'`.
+   */
+  network?: Network;
 }
 
 /**
- * The user's active wallet for an asset.
+ * The user's active wallet for a network.
  *
  * Looked up WITHOUT the asset filter: one Tempo address holds pathUSD and OUSD
- * alike, and `Wallet.address` is globally unique, so `Wallet.asset` labels the
+ * alike, and an address is unique per network, so `Wallet.asset` labels the
  * row's primary token and cannot enumerate them. Filtering on it refuses
  * transfers the address can make — see the same note in
  * `services/transactions.ts`. The `asset` argument is kept only so callers that
  * read a specific token balance can say which one they mean.
+ *
+ * SCOPED BY NETWORK, and that is the fix for a real hazard: a practice wallet and
+ * a live wallet are different addresses, and reading the wrong one means reading
+ * a balance from a chain the money is not on.
  */
-export async function getActiveWallet(userId: string, _asset?: string) {
+export async function getActiveWallet(userId: string, network: Network = servedNetwork) {
   return prisma.wallet.findFirst({
-    where: { userId, status: 'active' },
+    where: { userId, status: 'active', network },
   });
 }
 
@@ -88,9 +103,9 @@ export function resolveWalletAddress(
   return { address: getAddress(declared) };
 }
 
-export async function getWalletsByUser(userId: string) {
+export async function getWalletsByUser(userId: string, network?: Network) {
   return prisma.wallet.findMany({
-    where: { userId },
+    where: { userId, ...(network ? { network } : {}) },
     orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
   });
 }
@@ -130,7 +145,8 @@ export type SigningWalletRefusalCode = Extract<
  */
 export async function resolveSigningWallet(
   userId: string,
-  declared: string | undefined
+  declared: string | undefined,
+  network: Network = servedNetwork
 ): Promise<
   { wallet: Wallet } | { code: SigningWalletRefusalCode; complaint: string }
 > {
@@ -146,7 +162,10 @@ export async function resolveSigningWallet(
   const malformed = describeEvmAddress(declared);
   if (malformed) return { code: 'signer-not-owned', complaint: malformed };
 
-  const wallets = await getWalletsByUser(userId);
+  // Scoped to the SESSION's network: a wallet registered for practice is not a
+  // wallet the account holds on live, and a row from the other network would
+  // bind a live payment to a practice key.
+  const wallets = await getWalletsByUser(userId, network);
   const owned = wallets.find(
     (candidate) => candidate.address.toLowerCase() === declared.toLowerCase()
   );
@@ -164,24 +183,32 @@ export async function resolveSigningWallet(
 }
 
 export async function registerWallet(input: RegisterWalletInput) {
-  // `Wallet.address` is GLOBALLY unique (`@@unique([address])`), so the
-  // "already registered" guard must be scoped by ADDRESS.
+  const network = normalizeNetwork(input.network, servedNetwork);
+
+  // `Wallet.address` is unique PER NETWORK (partial unique indexes
+  // `wallets_address_<network>_key`), so the "already registered" guard must be
+  // scoped by ADDRESS **and network**.
   //
   // It used to be scoped to `(userId, asset, status: 'active')`, which made a
-  // DEPRECATED row invisible here while it still held the address in the global
-  // index. Re-registering that address therefore could never succeed: the guard
-  // saw nothing, the insert hit the index, and the failure surfaced as a P2002
+  // DEPRECATED row invisible here while it still held the address in the index.
+  // Re-registering that address therefore could never succeed: the guard saw
+  // nothing, the insert hit the index, and the failure surfaced as a P2002
   // naming `wallet.create()` rather than the collision. Any real rotation or
   // recovery back to a prior address would have failed identically.
-  const byAddress = await prisma.wallet.findUnique({
-    where: { address: input.address },
+  //
+  // Scoping by network is the second half: the SAME key may be registered for
+  // practice and for live (they are two rows on two chains), so the guard must
+  // not conflate them — exactly as it must not conflate a deprecated row with the
+  // address it once held.
+  const byAddress = await prisma.wallet.findFirst({
+    where: { address: input.address, network },
   });
 
   if (byAddress && byAddress.userId !== input.userId) {
-    // Two identities cannot share one address, and silently taking the row over
-    // would hand one user's wallet to another. Refuse loudly instead.
+    // Two identities cannot share one address on one network, and silently taking
+    // the row over would hand one user's wallet to another. Refuse loudly.
     throw new Error(
-      `Wallet address ${input.address} is already registered to another user.`
+      `Wallet address ${input.address} is already registered to another user on ${network}.`
     );
   }
 
@@ -189,16 +216,15 @@ export async function registerWallet(input: RegisterWalletInput) {
   // part-way through (a competing registration, say) cannot leave the account
   // with no active wallet at all.
   return prisma.$transaction(async (tx) => {
-    // Stand down this user's OTHER active wallet(s).
+    // Stand down this user's OTHER active wallet(s) ON THIS NETWORK.
     //
-    // `wallets` allows at most one ACTIVE row per `(userId, asset)` — a PARTIAL
-    // unique index (`wallets_userId_asset_active_key`, migration
-    // 20261013210000_wallet_one_active_per_asset) — and any number of
-    // DEPRECATED rows per asset. It used to be unique over
-    // `(userId, asset, status)`, which COUNTED the deprecated row, so
-    // deprecating the current active row on rotation collided with the
-    // deprecated row a previous rotation had left behind. That is exactly the
-    // shape the dev account held, and it is why a fresh registration failed.
+    // `wallets` allows at most one ACTIVE row per `(userId, asset, network)` — a
+    // PARTIAL unique index per network
+    // (`wallets_userId_asset_<network>_active_key`, migration
+    // 20261014090000_network_scope, extending
+    // 20261013210000_wallet_one_active_per_asset) — and any number of DEPRECATED
+    // rows per asset. The row for the OTHER network is deliberately untouched: a
+    // practice registration must not deprecate the live wallet.
     //
     // The asset set also covers the row being reused, in case it is labelled
     // with a different asset than the one being registered: reactivating it
@@ -208,6 +234,7 @@ export async function registerWallet(input: RegisterWalletInput) {
     await tx.wallet.updateMany({
       where: {
         userId: input.userId,
+        network,
         asset: { in: assets },
         status: 'active',
         ...(byAddress ? { id: { not: byAddress.id } } : {}),
@@ -234,6 +261,7 @@ export async function registerWallet(input: RegisterWalletInput) {
         address: input.address,
         keyId: input.keyId,
         status: 'active',
+        network,
       },
     });
   });

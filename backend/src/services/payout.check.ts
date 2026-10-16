@@ -44,10 +44,39 @@
 import { decodeEventLog, erc20Abi, getAddress, parseAbiItem, type TransactionReceipt } from 'viem';
 import { prisma } from '../lib/prisma.js';
 import { env } from '../config/env.js';
-import { FEE_AMM_ADDRESS, formatUnits, getTokenContract, network, publicClient } from './chain.js';
+import { FEE_AMM_ADDRESS, formatUnits, getTokenContract, networkConfigFor, publicClientFor } from './chain.js';
 import { recordPayment } from './transactions.js';
 import { getFxQuote } from './payments.js';
 import { issueQuote } from './quote.js';
+import type { Network } from '../lib/network.js';
+import { anchorNetworkPermitsRun } from './anchor-network.js';
+
+/**
+ * THE NETWORK THE PINNED ANCHOR RECEIPT IS ON — and it is Practice, deliberately.
+ *
+ * This suite verifies the FEE ARITHMETIC against a real batched receipt. The only
+ * real batched receipts that exist are Moderato (Practice) batches: no mainnet
+ * batch carries both legs yet (that is the operator's own gate — see
+ * `docs/internal/mainnet-flip.md`). Its verdict is supposed to depend on the CODE,
+ * not on which network this box happens to serve (the whole reason the anchor is
+ * pinned at all), so the suite names the network its anchor lives on instead of
+ * inheriting the served one:
+ *
+ *  - the receipt is read through a client for THIS network, so the read cannot
+ *    silently go to the other chain;
+ *  - every `recordPayment` below is recorded ON this network, which is the network
+ *    the receipt is on — a record reconciled against the wrong chain is the failure
+ *    mode this closes;
+ *  - the fixture wallet is registered on this network, so the signer is a wallet
+ *    the account holds where the payment is recorded.
+ *
+ * To move the suite to mainnet, pin a real mainnet batched receipt
+ * (PAYOUT_ANCHOR_TX) AND change this constant. Doing one without the other is what
+ * would make the suite verify the wrong chain.
+ */
+const ANCHOR_NETWORK: Network = 'testnet';
+const anchorNetwork = networkConfigFor(ANCHOR_NETWORK);
+const anchorPublicClient = publicClientFor(ANCHOR_NETWORK);
 
 const transferEvent = parseAbiItem(
   'event Transfer(address indexed from, address indexed to, uint256 value)'
@@ -208,7 +237,7 @@ async function findBatchedAnchor(fromBlock: bigint, head: bigint): Promise<Ancho
   let candidates;
 
   try {
-    candidates = await publicClient.getLogs({
+    candidates = await anchorPublicClient.getLogs({
       address: getTokenContract('ousd'),
       event: transferEvent,
       args: { to: treasury as `0x${string}` },
@@ -222,7 +251,7 @@ async function findBatchedAnchor(fromBlock: bigint, head: bigint): Promise<Ancho
   // Newest first: the freshest batch is the most likely to still be reconciled
   // the same way this suite expects.
   for (const feeLog of [...candidates].reverse()) {
-    const receipt = await publicClient.getTransactionReceipt({ hash: feeLog.transactionHash });
+    const receipt = await anchorPublicClient.getTransactionReceipt({ hash: feeLog.transactionHash });
     const legs = readOusdLegs(receipt);
     if (!legs) continue;
 
@@ -253,11 +282,11 @@ async function findBatchedAnchor(fromBlock: bigint, head: bigint): Promise<Ancho
 async function anchorFromHash(txHash: string): Promise<Anchor> {
   let receipt: TransactionReceipt;
   try {
-    receipt = await publicClient.getTransactionReceipt({ hash: txHash as `0x${string}` });
+    receipt = await anchorPublicClient.getTransactionReceipt({ hash: txHash as `0x${string}` });
   } catch (error) {
     throw new Error(
-      `Pinned payout anchor ${txHash} was not found on ${network.displayName} ` +
-        `(chain ${network.chainId}, ${network.rpcUrl}).\n` +
+      `Pinned payout anchor ${txHash} was not found on ${anchorNetwork.displayName} ` +
+        `(chain ${anchorNetwork.chainId}, ${anchorNetwork.rpcUrl}).\n` +
         'The anchor is a real batched OUSD receipt read by hash. If the network or RPC ' +
         `is wrong, or the receipt is gone, set PAYOUT_ANCHOR_TX to a known batched ` +
         `OUSD receipt — or to \`${LIVE_SEARCH}\` to scan the chain live.\n` +
@@ -267,8 +296,8 @@ async function anchorFromHash(txHash: string): Promise<Anchor> {
 
   if (receipt.status !== 'success') {
     throw new Error(
-      `Pinned payout anchor ${txHash} reverted on ${network.displayName} ` +
-        `(chain ${network.chainId}). Set PAYOUT_ANCHOR_TX to a successful batched OUSD ` +
+      `Pinned payout anchor ${txHash} reverted on ${anchorNetwork.displayName} ` +
+        `(chain ${anchorNetwork.chainId}). Set PAYOUT_ANCHOR_TX to a successful batched OUSD ` +
         `receipt, or to \`${LIVE_SEARCH}\` to scan live.`
     );
   }
@@ -276,7 +305,7 @@ async function anchorFromHash(txHash: string): Promise<Anchor> {
   const legs = readOusdLegs(receipt);
   if (!legs || (batchMode && legs.feeObserved === null)) {
     throw new Error(
-      `Pinned payout anchor ${txHash} on ${network.displayName} does not carry the legs ` +
+      `Pinned payout anchor ${txHash} on ${anchorNetwork.displayName} does not carry the legs ` +
         `this suite needs: an OUSD transfer to a recipient AND, in batch mode, a fee ` +
         `transfer to ${env.SETI_TREASURY_ADDRESS}. Set PAYOUT_ANCHOR_TX to a real ` +
         `batched OUSD receipt, or to \`${LIVE_SEARCH}\` to scan live.`
@@ -296,7 +325,7 @@ async function findTreasuryLeg(
   txHash: string,
   treasury: string
 ): Promise<number | null> {
-  const receipt = await publicClient.getTransactionReceipt({ hash: txHash as `0x${string}` });
+  const receipt = await anchorPublicClient.getTransactionReceipt({ hash: txHash as `0x${string}` });
   const ousd = getTokenContract('ousd').toLowerCase();
   const target = treasury.toLowerCase();
 
@@ -325,7 +354,7 @@ async function findTreasuryLeg(
  * which is Alchemy's free-tier limit on mainnet.
  */
 async function findAnchor(): Promise<Anchor | null> {
-  const head = await publicClient.getBlockNumber();
+  const head = await anchorPublicClient.getBlockNumber();
   const window = 60_000n;
 
   // Batch mode asks for the FEE LEG first (see `findBatchedAnchor`) instead of
@@ -407,7 +436,7 @@ async function findAnchor(): Promise<Anchor | null> {
  */
 async function tryGetLogs(fromBlock: bigint, toBlock: bigint) {
   const query = (f: bigint, t: bigint) =>
-    publicClient.getLogs({
+    anchorPublicClient.getLogs({
       address: getTokenContract('ousd'),
       event: transferEvent,
       fromBlock: f,
@@ -489,6 +518,21 @@ async function teardownSafely(): Promise<void> {
 }
 
 async function main() {
+  // The anchor is a Moderato receipt; reconcile it only through a deployment that
+  // serves Moderato. On a mainnet deployment no mainnet anchor is pinned yet, so
+  // this suite SKIPS — loudly, naming why — rather than read a Moderato receipt
+  // and record against a mainnet-serving ledger. See `anchor-network.ts`.
+  if (
+    !anchorNetworkPermitsRun({
+      suite: 'check:payout',
+      kind: 'payout',
+      anchorNetwork: ANCHOR_NETWORK,
+    })
+  ) {
+    await prisma.$disconnect();
+    process.exit(0);
+  }
+
   const quote = await getFxQuote();
   console.log(`rate: ${quote.fiatPerUsd} KES/USD from "${quote.source}" (stale: ${quote.stale})`);
 
@@ -540,7 +584,7 @@ async function main() {
     process.exit(1);
   }
 
-  const anchorReceipt = await publicClient.getTransactionReceipt({
+  const anchorReceipt = await anchorPublicClient.getTransactionReceipt({
     hash: anchor.txHash as `0x${string}`,
   });
   const anchorKes = anchor.observed * quote.fiatPerUsd;
@@ -573,7 +617,7 @@ async function main() {
    */
   const anchorSender = getAddress(anchorReceipt.from);
 
-  const holder = await prisma.wallet.findUnique({ where: { address: anchorSender } });
+  const holder = await prisma.wallet.findFirst({ where: { address: anchorSender } });
   if (holder && holder.userId !== user.id) {
     console.error(
       `The anchor's sender ${anchorSender} is already registered to another account, so\n` +
@@ -587,11 +631,13 @@ async function main() {
 
   // The `(userId, asset, status)` unique selector is gone: `wallets` now allows
   // any number of deprecated rows and enforces only one ACTIVE row per
-  // (userId, asset) — via a partial index Prisma cannot express as a unique
-  // selector. Look the ACTIVE row up and create it only when the fixture lacks
-  // one.
+  // (userId, asset, network) — via a partial index Prisma cannot express as a
+  // unique selector. Look the ACTIVE row up ON THIS SUITE'S NETWORK (the network
+  // the anchor is on, which is where the payment is recorded) and create it only
+  // when the fixture lacks one: a row registered for the OTHER network is not a
+  // wallet this account holds where it is paying, and the record path says so.
   const existingActiveWallet = await prisma.wallet.findFirst({
-    where: { userId: user.id, asset: 'ousd', status: 'active' },
+    where: { userId: user.id, asset: 'ousd', status: 'active', network: ANCHOR_NETWORK },
   });
   if (existingActiveWallet) {
     await prisma.wallet.update({
@@ -605,6 +651,7 @@ async function main() {
         chain: 'tempo',
         asset: 'ousd',
         address: anchorSender,
+        network: ANCHOR_NETWORK,
       },
     });
   }
@@ -624,10 +671,14 @@ async function main() {
   /**
    * The rate is FROZEN at quote time. Issue a quote from the same live rate this
    * suite recomputes its expectations from, so `recordPayment` writes figures
-   * that the assertions below still predict — no assertion is weakened.
+   * that the assertions below still predict — no assertion is weakened. The quote
+   * is minted FOR the network the payment is recorded on: a quote is network-scoped
+   * (one signed for practice is refused on live), which is itself pinned in
+   * `network-scope.check.ts`.
    */
   const quoteId = issueQuote({
     userId: user.id,
+    network: ANCHOR_NETWORK,
     fiatCurrency: quote.fiatCurrency,
     fiatPerUsd: quote.fiatPerUsd,
     source: quote.source,
@@ -641,6 +692,8 @@ async function main() {
     merchantId: merchant.id,
     txHash: anchor.txHash,
     quoteId,
+    // Recorded ON the network the receipt is on.
+    network: ANCHOR_NETWORK,
     // The wallet that signed the anchor: the row is bound to the address the
     // chain recorded as this transaction's sender, or it is refused.
     walletAddress: anchorSender,

@@ -47,6 +47,14 @@ import { getAddress, recoverTypedDataAddress, verifyTypedData } from 'viem';
 import { prisma } from '../lib/prisma.js';
 import { describeEvmAddress } from '../lib/address.js';
 import {
+  chainIdForNetwork,
+  DEFAULT_NETWORK,
+  NETWORK_LABEL,
+  isNetwork,
+  normalizeNetwork,
+  type Network,
+} from '../lib/network.js';
+import {
   describeHandleName,
   describeHandleOf,
   describeReservedHandle,
@@ -54,9 +62,16 @@ import {
   normalizeMerchantName,
 } from '../lib/merchant-name.js';
 import { heldBrandEvidence, matchHeldBrand } from '../lib/held-brands.js';
-import { network } from '../config/networks.js';
+import { servedNetwork } from '../config/networks.js';
 import { getWalletsByUser } from './wallet-registry.js';
 import { logAuditEvent } from './audit.js';
+
+/**
+ * The network vocabulary is re-exported for the same reason the name rule is:
+ * a caller of a claim imports ONE module and cannot reach for a second copy of
+ * what a network is.
+ */
+export { DEFAULT_NETWORK, NETWORK_LABEL, isNetwork, normalizeNetwork, type Network };
 
 /**
  * The name/handle rule lives in `lib/merchant-name.ts` (pure, no chain
@@ -204,17 +219,19 @@ export const LEGACY_CLAIM_TYPES: Record<string, readonly { name: string; type: s
 };
 
 /**
- * The EIP-712 domain.
+ * The EIP-712 domain for a NETWORK's claims.
  *
- * Read from the live network config rather than hardcoded, so a testnet claim
- * and a mainnet claim are different signatures and neither can be replayed on
- * the other chain.
+ * Read from the network config rather than hardcoded, so a testnet claim and a
+ * mainnet claim are different signatures and neither can be replayed on the
+ * other chain. The chain id is the network's OWN chain id — a claim made while
+ * practising (chain 42431) does not verify on live (chain 4217), which is what
+ * makes a live claim a distinct act rather than a reuse of a practice one.
  */
-export function handleClaimDomain(): HandleClaimDomain {
+export function handleClaimDomain(targetNetwork: Network = servedNetwork): HandleClaimDomain {
   return {
     name: HANDLE_CLAIM_DOMAIN_NAME,
     version: HANDLE_CLAIM_DOMAIN_VERSION,
-    chainId: network.chainId,
+    chainId: chainIdForNetwork(targetNetwork),
   };
 }
 
@@ -260,11 +277,14 @@ export async function recoverHandleClaimAddress(input: {
   issuedAt: string;
   nonce: string;
   signature: string;
+  network?: Network;
 }): Promise<`0x${string}` | null> {
   try {
+    const domain = handleClaimDomain(input.network ?? servedNetwork);
+
     if (input.purpose) {
       return await recoverTypedDataAddress({
-        domain: handleClaimDomain(),
+        domain,
         types: HANDLE_CLAIM_TYPES,
         primaryType: HANDLE_CLAIM_PRIMARY_TYPE,
         message: purposeMessage(input),
@@ -273,7 +293,7 @@ export async function recoverHandleClaimAddress(input: {
     }
 
     return await recoverTypedDataAddress({
-      domain: handleClaimDomain(),
+      domain,
       types: LEGACY_CLAIM_TYPES,
       primaryType: LEGACY_CLAIM_PRIMARY_TYPE,
       message: legacyMessage(input),
@@ -292,6 +312,13 @@ export interface StoredHandleClaim {
   claimSignature: string | null;
   claimIssuedAt: string | null;
   claimNonce: string | null;
+  /**
+   * The network the claim is bound on. Absent on objects that predate the
+   * column reads (a hand-built literal in a check), in which case verification
+   * uses the served network — which is the practice network in every existing
+   * fixture, so nothing that verified before stops verifying.
+   */
+  network?: string | null;
 }
 
 /**
@@ -315,6 +342,9 @@ export async function handleClaimVerifies(handle: StoredHandleClaim): Promise<bo
     issuedAt: claimIssuedAt,
     nonce: claimNonce,
     signature: claimSignature,
+    // Verified against the network the claim is STORED for, so a practice
+    // signature is never checked against the live chain id.
+    network: normalizeNetwork(handle.network, servedNetwork),
   });
 
   return recovered !== null && recovered.toLowerCase() === address.toLowerCase();
@@ -324,8 +354,24 @@ export async function handleClaimVerifies(handle: StoredHandleClaim): Promise<bo
 export interface HandleIdentityView {
   /** The handle row id. */
   id: string;
-  /** The stored, unique handle behind `seti.live/m/<handle>` or `/u/<handle>`. */
+  /**
+   * The stored, unique handle behind `seti.live/m/<handle>` or `/u/<handle>`:
+   * global for a person, per network for a business (see the `Handle` model).
+   */
   handle: string;
+  /**
+   * The network this claim was bound on — `testnet` (Practice) or `mainnet`
+   * (Live): the network whose EIP-712 domain the stored signature was made for.
+   * Carried on every read so a link or a receipt is never ambiguous about which
+   * network the CLAIM was made on.
+   *
+   * For a BUSINESS handle that is also its scope: it resolves on that network only.
+   * For a PERSON handle it is provenance, not scope — a username is global, so the
+   * one row is honoured on both networks (see the `Handle` model).
+   */
+  network: Network;
+  /** The network's product word: Practice | Live. */
+  networkLabel: string;
   /** Person or business — a profile mode on one handle, not an identity. */
   kind: HandleKind;
   /** The username or the business name. */
@@ -408,20 +454,25 @@ export async function toHandleIdentityView(handle: {
   merchantId: string | null;
   reviewStatus: string | null;
   reviewBrand: string | null;
+  /** The network the handle is bound on. Defaults to the served network. */
+  network?: string | null;
   merchant?: { id: string; category: string | null } | null;
 }): Promise<HandleIdentityView> {
   const review = reviewOf(handle);
+  const storedNetwork = normalizeNetwork(handle.network, servedNetwork);
 
   return {
     id: handle.id,
     handle: handle.handle,
+    network: storedNetwork,
+    networkLabel: NETWORK_LABEL[storedNetwork],
     kind: handle.kind === 'person' ? 'person' : 'business',
     name: handle.name,
     address: handle.address || null,
     category: handle.merchant?.category ?? null,
     // A parked handle is never verified, even with a genuine signature: review is
     // the one thing the signature cannot say.
-    verified: review === null && (await handleClaimVerifies(handle)),
+    verified: review === null && (await handleClaimVerifies({ ...handle, network: storedNetwork })),
     purpose: handle.purpose,
     merchantId: handle.merchantId,
     claimedAt: handle.claimedAt ? handle.claimedAt.toISOString() : null,
@@ -475,6 +526,15 @@ export interface ClaimHandleInput {
   issuedAt: string;
   nonce: string;
   signature: string;
+  /**
+   * The network the claim is made ON — `testnet` (Practice) or `mainnet` (Live).
+   *
+   * Decided by the SERVER from the session, never taken from the client: a claim
+   * belongs to the network the account is acting on, and the signature's EIP-712
+   * domain is that network's chain id. Optional only so existing callers read as
+   * before — an omitted network is the practice default.
+   */
+  network?: Network;
 }
 
 function isUniqueViolation(error: unknown): boolean {
@@ -505,9 +565,13 @@ interface VerifiedClaim {
   purpose: ClaimPurpose;
   /** The checksummed address the signing key actually controls. */
   address: `0x${string}`;
+  /** The network the claim is bound on, resolved from the input. */
+  network: Network;
 }
 
 async function verifyClaim(input: ClaimHandleInput): Promise<VerifiedClaim> {
+  const targetNetwork = normalizeNetwork(input.network, servedNetwork);
+
   const problem =
     describeHandleName(input.name) ??
     describeHandleOf(input.name) ??
@@ -525,6 +589,7 @@ async function verifyClaim(input: ClaimHandleInput): Promise<VerifiedClaim> {
   const name = normalizeMerchantName(input.name);
   const handle = merchantHandle(input.name);
   const purpose = PURPOSE_FOR_KIND[input.kind];
+  const domain = handleClaimDomain(targetNetwork);
 
   const addressProblem = describeEvmAddress(input.address);
   if (addressProblem) throw new HandleClaimError('invalid-address', 400, addressProblem);
@@ -553,14 +618,18 @@ async function verifyClaim(input: ClaimHandleInput): Promise<VerifiedClaim> {
   // address the client put in the body.
   const matches = await verifyTypedData({
     address: claimedAddress,
-    domain: handleClaimDomain(),
+    domain,
     types: HANDLE_CLAIM_TYPES,
     primaryType: HANDLE_CLAIM_PRIMARY_TYPE,
     message: { ...message },
     signature: input.signature as `0x${string}`,
   }).catch(() => false);
 
-  const recovered = await recoverHandleClaimAddress({ ...message, signature: input.signature });
+  const recovered = await recoverHandleClaimAddress({
+    ...message,
+    signature: input.signature,
+    network: targetNetwork,
+  });
 
   if (!recovered) {
     throw new HandleClaimError(
@@ -582,6 +651,7 @@ async function verifyClaim(input: ClaimHandleInput): Promise<VerifiedClaim> {
       issuedAt: input.issuedAt,
       nonce: input.nonce,
       signature: input.signature,
+      network: targetNetwork,
     });
 
     if (asOtherPurpose !== null && asOtherPurpose.toLowerCase() === claimedAddress.toLowerCase()) {
@@ -603,19 +673,49 @@ async function verifyClaim(input: ClaimHandleInput): Promise<VerifiedClaim> {
   }
 
   // Ownership, through the existing registry rather than a second copy of it.
-  const wallets = await getWalletsByUser(input.userId);
-  const owned = wallets.some((wallet) => wallet.address.toLowerCase() === recovered.toLowerCase());
+  //
+  // Two questions, in this order, and the SECOND one is the fix for the refused
+  // Live claim the owner hit (`403 address-not-owned`):
+  //
+  //  1. is the signer one of this account's wallets ON THE CLAIM'S NETWORK? That
+  //     is the normal case — a live claim signed by the account's live wallet.
+  //  2. if not, is it one of this account's wallets on the OTHER Seti network?
+  //
+  // Why (2) has to exist: `registerWallet` defaults to the network the deployment
+  // SERVES, so an account that signed in while the box served Practice holds its
+  // embedded wallet on Practice only, and a LIVE wallet is a separate registration
+  // that happens on its next sign-in. Its first Live claim was therefore refused
+  // even though the signed address was the account's own key — the check was
+  // asking "is this registered for Live?" when the question the feature needs
+  // answered is "does this ACCOUNT control the address that signed?". A claim
+  // binds a name to an ADDRESS, and an address belongs to a person on both
+  // networks; the `network` column on a wallet row records which network's
+  // deposits that row tracks, not which chain the key can sign for.
+  //
+  // It stays a refusal when neither holds: nothing is bound to an address the
+  // account cannot show it holds.
+  const signerMatches = (wallet: { address: string }) =>
+    wallet.address.toLowerCase() === recovered.toLowerCase();
+
+  const wallets = await getWalletsByUser(input.userId, targetNetwork);
+  let owned = wallets.some(signerMatches);
+
+  if (!owned) {
+    const otherNetwork: Network = targetNetwork === 'mainnet' ? 'testnet' : 'mainnet';
+    const elsewhere = await getWalletsByUser(input.userId, otherNetwork);
+    owned = elsewhere.some(signerMatches);
+  }
 
   if (!owned) {
     throw new HandleClaimError(
       'address-not-owned',
       403,
-      `${recovered} is not one of the wallets registered to your account. ` +
+      `${recovered} is not one of the wallets registered to your account on ${NETWORK_LABEL[targetNetwork]}. ` +
         'Claim with the wallet that will receive the payments.'
     );
   }
 
-  return { name, handle, kind: input.kind, purpose, address: claimedAddress };
+  return { name, handle, kind: input.kind, purpose, address: claimedAddress, network: targetNetwork };
 }
 
 /** The reason recorded when a parked claim times out instead of being decided. */
@@ -672,14 +772,32 @@ export async function releaseExpiredParkedClaims(now: Date = new Date()): Promis
  * a query, and — more importantly — a caller who does not control the address is
  * refused BEFORE anything is looked up about who else holds the handle, so a
  * failed claim cannot be used to probe which handles exist.
+ *
+ * ## The namespace is GLOBAL for a person and PER NETWORK for a business
+ *
+ * A person's username is ONE name for one account on both networks, so the
+ * collision rule for `kind = 'person'` looks at every network — a DIFFERENT
+ * account cannot take it on the other one (which is what the per-network rule
+ * allowed: impersonation in the surface where the name is the trust signal). The
+ * global partial unique index `handles_person_handle_key` is the same rule in the
+ * schema, so a race cannot get past it either.
+ *
+ * A business name stays per network, on purpose: the owner's ruling is that a
+ * merchant's trust mark is the VERIFICATION BADGE (which arrives with KYB), not
+ * the string, so a practice `kfc` and a live `kfc` may both exist and a customer
+ * tells them apart by the badge. See the `Handle` model in `schema.prisma`.
  */
 export async function claimHandle(input: ClaimHandleInput) {
-  const { name, handle, kind, purpose, address: claimedAddress } = await verifyClaim(input);
+  const { name, handle, kind, purpose, address: claimedAddress, network: claimedNetwork } =
+    await verifyClaim(input);
 
-  // First-come, in the ONE namespace. The handle is the key a person and a
-  // business compete for, so a single lookup decides both the exact-name and the
-  // same-link collisions the old two-column design had to check separately.
-  let existing = await prisma.handle.findUnique({ where: { handle } });
+  // First-come, in the person's ONE global namespace or in the network's business
+  // namespace. A person's name is looked up WITHOUT the network filter: there is
+  // one row for it, wherever it was claimed, and it is honoured on both networks.
+  let existing =
+    kind === 'person'
+      ? await prisma.handle.findFirst({ where: { handle } })
+      : await prisma.handle.findFirst({ where: { handle, network: claimedNetwork } });
 
   // A park past its expiry stops holding the string, released lazily here so a
   // stalled review cannot reserve a name until some sweep happens to run.
@@ -690,13 +808,43 @@ export async function claimHandle(input: ClaimHandleInput) {
 
   const heldBy = existing?.address ? getAddress(existing.address) : null;
 
-  if (existing && heldBy !== claimedAddress) {
+  // The string is held by ANOTHER account (and, for a genuine prior claim, by a
+  // different address): refuse. The SAME account may re-claim its own handle —
+  // that is what first refusal is.
+  if (existing && existing.userId !== input.userId && heldBy !== claimedAddress) {
+    const heldOn = normalizeNetwork(existing.network, claimedNetwork);
     throw new HandleClaimError(
       'handle-taken',
       409,
-      `"${existing.name}" already holds the handle ${handle} (${heldBy ?? 'with no address'}). ` +
-        'Handles are first-come: choose another, or claim with the wallet that already holds it.'
+      `"${existing.name}" already holds the handle ${handle} on ${NETWORK_LABEL[heldOn]} (${heldBy ?? 'with no address'}). ` +
+        (kind === 'person'
+          ? 'A username is one name for one account on both Practice and Live, so it cannot be claimed again here — choose another name.'
+          : 'Handles are first-come: choose another, or claim with the wallet that already holds it.')
     );
+  }
+
+  /**
+   * A person's name the account ALREADY holds, already signed, for the same
+   * address, is done — not re-claimed.
+   *
+   * This is what makes "switch to Live and keep your name" work with no failure
+   * mode at all: the name is global, so it is already in force on the network
+   * being acted on, and pressing the claim button again returns the binding that
+   * exists instead of writing a second one (which the global index forbids
+   * anyway). It is deliberately narrow — a claim for a DIFFERENT address from the
+   * same account still goes through the update path below, because that is a
+   * genuine re-point of where the name pays, and a `reserved` hold still goes
+   * live on the fresh signature.
+   */
+  if (
+    kind === 'person' &&
+    existing &&
+    existing.userId === input.userId &&
+    existing.claimSignature &&
+    heldBy === claimedAddress &&
+    existing.reviewStatus !== 'reserved'
+  ) {
+    return existing;
   }
 
   /**
@@ -731,6 +879,7 @@ export async function claimHandle(input: ClaimHandleInput) {
 
   const claim = {
     handle,
+    network: claimedNetwork,
     kind,
     name,
     purpose,
@@ -741,8 +890,15 @@ export async function claimHandle(input: ClaimHandleInput) {
     claimedAt,
     userId: input.userId,
     merchantId,
-    // Omitted for an existing row, so its stored state (pending or not) is kept.
-    ...(park ? { reviewStatus: 'pending', reviewBrand: heldBrand.name } : {}),
+    // A brand match parks a NEW claim. A claim that takes over a row the account
+    // itself had RESERVED for first refusal goes LIVE: the reservation was a
+    // hold, and the fresh signature is what makes it real. Everything else keeps
+    // its stored state.
+    ...(park
+      ? { reviewStatus: 'pending', reviewBrand: heldBrand.name }
+      : existing?.reviewStatus === 'reserved'
+        ? { reviewStatus: null, reviewBrand: null }
+        : {}),
   };
 
   try {
@@ -751,16 +907,92 @@ export async function claimHandle(input: ClaimHandleInput) {
       : await prisma.handle.create({ data: claim });
   } catch (error) {
     // The unique index is the concurrency guard: two claims racing for the one
-    // handle both pass the read above, and exactly one write wins.
+    // handle on one network both pass the read above, and exactly one write wins.
     if (isUniqueViolation(error)) {
       throw new HandleClaimError(
         'handle-taken',
         409,
-        `The handle ${handle} was taken while this request was in flight. Choose another name.`
+        `The handle ${handle} was taken on ${NETWORK_LABEL[claimedNetwork]} while this request was in flight. Choose another name.`
       );
     }
     throw error;
   }
+}
+
+/**
+ * FIRST REFUSAL on a network: hold this account's BUSINESS names on the target
+ * network.
+ *
+ * The gap this closes: an account practises with the handle `kfckaribu` on
+ * testnet, then switches to live — and between the practice claim and the live
+ * one, ANYONE could claim `kfckaribu` on mainnet and take the name the account
+ * already uses. So on the switch, every BUSINESS handle the account holds on
+ * another network is written on the TARGET network as a bare HOLD (`reviewStatus =
+ * 'reserved'`): it keeps the string (business uniqueness is per network), it is
+ * invisible to every resolver (they filter `reviewStatus = null`), it does NOT
+ * verify (no signature), and only this account may take it (`claimHandle` lets
+ * the same `userId` past the collision check). The holder re-claims it with a
+ * fresh live signature, which is what makes it live.
+ *
+ * PERSON handles are deliberately NOT held here any more (2026-10-14). A person's
+ * username is global, so there is no gap to close: nobody else can take the
+ * string on the other network (the global index refuses them) and the name is
+ * already in force on the target network, resolved from its one row. Writing a
+ * hold for it would be a SECOND row for one person name — which the global index
+ * forbids — and a hold that protects nothing is noise.
+ *
+ * Returns how many names were newly held. Idempotent: a name already claimed or
+ * already held on the target network is left alone.
+ */
+export async function grantFirstRefusal(userId: string, targetNetwork: Network): Promise<number> {
+  const held = await prisma.handle.findMany({
+    where: { userId, network: { not: targetNetwork }, kind: 'business' },
+  });
+
+  let reserved = 0;
+
+  for (const row of held) {
+    const existing = await prisma.handle.findFirst({
+      where: { handle: row.handle, network: targetNetwork },
+    });
+
+    if (existing) continue;
+
+    try {
+      await prisma.handle.create({
+        data: {
+          handle: row.handle,
+          network: targetNetwork,
+          kind: row.kind,
+          name: row.name,
+          purpose: row.purpose,
+          address: row.address,
+          claimSignature: null,
+          claimIssuedAt: null,
+          claimNonce: null,
+          claimedAt: null,
+          userId,
+          merchantId: null,
+          reviewStatus: 'reserved',
+          reviewBrand: null,
+        },
+      });
+      reserved += 1;
+    } catch (error) {
+      // Lost a race for this one name; the other writer holds it. Not a failure.
+      if (!isUniqueViolation(error)) throw error;
+    }
+  }
+
+  if (reserved > 0) {
+    await logAuditEvent({
+      action: 'handle.first-refusal',
+      userId,
+      metadata: { network: targetNetwork, reserved },
+    });
+  }
+
+  return reserved;
 }
 
 // ---------------------------------------------------------------------------
@@ -814,9 +1046,22 @@ export async function reassignHandleClaim(input: ReassignHandleInput): Promise<H
     );
   }
 
-  const { name, handle, kind, purpose, address: claimedAddress } = await verifyClaim(input);
+  const {
+    name,
+    handle,
+    kind,
+    purpose,
+    address: claimedAddress,
+    network: claimedNetwork,
+  } = await verifyClaim(input);
 
-  const existing = await prisma.handle.findUnique({ where: { handle } });
+  const existing =
+    kind === 'person'
+      ? // A person's name is global, so the row to release is the one that exists,
+        // wherever it was claimed. Looking it up per network would miss it and the
+        // create below would then collide with the global index.
+        await prisma.handle.findFirst({ where: { handle } })
+      : await prisma.handle.findFirst({ where: { handle, network: claimedNetwork } });
   const heldBy = existing?.address ? getAddress(existing.address) : null;
   const releasesExisting = existing !== null && heldBy !== claimedAddress;
 
@@ -854,6 +1099,7 @@ export async function reassignHandleClaim(input: ReassignHandleInput): Promise<H
 
   const claim = {
     handle,
+    network: claimedNetwork,
     kind,
     name,
     purpose,
@@ -1011,8 +1257,10 @@ export async function refuseHandleClaim(
 }
 
 /** The parked row for a handle, or a typed refusal naming why it cannot be acted on. */
-async function requireParked(handle: string, verb: string) {
-  const row = await prisma.handle.findUnique({ where: { handle: handle.toLowerCase() } });
+async function requireParked(handle: string, verb: string, network: Network = servedNetwork) {
+  const row = await prisma.handle.findFirst({
+    where: { handle: handle.toLowerCase(), network },
+  });
 
   if (!row) {
     throw new HandleClaimError(
@@ -1066,11 +1314,26 @@ export interface HandleStatus {
  *
  * It calls the SAME rule functions and the SAME handle lookup the claim does, so
  * the form can never tell a person a handle is free that the claim would then
- * refuse. It is behind the same auth as the claim (see `routes/handles.ts`): a
- * signed-in user checking a handle they are about to sign for, not anonymous
- * enumeration.
+ * refuse. That includes the NAMESPACE RULE, which is why it takes the kind:
+ *
+ *  - `person` — a username is global, so availability is global. A name held on
+ *    the OTHER network is taken, exactly as `claimHandle` would refuse it.
+ *  - `business` — a business name is per network, so availability is the acting
+ *    network's. A practice business name does not block a live one (the owner's
+ *    ruling: the verification badge tells the two apart).
+ *  - no kind yet (onboarding's name step, before the intent is chosen) — the
+ *    UNION, because either rule could end up applying. Being conservative here is
+ *    the point: this preview must never say "free" about a string a claim would
+ *    then refuse, and the claim is the authority.
+ *
+ * It is behind the same auth as the claim (see `routes/handles.ts`): a signed-in
+ * user checking a handle they are about to sign for, not anonymous enumeration.
  */
-export async function handleStatus(rawName: string): Promise<HandleStatus> {
+export async function handleStatus(
+  rawName: string,
+  network: Network = servedNetwork,
+  kind?: HandleKind
+): Promise<HandleStatus> {
   const name = normalizeMerchantName(rawName);
   const handle = merchantHandle(rawName);
   const problem =
@@ -1080,8 +1343,15 @@ export async function handleStatus(rawName: string): Promise<HandleStatus> {
   // a usable, free handle.
   if (problem) return { name, handle, problem, takenBy: null, held: null };
 
-  const holder = await prisma.handle.findUnique({
-    where: { handle },
+  const scope =
+    kind === 'business'
+      ? { network }
+      : kind === 'person'
+        ? {}
+        : { OR: [{ network }, { kind: 'person' }] };
+
+  const holder = await prisma.handle.findFirst({
+    where: { handle, ...scope },
     select: { name: true },
   });
 

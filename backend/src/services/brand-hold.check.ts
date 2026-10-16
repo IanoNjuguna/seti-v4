@@ -54,6 +54,7 @@ import {
   type HandleClaimMessage,
   type HandleKind,
 } from './handle-claims.js';
+import { findHandleByHandle } from './handles.js';
 
 const FIXTURE_EMAIL_A = 'check-brand-a@seti.test';
 const FIXTURE_EMAIL_B = 'check-brand-b@seti.test';
@@ -299,7 +300,7 @@ async function main() {
   // A name that matches no brand is unaffected — the control.
   const free = await attemptClaim(userA.id, owner, 'business', FREE_NAME);
   check('a name that matches no brand still claims cleanly', free, 'null');
-  const freeRow = await prisma.handle.findUniqueOrThrow({ where: { handle: merchantHandle(FREE_NAME) } });
+  const freeRow = await prisma.handle.findFirstOrThrow({ where: { handle: merchantHandle(FREE_NAME) } });
   check('and is live and verified', (await toHandleIdentityView(freeRow)).verified, true);
 
   // ---------------------------------------------------------------------------
@@ -369,7 +370,7 @@ async function main() {
   // Freed means reusable, not blacklisted: the same name can be claimed again.
   const reclaimed = await attemptClaim(userB.id, rival, 'business', REFUSE_NAME);
   check('the freed name can be claimed again', reclaimed, 'null');
-  const reclaimedRow = await prisma.handle.findUnique({ where: { handle: toRefuse.handle } });
+  const reclaimedRow = await prisma.handle.findFirst({ where: { handle: toRefuse.handle } });
   check('and parks again for the new claimer', reclaimedRow?.reviewStatus, 'pending');
 
   // ---------------------------------------------------------------------------
@@ -541,14 +542,21 @@ async function main() {
   // The six real merchants are untouched, byte-for-byte
   // ---------------------------------------------------------------------------
   console.log('\nthe six existing merchants, untouched:');
+  // Read on the network the rows are ON (`testnet` — backfilled to practice when
+  // the network dimension landed), through the same resolver the routes use. The
+  // public route resolves on the network this deployment SERVES, and a BUSINESS
+  // handle is per network by the owner's ruling, so a practice merchant is correctly
+  // invisible on a live deployment. This asserts the rows are intact, which is this
+  // suite's business; whether a practice business name should resolve on live is a
+  // question the owner has left open.
   for (const m of MERCHANTS) {
-    const res = await app.inject({ method: 'GET', url: `/public/handles/${m.handle}` });
-    const handle = resolveHandle(res.json<Record<string, unknown>>());
-    check(`${m.handle}: resolves`, res.statusCode, 200);
-    check(`${m.handle}: name unchanged`, handle.name, m.name);
-    check(`${m.handle}: address unchanged`, handle.address, m.address);
-    check(`${m.handle}: verified unchanged`, handle.verified, m.verified);
-    check(`${m.handle}: is a business`, handle.kind, 'business');
+    const row = await findHandleByHandle(m.handle, 'testnet');
+    const handle = row ? await toHandleIdentityView(row) : null;
+    check(`${m.handle}: resolves on its own network`, handle !== null, true);
+    check(`${m.handle}: name unchanged`, handle?.name, m.name);
+    check(`${m.handle}: address unchanged`, handle?.address, m.address);
+    check(`${m.handle}: verified unchanged`, handle?.verified, m.verified);
+    check(`${m.handle}: is a business`, handle?.kind, 'business');
   }
 
   await app.close();
@@ -563,7 +571,7 @@ async function main() {
   check('no fixture business profile left behind', await prisma.merchant.count({ where: MERCHANT_WHERE }), 0);
   check('no fixture release record left behind', await prisma.handleRelease.count(), releasesBefore);
 
-  const seededAfter = await prisma.handle.findUnique({ where: { handle: 'javahouse' } });
+  const seededAfter = await prisma.handle.findFirst({ where: { handle: 'javahouse' } });
   check('the seeded handle is untouched', seededAfter?.address, '0x20C000000000000000000000b9537d11c60E8b50');
 
   await prisma.$disconnect();

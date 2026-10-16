@@ -22,7 +22,7 @@
  */
 import { parseAbiItem, type Hex } from 'viem';
 import { prisma } from '../lib/prisma.js';
-import { getTokenContract, publicClient } from './chain.js';
+import { getTokenContract, publicClient, servedNetwork } from './chain.js';
 import { env } from '../config/env.js';
 import { sweepStuckTransactions, getSweepStatus } from './stuck-transactions.js';
 
@@ -161,6 +161,14 @@ async function main() {
     amount: '10',
     asset: 'ousd',
     merchantId: merchant.id,
+    /**
+     * The row's OWN network — the served one, because that is where the anchor
+     * transaction below lives. This used to be left to the schema default, so every
+     * fixture row claimed `testnet` while resolving against a live-money anchor; the
+     * sweep reads on the row's network now, and a fixture that lies about its
+     * network would fail for the wrong reason.
+     */
+    network: servedNetwork,
   };
 
   // --- A: a settled payment the database never heard about -----------------

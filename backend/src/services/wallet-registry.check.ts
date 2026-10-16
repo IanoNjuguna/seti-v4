@@ -18,6 +18,7 @@
  */
 import { prisma } from '../lib/prisma.js';
 import { registerWallet, resolveSigningWallet, resolveWalletAddress } from './wallet-registry.js';
+import { servedNetwork } from './chain.js';
 
 const FIXTURE_EMAIL_A = 'check-wallet-a@seti.test';
 const FIXTURE_EMAIL_B = 'check-wallet-b@seti.test';
@@ -132,10 +133,30 @@ async function main() {
   // deprecated, same asset. (Creating both is legal under both the old and the
   // new rule; it is the REGISTRATION below that the old rule refused.)
   const preexistingActive = await prisma.wallet.create({
-    data: { userId: userC.id, chain: 'tempo', asset: 'ousd', address: ADDR_3, status: 'active' },
+    data: {
+      userId: userC.id,
+      chain: 'tempo',
+      asset: 'ousd',
+      address: ADDR_3,
+      status: 'active',
+      // On the network this suite REGISTERS on (the served one — `registerWallet`
+      // defaults to it). The rows have to share a network with the registration
+      // for these cases to be about the rule they test: the one-active-row rule is
+      // PER NETWORK, so a fixture on the column default while the box serves
+      // another network leaves two active rows and the assertion measures the
+      // mismatch rather than the rotation.
+      network: servedNetwork,
+    },
   });
   const preexistingDeprecated = await prisma.wallet.create({
-    data: { userId: userC.id, chain: 'tempo', asset: 'ousd', address: ADDR_4, status: 'deprecated' },
+    data: {
+      userId: userC.id,
+      chain: 'tempo',
+      asset: 'ousd',
+      address: ADDR_4,
+      status: 'deprecated',
+      network: servedNetwork,
+    },
   });
 
   // Case 1 (an existing ACTIVE row) + case 2 (a DEPRECATED row for the SAME
@@ -162,7 +183,7 @@ async function main() {
     check('and despite a deprecated row for the same asset', fresh.address, ADDR_5);
     check(
       'exactly one active row survives the registration',
-      await prisma.wallet.count({ where: { userId: userC.id, status: 'active' } }),
+      await prisma.wallet.count({ where: { userId: userC.id, status: 'active', network: servedNetwork } }),
       1
     );
     check(
@@ -207,7 +228,7 @@ async function main() {
     );
     check(
       'no registration path left a second active row',
-      await prisma.wallet.count({ where: { userId: userC.id, status: 'active' } }),
+      await prisma.wallet.count({ where: { userId: userC.id, status: 'active', network: servedNetwork } }),
       1
     );
   }

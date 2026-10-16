@@ -17,8 +17,38 @@ import { recordPayment } from './transactions.js';
 import { PaymentRefusalError } from './payment-refusal.js';
 import { getFxQuote } from './payments.js';
 import { issueQuote } from './quote.js';
-import { formatUnits, getTokenContract, network, publicClient } from './chain.js';
+import { formatUnits, getTokenContract, networkConfigFor, publicClientFor } from './chain.js';
 import { env } from '../config/env.js';
+import type { Network } from '../lib/network.js';
+import { anchorNetworkPermitsRun } from './anchor-network.js';
+
+/**
+ * THE NETWORK THE PINNED ANCHOR RECEIPT IS ON — Practice, deliberately.
+ *
+ * The receipt this suite reconciles against is a Moderato batch. The suite's verdict
+ * is meant to depend on the CODE rather than on which network this box serves, so it
+ * names the network its anchor lives on rather than inheriting the served one: the
+ * receipt is read through a client for THIS network, the quote is minted for it, and
+ * every `recordPayment` below is recorded on it through `recordOnAnchorNetwork`.
+ *
+ * To move the suite to mainnet, pin a real mainnet batched receipt AND change this
+ * constant.
+ */
+const ANCHOR_NETWORK: Network = 'testnet';
+const anchorNetwork = networkConfigFor(ANCHOR_NETWORK);
+const anchorPublicClient = publicClientFor(ANCHOR_NETWORK);
+
+/**
+ * `recordPayment` with this suite's network filled in.
+ *
+ * Every call below is a case about the RECORD PATH — a missing fee leg, an absent
+ * principal leg, an undeclared wallet — and each has to be refused for what it is
+ * testing, not for the network the box happens to serve. Filling it in once keeps
+ * the call sites about their case.
+ */
+function recordOnAnchorNetwork(input: Parameters<typeof recordPayment>[0]) {
+  return recordPayment({ ...input, network: ANCHOR_NETWORK });
+}
 
 /**
  * A plain OUSD transfer the suite anchors its missing-fee-leg guard on, read BY
@@ -81,13 +111,13 @@ const transferEvent = parseAbiItem(
  * stops at the first hit rather than always scanning the full range.
  */
 async function findRecentOusdTransfer(): Promise<string | null> {
-  const head = await publicClient.getBlockNumber();
+  const head = await anchorPublicClient.getBlockNumber();
   const CHUNK = 10n;
   const MAX_BLOCKS = 120_000n;
 
   for (let end = head; end > head - MAX_BLOCKS; end -= CHUNK) {
     try {
-      const logs = await publicClient.getLogs({
+      const logs = await anchorPublicClient.getLogs({
         address: getTokenContract('ousd'),
         event: transferEvent,
         fromBlock: end - CHUNK + 1n > 0n ? end - CHUNK + 1n : 0n,
@@ -104,7 +134,7 @@ async function findRecentOusdTransfer(): Promise<string | null> {
 
 /** Recipient and amount of the first OUSD transfer in a receipt. */
 async function describeTransfer(txHash: string): Promise<{ to: string; value: number } | null> {
-  const receipt = await publicClient.getTransactionReceipt({ hash: txHash as `0x${string}` });
+  const receipt = await anchorPublicClient.getTransactionReceipt({ hash: txHash as `0x${string}` });
   const ousd = getTokenContract('ousd').toLowerCase();
   for (const log of receipt.logs) {
     if (log.address.toLowerCase() !== ousd) continue;
@@ -176,6 +206,23 @@ async function main() {
     process.exit(0);
   }
 
+  // The anchor is a Moderato receipt; reconcile it only through a deployment that
+  // serves Moderato. On a mainnet deployment no mainnet anchor is pinned yet, so
+  // this suite SKIPS — loudly, naming why — rather than read a Moderato receipt
+  // and record against a mainnet-serving ledger. See `anchor-network.ts`.
+  if (
+    !anchorNetworkPermitsRun({
+      suite: 'check:fee-batch',
+      kind: 'payout',
+      anchorNetwork: ANCHOR_NETWORK,
+      envVar: 'FEE_BATCH_ANCHOR_TX',
+      anchorNoun: 'fee-batch',
+    })
+  ) {
+    await prisma.$disconnect();
+    process.exit(0);
+  }
+
   const quote = await getFxQuote();
   console.log(`fee routing mode: ${env.FEE_ROUTING_MODE}`);
   console.log(`treasury: ${env.SETI_TREASURY_ADDRESS}`);
@@ -195,15 +242,22 @@ async function main() {
   // before the fee-leg check these cases are about. Nothing signs with it — all
   // of these calls are refused before the sender check.
   const SIGNING_ADDRESS = `0x${Date.now().toString(16).padStart(12, '0')}${'feeb'.repeat(7)}`;
+  // A wallet row's ADDRESS is unique PER NETWORK now, not globally, so it can no
+  // longer key an upsert. Key on an explicit id instead (the check cleans up by
+  // userId, so this row is fixture data either way).
+  const SIGNING_WALLET_ID = 'check-fee-batch-signer';
 
   await prisma.wallet.upsert({
-    where: { address: SIGNING_ADDRESS },
+    where: { id: SIGNING_WALLET_ID },
     update: {},
     create: {
+      id: SIGNING_WALLET_ID,
       userId: user.id,
       chain: 'tempo',
       asset: 'ousd',
       address: SIGNING_ADDRESS,
+      // Registered on the network this suite records on.
+      network: ANCHOR_NETWORK,
     },
   });
 
@@ -221,6 +275,7 @@ async function main() {
    */
   const quoteId = issueQuote({
     userId: user.id,
+    network: ANCHOR_NETWORK,
     fiatCurrency: quote.fiatCurrency,
     fiatPerUsd: quote.fiatPerUsd,
     source: quote.source,
@@ -255,8 +310,8 @@ async function main() {
       process.exit(0);
     }
     console.error(
-      `\nPinned fee-batch anchor ${anchorTx} could not be read on ${network.displayName} ` +
-        `(chain ${network.chainId}), or carries no OUSD transfer.\n` +
+      `\nPinned fee-batch anchor ${anchorTx} could not be read on ${anchorNetwork.displayName} ` +
+        `(chain ${anchorNetwork.chainId}), or carries no OUSD transfer.\n` +
         'This suite anchors its missing-fee-leg guard on a plain OUSD transfer, so it\n' +
         'cannot run without one. Set FEE_BATCH_ANCHOR_TX to a plain OUSD receipt, or to\n' +
         `\`${LIVE_SEARCH}\` to scan the chain live.`
@@ -284,7 +339,7 @@ async function main() {
   let threw = false;
   let message = '';
   try {
-    await recordPayment({
+    await recordOnAnchorNetwork({
       userId: user.id,
       amount: realTransfer.value.toFixed(8),
       asset: 'ousd',
@@ -320,7 +375,7 @@ async function main() {
   threw = false;
   message = '';
   try {
-    await recordPayment({
+    await recordOnAnchorNetwork({
       userId: user.id,
       amount: (250 / quote.fiatPerUsd).toFixed(8),
       asset: 'ousd',
@@ -354,7 +409,7 @@ async function main() {
   console.log('\nthe payment is bound only to a wallet the caller declared and owns:');
 
   const undeclaredWallet = await refusalCodeOf(() =>
-    recordPayment({
+    recordOnAnchorNetwork({
       userId: user.id,
       amount: realTransfer.value.toFixed(8),
       asset: 'ousd',
@@ -370,7 +425,7 @@ async function main() {
   );
 
   const foreignWallet = await refusalCodeOf(() =>
-    recordPayment({
+    recordOnAnchorNetwork({
       userId: user.id,
       amount: realTransfer.value.toFixed(8),
       asset: 'ousd',

@@ -14,6 +14,61 @@ export const privy =
     ? new PrivyClient(env.PRIVY_APP_ID, env.PRIVY_APP_SECRET)
     : null;
 
+/**
+ * The refusal code for a token this server will not accept.
+ *
+ * `unauthorized` is a code the web app ALREADY knows
+ * (`web/lib/api/refusal.constants.ts`): it renders as "Your session has ended.
+ * Sign in again to continue." and is deliberately NOT retryable, because
+ * presenting the same unverifiable token again fails identically. A new code
+ * would render as the unknown-code sentence and offer a Retry button that cannot
+ * work, which is why this is reused rather than invented.
+ */
+export type AuthRefusal = 'unauthorized';
+export const AUTH_UNAUTHORIZED: AuthRefusal = 'unauthorized';
+
+/**
+ * The sentence that goes with it, wherever the refusal surfaces — the same words
+ * the middleware answers a refused bearer token with. It is deliberately NOT the
+ * SDK's message: a customer never reads a vendor's phrasing, and the SDK's own
+ * words (which name the algorithm, the key, or the app) stay in the server log.
+ */
+export const AUTH_UNAUTHORIZED_MESSAGE = 'Invalid or expired token';
+
+/**
+ * A Privy token this server could not verify: malformed, expired, or refused by
+ * Privy (a token minted for a different app lands here too).
+ *
+ * It is a TYPE rather than a bare `Error` because the two events it separates
+ * have different owners and different next steps, and only one of them is the
+ * caller's:
+ *
+ *   - the token is not good            → the caller authenticates again (401);
+ *   - the check itself broke           → ours, and possibly retryable (500).
+ *
+ * A bare throw made them indistinguishable, and `POST /auth/verify` reported the
+ * first as the second: a 500 `INTERNAL_ERROR` — "Something went wrong on our
+ * side" — for a token that was merely wrong. That sentence blamed Seti for the
+ * caller's token and told the person nothing they could act on.
+ *
+ * `statusCode`/`code` are carried so the shared error handler maps this to the
+ * refusal even if a caller forgets to catch it: a 4xx with a typed code passes
+ * through untouched, while an untyped throw becomes an `INTERNAL_ERROR`
+ * (`apiErrorHandler` in `server.ts`).
+ */
+export class PrivyTokenVerificationError extends Error {
+  readonly statusCode = 401;
+  readonly code: AuthRefusal = AUTH_UNAUTHORIZED;
+  /** The SDK's own words — for the server log only, never returned to a client. */
+  readonly sdkMessage: string;
+
+  constructor(sdkMessage: string, cause: unknown) {
+    super(AUTH_UNAUTHORIZED_MESSAGE, { cause });
+    this.name = 'PrivyTokenVerificationError';
+    this.sdkMessage = sdkMessage;
+  }
+}
+
 export interface VerifiedUser {
   privyDid: string;
   email?: string;
@@ -48,12 +103,17 @@ export async function verifyPrivySubject(token: string): Promise<string> {
 }
 
 /**
- * Verify a Privy token, or throw with the full cause logged.
+ * Verify a Privy token, or throw the typed refusal it earns.
  *
  * Extracted so `verifyPrivyToken` (login, which needs the whole profile) and
  * `verifyPrivySubject` (the middleware, which needs only the subject) fail and
  * log identically — a second copy of this catch would be a second place to get
  * the diagnosis wrong.
+ *
+ * Only a verification failure is a refusal. The `!privy` branch below is NOT:
+ * with no client nothing was ever checked, and env.ts refuses to boot a
+ * production process in that state. It stays a plain `Error` — a deployment
+ * fault — so it cannot be answered as "your token is bad".
  */
 async function privyClaims(token: string) {
   if (!privy) {
@@ -68,21 +128,23 @@ async function privyClaims(token: string) {
     // different app, arrive here too — and under the flat message they were
     // indistinguishable from a genuinely bad token, which sent a debugging
     // session after the wrong thing. Log the full cause (including undici's
-    // hidden `.cause`); report only the SDK's own message to the caller.
+    // hidden `.cause`); report the SDK's own message to the log, never to the
+    // caller (the thrown refusal carries the authored sentence instead).
     const e = cause as Error & { cause?: { message?: string; code?: string } };
     const inner = e.cause?.message ?? e.cause?.code ?? '';
 
     // `console.error`, matching this file's existing console.warn for the
     // missing-credentials case: this function has no request/logger in scope, and
     // the cause (undici hides the real network reason in `.cause`) matters more
-    // than the channel.
+    // than the channel. This line is what tells a rejected token apart from
+    // Privy being unreachable; both are answered with the same 401.
     console.error(
       '[auth] Privy token verification failed:',
       e.message,
       inner ? `| cause: ${inner}` : ''
     );
 
-    throw new Error(`Invalid or expired auth token: ${e.message}`, { cause });
+    throw new PrivyTokenVerificationError(e.message, cause);
   }
 }
 

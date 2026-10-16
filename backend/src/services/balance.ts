@@ -1,5 +1,7 @@
 import { prisma } from '../lib/prisma.js';
 import { getOnChainBalance, SUPPORTED_ASSETS, PRIMARY_ASSET, type SupportedAsset } from './chain.js';
+import { servedNetwork } from '../config/networks.js';
+import type { Network } from '../lib/network.js';
 import { isValidEvmAddress } from '../lib/address.js';
 import type { Hex } from 'viem';
 
@@ -11,7 +13,8 @@ export interface BalanceResult {
 
 export async function getUserBalance(
   userId: string,
-  asset: SupportedAsset = PRIMARY_ASSET
+  asset: SupportedAsset = PRIMARY_ASSET,
+  network: Network = servedNetwork
 ): Promise<BalanceResult> {
   // A wallet row is an ADDRESS, and an address holds every token — so the asset
   // must not filter which row we find. Filtering by it meant a user whose wallet
@@ -19,10 +22,13 @@ export async function getUserBalance(
   // simply wasn't found and this returned 0.00. Prefer a row that names the asset
   // (historical rows do), but fall back to any active wallet and read the token
   // at its address.
+  //
+  // Scoped by NETWORK: a practice balance is not a live balance, and reading the
+  // wrong row means reading a balance off the wrong chain.
   const wallet =
-    (await prisma.wallet.findFirst({ where: { userId, asset, status: 'active' } })) ??
+    (await prisma.wallet.findFirst({ where: { userId, asset, status: 'active', network } })) ??
     (await prisma.wallet.findFirst({
-      where: { userId, status: 'active' },
+      where: { userId, status: 'active', network },
       orderBy: { createdAt: 'asc' },
     }));
 
@@ -35,7 +41,7 @@ export async function getUserBalance(
   }
 
   try {
-    const balance = await getOnChainBalance(wallet.address as Hex, asset);
+    const balance = await getOnChainBalance(wallet.address as Hex, asset, network);
     return {
       asset,
       balance,
@@ -57,10 +63,11 @@ export async function getUserBalance(
  */
 export async function getUserTotalBalanceInFiat(
   userId: string,
-  fiatPerUsd: number
+  fiatPerUsd: number,
+  network: Network = servedNetwork
 ): Promise<string> {
   const balances = await Promise.all(
-    SUPPORTED_ASSETS.map((asset) => getUserBalance(userId, asset))
+    SUPPORTED_ASSETS.map((asset) => getUserBalance(userId, asset, network))
   );
 
   const totalUsd = balances.reduce((sum, b) => sum + Number(b.balance), 0);

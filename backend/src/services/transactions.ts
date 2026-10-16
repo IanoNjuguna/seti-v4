@@ -2,6 +2,8 @@ import { prisma } from '../lib/prisma.js';
 import { env } from '../config/env.js';
 import { describeEvmAddress } from '../lib/address.js';
 import { resolveSigningWallet } from './wallet-registry.js';
+import { servedNetwork, treasuryAddressFor } from '../config/networks.js';
+import { normalizeNetwork, type Network } from '../lib/network.js';
 import type { TransactionType } from '../types/index.js';
 import { SEND_REQUIRES_BATCH } from './payments.js';
 import { QuoteError, readQuote, type FrozenRate } from './quote.js';
@@ -15,8 +17,8 @@ import {
   assetDecimals,
   formatUnits,
   getTokenContract,
-  publicClient,
   waitForTransactionReceipt,
+  getTransactionReceipt,
   type SupportedAsset,
 } from './chain.js';
 import { decodeEventLog, erc20Abi, getAddress, type Hex, type TransactionReceipt } from 'viem';
@@ -29,10 +31,17 @@ interface CreateTransactionInput {
   type: TransactionType;
   description?: string;
   metadata?: Record<string, unknown>;
+  network?: Network;
 }
 
 interface RecordPaymentInput {
   userId: string;
+  /**
+   * The network this payment is recorded ON — the session's network, decided by
+   * the server. Every lookup, the treasury leg and the row itself are scoped by
+   * it, so a practice payment can never be written into the live ledger.
+   */
+  network?: Network;
   /**
    * Total amount the customer actually transferred, INCLUDING the merchant
    * fee. This is the figure that left the customer's wallet, so the backend
@@ -70,6 +79,8 @@ interface RecordPaymentInput {
 
 interface RecordSendInput {
   userId: string;
+  /** The network this send is recorded ON — the session's network. See `RecordPaymentInput.network`. */
+  network?: Network;
   /**
    * The principal the customer claims the recipient received, in the asset's own
    * units. Never the gross: in `batch` mode the fee is a separate leg, so what
@@ -121,11 +132,14 @@ function round2(value: number): number {
 async function resolveFrozenRate(input: {
   quoteId?: string;
   userId: string;
+  network: Network;
   txHash: string;
   merchantId?: string;
 }): Promise<FrozenRate> {
   try {
-    return readQuote(input.quoteId, input.userId);
+    // The network is passed IN: the quote must have been minted for the network
+    // the money is moving on, so a practice quote cannot settle a live payment.
+    return readQuote(input.quoteId, input.userId, input.network);
   } catch (error) {
     if (error instanceof QuoteError) {
       throw await refusal({
@@ -164,14 +178,14 @@ async function resolveFrozenRate(input: {
  * up this way; this function was the only place that disagreed, which is how the
  * bug survived.
  */
-async function findActiveWallet(userId: string) {
+async function findActiveWallet(userId: string, network: Network = servedNetwork) {
   const wallet = await prisma.wallet.findFirst({
-    where: { userId, status: 'active' },
+    where: { userId, status: 'active', network },
   });
 
   if (!wallet) {
     throw new Error(
-      'No active wallet found for this account. Sign in again so the embedded wallet is registered.'
+      'No active wallet found for this account on this network. Sign in again so the embedded wallet is registered.'
     );
   }
 
@@ -193,9 +207,10 @@ async function declaredWalletOrRefuse(input: {
   userId: string;
   txHash: string;
   walletAddress?: string;
+  network: Network;
   merchantId?: string;
 }) {
-  const resolved = await resolveSigningWallet(input.userId, input.walletAddress);
+  const resolved = await resolveSigningWallet(input.userId, input.walletAddress, input.network);
 
   if ('wallet' in resolved) return resolved.wallet;
 
@@ -231,18 +246,22 @@ export async function receivedSide(input: {
   asset: string;
   txHash: string;
   senderAddress: string;
+  /** The network the transfer happened ON — the recipient's row is scoped by it. */
+  network: Network;
   quote: { fiatCurrency: string; fiatPerUsd: number; source: string; asOf: Date };
 }) {
   // Case-insensitive: an address is stored in whatever casing registered it, and a
   // mismatch here would silently mean "not a Seti account" and lose the row.
+  // Scoped by NETWORK: a practice transfer must never be filed against the live
+  // wallet that happens to hold the same address.
   const recipientWallet = await prisma.wallet.findFirst({
-    where: { address: { equals: input.recipient, mode: 'insensitive' } },
+    where: { address: { equals: input.recipient, mode: 'insensitive' }, network: input.network },
   });
 
   if (!recipientWallet) return null;
 
   const existing = await prisma.transaction.findFirst({
-    where: { txHash: input.txHash, userId: recipientWallet.userId },
+    where: { txHash: input.txHash, userId: recipientWallet.userId, network: input.network },
   });
 
   if (existing) return existing;
@@ -251,6 +270,7 @@ export async function receivedSide(input: {
     data: {
       userId: recipientWallet.userId,
       walletId: recipientWallet.id,
+      network: input.network,
       type: 'p2p_receive',
       // Already on chain — this row is written from a confirmed receipt, so it
       // needs no confirmation pass of its own.
@@ -277,12 +297,14 @@ export async function createTransaction(input: CreateTransactionInput) {
   // there is no receipt to name a signer and nothing to bind. The money path
   // (`recordPayment`/`recordSend`) resolves the declared signing wallet and
   // verifies it against the receipt's sender instead of looking one up here.
-  const wallet = await findActiveWallet(input.userId);
+  const network = normalizeNetwork(input.network, servedNetwork);
+  const wallet = await findActiveWallet(input.userId, network);
 
   const transaction = await prisma.transaction.create({
     data: {
       userId: input.userId,
       walletId: wallet.id,
+      network,
       type: input.type,
       status: 'pending',
       amount: input.amount,
@@ -309,16 +331,21 @@ type ReceiptLookup =
   | { ok: false; code: ReceiptFailureCode; reason: string };
 
 /**
- * Reads a transaction receipt for verification.
+ * Reads a transaction receipt for verification, ON THE TRANSACTION'S NETWORK.
  *
  * Read ONCE per record call: every leg below, and the sender check that binds the
  * row to a wallet, are statements about the same receipt, and re-fetching it per
  * leg would let the two disagree across a reorg.
+ *
+ * `network` is not optional. A practice payment recorded while this deployment
+ * serves live has its hash on the practice chain only, so reading the served chain
+ * returns "not available yet" forever — the refusal a customer sees as "we could
+ * not read that transaction from the chain yet", while the money has in fact moved.
  */
-async function readReceipt(txHash: string): Promise<ReceiptLookup> {
+async function readReceipt(txHash: string, network: Network): Promise<ReceiptLookup> {
   let receipt: TransactionReceipt;
   try {
-    receipt = await publicClient.getTransactionReceipt({ hash: txHash as Hex });
+    receipt = await getTransactionReceipt(txHash as Hex, network);
   } catch {
     return { ok: false, code: 'receipt-unavailable', reason: 'receipt not available yet' };
   }
@@ -430,15 +457,18 @@ async function assertReceiptSender(input: {
  * receipt's `mine` flags false and its total 0.00.
  */
 export async function recordPayment(input: RecordPaymentInput) {
+  const network = normalizeNetwork(input.network, servedNetwork);
+
   // The wallet is the one the CLIENT declared it signed with, checked against the
-  // caller's wallets — or a recorded refusal. It is deliberately NOT "the user's
-  // active wallet": an account can hold several embedded wallets, and binding the
-  // row to whichever row a lookup found is what made a recorded payment point at a
-  // wallet that did not sign it.
+  // caller's wallets on THIS NETWORK — or a recorded refusal. It is deliberately
+  // NOT "the user's active wallet": an account can hold several embedded wallets,
+  // and binding the row to whichever row a lookup found is what made a recorded
+  // payment point at a wallet that did not sign it.
   const wallet = await declaredWalletOrRefuse({
     userId: input.userId,
     txHash: input.txHash,
     walletAddress: input.walletAddress,
+    network,
   });
 
   const merchant = await prisma.merchant.findUnique({ where: { id: input.merchantId } });
@@ -488,6 +518,7 @@ export async function recordPayment(input: RecordPaymentInput) {
   const quote = await resolveFrozenRate({
     quoteId: input.quoteId,
     userId: input.userId,
+    network,
     txHash: input.txHash,
     merchantId: merchant.id,
   });
@@ -496,7 +527,7 @@ export async function recordPayment(input: RecordPaymentInput) {
 
   // One read of the receipt, for every statement below — including which wallet
   // signed it.
-  const found = await readReceipt(input.txHash);
+  const found = await readReceipt(input.txHash, normalizeNetwork(input.network, servedNetwork));
 
   if (!found.ok) {
     // Fail closed: on mainnet an unverifiable payment must not be written as a
@@ -562,7 +593,7 @@ export async function recordPayment(input: RecordPaymentInput) {
     const treasuryLeg = readTransferredAmount(
       receipt,
       getTokenContract(asset),
-      env.SETI_TREASURY_ADDRESS,
+      treasuryAddressFor(network),
       asset
     );
 
@@ -628,6 +659,7 @@ export async function recordPayment(input: RecordPaymentInput) {
     data: {
       userId: input.userId,
       walletId: wallet.id,
+      network,
       type: 'payment',
       status: 'processing',
       amount: reconciledGross.toFixed(8),
@@ -665,6 +697,7 @@ export async function recordPayment(input: RecordPaymentInput) {
     txHash: input.txHash,
     metadata: {
       merchantId: merchant.id,
+      network,
       feeRoutingMode: batchMode ? 'batch' : 'inside-transfer',
       gross: reconciledGross,
       fiatAmount,
@@ -701,6 +734,7 @@ export async function recordPayment(input: RecordPaymentInput) {
     asset: input.asset,
     txHash: input.txHash,
     senderAddress: wallet.address,
+    network,
     quote,
   });
 
@@ -731,15 +765,18 @@ export async function recordPayment(input: RecordPaymentInput) {
  * equal it, and both rows are written against THAT wallet row.
  */
 export async function recordSend(input: RecordSendInput) {
+  const network = normalizeNetwork(input.network, servedNetwork);
+
   // The wallet that SIGNED, declared by the client and checked against the
-  // caller's own wallets — never "the user's active wallet". An account can hold
-  // several embedded wallets, and binding the row (and the recipient's row) to
-  // whichever one a lookup found is what attributed a transfer to a wallet that
-  // did not make it.
+  // caller's own wallets ON THIS NETWORK — never "the user's active wallet". An
+  // account can hold several embedded wallets, and binding the row (and the
+  // recipient's row) to whichever one a lookup found is what attributed a
+  // transfer to a wallet that did not make it.
   const wallet = await declaredWalletOrRefuse({
     userId: input.userId,
     txHash: input.txHash,
     walletAddress: input.walletAddress,
+    network,
   });
 
   const complaint = describeEvmAddress(input.recipient);
@@ -792,11 +829,12 @@ export async function recordSend(input: RecordSendInput) {
   const quote = await resolveFrozenRate({
     quoteId: input.quoteId,
     userId: input.userId,
+    network,
     txHash: input.txHash,
   });
 
   // One read of the receipt, for both legs and for the sender.
-  const found = await readReceipt(input.txHash);
+  const found = await readReceipt(input.txHash, normalizeNetwork(input.network, servedNetwork));
 
   if (!found.ok) {
     throw await refusal({
@@ -848,7 +886,7 @@ export async function recordSend(input: RecordSendInput) {
   const treasuryLeg = readTransferredAmount(
     receipt,
     getTokenContract(asset),
-    env.SETI_TREASURY_ADDRESS,
+    treasuryAddressFor(network),
     asset
   );
 
@@ -895,6 +933,7 @@ export async function recordSend(input: RecordSendInput) {
     data: {
       userId: input.userId,
       walletId: wallet.id,
+      network,
       type: 'p2p_send',
       status: 'processing',
       // What left the customer's wallet. The principal — what the person
@@ -941,6 +980,7 @@ export async function recordSend(input: RecordSendInput) {
     asset: input.asset,
     txHash: input.txHash,
     senderAddress: wallet.address,
+    network,
     quote,
   });
 
@@ -950,6 +990,7 @@ export async function recordSend(input: RecordSendInput) {
     txHash: input.txHash,
     metadata: {
       recipient,
+      network,
       feeRoutingMode: 'batch',
       gross: grossAsset,
       fiatAmount: principalFiat,
@@ -972,12 +1013,17 @@ export async function recordSend(input: RecordSendInput) {
  * Waits for an on-chain transaction receipt and advances the matching database
  * record to `completed` or `failed`.
  */
-export async function confirmTransactionByHash(txHash: string, userId: string) {
-  // Scoped to the caller: `txHash` is unique per USER, so a transfer between two
-  // Seti accounts has one row on each side and an unscoped lookup would be a coin
-  // toss. The one being confirmed is the caller's.
+export async function confirmTransactionByHash(
+  txHash: string,
+  userId: string,
+  network: Network = servedNetwork
+) {
+  // Scoped to the caller AND the network: `txHash` is unique per (user, network),
+  // so a transfer between two Seti accounts has one row on each side, and the
+  // same hash on the other chain is a different row. An unscoped lookup would be
+  // a coin toss — and could confirm a practice row from a live receipt.
   const transaction = await prisma.transaction.findFirst({
-    where: { txHash, userId },
+    where: { txHash, userId, network },
     include: { wallet: true, merchant: true },
   });
 
@@ -992,7 +1038,12 @@ export async function confirmTransactionByHash(txHash: string, userId: string) {
 
   let receipt: TransactionReceipt;
   try {
-    receipt = await waitForTransactionReceipt(txHash as Hex, 30_000, 2_000);
+    receipt = await waitForTransactionReceipt(
+      txHash as Hex,
+      30_000,
+      2_000,
+      normalizeNetwork(transaction.network, servedNetwork)
+    );
   } catch (error) {
     console.error(
       '[confirmTransactionByHash] confirmation timed out or failed',

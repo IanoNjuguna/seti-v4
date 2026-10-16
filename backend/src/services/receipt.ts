@@ -13,7 +13,13 @@
  * ones, and the fiat figures come from the fx rate stored on the row, so an old
  * receipt still explains itself.
  */
-import { decodeEventLog, getAddress, parseAbiItem, type Hex } from 'viem';
+import {
+  decodeEventLog,
+  getAddress,
+  parseAbiItem,
+  type Hex,
+  type TransactionReceipt,
+} from 'viem';
 import { prisma } from '../lib/prisma.js';
 import {
   FEE_AMM_ADDRESS,
@@ -23,7 +29,8 @@ import {
   getBlockTimestamp,
   getTransactionReceipt,
 } from './chain.js';
-import { network } from '../config/networks.js';
+import { networkConfigFor, treasuryAddressFor } from '../config/networks.js';
+import { NETWORK_LABEL, normalizeNetwork, type Network } from '../lib/network.js';
 import type { SupportedAsset } from '../config/networks.js';
 
 const TRANSFER_EVENT = parseAbiItem(
@@ -55,8 +62,100 @@ export interface ReceiptLeg {
   mine: boolean;
 }
 
+/** Options for {@link classifyReceiptLegs}. */
+export interface ClassifyLegsOptions {
+  /**
+   * The account's own address, compared case-insensitively (an address is stored
+   * in whatever casing registered it). Decides the `mine` flag on every leg.
+   */
+  mineAddress: string;
+  /**
+   * The treasury of the RECEIPT'S network — a practice receipt's platform-fee leg
+   * must be recognised against the practice treasury, not the live one. An empty
+   * string DISABLES fee detection rather than matching every leg.
+   */
+  treasuryAddress: string;
+  /** Human label for the principal (`payment`) leg. Defaults to 'Recipient'. */
+  principalLabel?: string;
+}
+
+/**
+ * Decodes a receipt's token movements into the legs the product speaks about,
+ * classified as `payment` / `platform-fee` / `gas`.
+ *
+ * The ONE decoder for a receipt's legs: `buildReceipt` renders it, and any tool
+ * that must reason about the same receipt — a backfill reconciling a batch, a
+ * check — calls it instead of re-implementing the classification. A second
+ * decoder is how two readers of the same receipt come to disagree about which
+ * leg was the fee.
+ *
+ * A Tempo transaction pays its own gas in a stablecoin, so its gas is an ordinary
+ * Transfer to `FEE_AMM_ADDRESS`; without the gas classification the account's own
+ * gas reads as a payment to a stranger.
+ */
+export function classifyReceiptLegs(
+  receipt: TransactionReceipt,
+  options: ClassifyLegsOptions
+): ReceiptLeg[] {
+  const mine = options.mineAddress.toLowerCase();
+  const treasury = options.treasuryAddress.toLowerCase();
+  const principalLabel = options.principalLabel ?? 'Recipient';
+  const legs: ReceiptLeg[] = [];
+
+  for (const log of receipt.logs) {
+    const asset = assetForContract(log.address);
+    if (!asset) continue;
+
+    let decoded;
+    try {
+      decoded = decodeEventLog({
+        abi: [TRANSFER_EVENT],
+        data: log.data,
+        topics: log.topics,
+      });
+    } catch {
+      // Not a Transfer — a log this token emitted for another event. Skip it.
+      continue;
+    }
+
+    // decodeEventLog types these from the parsed ABI item, so no assertion is needed —
+    // an assertion here would be rejected by lint as well as lying about the types.
+    const { from, to, value } = decoded.args;
+    const toLower = to.toLowerCase();
+    const gas = toLower === FEE_AMM_ADDRESS.toLowerCase();
+    const platformFee = !gas && treasury.length > 0 && toLower === treasury;
+
+    legs.push({
+      index: legs.length + 1,
+      role: gas ? 'gas' : platformFee ? 'platform-fee' : 'payment',
+      label: gas ? 'Network fee' : platformFee ? 'Platform fee' : principalLabel,
+      asset,
+      tokenAddress: log.address,
+      from: getAddress(from),
+      to: getAddress(to),
+      amount: formatUnits(value, assetDecimals[asset]),
+      mine: gas
+        ? from.toLowerCase() === mine
+        : from.toLowerCase() === mine || toLower === mine,
+    });
+  }
+
+  return legs;
+}
+
 export interface ReceiptDocument {
   hash: string;
+  /**
+   * The network this receipt is from — `testnet` (Practice) or `mainnet` (Live),
+   * with its product word in `networkLabel`.
+   *
+   * EVERY receipt names its network, so a link shared with someone else is never
+   * ambiguous about which chain moved the money. A practice receipt and a live
+   * one can carry the same shape and different chains; without this the reader
+   * has no way to tell them apart.
+   */
+  network: Network;
+  networkLabel: string;
   blockNumber: number;
   timestamp: string;
   status: 'confirmed' | 'failed';
@@ -100,49 +199,24 @@ export async function buildReceipt(
 
   if (!row?.txHash) return null;
 
-  const receipt = await getTransactionReceipt(row.txHash as Hex);
-  const mine = (row.wallet?.address ?? '').toLowerCase();
-  const treasury = (process.env.SETI_TREASURY_ADDRESS ?? '').toLowerCase();
+  const rowNetwork = normalizeNetwork(row.network);
 
-  const legs: ReceiptLeg[] = [];
+  // The RECEIPT's own network, not the served one: this row may be a practice
+  // payment while the deployment serves live, and reading the served chain for its
+  // hash is what made receipts refuse to load. `rowNetwork` was already computed
+  // here for the treasury leg; it is now what the chain reads use too.
+  const receipt = await getTransactionReceipt(row.txHash as Hex, rowNetwork);
 
-  for (const log of receipt.logs) {
-    const asset = assetForContract(log.address);
-    if (!asset) continue;
-
-    let decoded;
-    try {
-      decoded = decodeEventLog({
-        abi: [TRANSFER_EVENT],
-        data: log.data,
-        topics: log.topics,
-      });
-    } catch {
-      // Not a Transfer — a log this token emitted for another event. Skip it.
-      continue;
-    }
-
-    // decodeEventLog types these from the parsed ABI item, so no assertion is needed —
-    // an assertion here would be rejected by lint as well as lying about the types.
-    const { from, to, value } = decoded.args;
-    const toLower = to.toLowerCase();
-    const gas = toLower === FEE_AMM_ADDRESS.toLowerCase();
-    const platformFee = !gas && treasury.length > 0 && toLower === treasury;
-
-    legs.push({
-      index: legs.length + 1,
-      role: gas ? 'gas' : platformFee ? 'platform-fee' : 'payment',
-      label: gas ? 'Network fee' : platformFee ? 'Platform fee' : (row.merchant?.name ?? 'Recipient'),
-      asset,
-      tokenAddress: log.address,
-      from: getAddress(from),
-      to: getAddress(to),
-      amount: formatUnits(value, assetDecimals[asset]),
-      mine: gas
-        ? from.toLowerCase() === mine
-        : from.toLowerCase() === mine || toLower === mine,
-    });
-  }
+  // The treasury of THIS receipt's network — a practice receipt's platform-fee
+  // leg must be recognised against the practice treasury, not the live one.
+  //
+  // The legs are decoded by the ONE shared classifier below, so this receipt and
+  // any tool that reasons about a receipt read the same legs the same way.
+  const legs = classifyReceiptLegs(receipt, {
+    mineAddress: row.wallet?.address ?? '',
+    treasuryAddress: treasuryAddressFor(rowNetwork),
+    principalLabel: row.merchant?.name ?? 'Recipient',
+  });
 
   const gasLegs = legs.filter((leg) => leg.role === 'gas');
   const mineLegs = legs.filter((leg) => leg.mine && leg.role !== 'gas');
@@ -160,8 +234,10 @@ export async function buildReceipt(
 
   return {
     hash: row.txHash,
+    network: rowNetwork,
+    networkLabel: NETWORK_LABEL[rowNetwork],
     blockNumber: Number(receipt.blockNumber),
-    timestamp: (await getBlockTimestamp(receipt.blockNumber)).toISOString(),
+    timestamp: (await getBlockTimestamp(receipt.blockNumber, rowNetwork)).toISOString(),
     status: receipt.status === 'success' ? 'confirmed' : 'failed',
     from: getAddress(receipt.from),
     legs,
@@ -189,6 +265,6 @@ export async function buildReceipt(
       fxRateAsOf: row.fxRateAsOf ? row.fxRateAsOf.toISOString() : null,
       title: row.merchant?.name ?? (row.type === 'p2p_receive' ? 'Received' : 'Sent'),
     },
-    explorerUrl: `${network.explorerUrl}/receipt/${row.txHash}`,
+    explorerUrl: `${networkConfigFor(rowNetwork).explorerUrl}/receipt/${row.txHash}`,
   };
 }

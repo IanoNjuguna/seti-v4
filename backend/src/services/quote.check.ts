@@ -28,8 +28,28 @@ import { recordSend } from './transactions.js';
 import { getFxQuote, previewPayment } from './payments.js';
 import { issueQuote, readQuote, QuoteError } from './quote.js';
 import { PaymentRefusalError } from './payment-refusal.js';
-import { getTokenContract, network, publicClient } from './chain.js';
+import { getTokenContract, networkConfigFor, publicClientFor } from './chain.js';
 import { env } from '../config/env.js';
+import type { Network } from '../lib/network.js';
+import { anchorNetworkPermitsRun } from './anchor-network.js';
+
+/**
+ * THE NETWORK THE PINNED ANCHOR RECEIPT IS ON — Practice, deliberately.
+ *
+ * The receipts this suite reconciles against are Moderato batches: no mainnet batch
+ * carries both legs yet (see `docs/internal/mainnet-flip.md`). Naming the network
+ * the anchor lives on — rather than inheriting whatever this box SERVES — is what
+ * makes the suite's verdict depend on the code: the receipt is read through a client
+ * for THIS network, every quote is minted for it, and every `recordSend` below is
+ * recorded on it. A quote minted for one network and read on the other is refused
+ * (`quote-wrong-network`), which is the hazard this closes.
+ *
+ * To move the suite to mainnet, pin a real mainnet batched receipt (QUOTE_ANCHOR_TX)
+ * AND change this constant.
+ */
+const ANCHOR_NETWORK: Network = 'testnet';
+const anchorNetwork = networkConfigFor(ANCHOR_NETWORK);
+const anchorPublicClient = publicClientFor(ANCHOR_NETWORK);
 
 let failures = 0;
 function check(label: string, passed: boolean, detail = ''): void {
@@ -89,7 +109,7 @@ async function refusalCode(fn: () => Promise<unknown>): Promise<string> {
 /** The typed code `readQuote` throws for a token, or a marker for "accepted it". */
 function readQuoteCode(token: string | undefined, userId: string): string {
   try {
-    readQuote(token, userId);
+    readQuote(token, userId, ANCHOR_NETWORK);
     return '(accepted)';
   } catch (error) {
     return error instanceof QuoteError
@@ -151,15 +171,15 @@ async function teardownSafely(): Promise<void> {
 async function readAnchorReceipt(hash: Hex): Promise<TransactionReceipt> {
   let receipt: TransactionReceipt | null = null;
   try {
-    receipt = await publicClient.getTransactionReceipt({ hash });
+    receipt = await anchorPublicClient.getTransactionReceipt({ hash });
   } catch {
     receipt = null;
   }
 
   if (!receipt || receipt.status !== 'success') {
     console.error(
-      `\nPinned quote anchor ${hash} could not be read on ${network.displayName} ` +
-        `(chain ${network.chainId}, ${network.rpcUrl})` +
+      `\nPinned quote anchor ${hash} could not be read on ${anchorNetwork.displayName} ` +
+        `(chain ${anchorNetwork.chainId}, ${anchorNetwork.rpcUrl})` +
         `${receipt ? ' — the transaction reverted' : ''}.\n` +
         'The rate freeze is proven by recording a real two-leg send against this\n' +
         'receipt, so without it the suite cannot run. Set QUOTE_ANCHOR_TX to a fresh\n' +
@@ -175,7 +195,7 @@ async function readAnchorReceipt(hash: Hex): Promise<TransactionReceipt> {
   );
   if (!hasAnchorAsset) {
     console.error(
-      `\nPinned quote anchor ${hash} on ${network.displayName} carries no ${ANCHOR.asset} transfer.\n` +
+      `\nPinned quote anchor ${hash} on ${anchorNetwork.displayName} carries no ${ANCHOR.asset} transfer.\n` +
         `The freeze is proven against a ${ANCHOR.asset} send, so this is the wrong receipt.\n` +
         'Set QUOTE_ANCHOR_TX to a batched OUSD receipt (npm run prove:batch).'
     );
@@ -198,6 +218,18 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
+  // The anchor is a Moderato receipt; this suite names the network its anchor is
+  // on and refuses to run when the deployment serves a different one. On mainnet no
+  // mainnet anchor is pinned yet, so it SKIPS — loudly, naming why — rather than
+  // reconcile a Moderato receipt against a mainnet-serving ledger. See
+  // `anchor-network.ts`.
+  if (
+    !anchorNetworkPermitsRun({ suite: 'check:quote', kind: 'quote', anchorNetwork: ANCHOR_NETWORK })
+  ) {
+    await prisma.$disconnect();
+    process.exit(0);
+  }
+
   const live = await getFxQuote();
   console.log(`fee routing mode: ${env.FEE_ROUTING_MODE}`);
   console.log(`live rate: ${live.fiatPerUsd} (${live.source})\n`);
@@ -211,7 +243,7 @@ async function main(): Promise<void> {
   // it, and only the client knows which of an account's wallets it used.
   // `Wallet.address` is globally unique, so a row another account holds cannot be
   // used — fail loudly with the reason rather than a bare P2002.
-  const signerTaken = await prisma.wallet.findUnique({ where: { address: SENDER_ADDRESS } });
+  const signerTaken = await prisma.wallet.findFirst({ where: { address: SENDER_ADDRESS } });
   if (signerTaken && signerTaken.userId !== user.id) {
     console.error(
       `The anchor's sender ${SENDER_ADDRESS} is already registered to another account, so\n` +
@@ -225,7 +257,13 @@ async function main(): Promise<void> {
   }
 
   await prisma.wallet.create({
-    data: { userId: user.id, chain: 'tempo', asset: 'ousd', address: SENDER_ADDRESS },
+    data: {
+      userId: user.id,
+      chain: 'tempo',
+      asset: 'ousd',
+      address: SENDER_ADDRESS,
+      network: ANCHOR_NETWORK,
+    },
   });
   const otherUser = await prisma.user.create({ data: { email: OTHER_EMAIL } });
   const merchant = await prisma.merchant.create({ data: { name: MERCHANT_NAME } });
@@ -241,11 +279,14 @@ async function main(): Promise<void> {
     asset: 'ousd',
     type: 'payment',
     merchantId: merchant.id,
+    // Priced FOR the network this suite records on, so the quote it mints is
+    // readable there (a quote is network-scoped).
+    network: ANCHOR_NETWORK,
   });
 
   check('the preview returns a quoteId', typeof preview.quoteId === 'string' && preview.quoteId.length > 0);
 
-  const readPreview = readQuote(preview.quoteId, user.id);
+  const readPreview = readQuote(preview.quoteId, user.id, ANCHOR_NETWORK);
   check(
     'and the token freezes the exact rate the preview displayed',
     readPreview.fiatPerUsd.toFixed(4) === preview.fxRate,
@@ -269,6 +310,7 @@ async function main(): Promise<void> {
 
   const frozenQuote = issueQuote({
     userId: user.id,
+    network: ANCHOR_NETWORK,
     fiatCurrency: live.fiatCurrency,
     fiatPerUsd: frozenRate,
     source: 'quote-check-frozen',
@@ -291,6 +333,8 @@ async function main(): Promise<void> {
       recipient: ANCHOR.recipient,
       txHash: ANCHOR.txHash,
       quoteId: frozenQuote,
+      // Recorded ON the network the receipt is on.
+      network: ANCHOR_NETWORK,
       // The wallet that signed the anchor. The record path checks it belongs to
       // this account AND that the chain recorded it as this transaction's sender.
       walletAddress: SENDER_ADDRESS,
@@ -325,8 +369,8 @@ async function main(): Promise<void> {
   // --- (g) the quote is a rate promise, not a nonce: reusable within its TTL -
   console.log('\nreuse within the TTL:');
 
-  const reuseA = readQuote(frozenQuote, user.id);
-  const reuseB = readQuote(frozenQuote, user.id);
+  const reuseA = readQuote(frozenQuote, user.id, ANCHOR_NETWORK);
+  const reuseB = readQuote(frozenQuote, user.id, ANCHOR_NETWORK);
   check(
     'a quote can be read twice (not single-use)',
     reuseA.fiatPerUsd === reuseB.fiatPerUsd && reuseA.fiatPerUsd === frozenRate,
@@ -345,6 +389,7 @@ async function main(): Promise<void> {
   const forged = forgeSignature(frozenQuote);
   const expired = issueQuote({
     userId: user.id,
+    network: ANCHOR_NETWORK,
     fiatCurrency: live.fiatCurrency,
     fiatPerUsd: live.fiatPerUsd,
     source: live.source,
@@ -353,6 +398,7 @@ async function main(): Promise<void> {
   });
   const foreign = issueQuote({
     userId: otherUser.id,
+    network: ANCHOR_NETWORK,
     fiatCurrency: live.fiatCurrency,
     fiatPerUsd: live.fiatPerUsd,
     source: live.source,
@@ -369,6 +415,8 @@ async function main(): Promise<void> {
     amount: ANCHOR.principal,
     asset: ANCHOR.asset,
     recipient: ANCHOR.recipient,
+    // Recorded on the network the anchor receipt is on.
+    network: ANCHOR_NETWORK,
     // Declared on every call: the wallet binding is a precondition of the record
     // path, so a refusal below has to be about the QUOTE, not about the wallet.
     walletAddress: SENDER_ADDRESS,

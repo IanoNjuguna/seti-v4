@@ -18,7 +18,7 @@
  */
 import { decodeEventLog, erc20Abi, parseAbiItem } from 'viem';
 import { prisma } from '../lib/prisma.js';
-import { formatUnits, getTokenContract, publicClient } from './chain.js';
+import { formatUnits, getTokenContract, publicClient, servedNetwork } from './chain.js';
 import { recordPayment } from './transactions.js';
 import { getFxQuote } from './payments.js';
 import { issueQuote } from './quote.js';
@@ -209,15 +209,27 @@ async function main() {
   // the merchant — not for the wallet. Nothing signs with it; every case here is
   // refused before the sender check.
   const SIGNING_ADDRESS = `0x${Date.now().toString(16).padStart(12, '0')}${'c0de'.repeat(7)}`;
+  // A wallet row's ADDRESS is unique PER NETWORK now, not globally, so it can no
+  // longer key an upsert. Key on an explicit id instead.
+  const SIGNING_WALLET_ID = 'check-reconcile-signer';
 
   await prisma.wallet.upsert({
-    where: { address: SIGNING_ADDRESS },
+    where: { id: SIGNING_WALLET_ID },
     update: {},
     create: {
+      id: SIGNING_WALLET_ID,
       userId: user.id,
       chain: 'tempo',
       asset: 'ousd',
       address: SIGNING_ADDRESS,
+      // Registered on the network this suite RECORDS ON, which is the one this
+      // deployment serves: every `recordPayment` below is recorded there (the
+      // served network is the record path's default) and reconciles against a
+      // receipt read from the same chain. A fixture row on the column default
+      // ('testnet') while the box serves mainnet is a wallet the account does not
+      // hold where it is paying, so every case here was refused `signer-not-owned`
+      // — a refusal for the wrong reason, before the condition under test.
+      network: servedNetwork,
     },
   });
 

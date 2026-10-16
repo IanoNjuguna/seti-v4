@@ -1,7 +1,8 @@
 import { parseAbiItem, type Hex } from 'viem';
 import { prisma } from '../lib/prisma.js';
 import { env } from '../config/env.js';
-import { publicClient, network, SUPPORTED_ASSETS, type SupportedAsset, assetDecimals } from './chain.js';
+import { publicClient, network, servedNetwork, SUPPORTED_ASSETS, type SupportedAsset, assetDecimals } from './chain.js';
+import { cursorKeyFor, type Network } from '../lib/network.js';
 import { logAuditEvent } from './audit.js';
 import { getFxQuote, resolveUserFiat } from './payments.js';
 import { sweepStuckTransactions } from './stuck-transactions.js';
@@ -29,6 +30,20 @@ const ASSET_ADDRESSES: Record<SupportedAsset, Hex> = Object.fromEntries(
 
 const CHAIN_KEY = network.name;
 
+/**
+ * The network this indexer scans, and the cursor key it advances.
+ *
+ * The cursor is PER NETWORK (keyed by the network's chain name): testnet's
+ * progress is not mainnet's, so the two advance INDEPENDENTLY and neither can
+ * drag the other forward or backwards. `cursorKeyFor` is the ONE mapping from a
+ * network to its key.
+ */
+const SERVED_NETWORK: Network = servedNetwork;
+
+export function networkCursorKey(target: Network = SERVED_NETWORK): string {
+  return cursorKeyFor(target);
+}
+
 /** Outcome of one indexing pass, for logging and status reporting. */
 export interface IndexPassResult {
   /** True when the pass did no work (lock held elsewhere, or already running). */
@@ -50,7 +65,7 @@ let isRunning = false;
 
 async function getWalletsByAddress(): Promise<Map<string, { userId: string; walletId: string; asset: SupportedAsset }>> {
   const wallets = await prisma.wallet.findMany({
-    where: { status: 'active' },
+    where: { status: 'active', network: SERVED_NETWORK },
     select: { id: true, userId: true, address: true, asset: true },
   });
 
@@ -70,7 +85,7 @@ async function getWalletsByAddress(): Promise<Map<string, { userId: string; wall
 
 async function findMatchingTransaction(txHash: string, walletId: string) {
   return prisma.transaction.findFirst({
-    where: { txHash, walletId },
+    where: { txHash, walletId, network: SERVED_NETWORK },
   });
 }
 
@@ -79,7 +94,7 @@ async function confirmTransaction(txHash: string, blockNumber: bigint, userId: s
   // between two Seti accounts has a row on each side and an unscoped lookup could
   // confirm the wrong one.
   const tx = await prisma.transaction.findFirst({
-    where: { txHash, userId },
+    where: { txHash, userId, network: SERVED_NETWORK },
     include: { user: true },
   });
 
@@ -146,7 +161,7 @@ async function scanWindow(window: BlockWindow): Promise<void> {
         // create a top-up transaction if one does not already exist. Scoped to the
         // recipient: the same hash can legitimately carry a row for each party.
         const existing = await prisma.transaction.findFirst({
-          where: { txHash, userId: toWallet.userId },
+          where: { txHash, userId: toWallet.userId, network: SERVED_NETWORK },
         });
 
         if (!existing) {
@@ -164,6 +179,7 @@ async function scanWindow(window: BlockWindow): Promise<void> {
             data: {
               userId: toWallet.userId,
               walletId: toWallet.walletId,
+              network: SERVED_NETWORK,
               type: 'top_up',
               status: 'completed',
               amount: amount.toFixed(8),

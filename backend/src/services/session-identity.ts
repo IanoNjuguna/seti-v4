@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma.js';
+import { normalizeNetwork, type Network } from '../lib/network.js';
 
 /**
  * What a live session is served AS, and the one way resolving it fails.
@@ -24,6 +25,16 @@ export type SessionIdentityRefusal = 'session-identity-unknown';
 export interface SessionIdentity {
   id: string;
   email: string;
+  /**
+   * The NETWORK this session is served under — the account's stored network
+   * preference, resolved by the SERVER from the database on every request.
+   *
+   * This is the whole of rule (3): a session's network is decided on the server
+   * and NEVER taken from the client, so a client-supplied chain id has nothing to
+   * override. Every route that scopes by network reads it from here rather than
+   * from the request body.
+   */
+  network: Network;
 }
 
 export const SESSION_IDENTITY_UNKNOWN: SessionIdentityRefusal = 'session-identity-unknown';
@@ -67,7 +78,7 @@ export async function resolveSessionIdentity(
     return { code: SESSION_IDENTITY_UNKNOWN, reason: sessionIdentityUnknownMessage() };
   }
 
-  return { id: user.id, email: user.email };
+  return { id: user.id, email: user.email, network: normalizeNetwork(user.network) };
 }
 
 /**

@@ -23,6 +23,8 @@ import { randomBytes } from 'node:crypto';
 import Fastify from 'fastify';
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
 import { prisma } from '../lib/prisma.js';
+import { servedNetwork } from './chain.js';
+import { findHandleByMerchantId } from './handles.js';
 import { registerWallet } from './wallet-registry.js';
 import {
   HandleClaimError,
@@ -328,7 +330,7 @@ async function main() {
   check('a handle claimed by another address is refused', rival?.code, 'handle-taken');
   check('and the refusal names the current holder', rival?.message.includes(owner.address), true);
 
-  const stillHeld = await prisma.handle.findUniqueOrThrow({
+  const stillHeld = await prisma.handle.findFirstOrThrow({
     where: { handle: merchantHandle(NAME_MAIN) },
   });
   check('the original holder is not overwritten', stillHeld.address, owner.address);
@@ -400,6 +402,12 @@ async function main() {
       kind: 'business',
       name: NAME_UNVERIFIED,
       address: owner.address,
+      // On the network this suite's claims land on — the network this deployment
+      // SERVES, which is what the claim path defaults to. A row left on the column
+      // default would sit in the other network's namespace, and the resolver below
+      // (which is network-scoped, as it must be for a business name) would 404 on a
+      // fixture that is meant to be found.
+      network: servedNetwork,
     },
   });
   const unverifiedView = await toHandleIdentityView(unverified);
@@ -457,10 +465,17 @@ async function main() {
   check('and returns the address beside it', resolvedMain.address, owner.address);
   check('and reports the binding as verified', resolvedMain.verified, true);
 
-  const legacy = await resolve('merchant_java_house');
-  const legacyHandle = resolvedHandle(legacy.body);
-  check('a merchant by platform id resolves', legacy.status, 200);
-  check('but is NOT reported as verified', legacyHandle.verified, false);
+  // The seeded `merchant_java_house` row is a PRACTICE row (it predates the
+  // network dimension and was backfilled to `testnet`), and business handles are
+  // per network — so the network-scoped resolver must be asked for the network the
+  // row is on, not for the one this deployment serves. Asserted through the same
+  // resolver the route uses, with the network the row lives on. (What a practice
+  // merchant's name should mean on a live deployment is a product question the
+  // owner has not ruled on; this suite pins that the row itself is intact.)
+  const legacyRow = await findHandleByMerchantId('merchant_java_house', 'testnet');
+  const legacyView = legacyRow ? await toHandleIdentityView(legacyRow) : null;
+  check('a merchant by platform id resolves on its own network', legacyView !== null, true);
+  check('but is NOT reported as verified', legacyView?.verified, false);
 
   const unverifiedResolved = await resolve(NAME_UNVERIFIED);
   check('an unsigned name is returned, unverified', resolvedHandle(unverifiedResolved.body).verified, false);
@@ -530,7 +545,7 @@ async function main() {
   await cleanup();
   await prisma.wallet.deleteMany({ where: { address: routeAccount.address } });
 
-  const seededAfter = await prisma.handle.findUnique({ where: { handle: 'javahouse' } });
+  const seededAfter = await prisma.handle.findFirst({ where: { handle: 'javahouse' } });
   check('the seeded handle is untouched', seededAfter?.address, '0x20C000000000000000000000b9537d11c60E8b50');
   check('and carries no claim signature', seededAfter?.claimSignature, 'null');
 

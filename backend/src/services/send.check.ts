@@ -37,8 +37,44 @@ import { PaymentRefusalError } from './payment-refusal.js';
 import { getFxQuote } from './payments.js';
 import { issueQuote } from './quote.js';
 import { calculateMerchantFee } from './fees.js';
-import { formatUnits, getTokenContract, network, publicClient, estimateNetworkFee } from './chain.js';
+import { formatUnits, getTokenContract, networkConfigFor, publicClientFor, estimateNetworkFee } from './chain.js';
 import { env } from '../config/env.js';
+import type { Network } from '../lib/network.js';
+import { anchorNetworkPermitsRun } from './anchor-network.js';
+
+/**
+ * THE NETWORK THE PINNED ANCHOR RECEIPT IS ON — Practice, deliberately.
+ *
+ * The receipt this suite reconciles against is a Moderato batch: no mainnet batch
+ * carries both legs yet (see `docs/internal/mainnet-flip.md`). The suite's verdict
+ * is meant to depend on the CODE rather than on which network the box happens to
+ * serve, so it names the network its anchor lives on instead of inheriting the
+ * served one:
+ *
+ *  - the receipt and its logs are read through a client for THIS network;
+ *  - every fixture wallet is registered on it, so the signer is a wallet the
+ *    account holds where the send is recorded;
+ *  - every `recordSend` below is recorded on it, through `recordOnAnchorNetwork`.
+ *
+ * To move the suite to mainnet, pin a real mainnet batched receipt (SEND_ANCHOR_TX)
+ * AND change this constant.
+ */
+const ANCHOR_NETWORK: Network = 'testnet';
+const anchorNetwork = networkConfigFor(ANCHOR_NETWORK);
+const anchorPublicClient = publicClientFor(ANCHOR_NETWORK);
+
+/**
+ * `recordSend` with this suite's network filled in.
+ *
+ * Every call below is a case about the RECORD PATH — a malformed recipient, a
+ * self-send, a missing fee leg — and each has to be refused for what it is testing
+ * rather than for the network this box happens to serve. Filling the network in at
+ * one place keeps the call sites about their case, and makes it impossible to add
+ * one that silently inherits the served network.
+ */
+function recordOnAnchorNetwork(input: Parameters<typeof recordSend>[0]) {
+  return recordSend({ ...input, network: ANCHOR_NETWORK });
+}
 
 let failures = 0;
 function check(label: string, passed: boolean, detail = ''): void {
@@ -146,12 +182,12 @@ const transferEvent = parseAbiItem(
  * range a single `getLogs` may cover.
  */
 async function findRecentOusdTransfer(): Promise<string | null> {
-  const head = await publicClient.getBlockNumber();
+  const head = await anchorPublicClient.getBlockNumber();
   const CHUNK = 10n;
 
   for (let end = head; end > head - 20_000n; end -= CHUNK) {
     try {
-      const logs = await publicClient.getLogs({
+      const logs = await anchorPublicClient.getLogs({
         address: getTokenContract('ousd'),
         event: transferEvent,
         fromBlock: end - CHUNK + 1n > 0n ? end - CHUNK + 1n : 0n,
@@ -172,7 +208,7 @@ async function findRecentOusdTransfer(): Promise<string | null> {
 async function describeTransfer(
   txHash: Hex
 ): Promise<{ to: string; value: string } | null> {
-  const receipt = await publicClient.getTransactionReceipt({ hash: txHash });
+  const receipt = await anchorPublicClient.getTransactionReceipt({ hash: txHash });
   const token = getTokenContract('ousd').toLowerCase();
 
   for (const entry of receipt.logs) {
@@ -230,15 +266,15 @@ async function teardownSafely(): Promise<void> {
 async function readAnchorReceipt(hash: Hex): Promise<TransactionReceipt> {
   let receipt: TransactionReceipt | null = null;
   try {
-    receipt = await publicClient.getTransactionReceipt({ hash });
+    receipt = await anchorPublicClient.getTransactionReceipt({ hash });
   } catch {
     receipt = null;
   }
 
   if (!receipt || receipt.status !== 'success') {
     console.error(
-      `\nPinned send anchor ${hash} could not be read on ${network.displayName} ` +
-        `(chain ${network.chainId}, ${network.rpcUrl})` +
+      `\nPinned send anchor ${hash} could not be read on ${anchorNetwork.displayName} ` +
+        `(chain ${anchorNetwork.chainId}, ${anchorNetwork.rpcUrl})` +
         `${receipt ? ' — the transaction reverted' : ''}.\n` +
         'A recorded transfer is reconciled against this receipt, so without it the\n' +
         'suite cannot verify anything. Set SEND_ANCHOR_TX to a fresh batched OUSD\n' +
@@ -254,7 +290,7 @@ async function readAnchorReceipt(hash: Hex): Promise<TransactionReceipt> {
   );
   if (!hasAnchorAsset) {
     console.error(
-      `\nPinned send anchor ${hash} on ${network.displayName} carries no ${ANCHOR.asset} transfer.\n` +
+      `\nPinned send anchor ${hash} on ${anchorNetwork.displayName} carries no ${ANCHOR.asset} transfer.\n` +
         `This suite reconciles a ${ANCHOR.asset} send against it, so it is the wrong receipt.\n` +
         'Set SEND_ANCHOR_TX to a batched OUSD receipt (npm run prove:batch).'
     );
@@ -277,6 +313,17 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
+  // The anchor is a Moderato receipt; reconcile it only through a deployment that
+  // serves Moderato. On a mainnet deployment no mainnet anchor is pinned yet, so
+  // this suite SKIPS — loudly, naming why — rather than read a Moderato receipt
+  // and record against a mainnet-serving ledger. See `anchor-network.ts`.
+  if (
+    !anchorNetworkPermitsRun({ suite: 'check:send', kind: 'send', anchorNetwork: ANCHOR_NETWORK })
+  ) {
+    await prisma.$disconnect();
+    process.exit(0);
+  }
+
   const quote = await getFxQuote();
   console.log(`fee routing mode: ${env.FEE_ROUTING_MODE}`);
   console.log(`treasury: ${env.SETI_TREASURY_ADDRESS}`);
@@ -294,6 +341,7 @@ async function main(): Promise<void> {
    */
   const sendQuoteId = issueQuote({
     userId: user.id,
+    network: ANCHOR_NETWORK,
     fiatCurrency: quote.fiatCurrency,
     fiatPerUsd: quote.fiatPerUsd,
     source: quote.source,
@@ -335,6 +383,10 @@ async function main(): Promise<void> {
       asset: 'ousd',
       address: SELF_ADDRESS,
       status: 'active',
+      // Registered on the network this suite records on: a wallet the account does
+      // not hold where it is sending is refused as `signer-not-owned`, which would
+      // make every assertion below a refusal for the wrong reason.
+      network: ANCHOR_NETWORK,
     },
   });
 
@@ -344,7 +396,7 @@ async function main(): Promise<void> {
   // a broken suite. (It is not skipped silently: the binding is the point of
   // these assertions.)
   const signerAddress = getAddress(ANCHOR.sender);
-  const signerTaken = await prisma.wallet.findUnique({ where: { address: signerAddress } });
+  const signerTaken = await prisma.wallet.findFirst({ where: { address: signerAddress } });
   if (signerTaken && signerTaken.userId !== user.id) {
     console.error(
       `The anchor's sender ${signerAddress} is already registered to another account.\n` +
@@ -365,6 +417,7 @@ async function main(): Promise<void> {
       asset: 'pathusd',
       address: signerAddress,
       status: 'deprecated',
+      network: ANCHOR_NETWORK,
     },
   });
 
@@ -377,6 +430,7 @@ async function main(): Promise<void> {
       chain: 'tempo',
       asset: 'pathusd',
       address: getAddress(ANCHOR.recipient),
+      network: ANCHOR_NETWORK,
     },
   });
 
@@ -400,7 +454,7 @@ async function main(): Promise<void> {
   let threw = false;
   let message = '';
   try {
-    await recordSend({
+    await recordOnAnchorNetwork({
       userId: user.id,
       amount: '1',
       asset: 'ousd',
@@ -424,7 +478,7 @@ async function main(): Promise<void> {
   threw = false;
   message = '';
   try {
-    await recordSend({
+    await recordOnAnchorNetwork({
       userId: user.id,
       amount: '1',
       asset: 'ousd',
@@ -469,7 +523,7 @@ async function main(): Promise<void> {
 
   // 2. A missing declaration is refused, not guessed.
   const undeclared = await refusalOf(() =>
-    recordSend({
+    recordOnAnchorNetwork({
       userId: user.id,
       amount: ANCHOR.principal,
       asset: ANCHOR.asset,
@@ -492,7 +546,7 @@ async function main(): Promise<void> {
 
   // 3. A declared address the caller does not own is refused.
   const foreign = await refusalOf(() =>
-    recordSend({
+    recordOnAnchorNetwork({
       userId: user.id,
       amount: ANCHOR.principal,
       asset: ANCHOR.asset,
@@ -516,7 +570,7 @@ async function main(): Promise<void> {
 
   // A malformed declaration is the same hole: unusable, so refused.
   const malformedDeclaration = await refusalOf(() =>
-    recordSend({
+    recordOnAnchorNetwork({
       userId: user.id,
       amount: ANCHOR.principal,
       asset: ANCHOR.asset,
@@ -538,7 +592,7 @@ async function main(): Promise<void> {
   //    principal, same quote. The only difference from the happy path below is
   //    the declared wallet, so this fails for that reason alone.
   const notTheSender = await refusalOf(() =>
-    recordSend({
+    recordOnAnchorNetwork({
       userId: user.id,
       amount: ANCHOR.principal,
       asset: ANCHOR.asset,
@@ -587,7 +641,7 @@ async function main(): Promise<void> {
     threw = false;
     message = '';
     try {
-      await recordSend({
+      await recordOnAnchorNetwork({
         userId: user.id,
         amount: plainTransfer.value,
         asset: 'ousd',
@@ -625,7 +679,7 @@ async function main(): Promise<void> {
     message = '';
     const wrongAmount = (Number(plainTransfer.value) * 3).toFixed(8);
     try {
-      await recordSend({
+      await recordOnAnchorNetwork({
         userId: user.id,
         amount: wrongAmount,
         asset: 'ousd',
@@ -661,7 +715,7 @@ async function main(): Promise<void> {
       `receipt.from ${anchorReceipt?.from} vs declared ${signerWallet.address}`
     );
 
-    const transaction = await recordSend({
+    const transaction = await recordOnAnchorNetwork({
       userId: user.id,
       amount: ANCHOR.principal,
       asset: ANCHOR.asset,
@@ -760,6 +814,7 @@ async function main(): Promise<void> {
       asset: ANCHOR.asset,
       txHash: ANCHOR.txHash,
       senderAddress: signerWallet.address,
+      network: ANCHOR_NETWORK,
       quote,
     });
     check(
@@ -783,7 +838,7 @@ async function main(): Promise<void> {
     // skip: it would only mean the pinned receipt paid no fee leg of its own, which
     // is a property of the receipt rather than of the code under test.
     const scale = BigInt(10 ** 12);
-    const gasPriceUsed = anchorReceipt.effectiveGasPrice ?? (await publicClient.getGasPrice());
+    const gasPriceUsed = anchorReceipt.effectiveGasPrice ?? (await anchorPublicClient.getGasPrice());
     const computedUnits = (anchorReceipt.gasUsed * gasPriceUsed) / scale;
 
     const token = getTokenContract(ANCHOR.asset).toLowerCase();
