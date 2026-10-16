@@ -16,8 +16,12 @@ vocabulary — see `calm-finance-mobile.md`.
   `canvas-dark` (#000) for chrome and storytelling. There is **no light/dark mode
   equivalence requirement** here — that rule belongs to Calm. Do not add a `.dark`
   block for a web surface.
-- **Everything is a pill.** Buttons and badges `rounded-full`; cards `rounded-lg`
-  (20px); inputs `rounded-md` (12px).
+- **One radius, not a pill.** Surfaces and controls are `rounded-md` (12px) — buttons and
+  inputs alike; chips and badges are `rounded-sm` (8px). **Circles stay circles**:
+  `rounded-full` is for avatars, status dots and round icon buttons only. `rounded-lg` and
+  `rounded-xl` are reserved for photography chrome. (This supersedes an earlier "everything
+  is a pill" line; `design/revolut.md` is the source of truth and the owner has ruled the
+  product squarer than the original reference.)
 - **On a white band the primary CTA is black** (`button-dark`), not an accent colour.
   Cobalt is reserved for links and featured states.
 - Display type is Space Grotesk at weight 500 with negative tracking; body is
@@ -96,6 +100,33 @@ Radii: `sm`, `md`, `lg`, `xl`, `pill`.
 - `--text-body-md-bold` is **not** in the original theme — it had to be added to
   `globals.css`. If an emphatic size compiles to nothing, the class is missing from the
   theme, not typed wrong; check the compiled CSS rather than trusting the class name.
+- **A named duration utility does not exist: `duration-quick` compiles to NOTHING.**
+  Tailwind v4 has an `--ease-*` namespace (so `ease-out` really is a utility) but no
+  `--duration-*` one, and `duration-<number>` only accepts bare numbers. `duration-quick`
+  looks right and silently emits no rule, so a transition falls back to Tailwind's
+  default 150ms — verified: zero `.duration-quick` selectors in the compiled CSS while
+  `@theme` declared the token. Reach a token by variable instead:
+  `duration-(--duration-quick)` (arbitrary-value shorthand) compiles to
+  `transition-duration: var(--duration-quick)` and *does* pull the variable into the
+  emitted `:root`. Same shape as the `--text-body-md-bold` trap — grep the built CSS for
+  the selector before trusting a class name.
+- The motion tokens live in a plain `@theme` block in `globals.css` (a real value, not a
+  `@theme inline` mapping of a `:root` declaration): a custom property that references
+  itself is invalid at computed-value time, so the landing's first build resolved
+  `duration-quick` to nothing. The vocabulary is shared, the DIALS are not — the landing's
+  ambient layer is in `globals.css`, the app's feedback-only layer is in
+  `web/app/app/motion.css`, imported by `app/app/layout.tsx`. A route that lives OUTSIDE
+  `/app` (a proof harness, a public page) does not get that sheet or its classes.
+- **`Card` bakes `p-8`, and no caller can reduce it.** Same `cn()` join rule as above:
+  `p-5` in `className` loses to the primitive's `p-8`. A *variant* is safe
+  (`sm:p-8` beats a base `p-8`), but a base override is not — so a card is 32px of padding
+  on a 360px screen and there is no in-caller fix. Change the primitive, or accept it.
+- **`Skeleton` cannot be dark or circular.** It is `bg-surface-soft` with `rounded-md`
+  baked in, and `cn()` is a join, so `bg-surface-elevated` and `rounded-full` both lose.
+  A skeleton inside a dark surface (a hero, a dark panel) or standing in for a circular
+  avatar has to be a real span with the token classes. Same finding for `Text`: it
+  forwards no `ref`, so anything needing a DOM node (a change-highlight class, a
+  measurement) drops to a real element with the variant's own classes copied.
 - The product app's route segment is `app/app/`, because a group `app/(app)/` would map
   to `/` and collide with the landing page.
 - The marketing `<body>` is black; app surfaces set their own `bg-canvas-light`.

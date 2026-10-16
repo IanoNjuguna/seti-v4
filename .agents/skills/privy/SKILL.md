@@ -66,6 +66,7 @@ curl -u "app-id:app-secret" -H "privy-app-id: app-id" https://api.privy.io/v1/wa
 |------|--------|-------|
 | Create wallet | `createWallet()` (React) or `wallets().create()` (NodeJS) | Specify owner (user ID, auth key, or key quorum) |
 | Authenticate user | `usePrivy().login()` (React) or `users().create()` (API) | Configure login methods in dashboard |
+| Headless email login | `useLoginWithEmail().sendCode()` / `loginWithCode()` (React) | No Privy UI at all; a one-time CODE, not a link |
 | Send transaction | `sendTransaction()` (React) or `intents().rpc()` (API) | Use wallet actions for common flows |
 | Sign message | `signMessage()` (React) or `wallets().ethereum.personalSign()` (API) | Returns signature bytes |
 | Get wallet | `useWallets()` (React) or `wallets().get()` (API) | Returns wallet address, chain, policies |
@@ -82,6 +83,30 @@ Configure in dashboard under **Authentication > Login methods**:
 - Passkeys (WebAuthn)
 - External wallets (MetaMask, Phantom)
 - Custom OAuth / JWT-based auth
+
+### Headless email sign-in (no Privy UI)
+
+Privy's email method is a one-time **code (OTP)**, not an emailed link — there is no
+magic-link login in the SDK. Drive it with no Privy UI at all, which is what Seti's own
+sign-in page does:
+
+```tsx
+const { sendCode, loginWithCode, state } = useLoginWithEmail();
+await sendCode({ email });      // mails the OTP; Promise<void>, REJECTS on failure
+await loginWithCode({ code });  // consumes it; max 5 attempts per OTP
+```
+
+`state` is `{status}`: `initial | error | sending-code | awaiting-code-input |
+submitting-code | done` — `awaiting-code-input` is the "we emailed you a code" moment.
+
+`useLinkEmail({ email })` is NOT a login: it attaches a new email to a user who is
+ALREADY authenticated (same for `useLinkPhone`).
+
+After `loginWithCode` resolves the user is authenticated and the embedded wallet is
+created on login (`createOnLogin`). Read the access token with
+`usePrivy().getAccessToken()` and hand it to your own backend to mint your session —
+the token is issued in the browser only and no server can mint or refresh one.
+
 
 ### Wallet control models
 
@@ -193,6 +218,12 @@ Configure in dashboard under **Authentication > Login methods**:
 - **Policies are enforced in TEE:** Policies are evaluated in secure enclaves before signing. Cannot be bypassed client-side.
 - **Entity assignment is permanent:** Once a wallet is assigned to a user or organization, it cannot be changed.
 - **One policy per wallet:** Currently only one policy can be attached to a wallet at a time.
+- **Pick the implementation at MODULE scope, never with a branch in a hook body:** `usePrivy`, `useLoginWithEmail` and `useWallets` all THROW with no `PrivyProvider` above them (`usePrivy must be used within a PrivyProvider`). An app that must also run with no Privy app configured selects its implementation once,
+  `export const useX = APP_ID ? useWithPrivy : useWithoutPrivy`, where `APP_ID` is fixed for the build. Exactly one implementation is then used and hook order is stable; a conditional inside the hook body breaks `react-hooks/rules-of-hooks` for the same reason.
+- **The access token is readable slightly BEFORE `authenticated` flips true:** asking `getAccessToken()` once, right after a login resolves, can return `null` and turn a timing race into a "signed in but no token" failure. Poll a few times. A null read with `authenticated` now false is a sign-OUT racing the read — treat it as a no-op, not an error.
+- **`sendCode` rejects when your origin is not allowlisted:** a web origin missing from the app id's allowed domains fails as a generic `invalid_origin`, which reads like a network fault. Add the origin in the dashboard (Settings → Domains).
+- **A Privy token is only half a session:** if your own API verifies it and has no app id/secret, that endpoint answers `503 "not configured"`. A client that maps server errors to its own copy (so it never renders the server's sentence) must match that case on the HTTP STATUS — matching on the error text can never fire.
+- **`loginWithCode` allows 5 attempts per OTP**, after which the code is dead and `sendCode` must be called again.
 
 ---
 
@@ -209,6 +240,7 @@ Before submitting work with Privy:
 - [ ] Authorization signatures are included for server-side wallet actions
 - [ ] Webhooks are subscribed to for async operations (deposits, transfers, swaps)
 - [ ] Error handling covers `policy_violation`, `insufficient_funds`, `request_expired`
+- [ ] A headless email login runs end to end: `sendCode` → `loginWithCode` → the access token exchanged with your own backend
 - [ ] HTTPS is enabled in production (not http://)
 - [ ] Gas sponsorship credits are funded if using gas sponsorship
 - [ ] Idempotency keys are used for retry-safe requests

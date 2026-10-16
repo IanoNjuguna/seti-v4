@@ -30,6 +30,14 @@ you render (see the procedure below), so only the copy is affected.
 (``⚠ Found a change in next.config.ts. Restarting the server to apply the changes…``).
 That is why the fix may be applied to the copy instead.
 
+## Trap: a proof route that silently doesn't exist
+
+A Next App Router folder whose name starts with `_` is **private**. A proof route created
+as `app/__qa/page.tsx` builds with exit 0, appears in no route list, and 404s — with no
+warning at any point. Name it without a leading underscore (`app/qa-proof/`), and if you
+are rendering from a copy of the tree, create and delete it **in the copy**, never in the
+working tree the owner is serving from.
+
 ## Proving it (30 seconds, no browser)
 
 Start a dev server, then hand-shake the socket by hand. The guard only inspects
@@ -273,3 +281,38 @@ those routes against `next build && next start` too — a Turbopack production b
 this app measured ~15 min on a loaded box, so budget for it. But do not reach for a
 production build merely to get *hydration*: that is the websocket origin guard above,
 and it is fixed by one config line.
+
+## Screenshots of a long page: slice and stitch
+
+Playwright MCP's own `browser_take_screenshot` gives up at **5s**, so `fullPage: true`
+on a ~3.5k-px marketing page always fails with `TimeoutError ... waiting for fonts to
+load / fonts loaded` — the page is fine, the call budget is not. `browser_exec`'s
+`capture_screenshot` fares no better over CDP/IPC on this box: any capture of a tall
+page dies with `TimeoutError: timed out` while the browser is idle.
+
+What works, in one call each, is `browser_run_code_unsafe`: scroll the page in viewport
+steps first (this is also what arms an IntersectionObserver-based scroll reveal, and it
+makes the reveal *stick* because it fires once), then loop `page.screenshot({path})` at
+each offset at a normal viewport height (1440×900, 360×800). Slices come back in
+seconds, and `PIL` joins them (`stitch.py` in the QA dir). Do not raise the viewport to
+the page height to fake a full page: `min-h-screen` sections then grow with it and the
+layout you capture is not the layout anyone sees.
+
+## A token can be declared and still compile to nothing
+
+`SKILL.md` says a class that greps to zero is a missing theme token. There is a second
+cause, and it looks identical: a `@theme inline` entry whose value references the
+`:root` property of the same name, in the style the colour block uses —
+
+```css
+:root { --duration-quick: 160ms; }
+@theme inline { --duration-quick: var(--duration-quick); }
+```
+
+Tailwind emits `--duration-quick: var(--duration-quick)` next to the real declaration, a
+custom property that references itself — invalid at computed-value time — and the
+`duration-quick` utility is never generated at all. Durations, easings and distances
+belong in a plain `@theme` block with their literal values. Verify on the served
+stylesheet, not on the class name: fetch the page's CSS and check both
+`.duration-\(--duration-quick\){--tw-duration:var(--duration-quick);...}` and
+`getComputedStyle(el).transitionDuration === '0.16s'` in a live render.

@@ -38,9 +38,27 @@ Rules for the migration window:
   use the project's `cn()` utility.
 - `font-tabular` on every monetary value.
 - Currency format: `KES 1,250.00` — symbol, space, thousands separator, two decimals.
-- Every async surface needs loading, empty, and error states, with skeletons that match
-  the layout's shape.
+- Every async surface needs loading, empty, and error states, with skeletons that match the
+  layout's shape — **except a surface with no account behind it**, which says so in words
+  (`Sign in to see your balance.`) and invents nothing: no `0`, no placeholder figure, no
+  skeleton (a skeleton claims data is coming for an account nobody confirmed), and no
+  account-scoped request.
+- Ask for an account at the ACTION, not at the door: a browse surface keeps the product's
+  shape and the entry points to a money flow stay visible and tappable, while the sign-in
+  affordance appears where the flow would have opened. The rail's identity card is the one
+  place a visitor signs in.
 - Do not rely on colour alone for status — pair it with text and an icon.
+- **A status role names an INK token, never a fill accent, and an ink resolves per canvas.**
+  The `accent-*` values are fills — mockups, borders, chrome — chosen to read on black, so
+  using one as text on a white band is the classic sub-AA bug (an audit found four). Text
+  roles point at `--color-ink-*`, which `globals.css` re-points per canvas, so the same role
+  is legible on a white band and on the dark receipt card. Repointing one outright breaks the
+  other: the receipt's status line falls to 2.10:1. `npm run check:ink` asserts both halves,
+  and it bites — setting a text grade back to its fill value fails with the original ratio.
+- **Texture belongs to chrome, not content.** The grain (`--app-grain-*` on the rail and the
+  mobile bar; the landing's `--field-grain-*` on its bands) is for large flat surfaces with
+  display-scale text. Over dense 13px rows it muddies them, and over already-marginal ink it
+  spends contrast the app has not got. Half the landing's strength, and never animated.
 - Verify a dependency exists in `package.json` before importing it.
 
 ## Copy & tone
