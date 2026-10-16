@@ -14,8 +14,7 @@ export function claimHref(kind: HandleKind): string {
 
 export const PROFILE_INTENT_COPY = {
   title: 'How you use Seti',
-  intro:
-    'Switch any time — this is a preference, not a fork. A personal username and a business name can both live on one account.',
+  intro: 'Switch any time. Both can live on one account.',
   switchLabel: 'Account mode',
   emptyPersonalTitle: 'No username yet',
   emptyPersonalBody: 'A username lets anyone send you money by opening seti.live/u/<name>.',

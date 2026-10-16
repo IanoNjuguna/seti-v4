@@ -1,4 +1,4 @@
-import type { AccountIntent, HandleIdentity } from '@/lib/api';
+import type { AccountIntent, HandleIdentity, HandleKind } from '@/lib/api';
 
 export interface ProfileIntentSwitchProps {
   /** The mode the account is acting as. */
@@ -13,6 +13,18 @@ export interface ProfileHandlePanelProps {
   intent: AccountIntent;
   /** The handle the account holds for that mode, or null when it holds none. */
   handle: HandleIdentity | null;
+}
+
+/** What the "no name yet" block renders: which mode's claim link to offer. */
+export interface ProfileHandleEmptyProps {
+  intent: AccountIntent;
+}
+
+/** What a claimed handle's state renders — verified, waiting, or under review. */
+export interface ProfileHandleStatusProps {
+  /** The kind it was claimed as, which decides the words. */
+  kind: HandleKind;
+  handle: HandleIdentity;
 }
 
 export interface UseProfileIntentReturn {

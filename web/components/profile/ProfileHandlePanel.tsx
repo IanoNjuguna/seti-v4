@@ -1,84 +1,71 @@
 'use client';
 
-import Link from 'next/link';
-import { Badge, Text } from '@/components/ui';
-import { claimCopy } from '@/components/merchant/Claim.constants';
+import { RAIL_IDENTITY_COPY } from '@/components/app/RailIdentity.constants';
+import { CopyRow } from '@/components/copy/CopyRow';
 import { MerchantQr } from '@/components/merchant/MerchantQr';
+import { RECEIVE_COPY } from '@/components/receive/receive.constants';
 import { HANDLE_KIND_FOR_INTENT } from '@/lib/account';
 import { handleLink } from '@/lib/merchant-link';
-import { PROFILE_INTENT_COPY, claimHref } from './ProfileIntent.constants';
+import { ProfileHandleEmpty } from './ProfileHandleEmpty';
+import { ProfileHandleStatus } from './ProfileHandleStatus';
 import type { ProfileHandlePanelProps } from './ProfileIntent.types';
-
-const LINK_CLASS =
-  'mt-3 inline-flex min-touch items-center rounded-sm text-body-sm font-semibold text-link hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary';
 
 /**
  * The handle behind the active mode — the claimed one, or the way to claim it.
  *
- * A BUSINESS gets the surfaces that already exist for a business: the shareable
- * link and the printable QR, both rendered by the SAME code the claim result uses
- * (`handleLink`, `MerchantQr`). Nothing is re-drawn here — a second QR renderer is
- * a second sticker, and the two drift the first time one changes.
+ * The name and the link are the two strings this account hands out, so each is
+ * drawn by the app's copy row (`CopyRow`, the one the receive halves use), and on
+ * each row the control sits on the character after the value ends. It used to be
+ * pushed to the row's far edge, where on a wide screen it stood a long way from
+ * the name it copied and read as a control belonging to the row rather than to
+ * the value.
  *
- * A PERSON gets the link only: `/u/<handle>` is a username people send to, and a
- * printable customer-facing sticker is a merchant's surface.
+ * The link is drawn by the row rather than as a bare paragraph, and that is what
+ * removed the duplicate: the link was printed once as text with no way to take
+ * it, so a control for it would have had to be a second copy of the same string
+ * beside the first. One row, one string, one control. The name is shown as the
+ * account typed it and copied as the bare handle a sender types; the link is both
+ * shown and copied as the absolute URL, and it wraps rather than clipping, because
+ * a clipped link is unusable for the person pasting it.
  *
- * When the mode has no name yet the panel says so and points at the one claim
- * surface, with `?kind=` deciding which name is being claimed. That is what keeps
- * the switch reversible in BOTH directions — a business-first account can still
- * claim a username.
+ * The state badge and the printable QR are their own components, and a mode with
+ * no name yet is `ProfileHandleEmpty`.
  */
 export function ProfileHandlePanel({ intent, handle }: ProfileHandlePanelProps) {
   const kind = HANDLE_KIND_FOR_INTENT[intent];
-  const words = claimCopy(kind);
 
   if (!handle) {
-    const personal = intent === 'personal';
-    return (
-      <div className="rounded-md bg-surface-soft p-4">
-        <Text variant="card-title" as="p">
-          {personal
-            ? PROFILE_INTENT_COPY.emptyPersonalTitle
-            : PROFILE_INTENT_COPY.emptyBusinessTitle}
-        </Text>
-        <Text variant="micro" as="p" className="mt-1">
-          {personal ? PROFILE_INTENT_COPY.emptyPersonalBody : PROFILE_INTENT_COPY.emptyBusinessBody}
-        </Text>
-        <Link href={claimHref(kind)} className={LINK_CLASS}>
-          {personal
-            ? PROFILE_INTENT_COPY.emptyPersonalAction
-            : PROFILE_INTENT_COPY.emptyBusinessAction}
-        </Link>
-      </div>
-    );
+    return <ProfileHandleEmpty intent={intent} />;
   }
+
+  /* A parked handle has no page yet, so its link is not shown and not offered. */
+  const link = handle.review ? null : handleLink(kind, handle.name);
 
   return (
     <div className="space-y-3">
-      <div>
-        <Text variant="card-title" as="p">
-          {handle.name}
-        </Text>
-        {/* A parked handle has no page yet, so its link is not shown. */}
-        {handle.review ? null : (
-          <p className="mt-1 break-all font-mono text-body-sm text-ink">
-            {handleLink(kind, handle.name)}
-          </p>
-        )}
+      <div className="flex flex-col gap-1">
+        <CopyRow
+          display={handle.name}
+          value={handle.name}
+          label={RAIL_IDENTITY_COPY.copyHandle}
+          failureText={RAIL_IDENTITY_COPY.copyFailed}
+          copiedText={RAIL_IDENTITY_COPY.copied}
+          emphasis
+        />
+
+        {link ? (
+          <CopyRow
+            display={link}
+            value={link}
+            label={RECEIVE_COPY.copyLink}
+            failureText={RECEIVE_COPY.copyFailed}
+            copiedText={RECEIVE_COPY.copiedAction}
+            wrap
+          />
+        ) : null}
       </div>
 
-      {handle.review ? (
-        <div className="space-y-2">
-          <Badge variant="neutral">{words.underReview}</Badge>
-          <Text variant="micro" as="p">
-            {handle.review.message}
-          </Text>
-        </div>
-      ) : (
-        <Badge variant={handle.verified ? 'success' : 'warning'}>
-          {handle.verified ? words.verified : words.unverified}
-        </Badge>
-      )}
+      <ProfileHandleStatus kind={kind} handle={handle} />
 
       {kind === 'business' && handle.review === null ? (
         <MerchantQr name={handle.name} kind="business" />
