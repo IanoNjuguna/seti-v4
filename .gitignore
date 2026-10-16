@@ -19,6 +19,10 @@ backend/.env.*.local
 .env
 .env.*
 !.env.example
+# Production templates ARE committed — they carry no secret, only the shape the
+# deploy needs (e.g. backend/.env.production.example). The real file they are
+# copied to (`backend/.env.production`) stays ignored by `.env.*` above.
+!.env.*.example
 
 # Local agent scratch: harness copies of the app, browser artefacts, logs
 .web-check*/
