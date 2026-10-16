@@ -24,10 +24,10 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "Seti — A Neo-Bank",
+  title: "Seti — Get paid in dollars",
   description:
-    "Scan any merchant QR code in Kenya and spend your stablecoins. Seti settles instantly in USD stablecoins on Tempo.",
-  keywords: ["stablecoin payments", "QR code payments", "Kenya", "Nairobi", "Tempo", "USDC", "OUSD", "mobile money"],
+    'Your customer scans your code, types your name, or opens your link. No hidden charges. Made in Thika.',
+  keywords: ["get paid", "dollar payments", "QR payments", "Kenya", "Thika", "Tempo", "OUSD", "pathUSD"],
 };
 
 export default function RootLayout({
