@@ -26,6 +26,26 @@ export const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   destructive:
     'bg-accent-danger text-on-dark hover:bg-accent-deep-red rounded-md min-touch h-12 px-7 inline-flex items-center justify-center font-semibold transition-colors duration-200 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
   pill: 'bg-surface-soft text-ink hover:bg-faint rounded-md h-9 px-4 inline-flex items-center justify-center font-semibold transition-colors duration-200 active:scale-[0.98]',
+  /*
+   * `button-primary` — white CTA on a dark band. The brand's loudest action per
+   * `design/revolut.md`, and previously inexpressible: a caller could not reach
+   * it through `primary` (which is `button-dark`, for white bands) and could not
+   * patch it with a class either, because `cn()` joins rather than merges and
+   * the primitive's own background would win.
+   *
+   * Durations and easings come from `design/motion.md`'s tokens; the older
+   * variants above still carry the literal `duration-200` they were written
+   * with, and are left alone here rather than redesigned in passing.
+   */
+  'on-dark':
+    'bg-canvas-light text-canvas-dark hover:bg-faint rounded-md min-touch h-12 px-7 inline-flex items-center justify-center font-semibold transition-colors duration-(--duration-quick) ease-out active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-dark focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-dark',
+  /* `button-outline-dark` — the paired secondary on the same band. The doc sets
+     this outline at 1px `{colors.on-dark}` on the dark canvas, not a 12%
+     hairline: at 12% the box all but disappeared beside the white CTA (visible
+     in the round-3 render). Hover is the motion spec's own hover — the hairline
+     brightens — which here means the surface lifts to `surface-elevated`. */
+  'outline-dark':
+    'bg-transparent text-on-dark border border-on-dark hover:bg-surface-elevated rounded-md min-touch h-12 px-7 inline-flex items-center justify-center font-semibold transition-colors duration-(--duration-quick) ease-out active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-dark focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-dark',
 };
 
 export const TEXT_VARIANT: Record<ButtonVariant, 'button' | 'tab'> = {
@@ -34,6 +54,8 @@ export const TEXT_VARIANT: Record<ButtonVariant, 'button' | 'tab'> = {
   ghost: 'button',
   destructive: 'button',
   pill: 'tab',
+  'on-dark': 'button',
+  'outline-dark': 'button',
 };
 
 /** Label colour per variant — white on the black pill, ink on the white ones. */
@@ -43,4 +65,8 @@ export const TEXT_COLOR: Record<ButtonVariant, 'inverse' | 'primary' | 'accent'>
   ghost: 'accent',
   destructive: 'inverse',
   pill: 'primary',
+  /* Ink label on the white CTA (the doc's `canvas-dark` is a hair darker than
+     `ink`; the system's own text colour is the right token for a label). */
+  'on-dark': 'primary',
+  'outline-dark': 'inverse',
 };

@@ -4,6 +4,7 @@ export type TextVariant =
   | 'balance'
   | 'balance-compact'
   | 'balance-tight'
+  | 'heading-md'
   | 'section'
   | 'card-title'
   | 'body'
@@ -18,13 +19,21 @@ export type TextColor =
   | 'inverse'
   | 'inverse-muted'
   | 'accent'
+  /**
+   * The four STATUS roles. Each names an ink token that resolves per CANVAS
+   * (`--color-ink-*` in `app/globals.css`): the text-grade step of its accent on
+   * the white canvas, the accent itself inside a dark canvas. The role is the
+   * same everywhere; only its value changes with the surface it is drawn on, so
+   * a status word cannot be legible here and invisible there.
+   */
   | 'success'
   | 'warning'
   /**
-   * The reserved warning-ORANGE product accent (`accent-warning`). Distinct from
-   * `warning`, which is the status role (`accent-yellow`) a caution line wears on
-   * a light card: this is the colour the chrome marks PRACTICE in on black, where
-   * yellow would read as a status and orange reads as a state of the account.
+   * The reserved warning-ORANGE product accent. Distinct from `warning`, which is
+   * the status role a caution line wears on a light card: this is the colour the
+   * chrome marks PRACTICE in, where yellow would read as a status and orange
+   * reads as a state of the account. On the black chrome it is `accent-warning`
+   * (7.6:1); on a white surface it steps down to its own text grade.
    */
   | 'attention'
   | 'alert';

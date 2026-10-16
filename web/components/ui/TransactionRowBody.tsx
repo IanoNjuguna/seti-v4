@@ -33,9 +33,18 @@ export function TransactionRowBody({ transaction, details }: TransactionRowBodyP
   const { merchant, category, amount, currency, date, status, from, to } = transaction;
   const isOutflow = amount < 0;
   const formatted = formatFiat(Math.abs(amount), currency);
-  // The subtitle repeats the category only when it adds something: a deposit is
-  // titled "Deposit" already, and "Deposit · 10 Oct" under it reads like a stutter.
-  const subtitle = category === merchant ? formatDate(date) : `${category} · ${formatDate(date)}`;
+  /**
+   * The subtitle repeats the category only when it adds something: a deposit is
+   * titled "Deposit" already, and "Deposit · 10 Oct" under it reads like a stutter.
+   *
+   * DATE FIRST, and that is a hierarchy decision rather than a style one. The
+   * content column is 104px at 360px, so this line elides — and an elided date
+   * reads as broken ("14 Oc…") while an elided category reads as a label doing its
+   * job ("Food & dr…"). On a ledger the date is the fact and the category is the
+   * label, which is the same rule this row already applies to the name (a label)
+   * and the address under it (a fact).
+   */
+  const subtitle = category === merchant ? formatDate(date) : `${formatDate(date)} · ${category}`;
   /** The far end of the transfer, when the row knows it. */
   const counterparty = isOutflow ? to : from;
 

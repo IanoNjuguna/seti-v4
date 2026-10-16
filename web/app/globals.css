@@ -1,5 +1,115 @@
 @import "tailwindcss";
 
+/*
+ * Motion — `design/motion.md`. One vocabulary, two dials, and the landing page
+ * is DIAL ONE (ambient).
+ *
+ * Declared here, as real values, rather than as a `@theme inline` mapping of a
+ * `:root` declaration in the colour block's style. That pattern is what the
+ * colour tokens use, but it emits `--duration-quick: var(--duration-quick)` in
+ * `:root` alongside the real declaration, and a custom property that references
+ * itself is invalid at computed-value time — the utility then resolves to
+ * nothing (verified in the compiled CSS of the first production build). A
+ * duration is a number, not a reference to another token, so it goes in whole.
+ *
+ * `--duration-field`, `--stagger` and the two `--field-glow-*` mixes are the
+ * landing page's own additions to that vocabulary: the ambient field's loop and
+ * the grain that keeps it from reading as a template gradient.
+ */
+@theme {
+  --duration-instant: 90ms;
+  --duration-quick: 160ms;
+  --duration-base: 240ms;
+  --duration-slow: 400ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-linear: linear;
+  --distance-micro: 4px;
+  --distance-small: 8px;
+  /* The hero's lines stagger by this much and stop (motion.md, DIAL ONE). */
+  --stagger: 40ms;
+  /* The app's rows stagger by this much and stop — capped at six rows in
+     `.row-enter` (`app/app/motion.css`, motion.md DIAL TWO). Its own token
+     because the two dials are allowed to differ and a shared one would silently
+     couple them. */
+  --stagger-row: 24ms;
+  --duration-field: 52s;
+  --duration-field-slow: 68s;
+  /* The hero asset's own float (`HeroVisualSlot.tsx`). A few pixels over ~6s,
+     `infinite`, and frozen under reduced motion.
+
+     This is a deliberate SINGLE exception to DIAL ONE's "nothing infinite except
+     the field": it is the owner's asset breathing, not a second ambient idea, so
+     it runs at a human period (6s against the field's 52s) and only 6px peak to
+     peak — it reads as depth, not as motion, and it is the only thing on the
+     page that moves on its own besides the field. */
+  --duration-float: 6s;
+  --float-distance: 3px;
+  /* THE page's vertical rhythm: ONE token, read by every band's top AND bottom
+     padding, so no band can drift from its neighbours and no band's bottom can
+     exceed its top. Default here; the responsive steps are `:root` overrides in
+     the base layer below, because an `@theme` block cannot hold a media query.
+     The hero and the footer are deliberately NOT on it — a viewport-tall centred
+     box and the page chrome are not bands, and both use smaller padding. They are
+     the only padding values on the page that do not come from this token.
+
+     The desktop step is `{spacing.section}` (88px), not `{spacing.band}` (120px):
+     the doc gives 120px to "the hero band and the closing planning section" and
+     88px to the padding "between bands", and the page had every band on the
+     hero's number. Measured against a laptop fold, that is what overflowed
+     `#how`. See the ladder in the base layer below for the numbers. */
+  --band-pad-block: 4rem;
+  /* The product app's fixed bottom bar, sized ONCE.
+     `--app-nav-bar` is the doc's `nav-bar` row (64px): the black bar `AppNav`
+     draws below `md`, and the rail's brand block, which is that same row
+     sideways. `--app-nav-hairline` is the bar's own top edge.
+     `--app-nav-reserved` is the height the bar actually OCCUPIES — the row plus
+     the hairline plus the device's bottom safe-area inset. The inset is ADDED,
+     not eaten out of the 64px: a phone with a home indicator gets 64px of bar
+     and the inset below it. The app shell reserves exactly this, plus
+     `--app-nav-clearance`, below the last element of every screen, so the fixed
+     bar can never come to rest on content. Both sides read these names and
+     neither restates a number: a bar that grows while the space reserved for it
+     does not is precisely how a fixed bar ends up covering content, and it is
+     invisible until someone measures. */
+  --app-nav-bar: 4rem;
+  --app-nav-hairline: 1px;
+  /* Air between the last element and the bar once the page is scrolled to its
+     end. Deliberately not zero — content finishing flush against the bar reads
+     as cut off — and 3rem is the clearance the shell reserved before this token
+     existed, so nothing about the screens' bottom rhythm moves. */
+  --app-nav-clearance: 3rem;
+  --app-nav-reserved: calc(
+    var(--app-nav-bar) + var(--app-nav-hairline) + env(safe-area-inset-bottom)
+  );
+  /* Kept low on purpose. The first render had these at 40% and 26% and the
+     result was a saturated cobalt-and-crimson nebula — the exact "AI mesh
+     gradient" the field is supposed to not be. The field is meant to be felt
+     as a slow change of tone in a black band, not read as a picture.
+     The crimson is lower still than the cobalt: it drifts, and a drifting red
+     wash behind the closing band's phoenix mark steals the mark's contrast. */
+  --field-glow-cobalt: color-mix(in oklab, var(--color-primary) 20%, transparent);
+  --field-glow-phoenix: color-mix(in oklab, var(--color-accent-pink) 7%, transparent);
+  /* Two grain layers, because one cannot serve both canvases: a normal overlay
+     at 5% was invisible in a screenshot on white (σ 0.7 levels). A lightening
+     layer grains the black bands and does nothing on white; a multiplying layer
+     grains the white bands and does nothing on black. That is how film grain is
+     actually composited, and it leaves both extremes — #000 and #fff — intact. */
+  --field-grain-highlight: 0.1;
+  --field-grain-shadow: 0.12;
+  /* The app chrome's own pair, beside the field's rather than replacing it: the
+     landing keeps 0.1 / 0.12 exactly as it is. Half strength, and the reason is
+     measured, not aesthetic. At full strength the grain's brightest tile takes
+     the landing's muted ink from 9.7:1 down to 4.7:1. The landing had headroom
+     and took it. The app's rail and bottom bar carry 13px secondary text and a
+     status marker, and before this change three of the app's inks were already
+     below AA, so the chrome has no headroom to spend on texture: the grain is
+     dialled to where the inks it sits under still clear AA with room to spare
+     (measured on the rendered rail, see the check suite). */
+  --app-grain-highlight: 0.05;
+  --app-grain-shadow: 0.06;
+}
+
 :root {
   /* Revolut-inspired design system */
   --color-primary: #494fdf;
@@ -31,12 +141,52 @@
   --color-accent-light-green: #428619;
   --color-accent-green-text: #006400;
   --color-accent-yellow: #b09000;
+  /* The caution accent's TEXT step. `design/revolut.md` names a text-grade
+     sibling for error (`accent-deep-red`, "inline error text", 10.0:1) and for
+     success (`accent-green-text`, 7.4:1) but names none for caution or for the
+     practice marker, so these two are DERIVED from the palette's own hue rather
+     than given a new one: hold the hue, drop the lightness, which is the exact
+     move the doc's own pairs make (#428619 -> #006400, #e23b4a -> #8b0000).
+     49.1deg -> 48.8deg at the same saturation; 7.5:1 against `canvas-light`,
+     the same grade as `accent-green-text`. The fill token above is untouched and
+     remains the caution colour for mockups, borders and icons. */
+  --color-accent-yellow-text: #665300;
   --color-accent-warning: #ec7e00;
+  /* The practice marker's TEXT step, derived the same way (32.0deg -> 31.8deg);
+     7.1:1 against `canvas-light`. `accent-warning` remains what the dark chrome
+     paints the marker in. */
+  --color-accent-warning-text: #884800;
   --color-accent-pink: #e61e49;
   --color-accent-danger: #e23b4a;
   --color-accent-deep-red: #8b0000;
   --color-accent-brown: #936d62;
   --color-link: #376cd5;
+
+  /* Status INKS. One token per status ROLE, and the token is resolved per
+     CANVAS, because the app has two canvases rather than one theme
+     (`design/revolut.md`: `canvas-light` for catalogue surfaces, `canvas-dark`
+     for chrome and the receipt).
+
+     These are the values on the WHITE canvas: each status role takes the
+     text-grade step of its accent. The doc already reserved exactly this pair
+     for one role: `accent-deep-red` is "inline error text" while
+     `accent-danger` is the error STATE. The app had simply never applied it,
+     so the roles pointed at fill tokens that are only legible on black
+     (`alert` 4.24:1, `warning` 3.07:1, `attention` 2.78:1 on white; all three
+     clear AA on `canvas-dark`). Repointing the role alone would fix the white
+     bands and take the receipt with it: the receipt paints `alert` and
+     `success` on `canvas-dark`, where `accent-deep-red` is 2.10:1 and
+     `accent-green-text` 2.82:1. So the role carries a value for each canvas
+     instead, and `@layer base` below re-points these four inside every
+     dark-canvas surface the app draws.
+
+     The fills, borders and icons keep the accents themselves
+     (`accent-danger`, `accent-light-green`, `accent-yellow`, `accent-warning`):
+     that is the split the audit named. */
+  --color-ink-alert: var(--color-accent-deep-red);
+  --color-ink-warning: var(--color-accent-yellow-text);
+  --color-ink-attention: var(--color-accent-warning-text);
+  --color-ink-success: var(--color-accent-green-text);
 }
 
 @theme inline {
@@ -70,12 +220,21 @@
   --color-accent-light-green: var(--color-accent-light-green);
   --color-accent-green-text: var(--color-accent-green-text);
   --color-accent-yellow: var(--color-accent-yellow);
+  --color-accent-yellow-text: var(--color-accent-yellow-text);
   --color-accent-warning: var(--color-accent-warning);
+  --color-accent-warning-text: var(--color-accent-warning-text);
   --color-accent-pink: var(--color-accent-pink);
   --color-accent-danger: var(--color-accent-danger);
   --color-accent-deep-red: var(--color-accent-deep-red);
   --color-accent-brown: var(--color-accent-brown);
   --color-link: var(--color-link);
+  /* Status ink roles. Mapped here so `text-ink-alert` and friends are utilities;
+     the values above are the white-canvas ones and `@layer base` re-points them
+     per dark canvas. */
+  --color-ink-alert: var(--color-ink-alert);
+  --color-ink-warning: var(--color-ink-warning);
+  --color-ink-attention: var(--color-ink-attention);
+  --color-ink-success: var(--color-ink-success);
 
   /* Typography */
   --font-sans: var(--font-plus-jakarta);
@@ -142,6 +301,100 @@
 }
 
 @layer base {
+  /* The band rhythm's responsive steps. In `base` rather than `@theme` because a
+     theme block cannot hold a media query, and `base` is emitted after `theme`,
+     so these win over the emitted default.
+
+     MEASURED, NOT GUESSED — live DOM, `#how` anchored the way its nav link lands
+     it (band top at 64px, the fixed nav's height), at 1280x720 (fold 656px) and
+     1440x800 (fold 736px; the band is the same height at both — the layout is
+     already capped by `max-w-6xl`). Every band was on 120/120 and every band
+     loses exactly 2 x (120 - 88) = 64px here; `#how` is restated from a fresh
+     measurement after the change because the bands' own content keeps moving:
+
+       band          now 120/120     this token    after
+       #how            693.2          -64         629.2 (measured)
+       #money          441.0          -64         377.0
+       #fees           457.7          -64         393.7
+       #partners       767.3          -64         703.3
+       #open           472.1          -64         408.1
+
+     `#how` is 1px band border + 120px + 18.2px eyebrow + 64px + 370px + 120px:
+     of its 693px, 240px was padding — 35% of the band — and the last step's
+     paragraph landed at y 637 in a 730px window that is really ~630px once the
+     browser's own chrome is off it. That is the clip the owner saw. Nothing was
+     local to `#how`: all five bands read this token to the pixel, 120px top AND
+     bottom, and `design/revolut.md` already fixes the right number —
+     `{spacing.section}` 88px "vertical between bands", with `{spacing.band}`
+     120px reserved for "the hero band and the closing planning section". The page
+     had given every band the hero's number, so the correction belongs here, in
+     the one shared token, and not in a per-section exception.
+
+     md comes down with lg: 96px at 768-1023 against 88px at 1024+ is a band that
+     breathes OUT as the screen grows. 80px is `{spacing.block}`, the doc's next
+     step down, so the ladder is 64 / 80 / 88 with every value a doc token and
+     every value larger than the one below it. The phone step stays 64px, the
+     doc's own "section padding collapses to 64px".
+
+     `#partners` is still over a 720px fold at 703px, but on content (527px, the
+     only band whose content is nearly a fold on its own), not on padding — 88px
+     is as far as padding can close that, and it is not this token's business.
+
+     Nothing else moved: the hero and the footer were never on this token
+     (measured padding 0), no type size, row padding or object changed, and no
+     copy was cut — the only lever here was space. */
+  :root {
+    --band-pad-block: 4rem;
+  }
+
+  @media (min-width: 48rem) {
+    :root {
+      --band-pad-block: 5rem;
+    }
+  }
+
+  @media (min-width: 64rem) {
+    :root {
+      --band-pad-block: 5.5rem;
+    }
+  }
+
+  /* Status inks per CANVAS (see the `--color-ink-*` block in `:root`).
+
+     The default declared in `:root` is the WHITE canvas, so a band, a card or a
+     page that says nothing about its canvas gets the text-grade step and cannot
+     inherit a black-canvas value by accident. These two rules then re-assert the
+     right pair wherever the app actually paints a canvas.
+
+     Order matters and is deliberate: the light rule is first so that a light
+     surface nested inside a dark one (the receipt's own `bg-canvas-light` QR
+     plate) wins by position, and the dark rule is last so it wins where an
+     element is both.
+
+     Keyed on the utilities the app paints its canvases with, because the app has
+     no canvas attribute to hang this on and the two components that need it most
+     (`PracticeFrame`'s strip, the receipt card) are not this change's to edit.
+     Adding a surface is therefore one line here, and forgetting one is caught by
+     the ink check rather than by eye. */
+  .bg-canvas-light,
+  [class~='bg-surface-soft'],
+  [class~='bg-surface-card'] {
+    --color-ink-alert: var(--color-accent-deep-red);
+    --color-ink-warning: var(--color-accent-yellow-text);
+    --color-ink-attention: var(--color-accent-warning-text);
+    --color-ink-success: var(--color-accent-green-text);
+  }
+
+  .text-on-dark,
+  [class~='bg-canvas-dark'],
+  [class~='bg-surface-deep'],
+  [class~='bg-surface-elevated'] {
+    --color-ink-alert: var(--color-accent-danger);
+    --color-ink-warning: var(--color-accent-yellow);
+    --color-ink-attention: var(--color-accent-warning);
+    --color-ink-success: var(--color-accent-light-green);
+  }
+
   html {
     scroll-behavior: smooth;
   }
@@ -202,6 +455,280 @@
   .min-touch {
     min-height: 44px;
     min-width: 44px;
+  }
+
+  /* -------------------------------------------------------------------------
+   * DIAL ONE — the landing page's ambient layer (`design/motion.md`).
+   *
+   * One idea for the whole page: a drifting field and a fine grain, on one slow
+   * linear loop, in the two brand colours mixed from tokens. Nothing else on
+   * the page drifts. Both layers are `fixed`, so the field never scrolls with
+   * the content and never becomes a parallax.
+   *
+   * `transform`/`opacity` only (guardrail 1), and the whole thing freezes under
+   * `prefers-reduced-motion` rather than slowing down.
+   * ---------------------------------------------------------------------- */
+  .field-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .field-layer::before,
+  .field-layer::after {
+    content: '';
+    position: absolute;
+    /* Over-size the canvas so a drifting layer never reveals an edge. */
+    inset: -35%;
+    will-change: transform;
+  }
+
+  .field-layer::before {
+    background-image:
+      radial-gradient(58% 52% at 26% 28%, var(--field-glow-cobalt), transparent 74%),
+      radial-gradient(46% 42% at 74% 68%, var(--field-glow-cobalt), transparent 76%);
+    animation: field-drift var(--duration-field) var(--ease-linear) infinite;
+  }
+
+  .field-layer::after {
+    background-image: radial-gradient(36% 32% at 64% 22%, var(--field-glow-phoenix), transparent 78%);
+    /* A second, slower copy of the same motion. Two periods never re-sync
+       inside a session, so the field does not visibly loop. */
+    animation: field-drift-reverse var(--duration-field-slow) var(--ease-linear) infinite;
+  }
+
+  /* The grain. Fine fractal noise, tiled, never animated — it is texture, not
+     motion, and it is what stops a large soft gradient from reading as a
+     generated background. Two layers, each blended so it only touches one
+     canvas (see the tokens): `screen` grains the black bands, `multiply` grains
+     the white ones, and neither hazes the other. */
+  .grain-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    pointer-events: none;
+  }
+
+  .grain-layer::before,
+  .grain-layer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-size: 160px 160px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)'/%3E%3C/svg%3E");
+  }
+
+  .grain-layer::before {
+    mix-blend-mode: screen;
+    opacity: var(--field-grain-highlight);
+  }
+
+  .grain-layer::after {
+    mix-blend-mode: multiply;
+    opacity: var(--field-grain-shadow);
+  }
+
+  /* -------------------------------------------------------------------------
+   * The app CHROME's grain: the same texture as the landing's, at half
+   * strength, on the rail and the bottom bar ONLY.
+   *
+   * It is the landing's own recipe (two fractal-noise layers, `screen` for the
+   * black and `multiply` for the white, so neither hazes the other) with one
+   * difference that is the whole point: `.grain-layer` is a page layer
+   * (`fixed`, `inset: 0`, `z-index: 100`) and grains everything, while this one
+   * is an in-surface layer (`absolute`, sized by the chrome element it sits in),
+   * so the content bands between the rail and the bar are left flat. The
+   * owner's call was chrome-only after asking why not everywhere, and the
+   * measurement is the answer: the bands carry the app's longest text and its
+   * lowest-contrast inks.
+   *
+   * It reads its own opacity pair (`--app-grain-*`), so the landing's
+   * `--field-grain-*` are untouched and the two surfaces can be dialled apart.
+   *
+   * STATIC. No animation, no transition, and it is deliberately not exempted
+   * from or added to any reduced-motion rule: it is texture, not motion, and a
+   * frozen grain is still grain.
+   * ---------------------------------------------------------------------- */
+  .chrome-grain {
+    position: absolute;
+    inset: 0;
+    /* Above the chrome's own children, exactly as the page layer sits above the
+       landing's content, so the texture reads as film over the whole surface
+       rather than as a patch behind the labels. `pointer-events: none` keeps
+       every row and tab underneath tappable. */
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  .chrome-grain::before,
+  .chrome-grain::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-size: 160px 160px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)'/%3E%3C/svg%3E");
+  }
+
+  .chrome-grain::before {
+    mix-blend-mode: screen;
+    opacity: var(--app-grain-highlight);
+  }
+
+  .chrome-grain::after {
+    mix-blend-mode: multiply;
+    opacity: var(--app-grain-shadow);
+  }
+
+  /* A section rising once. The hidden state is armed by JS (`data-reveal`), so
+     the server-rendered HTML is visible: a page that never hydrates still
+     shows every word, which a marketing page must. */
+  .reveal {
+    transition:
+      opacity var(--duration-slow) var(--ease-out),
+      transform var(--duration-slow) var(--ease-out);
+  }
+
+  .reveal[data-reveal]:not([data-revealed]) {
+    opacity: 0;
+    transform: translate3d(0, var(--distance-small), 0);
+  }
+
+  /* The hero's entrance: the same rise, staggered and capped at three lines. */
+  .entrance {
+    animation: entrance-rise var(--duration-slow) var(--ease-out) both;
+  }
+
+  .entrance-2 {
+    animation-delay: var(--stagger);
+  }
+
+  .entrance-3 {
+    animation-delay: calc(var(--stagger) * 2);
+  }
+
+  /* -------------------------------------------------------------------------
+   * The hero asset's float (`HeroVisualSlot.tsx`).
+   *
+   * `translate` rather than `transform`: the slot positions the canvas with a
+   * NEGATIVE MARGIN, and a keyframe that wrote `transform` would silently
+   * override any `translate-x-*` utility on the same element. `translate` is its
+   * own property, so the two cannot collide — same compositor-cheap treatment as
+   * `transform` (guardrail 1), no transform stack to untangle.
+   * ---------------------------------------------------------------------- */
+  .hero-float {
+    animation: hero-float var(--duration-float) var(--ease-in-out) infinite;
+  }
+
+  /* -------------------------------------------------------------------------
+   * The payment stack's entrance (`design/motion.md`, DIAL ONE).
+   *
+   * The band's own reveal arms this: `data-revealed` is set ONCE, by JS, on the
+   * section, so the cards stagger on the way in and never replay. Without
+   * `data-reveal` — no JS, or the server render — none of these rules match and
+   * the cards are simply visible, which is why the page still reads with
+   * JavaScript disabled.
+   * ---------------------------------------------------------------------- */
+  .reveal[data-revealed] .stack-item {
+    animation: stack-rise var(--duration-base) var(--ease-out) both;
+  }
+
+  .reveal[data-revealed] .stack-item-2 {
+    animation-delay: var(--stagger);
+  }
+
+  .reveal[data-revealed] .stack-item-3 {
+    animation-delay: calc(var(--stagger) * 2);
+  }
+}
+
+@keyframes field-drift {
+  0%,
+  100% {
+    transform: translate3d(-1.5%, -1%, 0) scale(1.06) rotate(-2deg);
+  }
+  33% {
+    transform: translate3d(2.5%, 2%, 0) scale(1.14) rotate(3deg);
+  }
+  66% {
+    transform: translate3d(-2%, 2.5%, 0) scale(1.08) rotate(-1deg);
+  }
+}
+
+@keyframes field-drift-reverse {
+  0%,
+  100% {
+    transform: translate3d(2%, 2%, 0) scale(1.1) rotate(2deg);
+  }
+  40% {
+    transform: translate3d(-2%, 1%, 0) scale(1.04) rotate(-2deg);
+  }
+  70% {
+    transform: translate3d(1%, 3%, 0) scale(1.12) rotate(1deg);
+  }
+}
+
+@keyframes entrance-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, var(--distance-small), 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The hero asset's float. `translate` only, so it composes with the slot's
+   negative-margin positioning and overrides nothing. */
+@keyframes hero-float {
+  0%,
+  100% {
+    translate: 0 calc(var(--float-distance) * -1);
+  }
+  50% {
+    translate: 0 var(--float-distance);
+  }
+}
+
+/* A card of the payment stack arriving: 4px and a fade, the same rise the
+   sections use, one step smaller because a card is not a band. */
+@keyframes stack-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, var(--distance-micro), 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Guardrail 4: less motion freezes the ambient layer and turns every entrance
+   into an instant appearance — it never just slows them down. */
+@media (prefers-reduced-motion: reduce) {
+  .field-layer::before,
+  .field-layer::after {
+    animation: none;
+  }
+
+  .entrance,
+  .entrance-2,
+  .entrance-3 {
+    animation: none;
+  }
+
+  /* The asset holds still, and the stack's cards are simply there. Reduced
+     motion never means "slower" — it means the thing is already in place. */
+  .hero-float,
+  .reveal[data-revealed] .stack-item {
+    animation: none;
+  }
+
+  .reveal[data-reveal]:not([data-revealed]) {
+    opacity: 1;
+    transform: none;
   }
 }
 
