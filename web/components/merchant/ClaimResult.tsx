@@ -32,14 +32,14 @@ export function ClaimResult({ claimed, onAgain }: ClaimResultProps) {
   return (
     <Card className="space-y-4">
       <div>
-        <Text variant="micro" as="p">
+        <Text variant="micro" as="p" color="secondary">
           {words.resultTitle}
         </Text>
         <Text variant="section" as="p" className="mt-1">
           {claimed.name}
         </Text>
         {claimed.address ? (
-          <p className="mt-1 font-mono text-body-sm text-stone" title={claimed.address}>
+          <p className="mt-1 break-all font-mono text-caption text-stone" title={claimed.address}>
             {shortenValue(claimed.address)}
           </p>
         ) : null}
@@ -48,7 +48,7 @@ export function ClaimResult({ claimed, onAgain }: ClaimResultProps) {
       {review ? (
         <div className="space-y-2">
           <Badge variant="neutral">{words.underReview}</Badge>
-          <Text variant="micro" as="p">
+          <Text variant="body" color="secondary" as="p">
             {review.message}
           </Text>
         </div>
@@ -61,7 +61,7 @@ export function ClaimResult({ claimed, onAgain }: ClaimResultProps) {
       {live && link ? (
         <div className="space-y-3">
           <div>
-            <Text variant="micro" as="p">
+            <Text variant="micro" as="p" color="secondary">
               {words.linkLabel}
             </Text>
             <p className="mt-1 break-all font-mono text-body-sm text-ink">{link}</p>

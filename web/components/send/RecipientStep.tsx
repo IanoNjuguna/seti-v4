@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, Card, Input, Text } from '@/components/ui';
+import { Button, Input, Text } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { SEND_FLOW_COPY } from './Send.constants';
 
@@ -33,6 +33,12 @@ export interface RecipientStepProps {
  * The two answers are pressed-state buttons (never colour alone: `aria-pressed`
  * says which is chosen), and the field keeps focus after the choice changes, so
  * choosing does not cost a tap back into the input.
+ *
+ * No card. The question, the two answers, the field and the Continue control sit
+ * directly on the page — the same call the receive halves make — so the flow's prose
+ * is page text rather than the contents of a box. The dark fill is kept only where
+ * it MEANS something: the chosen answer, which is the same selected state
+ * `ReceiveSwitch` draws, and the step's own progress fill.
  */
 export function RecipientStep({
   kind,
@@ -46,7 +52,7 @@ export function RecipientStep({
   const byName = kind === 'name';
 
   return (
-    <Card padding="sm" className="flex flex-col gap-5">
+    <div className="flex flex-col gap-5">
       <Text variant="body" as="p">
         {SEND_FLOW_COPY.question}
       </Text>
@@ -63,6 +69,12 @@ export function RecipientStep({
               onClick={() => onKindChange(isName ? 'name' : 'address')}
               className={cn(
                 'min-touch w-full rounded-md px-4 py-3 text-left text-body-sm font-semibold transition-colors',
+                // The press is answered on pointer-DOWN with the system's own
+                // pressed step (`Button.constants.ts`): an instant 2% scale, the
+                // same one every other control in the app answers with. Without
+                // it the choice was hover-only, so a touch user got nothing back
+                // until the step changed under them.
+                'active:scale-[0.98]',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-light',
                 active
                   ? 'bg-canvas-dark text-on-dark'
@@ -95,6 +107,6 @@ export function RecipientStep({
       <Button onClick={onSubmit} disabled={!value || busy} loading={busy} fullWidth>
         {busy ? SEND_FLOW_COPY.resolving : SEND_FLOW_COPY.continueAction}
       </Button>
-    </Card>
+    </div>
   );
 }

@@ -18,6 +18,14 @@ export interface SendProgressProps {
  * The name is text beside the track, not a number in a circle, and the current one
  * is `aria-current="step"` — the bar is a fact about the flow, so it is a `list`
  * of steps rather than decoration.
+ *
+ * The label wears the system's `caption` recipe and nothing else, exactly as the
+ * wizard's own step list does (`OnboardingSteps`): two progress indicators for the
+ * same kind of label must read as one thing, and setting this one in uppercase
+ * with wide tracking made a second eyebrow style the doc does not define. The
+ * steps still AHEAD are `mute` (#505a63, 7.0:1) rather than `stone` (#8d969e,
+ * 3.0:1) — the unreached steps are the ones a person is looking for, and at 13px
+ * they were below AA.
  */
 export function SendProgress({ current }: SendProgressProps) {
   return (
@@ -39,10 +47,7 @@ export function SendProgress({ current }: SendProgressProps) {
               )}
             />
             <span
-              className={cn(
-                'text-caption uppercase tracking-wider',
-                active ? 'font-semibold text-ink' : 'text-stone'
-              )}
+              className={cn('text-caption', active ? 'font-semibold text-ink' : 'text-mute')}
             >
               {label}
             </span>

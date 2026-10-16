@@ -9,29 +9,22 @@ import { ADDRESS_COPY } from './address/address.constants';
 import { useReceiveAddress } from './address/useReceiveAddress';
 
 /**
- * The "your address" half: the code and the text for a transfer from outside Seti.
+ * The "your address" half: the code and the address for a transfer from OUTSIDE Seti.
  *
- * In a non-custodial app there is no "add money" — nothing is added, it arrives. So
- * this half hands over an address and the network to send on, and stops.
+ * Laid out the way the username and merchant halves are, deliberately — the half's own
+ * LEAD line first, then the same centred row they draw: the code plate beside a panel
+ * of copy rows, in the same container, at the same gaps. This half alone kept the old
+ * left-aligned stack, which is why it read as a different product in the same tab. The
+ * lead lives here rather than at the page because it names the NETWORK, and the network
+ * is the server's answer for this address, not the build's.
  *
- * The code and the text describe the SAME string, and that is by construction: the
- * address is the server's wallet row for this account, and the code encodes
- * `eip681PaymentUri(address, chainId)` from that same answer. Nothing here derives a
- * second value that could disagree with the first.
- *
- * The address is printed in `font-mono` under the code because a QR fails — a
- * cracked screen, a camera that will not focus, a wallet that only accepts a paste —
- * and the person then needs to read or retype the exact string. It WRAPS rather than
- * truncating for the same reason: 42 characters are the whole of the thing being
- * handed over, and a clipped address is the one value on this screen that cannot be
- * guessed at.
- *
- * There is no card around any of it. The objects stand on the page, the way the
- * username and merchant halves do, and the one sentence of context — which network
- * to send on, and the chain behind it — stands under them as page text
- * (`ADDRESS_COPY.tempoNote`). The old arrangement put a heading, a paragraph, a
- * code, an address and a button inside one dark well, which is how the surface ended
- * up as a wall to read with nothing said around it.
+ * The address is printed in `font-mono` beside the code because a QR fails — a cracked
+ * screen, a camera that will not focus, a wallet that only accepts a paste — and the
+ * person then has to read or retype the exact 42 characters. It WRAPS rather than
+ * truncating for the same reason: a clipped address is the one value here that cannot
+ * be guessed at. Code and address are the same string by construction — the code
+ * encodes `eip681PaymentUri(address, chainId)` from the server's own answer. There is
+ * no card around any of it, exactly as in the other two halves.
  */
 export function ReceiveAddressPanel() {
   const { state } = useReceiveAddress();
@@ -49,8 +42,12 @@ export function ReceiveAddressPanel() {
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col items-start gap-4">
+    <div className="flex flex-col gap-4">
+      <Text variant="body" as="p" color="secondary">
+        {ADDRESS_COPY.lead(state.network)}
+      </Text>
+
+      <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center sm:justify-center sm:gap-8">
         <QrPlate
           value={state.payload}
           title={ADDRESS_COPY.qrTitle(state.network)}
@@ -62,10 +59,11 @@ export function ReceiveAddressPanel() {
           }}
         />
 
-        {/* `w-fit max-w-full` keeps the control with the value instead of stranding
-            it at the far edge of the page: the address is 353px wide and its copy
-            button 44, so a full-width row left 300px of nothing between them. */}
-        <div className="w-fit max-w-full">
+        {/* The panel `ReceiveLinkPanel` draws the name half's rows in, so the plate
+            sits beside it identically and the control stays on the value's line.
+            `min-w-0`/`max-w-full` are what it needs with one 42-character row: the
+            value must wrap rather than push the plate off a narrow screen. */}
+        <div className="flex min-w-0 max-w-full flex-col">
           <CopyRow
             display={state.address}
             value={state.address}
@@ -76,10 +74,6 @@ export function ReceiveAddressPanel() {
           />
         </div>
       </div>
-
-      <Text variant="micro" as="p" color="secondary">
-        {ADDRESS_COPY.tempoNote(state.network)}
-      </Text>
     </div>
   );
 }

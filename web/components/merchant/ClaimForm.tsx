@@ -2,6 +2,7 @@
 
 import { Button, Card, Input } from '@/components/ui';
 import { claimCopy } from './Claim.constants';
+import { claimErrorView } from './Claim.error';
 import { ClaimFormHeader } from './ClaimFormHeader';
 import { ClaimFormStatus } from './ClaimFormStatus';
 import { ClaimResult } from './ClaimResult';
@@ -12,9 +13,11 @@ import type { ClaimFormProps } from './ClaimForm.types';
  * The claim form: one field, one signature, one result. ONE form for BOTH kinds,
  * because a username and a business name are the same signed claim.
  *
- * A bad or reserved name belongs on the field (it is the person's input); every
- * other refusal — a signature that does not match, an address you do not own, a name
- * already taken — is the server's answer about the claim, so it is a block message.
+ * Where a refusal is shown is decided once, in `claimErrorView`: a bad or reserved
+ * name belongs on the field (it is the person's input), every other refusal is the
+ * server's answer about the claim, so it is a block message carrying the server's
+ * specific reason — and the reference that finds its log line. The generic "try
+ * again in a moment" is left for a failure with no reason at all.
  *
  * `copy`, `linkKind` and `submit` are the three things a caller may vary without a
  * second form: the words, which route the handle will live at (unknown until the kind
@@ -29,12 +32,7 @@ export function ClaimForm({ claim, linkKind, copy, submit }: ClaimFormProps) {
   const { isBusy } = claim;
   const words = copy ?? claimCopy(claim.kind);
   const previewKind = linkKind === undefined ? claim.kind : linkKind;
-  // `invalid-handle-name` is the code the backend and the claim hook both use for a
-  // name the rule refuses; this used to test for `invalid-merchant-name`, which
-  // nothing sends, so a name-rule failure never reached the field it belongs on.
-  const nameProblem =
-    claim.errorCode === 'invalid-handle-name' || claim.errorCode === 'reserved-handle';
-  const blockError = claim.error && !nameProblem ? claim.error : null;
+  const { nameProblem, blockError, reference } = claimErrorView(claim);
 
   const onPress = submit ? submit.onPress : () => void claim.claim();
   const progress = isBusy ? (claim.step === 'signing' ? words.signing : words.submitting) : null;
@@ -64,7 +62,12 @@ export function ClaimForm({ claim, linkKind, copy, submit }: ClaimFormProps) {
         copy={words}
       />
 
-      <ClaimFormStatus progress={progress} error={blockError} errorTitle={words.errorTitle} />
+      <ClaimFormStatus
+        progress={progress}
+        error={blockError}
+        errorTitle={words.errorTitle}
+        reference={reference}
+      />
 
       <Button
         onClick={onPress}

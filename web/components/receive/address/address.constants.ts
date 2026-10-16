@@ -25,22 +25,24 @@ export const ADDRESS_COPY = {
   copiedAction: 'Copied',
   copyFailed: 'Could not copy. Select the address and copy it by hand.',
   /**
-   * The one line under the address half: which network to send on, and the chain
-   * behind it.
+   * The address half's LEAD line: which network to send on, and the chain behind
+   * it. It stands ABOVE the code, in the same slot and the same `body`/secondary
+   * role the page gives the username and merchant halves (`nameLead` /
+   * `merchantLead`).
    *
-   * It replaces "Send on Live. This is your Live deposit address." — the owner
-   * called that redundant and it was: the network twice in one breath, plus the
-   * word "deposit" on a surface called Receive. What survives is the half that
-   * carries a FACT a sender has to act on: an EVM address exists on every chain, so
-   * the network has to be said in words or the sender is guessing which one to send
-   * on. Said once, and then the chain itself — the word a sender needs when they
-   * ask "which network is this?".
+   * It lives here rather than in the page because it names the NETWORK, and the
+   * network is the SERVER's answer for this address (`useReceiveAddress`), not the
+   * build's — the page renders its lead before any address is known.
    *
-   * Practice and Live are the product's words for a network; Tempo is the name of
-   * the network. Neither is "testnet"/"mainnet" (the database's words), and no token
-   * is named (which stablecoin a sender picks is theirs to choose).
+   * It carries the one FACT a sender has to act on: an EVM address exists on every
+   * chain, so the network has to be said in words or the sender is guessing which
+   * one to send on. Said once, then the chain itself — the word a sender needs when
+   * they ask "which network is this?". Practice and Live are the product's words
+   * for a network; Tempo is the name of the network. Never "testnet"/"mainnet" (the
+   * database's words), and no token is named (which stablecoin a sender picks is
+   * theirs to choose).
    */
-  tempoNote: (network: Network) =>
+  lead: (network: Network) =>
     `Send on ${NETWORK_LABEL[network]}. Money arrives on Tempo, in seconds.`,
   /**
    * The file a saved address code writes. The network is in the name because an

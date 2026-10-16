@@ -41,7 +41,7 @@ export function MerchantHandlePreview({
       <p className="mt-1 break-all font-mono text-body-sm text-ink">{link}</p>
 
       {kind ? null : (
-        <p className="mt-1 text-caption text-stone">{copy.handleKindHint}</p>
+        <p className="mt-1 text-caption text-mute">{copy.handleKindHint}</p>
       )}
 
       {problem ? (
@@ -49,7 +49,7 @@ export function MerchantHandlePreview({
           {problem}
         </Text>
       ) : loading ? (
-        <Text variant="micro" as="p" className="mt-2">
+        <Text variant="micro" as="p" color="secondary" className="mt-2">
           {copy.handleChecking}
         </Text>
       ) : takenBy ? (
@@ -61,7 +61,7 @@ export function MerchantHandlePreview({
           <Badge variant="success">{copy.handleFree}</Badge>
           {/* A free string that matches a held brand is still claimable — but parked. */}
           {preview?.held ? (
-            <Text variant="micro" as="p">
+            <Text variant="micro" as="p" color="secondary">
               {copy.heldNote}
             </Text>
           ) : null}

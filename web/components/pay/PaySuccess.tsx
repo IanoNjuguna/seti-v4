@@ -91,8 +91,8 @@ export function PaySuccess({ txHash, onDone, summary }: PaySuccessProps) {
           {/* Every figure the wallet moved from, in one sentence: the amount, the
               2% the customer funded, and the gas. Naming all three is the
               difference between a receipt and a reassurance. */}
-          You paid <span className="font-tabular">{formatFiat(Number(summary.totalFiat), summary.fiatCurrency)}</span>{' '}
-          — <span className="font-tabular">{formatFiat(Number(summary.feeFiat), summary.fiatCurrency)}</span>{' '}
+          You paid <span className="font-tabular">{formatFiat(Number(summary.totalFiat), summary.fiatCurrency)}</span>:{' '}
+          <span className="font-tabular">{formatFiat(Number(summary.feeFiat), summary.fiatCurrency)}</span>{' '}
           platform fee,{' '}
           <span className="font-tabular">
             {summary.gasEstimated ? '≈ ' : ''}

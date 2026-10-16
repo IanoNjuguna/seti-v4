@@ -17,13 +17,20 @@ import type { ClaimCopy } from './ClaimForm.types';
  * the form is handed a label by whichever component knows the kind — the copy must
  * not re-decide which route a handle lives at, or a username's collision would be
  * reported against a `/m/` URL that has nothing to do with it.
+ *
+ * Two house rules are load-bearing in the words below. Signing is described in
+ * plain terms — what is attached to what, and that it costs nothing — because
+ * "nothing is written on chain and it costs no gas" is the vocabulary the product
+ * does not use in front of a customer: the reassurance is the fact that signing is
+ * free, not the mechanism that makes it free. And no sentence carries an em dash;
+ * the two that did now end their clause and start the next instruction.
  */
 const RULE_HINT = "2–64 characters: letters, digits, spaces and . , ' & ( ) - _ +";
 
 export const BUSINESS_CLAIM_COPY: ClaimCopy = {
   title: 'Claim a business name',
   intro:
-    'Sign once with the wallet that receives your payments. This attaches the name to that address — nothing is written on chain and it costs no gas.',
+    'Sign once with the wallet that receives your payments. This attaches the name to that address, and signing costs nothing.',
   fieldLabel: 'Business name',
   placeholder: 'Java House',
   hint: RULE_HINT,
@@ -45,9 +52,9 @@ export const BUSINESS_CLAIM_COPY: ClaimCopy = {
   handleFree: 'Free',
   heldNote: 'This name matches a known brand, so your claim will be reviewed before the name goes live.',
   handleTaken: (link: string, holder: string): string =>
-    `${link} is already taken by ${holder}. Names that reduce to the same link cannot both be claimed — choose another name.`,
+    `${link} is already taken by ${holder}. Names that reduce to the same link cannot both be claimed. Choose another name.`,
   /** The sticker QR. */
-  qrLabel: 'Print this — your sticker',
+  qrLabel: 'Print this as your sticker',
   qrHint:
     'The code opens your link. No amount is in it, so the customer enters what they are paying.',
   qrDownload: 'Download QR (SVG)',
@@ -56,7 +63,7 @@ export const BUSINESS_CLAIM_COPY: ClaimCopy = {
 export const PERSON_CLAIM_COPY: ClaimCopy = {
   title: 'Claim your username',
   intro:
-    'Sign once with the wallet that receives your payments. This attaches your username to that address — nothing is written on chain and it costs no gas.',
+    'Sign once with the wallet that receives your payments. This attaches your username to that address, and signing costs nothing.',
   fieldLabel: 'Username',
   placeholder: 'ian.mwangi',
   hint: RULE_HINT,
@@ -77,7 +84,7 @@ export const PERSON_CLAIM_COPY: ClaimCopy = {
   handleFree: 'Free',
   heldNote: 'This name matches a known brand, so your claim will be reviewed before the name goes live.',
   handleTaken: (link: string, holder: string): string =>
-    `${link} is already taken by ${holder}. Names that reduce to the same link cannot both be claimed — choose another name.`,
+    `${link} is already taken by ${holder}. Names that reduce to the same link cannot both be claimed. Choose another name.`,
   qrLabel: 'Your code',
   qrHint: 'The code opens your link, so anyone who scans it can send you money.',
   qrDownload: 'Download QR (SVG)',
@@ -87,6 +94,17 @@ export const CLAIM_COPY_BY_KIND: Record<HandleKind, ClaimCopy> = {
   person: PERSON_CLAIM_COPY,
   business: BUSINESS_CLAIM_COPY,
 };
+
+/**
+ * The label in front of a support reference.
+ *
+ * A refused claim is the one place this app prints the server's correlation id.
+ * It is not decoration: the sentence beside it is deliberate copy, so without the
+ * id nobody — the person or the person helping them — can find the log line that
+ * says what actually happened. Same reason the server mints it (see
+ * `apiErrorHandler` in `backend/src/server.ts`).
+ */
+export const CLAIM_REFERENCE_LABEL = 'Reference';
 
 /** The copy for a kind — one lookup, so no caller picks the wrong one. */
 export function claimCopy(kind: HandleKind): ClaimCopy {
@@ -104,7 +122,7 @@ export function claimCopy(kind: HandleKind): ClaimCopy {
 export const ONBOARDING_NAME_COPY: ClaimCopy = {
   title: 'Claim your Seti name',
   intro:
-    'This is the name that gets you paid. Sign once with the wallet that receives your payments — nothing is written on chain and it costs no gas.',
+    'This is the name that gets you paid. Sign once with the wallet that receives your payments, and signing costs nothing.',
   fieldLabel: 'Your name',
   placeholder: 'ian.mwangi',
   hint: RULE_HINT,
@@ -125,7 +143,7 @@ export const ONBOARDING_NAME_COPY: ClaimCopy = {
   handleFree: 'Free',
   heldNote: 'This name matches a known brand, so your claim will be reviewed before the name goes live.',
   handleTaken: (link: string, holder: string): string =>
-    `${link} is already taken by ${holder}. Names that reduce to the same handle cannot both be claimed — choose another name.`,
+    `${link} is already taken by ${holder}. Names that reduce to the same handle cannot both be claimed. Choose another name.`,
   qrLabel: 'Your code',
   qrHint: 'The code opens your link.',
   qrDownload: 'Download QR (SVG)',

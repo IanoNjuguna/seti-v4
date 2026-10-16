@@ -22,6 +22,11 @@ export interface MerchantClaimScreenProps {
  * A landed claim re-reads the account (`useClaimedIdentitySync`), because the gate
  * and the Profile card read that one answer: without it the row would exist in the
  * database while Profile still showed "no business name yet".
+ *
+ * The `restoring` branch is the app's own loading convention — an `aria-busy`
+ * region with a line a screen reader can hear — because a bare skeleton is a
+ * screen with nothing to say: no title, no status, no announcement. `AppLoading`
+ * and `SendLoading` carry the same shape for the same reason.
  */
 export function MerchantClaimScreen({ kind }: MerchantClaimScreenProps) {
   const session = useSession();
@@ -29,19 +34,17 @@ export function MerchantClaimScreen({ kind }: MerchantClaimScreenProps) {
 
   useClaimedIdentitySync(claim.step === 'done');
 
-  if (session.status === 'loading') {
-    return <Skeleton className="h-40 w-full" />;
+  if (session.status === 'restoring') {
+    return (
+      <div aria-busy="true">
+        <p className="sr-only">Checking your session…</p>
+        <Skeleton className="h-40 w-full" />
+      </div>
+    );
   }
 
   if (!session.isAuthenticated) {
-    return (
-      <SignInCard
-        onSignIn={() => void session.signIn()}
-        error={session.error}
-        source={session.source}
-        pending={session.signingIn}
-      />
-    );
+    return <SignInCard error={session.error} />;
   }
 
   return <ClaimForm claim={claim} />;
