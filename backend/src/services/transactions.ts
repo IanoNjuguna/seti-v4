@@ -548,7 +548,7 @@ export async function recordPayment(input: RecordPaymentInput) {
   // mode it is the GROSS. Either way the chain is authoritative.
   const merchantLeg = readTransferredAmount(
     receipt,
-    getTokenContract(asset),
+    getTokenContract(asset, normalizeNetwork(input.network, servedNetwork)),
     merchant.payoutAddress,
     asset
   );
@@ -592,7 +592,7 @@ export async function recordPayment(input: RecordPaymentInput) {
     // which is the same uncollected-fee problem in a new shape.
     const treasuryLeg = readTransferredAmount(
       receipt,
-      getTokenContract(asset),
+      getTokenContract(asset, normalizeNetwork(input.network, servedNetwork)),
       treasuryAddressFor(network),
       asset
     );
@@ -851,7 +851,7 @@ export async function recordSend(input: RecordSendInput) {
   // The recipient's leg. The chain is authoritative; the claim is only an input.
   const recipientLeg = readTransferredAmount(
     receipt,
-    getTokenContract(asset),
+    getTokenContract(asset, normalizeNetwork(input.network, servedNetwork)),
     recipient,
     asset
   );
@@ -885,7 +885,7 @@ export async function recordSend(input: RecordSendInput) {
   // fee — the uncollected-fee problem in a new shape, and harder to see.
   const treasuryLeg = readTransferredAmount(
     receipt,
-    getTokenContract(asset),
+    getTokenContract(asset, normalizeNetwork(input.network, servedNetwork)),
     treasuryAddressFor(network),
     asset
   );

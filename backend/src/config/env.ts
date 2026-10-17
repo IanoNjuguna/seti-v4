@@ -79,22 +79,36 @@ const envSchema = z.object({
   ALCHEMY_API_KEY: z.string().optional(),
   TEMPO_TOKEN_PATHUSD: z.string().min(1),
   TEMPO_TOKEN_OUSD: z.string().min(1),
+  /**
+   * Optional overrides for the assets added after the first two.
+   *
+   * OPTIONAL, unlike the pair above, and deliberately so: USDT0 and USDC.e have a
+   * registry address for every chain that lists them (`config/assets.ts`), so a
+   * deposit that arrives as one of them works on a box whose env was never
+   * touched. Requiring the variable would mean the fix only applies after an
+   * operator edits a deployment file — the bridged USDT0 that exposed this bug
+   * would still have read as a zero balance.
+   */
+  TEMPO_TOKEN_USDT0: z.string().optional(),
+  TEMPO_TOKEN_USDCE: z.string().optional(),
 
   /**
-   * The asset the money path spends by default — the ONE place the primary
+   * The asset the money path spends by DEFAULT — the ONE place the primary
    * stablecoin is chosen.
    *
-   * OUSD is Seti's decided money path; pathUSD remains supported (both are
-   * TIP-20 tokens with deployed bytecode on both Tempo chains) but is no longer
-   * what the app signs. This is read once, here, and re-exported as
-   * `PRIMARY_ASSET` from `config/networks.ts`; the route schemas, the balance
-   * lookup and `prove:batch` all consume that constant rather than repeating a
-   * literal. A second hardcode is how the asset stays wrong.
+   * OUSD is Seti's decided money path. pathUSD, USDT0 and USDC.e are equally
+   * supported and are what a customer is actually spending when a bridged
+   * deposit arrives; `PRIMARY_ASSET` only decides which one is PREFERRED when
+   * several could cover a payment (see `pickSpendAsset`). This is read once,
+   * here, and re-exported as `PRIMARY_ASSET` from `config/networks.ts`; the
+   * route schemas, the balance lookup and `prove:batch` all consume that
+   * constant rather than repeating a literal. A second hardcode is how the asset
+   * stays wrong.
    *
    * The web app has its own mirror (`NEXT_PUBLIC_TEMPO_ASSET`, read once in
    * `web/lib/chain`), which must agree with this value.
    */
-  TEMPO_ASSET: z.enum(['ousd', 'pathusd']).default('ousd'),
+  TEMPO_ASSET: z.enum(['ousd', 'pathusd', 'usdt0', 'usdc.e']).default('ousd'),
 
   /**
    * Address that collects the platform fee.
@@ -130,6 +144,10 @@ const envSchema = z.object({
   TEMPO_TESTNET_TOKEN_OUSD: z.string().optional(),
   TEMPO_MAINNET_TOKEN_PATHUSD: z.string().optional(),
   TEMPO_MAINNET_TOKEN_OUSD: z.string().optional(),
+  TEMPO_TESTNET_TOKEN_USDT0: z.string().optional(),
+  TEMPO_TESTNET_TOKEN_USDCE: z.string().optional(),
+  TEMPO_MAINNET_TOKEN_USDT0: z.string().optional(),
+  TEMPO_MAINNET_TOKEN_USDCE: z.string().optional(),
 
   /**
    * Per-network check anchors. The payout/send/quote suites reconcile against a

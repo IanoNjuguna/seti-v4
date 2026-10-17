@@ -25,6 +25,7 @@ import {
   FEE_AMM_ADDRESS,
   assetDecimals,
   assetForContract,
+  servedNetwork,
   formatUnits,
   getBlockTimestamp,
   getTransactionReceipt,
@@ -77,6 +78,14 @@ export interface ClassifyLegsOptions {
   treasuryAddress: string;
   /** Human label for the principal (`payment`) leg. Defaults to 'Recipient'. */
   principalLabel?: string;
+  /**
+   * The network the RECEIPT is on. Required for a correct answer whenever the
+   * asset could be bridged USDC: its contract address differs per chain, so a
+   * leg decoded against the served network's address map would not be recognised
+   * and would vanish from the receipt. Defaults to the served network only for
+   * callers that have already established the two are the same.
+   */
+  network?: Network;
 }
 
 /**
@@ -102,8 +111,10 @@ export function classifyReceiptLegs(
   const principalLabel = options.principalLabel ?? 'Recipient';
   const legs: ReceiptLeg[] = [];
 
+  const logNetwork = options.network ?? servedNetwork;
+
   for (const log of receipt.logs) {
-    const asset = assetForContract(log.address);
+    const asset = assetForContract(log.address, logNetwork);
     if (!asset) continue;
 
     let decoded;
@@ -216,6 +227,8 @@ export async function buildReceipt(
     mineAddress: row.wallet?.address ?? '',
     treasuryAddress: treasuryAddressFor(rowNetwork),
     principalLabel: row.merchant?.name ?? 'Recipient',
+    // The receipt's own network, the same one the receipt was read from.
+    network: rowNetwork,
   });
 
   const gasLegs = legs.filter((leg) => leg.role === 'gas');

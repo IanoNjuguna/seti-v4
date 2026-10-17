@@ -1,7 +1,15 @@
 import { parseAbiItem, type Hex } from 'viem';
 import { prisma } from '../lib/prisma.js';
 import { env } from '../config/env.js';
-import { publicClient, network, servedNetwork, SUPPORTED_ASSETS, type SupportedAsset, assetDecimals } from './chain.js';
+import {
+  publicClient,
+  network,
+  servedNetwork,
+  contractsFor,
+  PRIMARY_ASSET,
+  type SupportedAsset,
+  assetDecimals,
+} from './chain.js';
 import { cursorKeyFor, type Network } from '../lib/network.js';
 import { logAuditEvent } from './audit.js';
 import { getFxQuote, resolveUserFiat } from './payments.js';
@@ -24,9 +32,21 @@ const TRANSFER_EVENT = parseAbiItem([
   'event Transfer(address indexed from, address indexed to, uint256 value)',
 ]);
 
-const ASSET_ADDRESSES: Record<SupportedAsset, Hex> = Object.fromEntries(
-  SUPPORTED_ASSETS.map((asset) => [asset, network.tokens[asset]])
-) as Record<SupportedAsset, Hex>;
+/**
+ * Every token contract this chain lists, in display order.
+ *
+ * DERIVED PER CHAIN, not from the product's asset list: a chain may list fewer
+ * assets (USDT0 is mainnet-only), and a scan pointed at a contract the chain does
+ * not carry queries an address with no code on every tick. `contractsFor` drops
+ * those rather than defaulting them.
+ */
+const ASSET_CONTRACTS: ReadonlyArray<{ asset: SupportedAsset; contract: Hex }> =
+  contractsFor(servedNetwork);
+
+const ASSET_ADDRESSES: ReadonlyArray<[SupportedAsset, Hex]> = ASSET_CONTRACTS.map((entry) => [
+  entry.asset,
+  entry.contract,
+]);
 
 const CHAIN_KEY = network.name;
 
@@ -63,6 +83,19 @@ export interface IndexPassResult {
  */
 let isRunning = false;
 
+/**
+ * The assets THIS CHAIN lists, as a set.
+ *
+ * The wallet row's `asset` is a label on an address that holds every token, so it
+ * is used here only to name which ledger label an indexed transfer gets — never
+ * to decide whether to look at the address. A row labelled with an asset this
+ * chain does not list still has an address worth scanning; it is the label that
+ * is unknown, not the money.
+ */
+const LISTED_ASSETS: ReadonlySet<SupportedAsset> = new Set(
+  ASSET_ADDRESSES.map(([asset]) => asset)
+);
+
 async function getWalletsByAddress(): Promise<Map<string, { userId: string; walletId: string; asset: SupportedAsset }>> {
   const wallets = await prisma.wallet.findMany({
     where: { status: 'active', network: SERVED_NETWORK },
@@ -71,14 +104,20 @@ async function getWalletsByAddress(): Promise<Map<string, { userId: string; wall
 
   const map = new Map<string, { userId: string; walletId: string; asset: SupportedAsset }>();
   for (const wallet of wallets) {
-    const asset = wallet.asset.toLowerCase() as SupportedAsset;
-    if (asset in ASSET_ADDRESSES) {
-      map.set(wallet.address.toLowerCase(), {
-        userId: wallet.userId,
-        walletId: wallet.id,
-        asset,
-      });
-    }
+    const label = wallet.asset.toLowerCase();
+    // Rows written before an asset was supported (`pathusd`, `ousd`) and rows
+    // written today (`usdt0`, `usdc.e`) are both labels. An unrecognised label
+    // falls back to the primary asset rather than dropping the address, because
+    // dropping it would silently stop indexing a wallet the customer is using.
+    const asset = (LISTED_ASSETS.has(label as SupportedAsset)
+      ? label
+      : PRIMARY_ASSET) as SupportedAsset;
+
+    map.set(wallet.address.toLowerCase(), {
+      userId: wallet.userId,
+      walletId: wallet.id,
+      asset,
+    });
   }
   return map;
 }
@@ -131,7 +170,7 @@ async function scanWindow(window: BlockWindow): Promise<void> {
 
   if (addresses.length === 0) return;
 
-  for (const [asset, contractAddress] of Object.entries(ASSET_ADDRESSES)) {
+  for (const [asset, contractAddress] of ASSET_ADDRESSES) {
     const logs = await publicClient.getLogs({
       address: contractAddress,
       event: TRANSFER_EVENT,
@@ -165,7 +204,7 @@ async function scanWindow(window: BlockWindow): Promise<void> {
         });
 
         if (!existing) {
-          const decimals = assetDecimals[asset as SupportedAsset];
+          const decimals = assetDecimals[asset];
           const amount = Number(log.args.value) / 10 ** decimals;
 
           // The fiat figure, stored at the rate in force when the row is written,

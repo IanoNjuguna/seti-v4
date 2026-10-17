@@ -62,7 +62,7 @@ import { classifyReceiptLegs, type ReceiptLeg } from '../services/receipt.js';
 import { treasuryAddressFor } from '../config/networks.js';
 import {
   FEE_AMM_ADDRESS,
-  SUPPORTED_ASSETS,
+  assetsForNetwork,
   getBlockTimestamp,
   getTokenContract,
   getTransactionReceipt,
@@ -304,9 +304,11 @@ async function discoverHashes(args: Args): Promise<string[]> {
   const client = publicClientFor(NETWORK);
   const byHash = new Map<string, number>();
 
-  for (const asset of SUPPORTED_ASSETS) {
+  // The chain's OWN asset list: USDT0 is not listed on the practice registry, so
+  // scanning for it there would query a contract with no code.
+  for (const asset of assetsForNetwork(NETWORK)) {
     const logs = await client.getLogs({
-      address: getTokenContract(asset),
+      address: getTokenContract(asset, NETWORK),
       event: TRANSFER_EVENT,
       args: { from: args.wallet as Hex },
       fromBlock: BigInt(args.fromBlock),
@@ -388,6 +390,7 @@ async function main(): Promise<void> {
       mineAddress: args.wallet,
       treasuryAddress: treasuryAddressFor(NETWORK),
       principalLabel: 'Recipient',
+      network: NETWORK,
     });
 
     console.log('  legs:');

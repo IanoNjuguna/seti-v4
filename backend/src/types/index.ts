@@ -32,7 +32,7 @@ export interface RecentTransaction {
    * chain is visibly journal-only rather than silently so.
    */
   txHash: string | null;
-  /** The token this row moved — `pathusd` or `ousd`. */
+  /** The token this row moved — a label (`ousd`, `pathusd`, `usdt0`, `usdc.e`). */
   asset: string;
   /** The two ends of the transfer, each null when it is not a known address. */
   from: string | null;

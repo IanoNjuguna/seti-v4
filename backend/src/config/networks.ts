@@ -1,4 +1,6 @@
 import { env } from './env';
+import { TEMPO_ASSETS, assetsForChain, tokenAddressFor } from './assets';
+import type { SupportedAsset } from './assets';
 import {
   DEFAULT_NETWORK,
   NETWORK_LABEL,
@@ -34,24 +36,26 @@ export { TEMPO_MAINNET_CHAIN_ID, TEMPO_TESTNET_CHAIN_ID };
 export type NetworkName = 'tempo-mainnet' | 'tempo-testnet';
 
 /**
- * Assets supported in v1.
+ * Assets supported in v1: OUSD, pathUSD, USDT0 and USDC.e.
  *
- * Deliberately limited to the two stablecoins verified as deployed on BOTH
- * Tempo networks (checked via eth_getCode against rpc.tempo.xyz and
- * rpc.moderato.tempo.xyz, decimals 6 on both):
+ * A bridged deposit arrives as USDT0 or USDC.e, so all four are supported and a
+ * bridged deposit simply works — the reason this list grew from two. The
+ * addresses come from Tempo's own registry per chain
+ * (`https://tokenlist.tempo.xyz/list/{chainId}`) and live in ONE table,
+ * `config/assets.ts`; nothing here repeats an address.
  *
- *   pathUSD  0x20c0000000000000000000000000000000000000
- *   OUSD     0x20c0000000000000000000006a37da5c996874be
+ * Supported is not the same as LISTED. A chain may not list an asset — USDT0 is
+ * on the mainnet registry and absent from the practice registry — and a network's
+ * `assets` is that chain's answer, not this list's. Never point a chain at an
+ * address its registry does not carry: a transfer to a no-code address can
+ * succeed as a silent no-op rather than reverting.
  *
- * USDC.e, USDT0 and EURC.e were removed: none of them has deployed bytecode at
- * the addresses previously configured, on either chain. Carrying them meant a
- * transfer to a no-code address (which can succeed as a silent no-op rather
- * than reverting) and an indexer querying dead contracts on every tick. Do not
- * re-add an asset without confirming eth_getCode is non-empty on BOTH chains.
+ * EURC.e is listed on both chains and is deliberately NOT supported: it is
+ * EUR-denominated while every figure the product shows is KES. A currency
+ * decision, not an availability one.
  */
-export const SUPPORTED_ASSETS = ['pathusd', 'ousd'] as const;
-
-export type SupportedAsset = (typeof SUPPORTED_ASSETS)[number];
+export { SUPPORTED_ASSETS } from './assets';
+export type { SupportedAsset } from './assets';
 
 /**
  * The primary asset the app spends, from the ONE setting (`TEMPO_ASSET`).
@@ -81,7 +85,21 @@ export interface NetworkConfig {
   explorerUrl: string;
   isMainnet: boolean;
   bridgeEnv: 'live' | 'sandbox';
-  tokens: Record<SupportedAsset, `0x${string}`>;
+  /**
+   * The assets this CHAIN lists, in display order — what a balance sums over.
+   *
+   * Not `SUPPORTED_ASSETS`: the product supports four assets, while a chain may
+   * list fewer (USDT0 is mainnet-only). Iterating this instead of the product
+   * list is what keeps a balance read from asking a practice chain about a token
+   * its registry has never heard of.
+   */
+  assets: readonly SupportedAsset[];
+  /**
+   * Token contract per asset ON THIS CHAIN. `undefined` means the chain does not
+   * list the asset — never a placeholder address.
+   */
+  tokens: Readonly<Record<SupportedAsset, `0x${string}` | undefined>>;
+
   /**
    * Address that collects the platform fee ON THIS NETWORK.
    *
@@ -178,34 +196,65 @@ function resolveRpcUrl(network: Network, chainId: number): string | undefined {
 }
 
 /**
+ * The env suffix per asset: `TEMPO_TOKEN_<suffix>` /
+ * `TEMPO_<NETWORK>_TOKEN_<suffix>`.
+ *
+ * Named explicitly rather than derived from the label, because `usdc.e` would
+ * derive `USDC.E` / `USDC` and neither is a variable anyone would set.
+ */
+const TOKEN_ENV_SUFFIX: Record<SupportedAsset, string> = {
+  ousd: 'OUSD',
+  pathusd: 'PATHUSD',
+  usdt0: 'USDT0',
+  'usdc.e': 'USDCE',
+};
+
+/**
  * The token map for a network.
  *
- * Per-network override first, then the shared `TEMPO_TOKEN_*` value. Both are
- * validated non-empty: a missing token address would otherwise be signed as the
- * transfer's target, which is an unrecoverable payment to the wrong place.
+ * A chain lists a set of assets (`config/assets.ts`); this resolves each to an
+ * address. Precedence, most specific first: a per-network override
+ * (`TEMPO_MAINNET_TOKEN_OUSD`) → the shared single-network value
+ * (`TEMPO_TOKEN_OUSD`, still honoured for an existing deploy) → the registry
+ * address for THIS chain. The registry value is the default precisely so a new
+ * asset needs no env change to work.
+ *
+ * An asset the chain does not list is left `undefined` rather than defaulted:
+ * there is no address to sign, and a placeholder would be signed as the token
+ * contract. A listed asset whose address is somehow missing is a boot error — a
+ * payment to an address that holds nothing is unrecoverable.
  */
-function buildTokenMap(network: Network): Record<SupportedAsset, `0x${string}`> {
+function buildTokenMap(
+  network: Network,
+  chainId: number
+): Record<SupportedAsset, `0x${string}` | undefined> {
   const prefixed = `TEMPO_${network.toUpperCase()}` as const;
-  const envMap: Record<SupportedAsset, string | undefined> = {
-    pathusd: env[`${prefixed}_TOKEN_PATHUSD` as keyof typeof env] as string | undefined,
-    ousd: env[`${prefixed}_TOKEN_OUSD` as keyof typeof env] as string | undefined,
-  };
+  const tokens = {} as Record<SupportedAsset, `0x${string}` | undefined>;
 
-  const shared: Record<SupportedAsset, string | undefined> = {
-    pathusd: env.TEMPO_TOKEN_PATHUSD,
-    ousd: env.TEMPO_TOKEN_OUSD,
-  };
+  for (const entry of TEMPO_ASSETS) {
+    const { asset } = entry;
+    const registryAddress = tokenAddressFor(asset, chainId);
 
-  const tokens = {} as Record<SupportedAsset, `0x${string}`>;
-  for (const asset of SUPPORTED_ASSETS) {
-    const value = envMap[asset] ?? shared[asset];
+    if (registryAddress === undefined) {
+      // Not listed on this chain. No override can conjure a contract.
+      tokens[asset] = undefined;
+      continue;
+    }
+
+    const suffix = TOKEN_ENV_SUFFIX[asset];
+    const perNetwork = env[`${prefixed}_TOKEN_${suffix}` as keyof typeof env] as string | undefined;
+    const shared = env[`TEMPO_TOKEN_${suffix}` as keyof typeof env] as string | undefined;
+
+    const value = perNetwork ?? shared ?? registryAddress;
     if (!value) {
-      throw new Error(`Missing token address env var for ${asset} on ${network}`);
+      throw new Error(`Missing token address for ${asset} on ${network} (chain ${chainId})`);
     }
     tokens[asset] = value as `0x${string}`;
   }
+
   return tokens;
 }
+
 
 function resolveTreasury(network: Network): string {
   const perNetwork =
@@ -266,7 +315,8 @@ function buildNetworkConfig(network: Network): NetworkConfig {
     explorerUrl: isMainnet ? 'https://explore.tempo.xyz' : 'https://explore.testnet.tempo.xyz',
     isMainnet,
     bridgeEnv: isMainnet ? 'live' : 'sandbox',
-    tokens: buildTokenMap(network),
+    assets: assetsForChain(chainId),
+    tokens: buildTokenMap(network, chainId),
     treasuryAddress: resolveTreasury(network),
     anchors: resolveAnchors(network),
   };

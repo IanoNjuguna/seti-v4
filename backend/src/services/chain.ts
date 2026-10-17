@@ -16,6 +16,7 @@ import {
   PRIMARY_ASSET,
   maskEndpoint,
 } from '../config/networks.js';
+import { ASSET_DECIMALS } from '../config/assets.js';
 import type { Network, SupportedAsset } from '../config/networks.js';
 
 export { network, networkConfigFor, servedNetwork, SUPPORTED_ASSETS, PRIMARY_ASSET };
@@ -205,20 +206,52 @@ export function publicClientFor(target: Network): PublicClient {
   return createPublicClient({ chain, transport: http(config.rpcUrl) });
 }
 
-const assetToContract: Record<SupportedAsset, Hex> = Object.fromEntries(
-  SUPPORTED_ASSETS.map((asset) => [asset, network.tokens[asset]])
-) as Record<SupportedAsset, Hex>;
+/**
+ * Token contract → asset, FOR A NETWORK.
+ *
+ * Built from the network's own token map rather than the served one: bridged
+ * USDC sits at a different address on each chain, so a practice receipt's USDC.e
+ * leg is not the mainnet USDC.e contract's address. Resolving against the served
+ * network would fail to recognise the leg and quietly drop it from the receipt.
+ */
+export function contractsFor(target: Network): { asset: SupportedAsset; contract: Hex }[] {
+  const config = networkConfigFor(target);
+  return config.assets
+    .map((asset) => ({ asset, contract: config.tokens[asset] }))
+    .filter((entry): entry is { asset: SupportedAsset; contract: Hex } => entry.contract !== undefined);
+}
 
+/** Decimals per asset, from the ONE table — all TIP-20 tokens on Tempo are 6. */
 export const assetDecimals: Record<SupportedAsset, number> = Object.fromEntries(
-  SUPPORTED_ASSETS.map((asset) => [asset, 6])
+  SUPPORTED_ASSETS.map((asset) => [asset, ASSET_DECIMALS])
 ) as Record<SupportedAsset, number>;
+
+/** The assets a NETWORK lists, in display order. What a balance sums over. */
+export function assetsForNetwork(target: Network = servedNetwork): readonly SupportedAsset[] {
+  return networkConfigFor(target).assets;
+}
+
+/** True when a chain lists an asset at all — false for USDT0 on practice. */
+export function isListedOn(asset: SupportedAsset, target: Network = servedNetwork): boolean {
+  return networkConfigFor(target).tokens[asset] !== undefined;
+}
 
 export async function getOnChainBalance(
   address: Hex,
   asset: SupportedAsset = PRIMARY_ASSET,
   target: Network = servedNetwork
 ): Promise<string> {
-  const contract = assetToContract[asset];
+  // The contract belongs to the CHAIN, not to the process: USDC.e is a different
+  // address on each network, so reading the served network's map for a practice
+  // address would query a contract that has never seen it and return 0.
+  const contract = networkConfigFor(target).tokens[asset];
+  if (!contract) {
+    throw new Error(
+      `This network does not list ${asset}, so there is no token contract to read. ` +
+        `Listed on ${target}: ${networkConfigFor(target).assets.join(', ')}.`
+    );
+  }
+
   // The ADDRESS is on a network, and the caller knows which one — it found the
   // wallet row by it. Reading the served chain for a practice address returns 0,
   // which is a wrong answer rather than a missing one.
@@ -280,16 +313,23 @@ export async function getBlockTimestamp(
 }
 
 /**
- * Which of our assets a token address is, or null if it is neither.
+ * Which of our assets a token address is, on a given network.
  *
  * Case-insensitive because the address in a log is whatever the contract emitted,
  * while our config stores its own casing — an exact-match lookup would silently
  * fail to recognise our own token.
+ *
+ * Scoped to a network because the addresses are: bridged USDC is a different
+ * contract on each chain, so a lookup that spanned every chain would name an
+ * asset for an address that belongs to the other one.
  */
-export function assetForContract(address: string): SupportedAsset | null {
+export function assetForContract(
+  address: string,
+  target: Network = servedNetwork
+): SupportedAsset | null {
   const lowered = address.toLowerCase();
-  for (const asset of SUPPORTED_ASSETS) {
-    if (assetToContract[asset].toLowerCase() === lowered) return asset;
+  for (const entry of contractsFor(target)) {
+    if (entry.contract.toLowerCase() === lowered) return entry.asset;
   }
   return null;
 }
@@ -312,8 +352,23 @@ export async function waitForTransactionReceipt(
   });
 }
 
-export function getTokenContract(asset: SupportedAsset): Hex {
-  return assetToContract[asset];
+/**
+ * The token contract for an asset ON A NETWORK — the address that gets signed.
+ *
+ * Required network, defaulting to the served one only because the served network
+ * is what a read-only caller means. Every money path passes the transfer's own
+ * network explicitly: USDC.e is a different contract on each chain, so resolving
+ * this against the served network would query and sign the wrong token.
+ */
+export function getTokenContract(asset: SupportedAsset, target: Network = servedNetwork): Hex {
+  const contract = networkConfigFor(target).tokens[asset];
+  if (!contract) {
+    throw new Error(
+      `Refusing to resolve ${asset} on ${target}: this chain does not list that asset ` +
+        `(listed: ${networkConfigFor(target).assets.join(', ')}).`
+    );
+  }
+  return contract;
 }
 
 export async function getBlockNumber(): Promise<bigint> {
@@ -326,7 +381,7 @@ export async function estimateErc20TransferGas(
   amount: bigint,
   asset: SupportedAsset = PRIMARY_ASSET
 ): Promise<bigint> {
-  const contract = assetToContract[asset];
+  const contract = getTokenContract(asset);
   return publicClient.estimateContractGas({
     address: contract,
     abi: erc20Abi,
@@ -369,6 +424,14 @@ export async function estimateErc20TransferGas(
 const MEASURED_BATCH_GAS: Record<SupportedAsset, bigint> = {
   pathusd: BigInt(298_172),
   ousd: BigInt(790_472),
+  // Not yet measured: no Seti receipt spends USDT0 or USDC.e. Both quote the
+  // PESSIMISTIC end of the measured range until one exists, because this figure
+  // decides whether a customer can afford a payment — over-reserving refuses a
+  // payment that would have fitted, under-reserving lets one revert after the
+  // money has been signed for. Re-measure with
+  // `npm run prove:batch -- --asset=usdt0` (or usdc.e) and replace the value.
+  usdt0: BigInt(790_472),
+  'usdc.e': BigInt(790_472),
 };
 
 /** Gas rounding: wei (18dp) to the token's own units (6dp) for a $1 stablecoin. */

@@ -20,14 +20,29 @@ import { previewPayment, previewSend, SendRequiresBatchError } from '../services
 import { toRecentTransaction } from '../services/transaction-view.js';
 import { buildReceipt } from '../services/receipt.js';
 import { mintReceiptLink } from '../services/receipt-link.js';
-import { PRIMARY_ASSET } from '../services/chain.js';
+import { SUPPORTED_ASSETS } from '../services/chain.js';
 
-const assetSchema = z.string().default(PRIMARY_ASSET);
+/**
+ * The asset a client may NAME to spend, if it wants to choose.
+ *
+ * OPTIONAL on purpose: omitting it is the normal path, and lets the server pick
+ * an asset the customer can actually pay from (see `quoteTransfer`). The
+ * preview's own `asset` field carries the answer back, and that is what the
+ * client signs and records.
+ */
+const assetRequestSchema = z.string().optional();
+
+/**
+ * The asset a RECORD carries. Required, and constrained to the supported set:
+ * it is the label reconciled against the receipt, so an unknown string must be a
+ * 400 at the boundary rather than an unchecked cast deeper in.
+ */
+const assetSchema = z.enum(SUPPORTED_ASSETS);
 
 const previewSchema = z.object({
   // KES, not stablecoin units — see PaymentPreviewInput in services/payments.ts.
   amountFiat: z.string().regex(/^\d+(\.\d+)?$/),
-  asset: assetSchema,
+  asset: assetRequestSchema,
   merchantId: z.string().min(1),
 });
 
@@ -62,7 +77,7 @@ const paySchema = z.object({
 const sendPreviewSchema = z.object({
   // KES, not stablecoin units — same unit the pay screen takes, see previewSend.
   amountFiat: z.string().regex(/^\d+(\.\d+)?$/),
-  asset: assetSchema,
+  asset: assetRequestSchema,
   // Shape only. The checksum is the backend's call (`describeEvmAddress`), and
   // the recipient the client signs must be the one this endpoint returns.
   recipient: z.string().regex(/^0x[a-fA-F0-9]{40}$/),

@@ -22,8 +22,9 @@
  * row. The hash it prints is the anchor `npm run check:send` uses to exercise
  * the happy path of `recordSend` against a real batched receipt.
  *
- * Usage:  npm run prove:batch --workspace backend -- [--asset=ousd|pathusd]
- * Needs:  TEMPO_RPC_URL, TEMPO_TOKEN_PATHUSD, TEMPO_TOKEN_OUSD, SETI_TREASURY_ADDRESS
+ * Usage:  npm run prove:batch --workspace backend -- [--asset=ousd|pathusd|usdt0|usdc.e]
+ * Needs:  TEMPO_RPC_URL, SETI_TREASURY_ADDRESS. Token addresses default to
+ *         Tempo's registry (`config/assets.ts`); the TEMPO_TOKEN_* vars only override.
  *         (defaults to PRIMARY_ASSET — see `TEMPO_ASSET`)
  */
 import { http, parseUnits, formatUnits, decodeEventLog, erc20Abi, type Hex } from 'viem';

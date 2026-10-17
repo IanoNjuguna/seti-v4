@@ -670,8 +670,10 @@ async function main() {
         `        chainId   = ${cfg.chainId}\n` +
         `        rpcUrl    = ${cfg.rpcUrl}\n` +
         `        treasury  = ${cfg.treasuryAddress}\n` +
-        `        pathUSD   = ${cfg.tokens.pathusd}\n` +
-        `        OUSD      = ${cfg.tokens.ousd}`
+        // Every asset the chain LISTS, from its own registry — USDT0 is absent
+        // from the practice list, and printing a placeholder for it would be a
+        // claim that the chain carries a contract it does not.
+        cfg.assets.map((asset) => `        ${asset.padEnd(9)} = ${cfg.tokens[asset]}`).join('\n')
     );
   }
 

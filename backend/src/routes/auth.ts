@@ -158,7 +158,7 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     // `asset` labels the row's primary token — it is NOT a filter for later
-    // lookups. One Tempo address holds pathUSD and OUSD, and the unique index on
+    // lookups. One Tempo address holds every supported asset, and the unique index on
     // `address` allows only one row per address, so this column cannot name every
     // asset the wallet can move. Filtering a lookup on it refuses transfers the
     // address can make (the `No active pathusd wallet found` refusal came from

@@ -35,7 +35,6 @@ import {
   getTokenContract,
   network,
   publicClient,
-  SUPPORTED_ASSETS,
 } from '../services/chain.js';
 import { env } from '../config/env.js';
 
@@ -96,8 +95,14 @@ function field(label: string, value: unknown): void {
 async function readChain(txHash: string) {
   try {
     const receipt = await publicClient.getTransactionReceipt({ hash: txHash as Hex });
+    // Every asset the SERVED chain lists. Bridged USDC has a different contract
+    // per chain, so a map built from the product's list rather than this chain's
+    // would miss (or misname) a leg.
     const tokenByAddress = new Map(
-      SUPPORTED_ASSETS.map((asset) => [getTokenContract(asset).toLowerCase(), asset])
+      network.assets.map((asset) => [
+        getTokenContract(asset, network.network).toLowerCase(),
+        asset,
+      ])
     );
 
     const legs: Array<{
@@ -205,7 +210,9 @@ async function byTxHash(txHash: string): Promise<void> {
     field('to', chain.receipt.to);
     console.log('  erc-20 legs:');
     if (chain.legs.length === 0) {
-      console.log('    none for a supported asset (pathUSD, OUSD)');
+      console.log(
+        `    none for a supported asset (${network.assets.join(', ')})`
+      );
     }
     for (const leg of chain.legs) {
       const decimals = assetDecimals[leg.asset as keyof typeof assetDecimals];

@@ -2,8 +2,8 @@ import { getAddress } from 'viem';
 import { prisma } from '../lib/prisma.js';
 import { env } from '../config/env.js';
 import { describeEvmAddress } from '../lib/address.js';
-import { getUserBalance } from './balance.js';
-import { estimateNetworkFee, reserveNetworkFee } from './chain.js';
+import { getUserBalance, pickSpendAsset } from './balance.js';
+import { estimateNetworkFee, reserveNetworkFee, isListedOn, SUPPORTED_ASSETS } from './chain.js';
 import { calculateMerchantFee, minimumTicketForFloor } from './fees.js';
 import { issueQuote } from './quote.js';
 import { servedNetwork, treasuryAddressFor } from '../config/networks.js';
@@ -28,7 +28,12 @@ export interface PaymentPreviewInput {
    * label signed a 250 OUSD transfer, roughly 129x what they meant.
    */
   amountFiat: string;
-  asset: string;
+  /**
+   * The asset to spend, or absent to let the server choose one the customer can
+   * pay from on this network (see `resolveQuoteAsset`). The preview's own `asset`
+   * is the resolved answer and is what the client must sign.
+   */
+  asset?: string;
   type: TransactionType;
   merchantId?: string;
 }
@@ -363,7 +368,9 @@ export async function previewPayment(input: PaymentPreviewInput): Promise<Paymen
     // figure the batch's merchant leg must carry. Asset units are for SIGNING and
     // for the chain; every figure a customer reads is a `*Fiat` one below.
     amount: quote.principalAsset.toFixed(8),
-    asset: input.asset,
+    // The RESOLVED asset, not the request: when the client left the choice to the
+    // server this is the only place it learns what it is about to sign.
+    asset: quote.asset,
     /** Gross amount the customer must sign for: principal + fee + gas. */
     total: quote.total.toFixed(8),
     /**
@@ -423,6 +430,15 @@ export async function previewPayment(input: PaymentPreviewInput): Promise<Paymen
 export interface TransferQuote {
   /** What the customer entered, in KES. */
   fiatAmount: number;
+  /**
+   * The asset this quote is denominated in — RESOLVED, not echoed.
+   *
+   * The client may ask for a specific asset, or leave the choice to the server
+   * (see `pickSpendAsset`). Either way the quote names the one that will be
+   * signed, so the preview, the signature and the reconciliation all read the
+   * same label from the same place.
+   */
+  asset: SupportedAsset;
   /** Principal in stablecoin units — what the recipient receives. */
   principalAsset: number;
   /** Fee in KES, from the schedule. */
@@ -477,10 +493,61 @@ export async function resolveUserFiat(userId: string): Promise<string> {
   return stored && isEnabledFiat(stored) ? stored : DEFAULT_FIAT;
 }
 
+/**
+ * Which asset this quote is for.
+ *
+ * Three cases, in order:
+ *
+ * 1. **The client named one.** Honoured, but only if the product supports it and
+ *    the CHAIN lists it. Asking a practice quote for USDT0 is refused by name
+ *    rather than priced against an address that chain does not carry — a
+ *    transfer to a token contract with no code can land as a silent no-op.
+ * 2. **The client named nothing.** `pickSpendAsset` chooses from what the
+ *    customer actually holds on this network, preferring `PRIMARY_ASSET`. This
+ *    is the case that fixes the bridged deposit: the money is in USDT0, the
+ *    primary balance is zero, and the payment goes through anyway.
+ * 3. There is no third case. An unknown asset is never silently substituted for
+ *    the primary one; the customer would sign a transfer they never agreed to.
+ */
+async function resolveQuoteAsset(
+  input: { userId: string; asset?: string; network?: Network },
+  grossAsset: number
+): Promise<SupportedAsset> {
+  const network = normalizeNetwork(input.network, servedNetwork);
+
+  if (!input.asset) {
+    return pickSpendAsset(input.userId, grossAsset, network);
+  }
+
+  const requested = input.asset as SupportedAsset;
+
+  if (!SUPPORTED_ASSETS.includes(requested)) {
+    throw new Error(
+      `Unsupported asset "${input.asset}". Supported: ${SUPPORTED_ASSETS.join(', ')}.`
+    );
+  }
+
+  if (!isListedOn(requested, network)) {
+    throw new Error(`This network does not list "${input.asset}", so it cannot be spent here.`);
+  }
+
+  return requested;
+}
+
 export async function quoteTransfer(input: {
   userId: string;
   amountFiat: number;
-  asset: string;
+  /**
+   * The asset to spend, or ABSENT to let the server choose one the customer can
+   * actually pay from.
+   *
+   * Absent is the normal path now, and it is what makes a payment work from any
+   * of the four supported assets: a customer whose money arrived as USDT0 has a
+   * zero OUSD balance, so quoting OUSD regardless would refuse a payment they
+   * can afford. An explicit value is still honoured — `prove:batch` and the
+   * check suites pin one on purpose.
+   */
+  asset?: string;
   /** The network the transfer is on. Absent means the network this deployment serves. */
   network?: Network;
 }): Promise<TransferQuote> {
@@ -523,17 +590,17 @@ export async function quoteTransfer(input: {
   //
   // The customer funds their own gas (decided 2026-10-10, no sponsorship), so it
   // belongs on the receipt-and-preview, not buried.
-  const estimate = await estimateNetworkFee(input.asset as SupportedAsset);
-  const networkFeeInAsset = Number(estimate.feeAsset);
-  const reservedNetworkFeeInAsset = Math.max(
-    Number(reserveNetworkFee(input.asset as SupportedAsset).feeAsset),
-    networkFeeInAsset
-  );
-
   const feeRoutingMode = env.FEE_ROUTING_MODE === 'batch' ? 'batch' : 'inside-transfer';
   const feeLegInAsset = feeRoutingMode === 'batch' ? feeInAsset : 0;
 
-  const asset = input.asset as SupportedAsset;
+  const asset = await resolveQuoteAsset(input, grossAsset);
+
+  const estimate = await estimateNetworkFee(asset);
+  const networkFeeInAsset = Number(estimate.feeAsset);
+  const reservedNetworkFeeInAsset = Math.max(
+    Number(reserveNetworkFee(asset).feeAsset),
+    networkFeeInAsset
+  );
   // The BALANCE of the network this payment is on. Sufficiency is a per-chain
   // question: a practice payment checked against a live balance (or the reverse)
   // refuses sends the customer can afford and admits ones they cannot.
@@ -553,6 +620,7 @@ export async function quoteTransfer(input: {
   const networkFeeFiat = networkFeeInAsset * fiatPerUsd;
 
   return {
+    asset,
     fiatAmount,
     fiatCurrency,
     principalAsset,
@@ -597,7 +665,8 @@ export interface SendPreviewInput {
    * KES. The recipient's principal IS this figure; the asset leg is derived.
    */
   amountFiat: string;
-  asset: string;
+  /** Absent lets the server choose what the sender can actually spend. See `quoteTransfer`. */
+  asset?: string;
   /** The address the money goes to. Checksummed before anything is quoted. */
   recipient: string;
 }
@@ -714,7 +783,7 @@ export async function previewSend(input: SendPreviewInput): Promise<SendPreview>
      */
     recipient: getAddress(input.recipient),
     amount: quote.principalAsset.toFixed(8),
-    asset: input.asset,
+    asset: quote.asset,
     total: quote.total.toFixed(8),
     /** See the note in `previewPayment`: every figure a customer reads is fiat. */
     fiatCurrency: quote.fiatCurrency,

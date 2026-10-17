@@ -15,6 +15,7 @@
     "support:payment": "tsx src/cli/support-payment.ts",
     "backfill:sends": "tsx src/cli/backfill-sends.ts",
     "check:fees": "tsx src/services/fees.check.ts",
+    "check:balances": "tsx src/services/balance-assets.check.ts",
     "check:address": "tsx src/lib/address.check.ts",
     "check:env": "tsx src/config/env.check.ts",
     "check:rpc-guard": "tsx src/config/rpc-guard.check.ts",
