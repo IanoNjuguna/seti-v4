@@ -31,6 +31,7 @@
     "check:stuck": "tsx src/services/stuck-transactions.check.ts",
     "check:fee-batch": "tsx src/services/fee-batch.check.ts",
     "check:send": "tsx src/services/send.check.ts",
+    "check:send-anchor": "tsx src/services/send-anchor.check.ts",
     "check:quote": "tsx src/services/quote.check.ts",
     "check:receipt-link": "tsx src/services/receipt-link.check.ts",
     "check:wallets": "tsx src/services/wallet-registry.check.ts",
