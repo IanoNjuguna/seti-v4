@@ -2,12 +2,14 @@
 
 ## Project
 
-A mobile neobank for emerging markets, built on **Tempo**. Users hold stablecoins (OUSD and pathUSD), scan a Seti merchant QR code, and pay the merchant's own wallet directly. v1 settlement is **non-custodial**: the customer's stablecoins go straight to the merchant, and Seti never takes possession of the funds.
+A mobile neobank for emerging markets, built on **Tempo**. Users hold stablecoins (OUSD, pathUSD, USDT0 and USDC.e), scan a Seti merchant QR code, and pay the merchant's own wallet directly. v1 settlement is **non-custodial**: the customer's stablecoins go straight to the merchant, and Seti never takes possession of the funds.
 
 - Product surfaces: the React Native + Expo mobile app (`mobile/`), and the web app (`web/`) — a Next.js 16 App Router landing page plus the product app served at `/app`.
 - Onchain layer: Tempo (EVM-compatible payments chain).
 - Backend: Node.js + PostgreSQL/Supabase.
-- Stablecoin: OUSD and pathUSD — Tempo-native, and the only two assets with deployed bytecode on both chains.
+- Stablecoins: OUSD, pathUSD, USDT0 and USDC.e — all Tempo-native, all 6 decimals. USDT0
+  and USDC.e are what a bridge delivers on arrival, so a bridged deposit simply works.
+  Per-chain addresses come from Tempo's own registry, `https://tokenlist.tempo.xyz/list/{chainId}`.
 - Fee: a flat 2% attributed to the merchant but funded by the customer inside their own transfer (`backend/src/services/fees.ts` is the source of truth).
 - Off-ramp: **none in v1.** There is no Stripe or Bridge integration in the code.
 
@@ -58,7 +60,7 @@ If a rule feels needed in two skills, put it in the owning skill and cross-refer
 - **Mobile:** React Native, Expo, TypeScript, NativeWind (or project-chosen styling), React Navigation.
 - **Web:** Next.js 16 (App Router), TypeScript, Tailwind v4 `@theme` tokens. Design system: `design/revolut.md`.
 - **Backend:** Node.js, Express/Fastify, TypeScript, PostgreSQL/Supabase.
-- **Onchain:** Tempo, viem, Privy (embedded wallets). Assets: pathUSD, OUSD.
+- **Onchain:** Tempo, viem, Privy (embedded wallets). Assets: OUSD, pathUSD, USDT0, USDC.e.
 - **Fiat:** none in v1 — settlement is non-custodial, straight to the merchant's wallet.
 
 ## Verification gates
@@ -84,8 +86,17 @@ If a rule feels needed in two skills, put it in the owning skill and cross-refer
 ## Business logic guardrails
 
 - Preserve the chosen stablecoins and chain (Tempo) unless the user explicitly
-  asks to reconsider. v1 supports **pathUSD and OUSD only** — USDC.e, USDT0 and
-  EURC.e have no deployed bytecode on either Tempo chain and were removed.
+  asks to reconsider. v1 supports **OUSD, pathUSD, USDT0 and USDC.e**. **EURC.e is
+  NOT supported** — a currency decision, not an availability one: it is listed on both
+  chains but is EUR-denominated, and every figure shown is KES, so a EUR balance could
+  not be summed into a customer's balance.
+  Addresses are Tempo's, from `https://tokenlist.tempo.xyz/list/{chainId}` (4217
+  mainnet, 42431 practice) — Tempo lists 36 tokens on mainnet, all 6 decimals. An
+  address belongs to a CHAIN: OUSD and pathUSD share one, bridged USDC does not.
+  Supported is not listed: USDT0 is mainnet-only, so practice supports three.
+  A previous version claimed USDC.e, USDT0 and EURC.e "have no deployed bytecode".
+  That was false, and the check behind it was invalid: `eth_getCode` returns `0xef`
+  for EVERY TIP-20 on Tempo, including OUSD and pathUSD. The real test is `balanceOf`.
 - Fee model: merchant 2% of the payment, no floor, no cap. The **customer**
   funds it even though it is attributed to the merchant. The fee is **collected**
   when `FEE_ROUTING_MODE=batch` (the default): one atomic Tempo transaction
