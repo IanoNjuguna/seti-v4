@@ -20,7 +20,8 @@ export interface RecentTransaction {
   status: RecentTransactionStatus;
   /** The on-chain hash, when the row has one. Null for a journal-only row. */
   txHash: string | null;
-  /** The token this row moved — `pathusd` or `ousd`. */
+  /** The token this row moved — a label such as `ousd`, `pathusd`, `usdt0` or `usdc.e`.
+   * A label on the transfer, never a filter on which wallet it came from. */
   asset: string;
   /** Both ends of the transfer, each null when it is not a known address. */
   from: string | null;

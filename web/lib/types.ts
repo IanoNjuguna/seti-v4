@@ -46,7 +46,7 @@ export interface Transaction {
    * is the only place a customer can check a transfer after the fact.
    */
   txHash?: string | null;
-  /** The token that moved — `pathusd` or `ousd`. */
+  /** The token that moved — a label (`ousd`, `pathusd`, `usdt0`, `usdc.e`). */
   asset?: string;
   from?: string | null;
   to?: string | null;

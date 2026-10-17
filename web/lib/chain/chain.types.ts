@@ -1,12 +1,13 @@
 /**
  * Tempo network shapes, mirroring `mobile/src/lib/chain.ts`.
  *
- * Types only — the values and the env lookups live in `chain.constants.ts`, per
- * the modular structure the app uses.
+ * Types only — the values and the env lookups live in `chain.constants.ts`, the
+ * asset table in `chain.assets.ts`, per the modular structure the app uses.
  */
 
-/** v1 supports exactly these two; see `references/tempo-chain-and-wallets.md`. */
-export type SupportedAsset = 'ousd' | 'pathusd';
+import type { SupportedAsset } from './chain.assets';
+
+export type { SupportedAsset };
 
 export interface NetworkConfig {
   chainId: number;
@@ -14,5 +15,17 @@ export interface NetworkConfig {
   rpcUrl: string;
   explorerUrl: string;
   isMainnet: boolean;
-  tokens: Record<SupportedAsset, `0x${string}`>;
+  /**
+   * The assets this CHAIN lists, in display order.
+   *
+   * Not `SUPPORTED_ASSETS`: the product supports four assets while a chain may
+   * list fewer (USDT0 is mainnet-only), and a control that offered a token this
+   * chain does not carry would be offering a transfer that cannot be signed.
+   */
+  assets: readonly SupportedAsset[];
+  /**
+   * Token contract per asset ON THIS CHAIN. `undefined` means the chain does not
+   * list the asset — never a placeholder address.
+   */
+  tokens: Readonly<Record<SupportedAsset, `0x${string}` | undefined>>;
 }

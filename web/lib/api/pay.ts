@@ -19,7 +19,16 @@ export async function previewPayment(input: {
   userId: string;
   /** The amount the customer entered, in THEIR currency — not stablecoin units. */
   amountFiat: string;
-  asset: string;
+  /**
+   * The asset to spend, or OMITTED to let the server pick one the customer can
+   * pay from.
+   *
+   * Omitted is the normal case, and it is what makes a payment work after a
+   * bridged deposit: the money arrived as USDT0, the OUSD balance is zero, and
+   * naming OUSD here would refuse a payment the customer can afford. The preview
+   * answers with the asset it resolved — sign THAT.
+   */
+  asset?: string;
   merchantId: string;
 }): Promise<{ preview: PaymentPreview }> {
   return post<{ preview: PaymentPreview }>('/transactions/preview', input);

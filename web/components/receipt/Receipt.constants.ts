@@ -98,8 +98,16 @@ export const RECEIPT_ACTION_MESSAGE: Record<ShareOutcome, string | null> = {
   dismissed: null,
 };
 
-/** Token symbols as they are written, not as they are stored. */
+/**
+ * Token symbols as they are written, not as they are stored.
+ *
+ * The receipt is the one surface that names the token, because it is the
+ * mechanical record of what moved on-chain. Every other surface shows a fiat
+ * figure, and a balance never names a token at all.
+ */
 export const RECEIPT_ASSET_NAMES: Record<string, string> = {
   pathusd: 'pathUSD',
   ousd: 'OUSD',
+  usdt0: 'USDT0',
+  'usdc.e': 'USDC.e',
 };

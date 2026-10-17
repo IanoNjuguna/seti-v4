@@ -1,6 +1,14 @@
 import { isAddress, type Chain } from 'viem';
 import type { Network } from '@/lib/network';
 import type { NetworkConfig, SupportedAsset } from './chain.types';
+import {
+  ASSET_DECIMALS_BY_ASSET,
+  SUPPORTED_ASSETS,
+  TEMPO_MAINNET_CHAIN_ID,
+  TEMPO_TESTNET_CHAIN_ID,
+  assetsForChain,
+  registryAddressFor,
+} from './chain.assets';
 
 /**
  * Canonical Tempo network configuration for the browser.
@@ -14,8 +22,7 @@ import type { NetworkConfig, SupportedAsset } from './chain.types';
  * and an unsupported chain id is refused rather than silently used — an address
  * on the wrong chain is an unrecoverable payment error.
  */
-export const TEMPO_MAINNET_CHAIN_ID = 4217;
-export const TEMPO_TESTNET_CHAIN_ID = 42431;
+export { TEMPO_MAINNET_CHAIN_ID, TEMPO_TESTNET_CHAIN_ID, SUPPORTED_ASSETS } from './chain.assets';
 
 /**
  * The chain's own name, in the one place the word is written.
@@ -27,17 +34,40 @@ export const TEMPO_TESTNET_CHAIN_ID = 42431;
  */
 export const CHAIN_NAME = 'Tempo';
 
-export const SUPPORTED_ASSETS = ['pathusd', 'ousd'] as const;
+/**
+ * Decimals per asset — all TIP-20 tokens on Tempo are 6, and the table is the one
+ * place that says so.
+ */
+export const ASSET_DECIMALS: Record<SupportedAsset, number> = ASSET_DECIMALS_BY_ASSET;
 
-/** TIP-20 tokens on Tempo use 6 decimals, like USDC. */
-export const ASSET_DECIMALS: Record<SupportedAsset, number> = { ousd: 6, pathusd: 6 };
-
+/**
+ * Env lookups, one per asset, written out.
+ *
+ * `usdc.e` would derive `USDC.E` / `USDC` from the label and neither is a
+ * variable anyone would set, so every name is spelled here rather than assembled.
+ */
 const ENV = {
   chainId: process.env.NEXT_PUBLIC_TEMPO_CHAIN_ID,
   asset: process.env.NEXT_PUBLIC_TEMPO_ASSET,
-  pathusd: process.env.NEXT_PUBLIC_TEMPO_TOKEN_PATHUSD,
-  ousd: process.env.NEXT_PUBLIC_TEMPO_TOKEN_OUSD,
   allowMainnet: process.env.NEXT_PUBLIC_ALLOW_MAINNET,
+  testnet: {
+    ousd: process.env.NEXT_PUBLIC_TEMPO_TESTNET_TOKEN_OUSD,
+    pathusd: process.env.NEXT_PUBLIC_TEMPO_TESTNET_TOKEN_PATHUSD,
+    usdt0: process.env.NEXT_PUBLIC_TEMPO_TESTNET_TOKEN_USDT0,
+    'usdc.e': process.env.NEXT_PUBLIC_TEMPO_TESTNET_TOKEN_USDCE,
+  } satisfies Record<SupportedAsset, string | undefined>,
+  mainnet: {
+    ousd: process.env.NEXT_PUBLIC_TEMPO_MAINNET_TOKEN_OUSD,
+    pathusd: process.env.NEXT_PUBLIC_TEMPO_MAINNET_TOKEN_PATHUSD,
+    usdt0: process.env.NEXT_PUBLIC_TEMPO_MAINNET_TOKEN_USDT0,
+    'usdc.e': process.env.NEXT_PUBLIC_TEMPO_MAINNET_TOKEN_USDCE,
+  } satisfies Record<SupportedAsset, string | undefined>,
+  shared: {
+    ousd: process.env.NEXT_PUBLIC_TEMPO_TOKEN_OUSD,
+    pathusd: process.env.NEXT_PUBLIC_TEMPO_TOKEN_PATHUSD,
+    usdt0: process.env.NEXT_PUBLIC_TEMPO_TOKEN_USDT0,
+    'usdc.e': process.env.NEXT_PUBLIC_TEMPO_TOKEN_USDCE,
+  } satisfies Record<SupportedAsset, string | undefined>,
 } as const;
 
 /**
@@ -69,7 +99,8 @@ function resolvePrimaryAsset(): SupportedAsset {
 
 export const PRIMARY_ASSET: SupportedAsset = resolvePrimaryAsset();
 
-const NETWORKS: Record<number, Omit<NetworkConfig, 'tokens'>> = {
+/** `assets` and `tokens` are per network and are attached by `chainConfigFor`. */
+const NETWORKS: Record<number, Omit<NetworkConfig, 'tokens' | 'assets'>> = {
   [TEMPO_MAINNET_CHAIN_ID]: {
     chainId: TEMPO_MAINNET_CHAIN_ID,
     displayName: 'Tempo Mainnet',
@@ -131,7 +162,46 @@ export function chainConfigFor(target: Network): NetworkConfig {
     );
   }
 
-  return { ...selected, tokens: { ousd: requireToken('ousd'), pathusd: requireToken('pathusd') } };
+  return {
+    ...selected,
+    assets: assetsForChain(chainId),
+    tokens: buildTokens(selected.isMainnet ? 'mainnet' : 'testnet', chainId),
+  };
+}
+
+/**
+ * The token contract per asset, for ONE chain.
+ *
+ * Precedence: a per-network override (`NEXT_PUBLIC_TEMPO_MAINNET_TOKEN_OUSD`) →
+ * the shared value (`NEXT_PUBLIC_TEMPO_TOKEN_OUSD`) → the registry address for
+ * THIS chain. The registry default is what lets a new asset work without an env
+ * edit, which matters: the deployment serving this bug has an env file nobody is
+ * going to hand-edit, and a customer whose USDT0 arrived by bridge cannot wait
+ * for one.
+ *
+ * An override, when present, is still validated — a truncated or mistyped
+ * address is a non-empty string that would be signed as the token contract.
+ * An asset the chain does not list stays `undefined`.
+ */
+function buildTokens(
+  target: Network,
+  chainId: number
+): Record<SupportedAsset, `0x${string}` | undefined> {
+  const scoped = target === 'mainnet' ? ENV.mainnet : ENV.testnet;
+  const tokens = {} as Record<SupportedAsset, `0x${string}` | undefined>;
+
+  for (const asset of SUPPORTED_ASSETS) {
+    const registry = registryAddressFor(asset, chainId);
+    if (registry === undefined) {
+      tokens[asset] = undefined;
+      continue;
+    }
+
+    const override = scoped[asset] || ENV.shared[asset] || undefined;
+    tokens[asset] = override ? requireToken(asset, override) : registry;
+  }
+
+  return tokens;
 }
 
 /** The viem chain for a network, for anything that needs one (wallets, links). */
@@ -150,9 +220,26 @@ export function tempoChainFor(target: Network): Chain {
   } satisfies Chain;
 }
 
-/** The TIP-20 contract for an asset ON A NETWORK — the address that gets signed. */
+/** The assets a NETWORK lists, in display order — what a balance sums over. */
+export function assetsFor(target: Network): readonly SupportedAsset[] {
+  return chainConfigFor(target).assets;
+}
+
+/**
+ * The TIP-20 contract for an asset ON A NETWORK — the address that gets signed.
+ *
+ * Fails closed for an asset the chain does not list. USDT0 has no practice
+ * contract, and returning a placeholder (or the mainnet address) there would sign
+ * against an account that holds nothing.
+ */
 export function getTokenContractFor(asset: SupportedAsset, target: Network): `0x${string}` {
-  return chainConfigFor(target).tokens[asset];
+  const contract = chainConfigFor(target).tokens[asset];
+  if (!contract) {
+    throw new Error(
+      `This network does not list ${asset}, so there is no token contract to sign against.`
+    );
+  }
+  return contract;
 }
 
 /** The explorer link for a transaction, on the network it happened on. */
@@ -160,23 +247,20 @@ export function getExplorerTxUrlFor(txHash: string, target: Network): string {
   return `${chainConfigFor(target).explorerUrl}/tx/${txHash}`;
 }
 
-function requireToken(asset: SupportedAsset): `0x${string}` {
-  const name = `NEXT_PUBLIC_TEMPO_TOKEN_${asset.toUpperCase()}`;
-  const value = ENV[asset];
-
-  if (!value) {
-    throw new Error(
-      `${name} is not set. Copy web/.env.example to web/.env.local and fill it in — it ` +
-        'must match the backend and mobile values.'
-    );
-  }
-
-  // Presence is not enough. A truncated or mistyped address (e.g. an abbreviated
-  // `0x20c0...74be`) is a non-empty string that would be signed as the token
-  // contract, sending the transfer to an address that holds nothing. Same class
-  // of bug as a mis-checksummed payout address, so it fails the same way.
+/**
+ * An env OVERRIDE, validated.
+ *
+ * Presence is not enough. A truncated or mistyped address (e.g. an abbreviated
+ * `0x20c0...74be`) is a non-empty string that would be signed as the token
+ * contract, sending the transfer to an address that holds nothing. Same class of
+ * bug as a mis-checksummed payout address, so it fails the same way.
+ */
+function requireToken(asset: SupportedAsset, value: string): `0x${string}` {
   if (!isAddress(value)) {
-    throw new Error(`${name} is not a valid 20-byte address: ${value}`);
+    throw new Error(
+      `The configured address for ${asset} is not a valid 20-byte address: ${value}. ` +
+        'Fix or remove the override so the registry address is used.'
+    );
   }
 
   return value as `0x${string}`;
@@ -246,9 +330,9 @@ export const tempoChain = {
   blockExplorers: { default: { name: 'Tempo Explorer', url: network.explorerUrl } },
 } as const satisfies Chain;
 
-/** The TIP-20 contract to call for an asset. */
+/** The TIP-20 contract to call for an asset, on the network this build serves. */
 export function getTokenContract(asset: SupportedAsset): `0x${string}` {
-  return network.tokens[asset];
+  return getTokenContractFor(asset, DEPLOYMENT_NETWORK);
 }
 
 export function getExplorerTxUrl(txHash: string): string {

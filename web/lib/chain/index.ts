@@ -16,5 +16,7 @@ export {
   tempoChainFor,
   getTokenContractFor,
   getExplorerTxUrlFor,
+  assetsFor,
 } from './chain.constants';
+export { TEMPO_ASSETS, ASSET_DECIMALS_BY_ASSET } from './chain.assets';
 export type { NetworkConfig, SupportedAsset } from './chain.types';

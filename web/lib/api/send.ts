@@ -16,7 +16,11 @@ import type { RecordSendInput, RecordSendResult, SendPreview } from './send.type
 export async function previewSend(input: {
   /** The amount the customer entered, in THEIR currency — the same unit the pay screen takes. */
   amountFiat: string;
-  asset: string;
+  /**
+   * The asset to spend, or OMITTED to let the server pick one the sender can pay
+   * from. See `previewPayment`: the preview answers with the resolved asset.
+   */
+  asset?: string;
   recipient: string;
 }): Promise<{ preview: SendPreview }> {
   return post<{ preview: SendPreview }>('/transactions/send/preview', input);

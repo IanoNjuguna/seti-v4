@@ -7,8 +7,12 @@
  * `backend/src/routes/transactions.ts` and reconcile both sides.
  */
 
-/** v1 supports exactly these two; see `references/tempo-chain-and-wallets.md`. */
-export type SupportedAsset = 'ousd' | 'pathusd';
+/**
+ * The assets Seti supports. Mirrors `web/lib/chain/chain.assets.ts` and the
+ * backend's `SUPPORTED_ASSETS`; USDT0 and USDC.e are what a bridge delivers on
+ * arrival, which is why they are here.
+ */
+export { type SupportedAsset } from '@/lib/chain/chain.assets';
 
 export interface PaymentPreview {
   /** The principal in the asset's own units — what gets signed. */

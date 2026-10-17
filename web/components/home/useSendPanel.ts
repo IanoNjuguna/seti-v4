@@ -20,10 +20,34 @@ import { useEmbeddedWallet } from '@/hooks/useEmbeddedWallet';
 import { useTempoSender } from '@/hooks/useTempoSender';
 import type { ResolvedRecipient, SendPanelState, UseSendPanelReturn } from './SendPanel.types';
 
-/** The asset the money path signs, from the ONE setting. OUSD is the decided money
- * path; `PRIMARY_ASSET` is read in `lib/chain` and consumed here rather than
- * repeated, so the app cannot sign one token while a label names another. */
-const ASSET: SupportedAsset = PRIMARY_ASSET;
+/**
+ * How many decimals an amount field may carry.
+ *
+ * Every supported asset is 6dp and the asset itself is not known until the quote
+ * answers, so the field is validated against the primary asset's precision — the
+ * same 6 either way. The figure that gets SIGNED comes from the preview, never
+ * from this constant.
+ */
+const AMOUNT_DECIMALS = ASSET_DECIMALS[PRIMARY_ASSET];
+
+/**
+ * The asset the server resolved for a quote.
+ *
+ * The client no longer chooses. A customer whose money arrived as USDT0 has a
+ * zero OUSD balance, so signing OUSD regardless refused a send they could afford;
+ * the server picks from what they actually hold and this reads its answer. The
+ * cast is guarded rather than asserted: an unrecognised label means the two
+ * builds disagree about the asset set, which must fail loudly and not sign.
+ */
+function resolvedAsset(preview: { asset: string }): SupportedAsset {
+  if (!(preview.asset in ASSET_DECIMALS)) {
+    throw new Error(
+      `The quote named an asset this build does not support (${preview.asset}). ` +
+        'Update the app before sending.'
+    );
+  }
+  return preview.asset as SupportedAsset;
+}
 /** A label, not a token name: the customer is sending dollars — which stablecoin
  * backs it is an implementation detail they should never have to reason about. */
 const ASSET_LABEL = 'USD';
@@ -208,7 +232,7 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
   useEffect(() => {
     const amount = state.amountFiat;
     if (!state.recipient.trim() || !amount) return;
-    if (!validateAmount(amount, ASSET_DECIMALS[ASSET]).ok) return;
+    if (!validateAmount(amount, AMOUNT_DECIMALS).ok) return;
 
     // The quote is for the ADDRESS, whether it was typed or resolved from a
     // username. A username that has not resolved yet quotes nothing.
@@ -218,7 +242,7 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
     let active = true;
 
     const timer = setTimeout(() => {
-      previewSend({ amountFiat: amount, asset: ASSET, recipient: destination })
+      previewSend({ amountFiat: amount, recipient: destination })
         .then(({ preview }) => {
           if (!active) return;
           // The quote landing is the moment the figure stops moving and becomes what
@@ -246,7 +270,7 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
   }, [state.recipient, state.amountFiat, address, resolved, patch]);
 
   const submit = useCallback(() => {
-    const value = validateAmount(state.amountFiat, ASSET_DECIMALS[ASSET]);
+    const value = validateAmount(state.amountFiat, AMOUNT_DECIMALS);
     const destination = destinationFor(state.recipient, address, resolved);
 
     if (!destination.address || !value.ok) {
@@ -277,7 +301,7 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
       let preview: SendPreview;
       try {
         // Fresh, authoritative quote — the displayed one may be seconds old.
-        ({ preview } = await previewSend({ amountFiat, asset: ASSET, recipient }));
+        ({ preview } = await previewSend({ amountFiat, recipient }));
         patch({ preview });
       } catch (error) {
         patch({
@@ -302,7 +326,9 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
         // the treasury. Atomic, so the fee cannot go missing.
         const { txHash } = await signSend({
           preview,
-          asset: ASSET,
+          // The asset the SERVER priced this send in — both legs (principal and
+          // fee) ride in it, so the whole batch is one token.
+          asset: resolvedAsset(preview),
           sendTempoTransaction,
           network: appNetwork,
         });
@@ -312,7 +338,7 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
         const record = (quoteId: string) =>
           recordSend({
             amount: preview.amount,
-            asset: ASSET,
+            asset: resolvedAsset(preview),
             recipient: preview.recipient,
             txHash,
             walletAddress: address,
@@ -324,7 +350,7 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
         } catch (error) {
           // The quote aged out between the preview and the record. Re-quote once.
           if (error instanceof ApiError && error.code === 'quote-expired') {
-            const { preview: fresh } = await previewSend({ amountFiat, asset: ASSET, recipient });
+            const { preview: fresh } = await previewSend({ amountFiat, recipient });
             patch({ preview: fresh });
 
             if (fresh.totalFiat !== preview.totalFiat) {
@@ -364,7 +390,7 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
   const reset = useCallback(() => setState(INITIAL), []);
 
   const amountIsQuotable =
-    state.recipient !== '' && state.amountFiat !== '' && validateAmount(state.amountFiat, ASSET_DECIMALS[ASSET]).ok;
+    state.recipient !== '' && state.amountFiat !== '' && validateAmount(state.amountFiat, AMOUNT_DECIMALS).ok;
 
   return {
     ...state,

@@ -13,17 +13,35 @@ import {
 } from '@/lib/api';
 import { classifyPaymentError } from '@/lib/pay/classify-payment-error';
 import { signPayment } from '@/lib/pay/sign-payment';
-import { PRIMARY_ASSET } from '@/lib/chain';
+import { ASSET_DECIMALS } from '@/lib/chain';
 import { quoteArrived } from '@/lib/feedback';
 import { useEmbeddedWallet } from '@/hooks/useEmbeddedWallet';
 import { useTempoSender } from '@/hooks/useTempoSender';
 import { useAppNetwork } from '@/components/app/useAppNetwork';
 import type { PayState, UsePayMerchantReturn } from './usePayMerchant.types';
 
-/** The asset the money path signs, from the ONE setting. OUSD is the decided money
- * path; `PRIMARY_ASSET` is read in `lib/chain` and consumed here rather than
- * repeated, so both hooks and every label agree. */
-const ASSET: SupportedAsset = PRIMARY_ASSET;
+/**
+ * The asset the server resolved for a quote.
+ *
+ * The client no longer chooses one. A customer whose money arrived as USDT0 has a
+ * zero OUSD balance, so signing OUSD regardless refused a payment they could
+ * afford — the bug a bridged deposit exposed. The server picks from what they
+ * hold (`pickSpendAsset`) and this reads its answer, so the principal leg, the fee
+ * leg and the recorded label are all the same token.
+ *
+ * The cast is guarded rather than asserted: an unrecognised label means this build
+ * and the backend disagree about the asset set, which must fail loudly instead of
+ * signing a transfer against a contract this build has no address for.
+ */
+function resolvedAsset(value: string): SupportedAsset {
+  if (!(value in ASSET_DECIMALS)) {
+    throw new Error(
+      `The quote named an asset this build does not support (${value}). ` +
+        'Update the app before paying.'
+    );
+  }
+  return value as SupportedAsset;
+}
 /** Human-facing label only. Users are paying in dollars — the token behind it is
  * an implementation detail they should never have to reason about. */
 const ASSET_LABEL = 'USD';
@@ -121,7 +139,7 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
     let active = true;
 
     const timer = setTimeout(() => {
-      previewPayment({ userId, amountFiat: amount, asset: ASSET, merchantId })
+      previewPayment({ userId, amountFiat: amount, merchantId })
         .then(({ preview }) => {
           if (!active) return;
           // The arrival pulse, same moment as the send panel: the figure has landed
@@ -245,7 +263,6 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
       ({ preview } = await previewPayment({
         userId,
         amountFiat: amount,
-        asset: ASSET,
         merchantId,
       }));
       setPartial({ preview });
@@ -272,10 +289,14 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
       // The wallet is resolved here, not passed in: it only exists once the
       // embedded wallet does, and asking for it is what surfaces "sign in first".
       const { provider, address } = await getSigningWallet();
+      // Resolved ONCE, from the fresh preview, and used for both the signature
+      // and the record: the fee leg rides in the same asset as the principal.
+      const asset = resolvedAsset(preview.asset);
+
       const { txHash } = await signPayment({
         preview,
         merchant,
-        asset: ASSET,
+        asset,
         provider,
         // In `batch` mode the payment is signed as ONE Tempo transaction with two
         // calls — the principal leg and the fee leg — through the Privy Tempo
@@ -303,7 +324,7 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
           // leg to the recipient IS the gross — principal + fee, with no gas figure
           // in it, because gas is not transferred to anyone.
           amount: preview.feeRoutingMode === 'batch' ? preview.amount : preview.grossAsset,
-          asset: ASSET,
+          asset,
           merchantId,
           txHash,
           description: `Payment to ${merchant.name}`,
@@ -323,7 +344,6 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
           const { preview: fresh } = await previewPayment({
             userId,
             amountFiat: amount,
-            asset: ASSET,
             merchantId,
           });
           setPartial({ preview: fresh });
