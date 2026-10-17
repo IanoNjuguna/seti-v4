@@ -5,7 +5,7 @@ import { termsContent } from "../legal/terms.content";
 export const metadata: Metadata = {
   title: "Terms of Use — Seti",
   description:
-    "The terms governing use of the Seti mobile app and website, including wallet custody, stablecoin payments, and dispute resolution.",
+    "The terms for using Seti: what it is, how a payment works, the 2% fee, what is recorded, and what is public.",
   alternates: { canonical: "/terms" },
 };
 

@@ -135,12 +135,18 @@ resized it and asked for it to stay — but it is **no longer the hero visual**.
   field replaced it — and `public/hero-banner.png` is retained but unused. See
   [Hero payment QR](#hero-payment-qr) for what the code encodes and the one env
   var (`NEXT_PUBLIC_SITE_ORIGIN`) that decides it.
-- **Legal placeholders are published.** `app/legal/site.ts` holds `legalName`,
-  `entitySuffix`, `address` (`[Registered address]`), `email` and
-  `NOTICES_EMAIL` (`legal@seti.example`) and `domain` (`https://seti.example`).
-  That file is marked LEGAL REVIEW REQUIRED, and the documents themselves state
-  they have not been reviewed by a qualified Kenyan attorney. Replace the
-  details and have the documents reviewed before publishing.
+- **Legal placeholders are visible, on purpose.** `app/legal/site.ts` holds the
+  three facts nothing in this repo can supply: `LEGAL_ENTITY`,
+  `REGISTERED_ADDRESS` and `CONTACT_EMAIL`. They render as `[[LEGAL ENTITY]]`,
+  `[[REGISTERED ADDRESS]]` and `[[CONTACT EMAIL]]` inside the documents, so the
+  gap is visible on the page rather than filled with an invented company name.
+  `domain` is read from `lib/site.ts` (`NEXT_PUBLIC_SITE_ORIGIN`), not restated
+  here. The Terms additionally leave the governing law and forum unpublished.
+  The three documents are written from the code — collected fields from
+  `backend/prisma/schema.prisma`, the three `localStorage` keys, the processors
+  (Privy, Cloudflare, AWS) — and each says plainly that it still needs a
+  lawyer's review. Fill the placeholders and get that review before treating
+  them as final.
 - **The donations QR is generated, not hand-made.** `public/treasury-qr.png`
   comes from `scripts/generate-treasury-qr.py`, which reads
   `SETI_TREASURY_ADDRESS`. Regenerate it whenever the address changes — otherwise

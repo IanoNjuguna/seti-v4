@@ -2,93 +2,94 @@ import { SITE, LEGAL_EFFECTIVE_DATE, PRIVACY_URL, TERMS_URL } from "./site";
 import type { LegalSection } from "./LegalDocument";
 
 /**
- * Cookie Notice, adapted from the General Legal CC0 Cookie Notice template for
- * Seti.
+ * Cookie Notice, written from what the site actually stores.
  *
- * Most of the template is inapplicable and was cut rather than left in as
- * inaccurate boilerplate: Flash and Flash LSOs (Flash is dead), FullStory
- * session replay (never deployed), the Advertising / Analytics / Social cookie
- * categories with their vendor columns (no such cookies exist), and the
- * Network Advertising Initiative / Digital Advertising Alliance / AppChoices
- * opt-out instructions (there is no interest-based advertising to opt out of).
+ * NOT an adaptation of a template. The cookie categories a template carries
+ * (advertising, analytics, social, Flash, session replay, the ad-industry
+ * opt-out lists) do not exist here, and disclosing them would describe data
+ * flows the product does not have. What is left is one real category, plus the
+ * device storage the app's own session lives in.
  *
- * What remains is the one category that is real — essential cookies — plus the
- * device storage the site's own session lives in, which is named below because
- * the rules cover storage and not only cookies.
+ * Every entry below is a key in this repository, not a guess:
  *
- * NO CDN VIDEO. This notice used to disclose "one video asset from Amazon
- * CloudFront". There is no such asset: the landing page's backdrop is CSS only
- * (`app/components/landing/LandingBackdrop.tsx` replaced the stock coin video
- * with two transform-only layers), `public/` holds no video file, and no source
- * file requests a third-party media host. Disclosing a request the site does not
- * make is not the safe direction — it describes a data flow that does not exist
- * and hides the ones that do.
+ *  - `seti-auth-token`, `seti-auth-user` — `web/lib/auth/auth.constants.ts`,
+ *    written by `auth.storage.ts`.
+ *  - `seti-sound-muted` — `web/lib/sound.ts`.
+ *  - Balance visibility is NOT stored: `web/components/home/useBalanceVisibility.ts`
+ *    keeps it in memory on purpose, so it resets on reload. The previous version
+ *    of this notice listed it as a stored preference. It is not one.
+ *  - No third-party media: the landing backdrop is CSS
+ *    (`app/components/landing/LandingBackdrop.tsx`) and `public/` holds no video.
+ *  - Typefaces are served from this domain by `next/font`, not fetched from a
+ *    font host by the browser (`web/app/layout.tsx`).
  *
- * DEVICE STORAGE, NOT JUST COOKIES. The rules cover cookies and similar
- * technologies, and this site keeps its session in `localStorage` rather than in
- * a cookie (`web/lib/auth/auth.storage.ts`), so the notice names that storage
- * explicitly. The earlier wording claimed the site did not "use local or session
- * storage to identify you", which was false — the stored token and user object do
- * exactly that — and a notice that denies what a browser's storage inspector
- * plainly shows is worse than one that says nothing.
- *
- * LEGAL REVIEW REQUIRED before publishing.
+ * LEGAL REVIEW REQUIRED before this is treated as final.
  */
 
 const intro = [
-  `This Cookie Notice explains what cookies and similar technologies ${SITE.legalName} ("Seti", "we", "us") uses on the website at ${SITE.domain} and in the Seti mobile application (together, the "Service").`,
-  `The short version: Seti does not use advertising, analytics, or tracking cookies, and does not run third-party advertising or tracking scripts. There is nothing here for you to opt out of, because there is nothing tracking you across sites.`,
-  `Adapted from a public legal template published by General Legal under CC0 1.0. Not reviewed by a Kenyan attorney.`,
+  `This notice says what Seti stores in your browser, and what it does not. It covers the website at ${SITE.domain} and the Seti app.`,
+  "The short version: we set no cookies of our own, run no analytics, and load nothing that follows you across other sites.",
 ];
 
 const sections: LegalSection[] = [
   {
-    title: "What we actually set",
+    title: "1. What we set",
     paragraphs: [
-      "The website sets no cookies of its own: we do not write cookies and we do not read them.",
-      "The site does keep a session on your device, and it is not a cookie. When you sign in, the token that keeps you signed in, and a copy of the account details that go with it, are stored in your browser's local storage. That storage is strictly necessary — without it you would be signed out on every page load — and it identifies your account to the site, so we are naming it here rather than leaving it out.",
-      "Two preferences you choose are remembered the same way: whether sound is muted, and whether your balance is hidden. Both are set by you, on your device, and are used only to render the site the way you asked for it.",
-      "The Service also relies on Privy, which manages authentication and your embedded wallet. Privy may set cookies or similar storage on the website when you sign in. These are set by Privy, not by Seti, and they are necessary to authenticate you and keep you signed in. Privy describes its own processing in its privacy policy.",
-      "That is the complete list. If you have checked a cookie-reading tool on our site and found nothing advertising-shaped, that is correct and intended.",
+      "Nothing. Seti sets no cookies on the website and reads none. There is no analytics cookie, no advertising cookie and no social media cookie.",
+      "There is also no analytics product, no session recorder, no heat map and no advertising pixel on this site.",
     ],
   },
   {
-    title: "Third-party requests the website makes",
+    title: "2. What stays in your browser",
     paragraphs: [
-      "The marketing website loads no video and no media from a third-party content delivery network. Its background is drawn in CSS by the page itself, so there is no media request to disclose and no provider receiving an IP address for one.",
-      "The website loads no third-party scripts, no fonts from third-party providers — the typefaces are served from this domain — no embedded maps, no social media widgets, and no advertising tags. The requests a visitor's browser makes to read the marketing pages are for files served from the domain they are already on.",
+      "Your browser's local storage holds three things, and nothing else is kept. Hiding your balance is not remembered: it goes back to shown the next time you load the page. Signing out clears the first two entries. These are the keys, exactly as they are stored:",
+    ],
+    clauses: [
+      "seti-auth-token: the token that keeps you signed in. Strictly necessary; without it you would be signed out on every page.",
+      "seti-auth-user: a copy of the account details that go with that session. It is only a cache, and it is checked with the server on every load.",
+      "seti-sound-muted: whether you muted the app's sound. Your choice, used only to decide whether to play it.",
     ],
   },
   {
-    title: "The mobile application",
+    title: "3. The one thing that is not ours",
     paragraphs: [
-      "The app does not track you across other apps or websites, and contains no advertising or analytics SDK.",
+      "Signing in runs on Privy, and Privy keeps its own session in its own storage. That is Privy's, not yours to find here, and Privy describes it in its own privacy policy.",
+      "It is strictly necessary to sign in: without it you could not stay signed in at all.",
     ],
   },
   {
-    title: "Your choices",
+    title: "4. What the site loads",
     paragraphs: [
-      "Because Seti does not set advertising or analytics cookies, there is no consent banner to interact with and no preference dashboard to manage. If you see a cookie banner on our site in future, that is a sign we have added non-essential tracking and have not yet updated this notice — please tell us.",
-      "Browser controls. You can still block or delete cookies and site storage through your browser settings. Because we set no cookies ourselves, doing so will not prevent you from reading the marketing site — but deleting the site's local storage will sign you out, because that is where your session is kept.",
-      "Blocking images. You can configure your browser to block images, which will remove the artwork on the marketing pages. There is no video to block: the landing page's backdrop is drawn in CSS by the page itself.",
+      "No third-party scripts, and no fonts fetched from another domain: the typefaces are served from this site.",
+      "No video, no embedded map, no social media widget, no advertising tag. The background on the home page is drawn by the page itself, so there is no media request to anyone else.",
+      "The requests your browser makes for these pages go to the site you are already on.",
     ],
   },
   {
-    title: "Changes to this notice",
+    title: "5. Your choices",
     paragraphs: [
-      "If Seti adds any non-essential cookie, SDK, or tracking technology, we will update this notice and, where the law requires it, ask for your consent before deploying it. You do not currently need to consent to anything on our site.",
+      "There is no consent banner, because there is nothing non-essential to consent to. If you ever see one on this site, something has been added that this notice has not caught up with. Tell us.",
+      "You can block or clear cookies and site storage in your browser. Reading the marketing pages still works, but clearing the site's storage signs you out, because that is where your session lives.",
+      "Blocking images removes the artwork on the marketing pages. There is no video to block.",
     ],
   },
   {
-    title: "Related documents",
+    title: "6. Changes to this notice",
     paragraphs: [
-      `Our Privacy Policy is available at ${PRIVACY_URL} and our Terms of Use at ${TERMS_URL}. Both describe the personal information the Service handles, including the transaction records that are permanent and public on the blockchain.`,
+      "If we add a cookie, a tracking script or an analytics product, we update this notice and ask for your consent first where the law requires it. Until then, there is nothing here to opt out of.",
+    ],
+  },
+  {
+    title: "7. Related documents",
+    paragraphs: [
+      `Our Privacy Policy is at ${PRIVACY_URL} and our Terms of Use at ${TERMS_URL}. Both describe what the service handles, including the payment records that are permanent and public on Tempo.`,
       `Questions about this notice: ${SITE.email}.`,
     ],
   },
 ];
 
-const footnote = `Adapted from legal templates by General Legal, used under CC0 1.0 Universal. This document is a draft and has not been reviewed by a qualified Kenyan attorney. It accurately describes the site as built at the effective date above; it is not a commitment about future changes.`;
+const footnote =
+  "This notice lists what the site stores as built at the date above: three local storage entries, no cookies of its own, and no tracking. It was written from the product itself and still needs a lawyer's review before it is treated as final.";
 
 export const cookiesContent = {
   title: "Cookie Notice",
