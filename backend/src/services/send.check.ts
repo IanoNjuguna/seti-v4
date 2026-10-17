@@ -8,18 +8,41 @@
  *
  * Requires live Postgres and an RPC, because every assertion here is about what
  * the chain recorded. The happy path is anchored on a REAL batched transaction
- * (`ANCHOR` below, produced by `npm run prove:batch`), so this suite exercises
- * `recordSend` against the same two-leg receipt a customer's wallet produces —
- * not against a stub.
+ * (`deriveSendAnchor` below, produced by `npm run prove:batch`), so this suite
+ * exercises `recordSend` against the same two-leg receipt a customer's wallet
+ * produces — not against a stub.
+ *
+ * WHICH ANCHOR, AND ON WHICH CHAIN
+ * -------------------------------
+ * The anchor is the receipt this deployment's served network pins:
+ *
+ *   serving practice → `TEMPO_TESTNET_SEND_ANCHOR_TX`, else the pinned Moderato
+ *                      OUSD batch this suite has always reconciled;
+ *   serving live     → `TEMPO_MAINNET_SEND_ANCHOR_TX`. Nothing else: a practice
+ *                      receipt proves nothing about chain 4217.
+ *
+ * `ANCHOR_NETWORK` is therefore the SERVED network, so `anchorNetworkPermitsRun`
+ * holds by construction — a receipt is read and reconciled only on the chain it
+ * lives on. When the served network has NO anchor pinned, the suite SKIPS
+ * loudly, naming the chain, and exits 0: that is not a pass and it must not
+ * pretend to be one.
+ *
+ * THE FIXTURE IS DERIVED FROM THE RECEIPT, NOT DECLARED
+ * ----------------------------------------------------
+ * The signer is `receipt.from`; the principal is the largest transfer that is
+ * neither the gas fee recipient (`0xfeec…`) nor the treasury; its recipient is
+ * that transfer's `to`; the asset is resolved from that transfer's token address
+ * through the per-chain asset table (see `services/send-anchor.ts`). Nothing
+ * here names an address, an amount or an asset, which is what lets a mainnet
+ * anchor be reconciled by pinning it — no constant edits, no chance of the
+ * fixture and the receipt disagreeing.
  *
  * The anchor is PINNED BY HASH and read by hash, so its verdict depends on the
  * code rather than on how busy the chain happened to be: a receipt is immutable,
- * so a quiet chain cannot make it disappear. Override the hash with
- * `SEND_ANCHOR_TX` (e.g. a fresh `npm run prove:batch` receipt, when the default
- * anchor's sender has since been registered to another account). If the pinned
- * receipt cannot be read the suite FAILS LOUDLY naming the hash and the network —
- * it never skips its happy path, because a suite that skipped there would report
- * green while verifying nothing.
+ * so a quiet chain cannot make it disappear. If the pinned receipt cannot be read
+ * the suite FAILS LOUDLY naming the hash and the network — it never skips its
+ * happy path, because a suite that skipped there would report green while
+ * verifying nothing.
  *
  * The guard that matters most is the fee leg. A send that reaches the recipient
  * but not the treasury is the uncollected-fee failure wearing a new shape, and
@@ -37,29 +60,34 @@ import { PaymentRefusalError } from './payment-refusal.js';
 import { getFxQuote } from './payments.js';
 import { issueQuote } from './quote.js';
 import { calculateMerchantFee } from './fees.js';
-import { formatUnits, getTokenContract, networkConfigFor, publicClientFor, estimateNetworkFee } from './chain.js';
+import {
+  FEE_AMM_ADDRESS,
+  formatUnits,
+  getTokenContract,
+  networkConfigFor,
+  publicClientFor,
+  estimateNetworkFee,
+  servedNetwork,
+} from './chain.js';
+import { treasuryAddressFor } from '../config/networks.js';
 import { env } from '../config/env.js';
 import type { Network } from '../lib/network.js';
 import { anchorNetworkPermitsRun } from './anchor-network.js';
+import { deriveSendAnchor, type DerivedSendAnchor } from './send-anchor.js';
 
 /**
- * THE NETWORK THE PINNED ANCHOR RECEIPT IS ON — Practice, deliberately.
+ * THE NETWORK THE PINNED ANCHOR RECEIPT IS ON — the network this deployment
+ * SERVES.
  *
- * The receipt this suite reconciles against is a Moderato batch: no mainnet batch
- * carries both legs yet (see `docs/internal/mainnet-flip.md`). The suite's verdict
- * is meant to depend on the CODE rather than on which network the box happens to
- * serve, so it names the network its anchor lives on instead of inheriting the
- * served one:
- *
- *  - the receipt and its logs are read through a client for THIS network;
- *  - every fixture wallet is registered on it, so the signer is a wallet the
- *    account holds where the send is recorded;
- *  - every `recordSend` below is recorded on it, through `recordOnAnchorNetwork`.
- *
- * To move the suite to mainnet, pin a real mainnet batched receipt (SEND_ANCHOR_TX)
- * AND change this constant.
+ * A receipt is per CHAIN, so the anchor must come from the chain the ledger this
+ * suite records against lives on. Naming the served network (rather than a
+ * constant) is what lets the same suite reconcile a Moderato receipt on a
+ * practice deployment and a mainnet receipt on the live one, with no
+ * cross-network mix possible: the receipt is read through THIS network's client,
+ * every fixture wallet is registered on it, and every `recordSend` below is
+ * recorded on it through `recordOnAnchorNetwork`.
  */
-const ANCHOR_NETWORK: Network = 'testnet';
+const ANCHOR_NETWORK: Network = servedNetwork;
 const anchorNetwork = networkConfigFor(ANCHOR_NETWORK);
 const anchorPublicClient = publicClientFor(ANCHOR_NETWORK);
 
@@ -108,41 +136,62 @@ async function refusalOf(
 }
 
 /**
- * The default anchor: a real batched transaction on Moderato: ONE transaction, two
- * transfers — 0.5 OUSD to a throwaway recipient, and the 2% fee (0.01 OUSD) to
- * SETI_TREASURY_ADDRESS. Signed and paid for by `npm run prove:batch` — the SAME
- * asset the app signs, because the receipt this suite reconciles against must
- * match what the client produces.
+ * The practice anchor this suite has always reconciled against: a real batched
+ * transaction on Moderato — ONE transaction, two transfers, 0.5 OUSD to a
+ * throwaway recipient and the 2% fee (0.01 OUSD) to the treasury — signed and
+ * paid for by `npm run prove:batch`.
  *
- * Anchoring on it is what makes the happy path a statement about Tempo rather
- * than about this file: the receipt it points at was produced by a wallet, in
- * the shape the client signs, and it is immutable. The hash is overridable with
- * SEND_ANCHOR_TX (see the file header) so a fresh receipt can be pinned without
- * editing code.
+ * It is the FALLBACK, used only when this deployment serves practice and no
+ * per-network hash is pinned. It is deliberately not `ANCHOR_DEFAULTS`'
+ * `testnet.send` from `config/networks.ts`: that value is the batched PATHUSD
+ * receipt `check:quote` uses, and reconciling OUSD against it would fail on the
+ * asset. Keeping the OUSD receipt here is what makes practice behaviour
+ * unchanged.
  */
-const DEFAULT_ANCHOR_TX = '0xe58f82dfd016ad6d1823dde4183d386bf0c62d59cf4de6706f45b9cab39186f0';
+const PINNED_PRACTICE_ANCHOR =
+  '0xe58f82dfd016ad6d1823dde4183d386bf0c62d59cf4de6706f45b9cab39186f0';
 
-const ANCHOR = {
-  txHash: ((process.env.SEND_ANCHOR_TX ?? '').trim() || DEFAULT_ANCHOR_TX) as Hex,
-  /**
-   * The address that SIGNED the anchor: the receipt's `from`.
-   *
-   * A recorded transfer is bound to the wallet that signed it, so the fixture
-   * must DECLARE this address and own the wallet row holding it — `Wallet.address`
-   * is globally unique, so the signer's address has to be free. `npm run
-   * prove:batch` generates a throwaway key each run, so its sender is free by
-   * construction; if a run is ever made from a wallet that is already registered,
-   * pick a fresh receipt the same way — the suite fails loudly rather than
-   * quietly.
-   *
-   * Re-asserted below against `receipt.from`, so a stale value fails as a
-   * precondition rather than as a confusing reconciliation failure.
-   */
-  sender: '0x57105d4e8c5fD5e868c2B60342580724Ba3fBb92',
-  recipient: '0x4111Cc6F2EaE3860e5A4CEF90A42C0572A19e127',
-  principal: '0.5',
-  asset: 'ousd',
-} as const;
+/**
+ * The per-network anchor variables, read once, in one place.
+ *
+ * `config/env.ts` declares them; naming them here as a map (rather than building
+ * the key by string interpolation) is what makes the two values the ONLY way an
+ * anchor can be pinned — a third spelling cannot quietly appear.
+ */
+const SEND_ANCHOR_ENV: Record<Network, string | undefined> = {
+  testnet: env.TEMPO_TESTNET_SEND_ANCHOR_TX,
+  mainnet: env.TEMPO_MAINNET_SEND_ANCHOR_TX,
+};
+
+/**
+ * The anchor hash this deployment's served network pins, or undefined when that
+ * network has none.
+ *
+ * The hash comes from the per-network variable above — `TEMPO_TESTNET_SEND_ANCHOR_TX`
+ * / `TEMPO_MAINNET_SEND_ANCHOR_TX` — so an anchor belongs to exactly one chain and
+ * pinning a mainnet receipt cannot point a practice run at chain 4217. The shared
+ * `SEND_ANCHOR_TX` is deliberately NOT consulted: it names no chain, and it is
+ * what made it possible to read one network's receipt while recording against
+ * another.
+ *
+ * Practice additionally carries its long-standing default; the live network
+ * carries none until a real mainnet batch receipt exists, which is the honest
+ * state — see `anchorNetworkPermitsRun` and `docs/internal/mainnet-flip.md`.
+ */
+function pinnedSendAnchor(target: Network): Hex | undefined {
+  const pinned = (SEND_ANCHOR_ENV[target] ?? '').trim();
+  if (pinned) return pinned as Hex;
+  return target === 'testnet' ? PINNED_PRACTICE_ANCHOR : undefined;
+}
+
+/**
+ * The fixture, DERIVED from the pinned receipt (see `services/send-anchor.ts`).
+ *
+ * Assigned once in `main`, after the receipt has been read on the served chain.
+ * Every use below reads a fact the chain recorded — there is no address, amount
+ * or asset in this file to go stale.
+ */
+let anchor: DerivedSendAnchor;
 
 /** A valid address no user holds, for the self-send refusal. */
 const SELF_ADDRESS = getAddress('0x0000000000000000000000000000000000000001');
@@ -165,30 +214,37 @@ const RECIPIENT_EMAIL = 'send-check-recipient@seti.test';
  * It shows up as a Transfer in every Tempo receipt (see `prove:batch`), and it is
  * skipped when looking for a plain transfer to anchor the fee-leg guard on:
  * using the fee recipient as the "recipient" would test the guard against a
- * transfer that is itself a fee.
+ * transfer that is itself a fee. The address itself lives in `services/chain.ts`
+ * — this is the same value, compared in one case so a log and the constant
+ * cannot disagree about casing.
  */
-const FEE_RECIPIENT = '0xfeec000000000000000000000000000000000000';
+const FEE_RECIPIENT = FEE_AMM_ADDRESS.toLowerCase();
 
 const transferEvent = parseAbiItem(
   'event Transfer(address indexed from, address indexed to, uint256 value)'
 );
 
 /**
- * Finds a recent OUSD transfer that is NOT part of the anchor.
+ * Finds a recent transfer, in the ANCHOR's asset, that is NOT part of the anchor.
  *
  * Used for the realistic "recipient got paid, treasury did not" case: a plain
  * transfer has a principal leg and no fee leg, which is exactly the shape the
  * guard has to catch. Walking in 10-block chunks because the provider caps the
  * range a single `getLogs` may cover.
+ *
+ * The token is resolved ON THE ANCHOR NETWORK: on a mainnet deployment the
+ * served-network lookup would ask for the same address anyway, but on any
+ * mismatch it would scan a contract that is not the one the anchor spends.
  */
-async function findRecentOusdTransfer(): Promise<string | null> {
+async function findRecentTransfer(): Promise<string | null> {
   const head = await anchorPublicClient.getBlockNumber();
   const CHUNK = 10n;
+  const token = getTokenContract(anchor.asset, ANCHOR_NETWORK);
 
   for (let end = head; end > head - 20_000n; end -= CHUNK) {
     try {
       const logs = await anchorPublicClient.getLogs({
-        address: getTokenContract('ousd'),
+        address: token,
         event: transferEvent,
         fromBlock: end - CHUNK + 1n > 0n ? end - CHUNK + 1n : 0n,
         toBlock: end,
@@ -209,7 +265,7 @@ async function describeTransfer(
   txHash: Hex
 ): Promise<{ to: string; value: string } | null> {
   const receipt = await anchorPublicClient.getTransactionReceipt({ hash: txHash });
-  const token = getTokenContract('ousd').toLowerCase();
+  const token = getTokenContract(anchor.asset, ANCHOR_NETWORK).toLowerCase();
 
   for (const entry of receipt.logs) {
     if (entry.address.toLowerCase() !== token) continue;
@@ -262,6 +318,11 @@ async function teardownSafely(): Promise<void> {
  * not there at all. SKIPPING the happy path (which is what this suite used to do)
  * would then report green while verifying nothing about `recordSend` — so this
  * exits 1 with the hash and the network instead.
+ *
+ * It does NOT validate the receipt's contents: whether the receipt can anchor a
+ * send is decided by `deriveSendAnchor`, which refuses a receipt with no treasury
+ * leg, no payment leg, or a token the chain's asset table does not know — named
+ * failures rather than a mismatch between two copies of the fixture.
  */
 async function readAnchorReceipt(hash: Hex): Promise<TransactionReceipt> {
   let receipt: TransactionReceipt | null = null;
@@ -277,22 +338,9 @@ async function readAnchorReceipt(hash: Hex): Promise<TransactionReceipt> {
         `(chain ${anchorNetwork.chainId}, ${anchorNetwork.rpcUrl})` +
         `${receipt ? ' — the transaction reverted' : ''}.\n` +
         'A recorded transfer is reconciled against this receipt, so without it the\n' +
-        'suite cannot verify anything. Set SEND_ANCHOR_TX to a fresh batched OUSD\n' +
-        'receipt (npm run prove:batch), or fix the network/RPC.'
-    );
-    await teardownSafely();
-    await prisma.$disconnect();
-    process.exit(1);
-  }
-
-  const hasAnchorAsset = receipt.logs.some(
-    (entry) => entry.address.toLowerCase() === getTokenContract(ANCHOR.asset).toLowerCase()
-  );
-  if (!hasAnchorAsset) {
-    console.error(
-      `\nPinned send anchor ${hash} on ${anchorNetwork.displayName} carries no ${ANCHOR.asset} transfer.\n` +
-        `This suite reconciles a ${ANCHOR.asset} send against it, so it is the wrong receipt.\n` +
-        'Set SEND_ANCHOR_TX to a batched OUSD receipt (npm run prove:batch).'
+        'suite cannot verify anything. Pin a batched receipt on THIS network as ' +
+        `TEMPO_${ANCHOR_NETWORK.toUpperCase()}_SEND_ANCHOR_TX\n` +
+        '(`npm run prove:batch` prints the line to pin), or fix the network/RPC.'
     );
     await teardownSafely();
     await prisma.$disconnect();
@@ -302,21 +350,79 @@ async function readAnchorReceipt(hash: Hex): Promise<TransactionReceipt> {
   return receipt;
 }
 
+/**
+ * Refuses to run when the address the fixture needs to own already belongs to an
+ * account — LOUDLY, naming the collision.
+ *
+ * `wallets` is unique on `address` PER NETWORK, so an address can only be
+ * declared by the account that holds it on the network the send is recorded on.
+ * A collision here is a real signal, not an obstacle to work around: the pinned
+ * receipt was signed by a wallet that is already someone's, so the honest
+ * response is a fresh receipt (or a free address), never a fixture that quietly
+ * records one account's transfer against another's wallet.
+ */
+async function assertAddressIsFree(address: string, role: string): Promise<void> {
+  const taken = await prisma.wallet.findFirst({
+    where: { address: { equals: address, mode: 'insensitive' }, network: ANCHOR_NETWORK },
+  });
+
+  if (!taken) return;
+
+  console.error(
+    `\nThe anchor's ${role} ${address} is already a wallet row on ` +
+      `${ANCHOR_NETWORK} (account ${taken.userId}).\n` +
+      `A recorded transfer is bound to the wallet that signed it, and an address can\n` +
+      `belong to only one account per network, so this suite cannot declare it.\n` +
+      `Pin a fresh batched receipt signed by an unregistered wallet (npm run prove:batch)\n` +
+      `as TEMPO_${ANCHOR_NETWORK.toUpperCase()}_SEND_ANCHOR_TX — the fixture is derived from the\n` +
+      'receipt, so no constant needs editing.'
+  );
+  await teardownSafely();
+  await prisma.$disconnect();
+  process.exit(1);
+}
+
 async function main(): Promise<void> {
   if (env.FEE_ROUTING_MODE !== 'batch') {
     console.log(
       'skip  FEE_ROUTING_MODE is not "batch" — `recordSend` refuses every send there,\n' +
         '      which is the point of it, but it makes the rest of this suite unreachable.\n' +
-        'Run it as: FEE_ROUTING_MODE=batch npm run check:send'
+        '      Run it as: FEE_ROUTING_MODE=batch npm run check:send'
     );
     await prisma.$disconnect();
     process.exit(0);
   }
 
-  // The anchor is a Moderato receipt; reconcile it only through a deployment that
-  // serves Moderato. On a mainnet deployment no mainnet anchor is pinned yet, so
-  // this suite SKIPS — loudly, naming why — rather than read a Moderato receipt
-  // and record against a mainnet-serving ledger. See `anchor-network.ts`.
+  // --- Which receipt, on which chain --------------------------------------
+  //
+  // The anchor is the served network's own pinned receipt, so the invariant below
+  // holds by construction: this suite never reconciles a receipt from a chain it
+  // is not serving. What it CANNOT do is invent one — the live network has no
+  // batched receipt until an operator makes one — so the honest outcome there is
+  // a loud SKIP that names the chain, never a pass and never a failure.
+  const anchorHash = pinnedSendAnchor(ANCHOR_NETWORK);
+
+  if (!anchorHash) {
+    console.error(
+      `\nskip  check:send: this deployment serves ${anchorNetwork.label} ` +
+        `(${ANCHOR_NETWORK}, chain ${anchorNetwork.chainId}) and NO send anchor is pinned\n` +
+        `      for it. A receipt is per CHAIN, so a receipt from the other network proves\n` +
+        '      nothing here — and reconciling one would record a transfer the served chain\n' +
+        '      never made.\n' +
+        `      Pin a real batched receipt on ${anchorNetwork.label} as ` +
+        `TEMPO_${ANCHOR_NETWORK.toUpperCase()}_SEND_ANCHOR_TX.\n` +
+        '      On Live that is: npm run prove:batch -- --network=mainnet --confirm-real-money\n' +
+        '      — it prints the exact line to pin on success.\n' +
+        '      SKIPPED — NOT passed: nothing about send reconciliation was verified.'
+    );
+    await prisma.$disconnect();
+    process.exit(0);
+  }
+
+  // The invariant, asked AFTER an anchor is known to exist: a pinned receipt runs
+  // only on the chain it lives on. With `ANCHOR_NETWORK` being the served network
+  // this is true by construction — the call is kept as the assertion of that, and
+  // it prints which chain this run verified on.
   if (
     !anchorNetworkPermitsRun({ suite: 'check:send', kind: 'send', anchorNetwork: ANCHOR_NETWORK })
   ) {
@@ -324,9 +430,34 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
+  const anchorReceipt = await readAnchorReceipt(anchorHash);
+
+  // The fixture, read off the receipt. A receipt that cannot anchor a send (no
+  // treasury leg, no payment leg, an unsupported token) is refused HERE, with the
+  // reason, rather than becoming a confusing reconciliation failure later.
+  try {
+    anchor = deriveSendAnchor(anchorReceipt, ANCHOR_NETWORK);
+  } catch (error) {
+    console.error(
+      `\nPinned send anchor ${anchorHash} on ${anchorNetwork.displayName} cannot anchor a send:\n  ` +
+        `${(error as Error).message}\n` +
+        'This suite reconciles a two-leg batched send against it, so the receipt must carry\n' +
+        'both the principal and the fee to the treasury.'
+    );
+    await teardownSafely();
+    await prisma.$disconnect();
+    process.exit(1);
+  }
+
   const quote = await getFxQuote();
   console.log(`fee routing mode: ${env.FEE_ROUTING_MODE}`);
-  console.log(`treasury: ${env.SETI_TREASURY_ADDRESS}`);
+  console.log(`network: ${anchorNetwork.displayName} (${ANCHOR_NETWORK}, chain ${anchorNetwork.chainId})`);
+  console.log(`treasury: ${treasuryAddressFor(ANCHOR_NETWORK)}`);
+  console.log(`anchor: ${anchorHash}`);
+  console.log(
+    `derived: ${anchor.principal} ${anchor.asset} from ${anchor.sender} to ${anchor.recipient} ` +
+      `+ ${anchor.treasuryFee} fee\n`
+  );
   console.log(`rate: ${quote.fiatPerUsd} (${quote.source})\n`);
 
   await teardown();
@@ -355,12 +486,12 @@ async function main(): Promise<void> {
   //   * `otherWallet`  — ACTIVE, the row a lookup finds first. This is the one
   //                      the old code bound every recorded transfer to, and it is
   //                      NOT the wallet that signed the anchor.
-  //   * `signerWallet` — DEPRECATED, holding ANCHOR.sender: the address the chain
-  //                      recorded as the sender of the anchor. Deprecated is what
-  //                      login does to a row when it registers a different
-  //                      address, which is exactly how a real account ends up in
-  //                      this shape — and why a lookup by status can never find
-  //                      the signer.
+  //   * `signerWallet` — DEPRECATED, holding the RECEIPT's sender: the address
+  //                      the chain recorded as the sender of the anchor.
+  //                      Deprecated is what login does to a row when it
+  //                      registers a different address, which is exactly how a
+  //                      real account ends up in this shape — and why a lookup by
+  //                      status can never find the signer.
   //
   // The row must land on `signerWallet`. Making the wrong wallet the ACTIVE one
   // (rather than relying on row order) is what keeps this deterministic.
@@ -370,17 +501,21 @@ async function main(): Promise<void> {
   // wrong reason). Nothing signs with it.
   //
   // The two wallets' asset labels are deliberately unreliable as filters: the
-  // account's ACTIVE wallet is labelled `ousd` (the asset the suite sends) while
-  // the row that actually SIGNED is labelled `pathusd` and is DEPRECATED. A
-  // lookup by (asset, status) therefore finds the wrong wallet — which is the bug
-  // the binding assertion below exists to catch. Do not "tidy" the labels into
+  // account's ACTIVE wallet is labelled with the asset the suite sends while the
+  // row that actually SIGNED is labelled `pathusd` and is DEPRECATED. A lookup by
+  // (asset, status) therefore finds the wrong wallet — which is the bug the
+  // binding assertion below exists to catch. Do not "tidy" the labels into
   // agreement: login labels every wallet with the primary asset, and the signer's
   // row can carry any label.
+  //
+  // The ACTIVE row's label follows the receipt's asset (`anchor.asset`), which is
+  // `ousd` on the practice anchor: the point is that it agrees with what the suite
+  // sends while still being the WRONG wallet.
   const otherWallet = await prisma.wallet.create({
     data: {
       userId: user.id,
       chain: 'tempo',
-      asset: 'ousd',
+      asset: anchor.asset,
       address: SELF_ADDRESS,
       status: 'active',
       // Registered on the network this suite records on: a wallet the account does
@@ -390,32 +525,21 @@ async function main(): Promise<void> {
     },
   });
 
-  // The signer's address has to be FREE. `Wallet.address` is globally unique, and
-  // a fixture cannot own an address another account holds — so if one does, this
-  // fails loudly with the reason instead of turning into a P2002 that reads like
-  // a broken suite. (It is not skipped silently: the binding is the point of
-  // these assertions.)
-  const signerAddress = getAddress(ANCHOR.sender);
-  const signerTaken = await prisma.wallet.findFirst({ where: { address: signerAddress } });
-  if (signerTaken && signerTaken.userId !== user.id) {
-    console.error(
-      `The anchor's sender ${signerAddress} is already registered to another account.\n` +
-        'A recorded transfer is bound to the wallet that signed it, and an address\n' +
-        'can belong to only one account, so this suite cannot declare it. Pick a\n' +
-        'fresh batched receipt signed by an unregistered wallet (npm run prove:batch)\n' +
-        'and update ANCHOR in this file.'
-    );
-    await teardownSafely();
-    await prisma.$disconnect();
-    process.exit(1);
-  }
+  // The addresses the fixture must OWN have to be FREE on this network, and a
+  // collision is a real signal rather than an obstacle: `wallets` is unique on
+  // (address, network), so an address another account holds cannot be declared
+  // here. Both the signer and the recipient are checked, and each fails LOUDLY
+  // naming the address — never a P2002 that reads like a broken suite, and never
+  // a quiet skip (the binding is the whole point of these assertions).
+  await assertAddressIsFree(anchor.sender, 'sender');
+  await assertAddressIsFree(anchor.recipient, 'recipient');
 
   const signerWallet = await prisma.wallet.create({
     data: {
       userId: user.id,
       chain: 'tempo',
       asset: 'pathusd',
-      address: signerAddress,
+      address: anchor.sender,
       status: 'deprecated',
       network: ANCHOR_NETWORK,
     },
@@ -429,20 +553,12 @@ async function main(): Promise<void> {
       userId: recipientUser.id,
       chain: 'tempo',
       asset: 'pathusd',
-      address: getAddress(ANCHOR.recipient),
+      address: anchor.recipient,
       network: ANCHOR_NETWORK,
     },
   });
 
   const countRows = () => prisma.transaction.count({ where: { userId: user.id } });
-
-  // --- The anchor must still be what this suite thinks it is -----------------
-  //
-  // Read BY HASH, and read LOUDLY: `readAnchorReceipt` exits 1 with the hash and
-  // the network if the pinned receipt cannot be used, so the happy path below
-  // always runs. The suite can no longer go green with its most important
-  // assertions skipped on a quiet chain.
-  const anchorReceipt = await readAnchorReceipt(ANCHOR.txHash);
 
   // --- Guards that do not need a real receipt -------------------------------
 
@@ -457,7 +573,7 @@ async function main(): Promise<void> {
     await recordOnAnchorNetwork({
       userId: user.id,
       amount: '1',
-      asset: 'ousd',
+      asset: anchor.asset,
       recipient: '0xnot-an-address',
       txHash: `0x${'11'.repeat(32)}`,
       quoteId: sendQuoteId,
@@ -481,7 +597,7 @@ async function main(): Promise<void> {
     await recordOnAnchorNetwork({
       userId: user.id,
       amount: '1',
-      asset: 'ousd',
+      asset: anchor.asset,
       recipient: SELF_ADDRESS,
       txHash: `0x${'22'.repeat(32)}`,
       quoteId: sendQuoteId,
@@ -525,10 +641,10 @@ async function main(): Promise<void> {
   const undeclared = await refusalOf(() =>
     recordOnAnchorNetwork({
       userId: user.id,
-      amount: ANCHOR.principal,
-      asset: ANCHOR.asset,
-      recipient: ANCHOR.recipient,
-      txHash: ANCHOR.txHash,
+      amount: anchor.principal,
+      asset: anchor.asset,
+      recipient: anchor.recipient,
+      txHash: anchorHash,
       quoteId: sendQuoteId,
     })
   );
@@ -548,10 +664,10 @@ async function main(): Promise<void> {
   const foreign = await refusalOf(() =>
     recordOnAnchorNetwork({
       userId: user.id,
-      amount: ANCHOR.principal,
-      asset: ANCHOR.asset,
-      recipient: ANCHOR.recipient,
-      txHash: ANCHOR.txHash,
+      amount: anchor.principal,
+      asset: anchor.asset,
+      recipient: anchor.recipient,
+      txHash: anchorHash,
       quoteId: sendQuoteId,
       walletAddress: STRANGER_ADDRESS,
     })
@@ -572,10 +688,10 @@ async function main(): Promise<void> {
   const malformedDeclaration = await refusalOf(() =>
     recordOnAnchorNetwork({
       userId: user.id,
-      amount: ANCHOR.principal,
-      asset: ANCHOR.asset,
-      recipient: ANCHOR.recipient,
-      txHash: ANCHOR.txHash,
+      amount: anchor.principal,
+      asset: anchor.asset,
+      recipient: anchor.recipient,
+      txHash: anchorHash,
       quoteId: sendQuoteId,
       walletAddress: '0xnot-an-address',
     })
@@ -594,10 +710,10 @@ async function main(): Promise<void> {
   const notTheSender = await refusalOf(() =>
     recordOnAnchorNetwork({
       userId: user.id,
-      amount: ANCHOR.principal,
-      asset: ANCHOR.asset,
-      recipient: ANCHOR.recipient,
-      txHash: ANCHOR.txHash,
+      amount: anchor.principal,
+      asset: anchor.asset,
+      recipient: anchor.recipient,
+      txHash: anchorHash,
       quoteId: sendQuoteId,
       walletAddress: SELF_ADDRESS,
     })
@@ -609,7 +725,7 @@ async function main(): Promise<void> {
   );
   check(
     'and the refusal names both the sender and the declared wallet',
-    notTheSender.message.includes(getAddress(ANCHOR.sender)) &&
+    notTheSender.message.includes(anchor.sender) &&
       notTheSender.message.includes(SELF_ADDRESS),
     notTheSender.message.slice(0, 96)
   );
@@ -620,7 +736,7 @@ async function main(): Promise<void> {
       where: {
         userId: user.id,
         action: 'payment.rejected',
-        txHash: ANCHOR.txHash,
+        txHash: anchorHash,
         metadata: { path: ['code'], equals: 'signer-mismatch' },
       },
     })) === 1
@@ -629,7 +745,7 @@ async function main(): Promise<void> {
   // --- "Recipient paid, treasury not" — the missing fee leg ----------------
   console.log('\nrecipient leg present, fee leg missing:');
 
-  const plainTx = await findRecentOusdTransfer();
+  const plainTx = await findRecentTransfer();
   const plainTransfer = plainTx ? await describeTransfer(plainTx as Hex) : null;
 
   if (!plainTx || !plainTransfer) {
@@ -644,7 +760,7 @@ async function main(): Promise<void> {
       await recordOnAnchorNetwork({
         userId: user.id,
         amount: plainTransfer.value,
-        asset: 'ousd',
+        asset: anchor.asset,
         recipient: plainTransfer.to,
         txHash: plainTx,
         quoteId: sendQuoteId,
@@ -668,7 +784,9 @@ async function main(): Promise<void> {
     check(
       'the recipient leg itself resolved (the guard is not passing on a missing receipt)',
       !/receipt not available|reverted/i.test(message) &&
-        message.toLowerCase().includes(env.SETI_TREASURY_ADDRESS.slice(0, 10).toLowerCase()),
+        message
+          .toLowerCase()
+          .includes(treasuryAddressFor(ANCHOR_NETWORK).slice(0, 10).toLowerCase()),
       message.slice(0, 78)
     );
     check('no row written when the fee leg is missing', (await countRows()) === 0);
@@ -682,7 +800,7 @@ async function main(): Promise<void> {
       await recordOnAnchorNetwork({
         userId: user.id,
         amount: wrongAmount,
-        asset: 'ousd',
+        asset: anchor.asset,
         recipient: plainTransfer.to,
         txHash: plainTx,
         quoteId: sendQuoteId,
@@ -706,9 +824,10 @@ async function main(): Promise<void> {
     // That is deliberate — a skipped happy path is a green suite that verified
     // nothing, which is worse than a red one.
     // Precondition for everything below: the anchor's sender is the address this
-    // fixture declared, and it is NOT the account's active wallet. If the anchor
-    // is re-created, update ANCHOR.sender — and this fails loudly rather than
-    // turning into a confusing binding assertion.
+    // fixture declared, and it is NOT the account's active wallet. The fixture's
+    // declaration IS `receipt.from` (derived), so a mismatch here would mean the
+    // derivation and the receipt disagree — it fails loudly rather than turning
+    // into a confusing binding assertion.
     check(
       'the anchor receipt was signed by the declared wallet',
       anchorReceipt?.from?.toLowerCase() === signerWallet.address.toLowerCase(),
@@ -717,10 +836,10 @@ async function main(): Promise<void> {
 
     const transaction = await recordOnAnchorNetwork({
       userId: user.id,
-      amount: ANCHOR.principal,
-      asset: ANCHOR.asset,
-      recipient: ANCHOR.recipient,
-      txHash: ANCHOR.txHash,
+      amount: anchor.principal,
+      asset: anchor.asset,
+      recipient: anchor.recipient,
+      txHash: anchorHash,
       quoteId: sendQuoteId,
       walletAddress: signerWallet.address,
     });
@@ -729,11 +848,11 @@ async function main(): Promise<void> {
     check('it is written as a p2p_send', transaction.type === 'p2p_send');
     check(
       'and it carries the hash that was verified',
-      transaction.txHash === ANCHOR.txHash
+      transaction.txHash === anchorHash
     );
     check(
       'the counterparty is the recipient the chain paid',
-      transaction.counterparty?.toLowerCase() === ANCHOR.recipient.toLowerCase()
+      transaction.counterparty?.toLowerCase() === anchor.recipient.toLowerCase()
     );
 
     // --- THE BUG: the row is bound to the wallet that SIGNED ---------------
@@ -754,7 +873,7 @@ async function main(): Promise<void> {
 
     // The fee is the whole point: it must be recorded, and it must be the 2% of
     // the principal the chain actually moved.
-    const expectedPrincipalKes = Number(ANCHOR.principal) * quote.fiatPerUsd;
+    const expectedPrincipalKes = Number(anchor.principal) * quote.fiatPerUsd;
     const recordedFee = Number(transaction.feeAmount);
     const recordedFiat = Number(transaction.fiatAmount);
     const schedule = calculateMerchantFee(Math.round(expectedPrincipalKes * 100) / 100);
@@ -796,7 +915,7 @@ async function main(): Promise<void> {
     check('and it reads as money coming in', receivedRows[0]?.type === 'p2p_receive');
     check(
       'carrying the principal, not the gross',
-      receivedRows[0]?.amount?.toNumber() === Number(ANCHOR.principal)
+      receivedRows[0]?.amount?.toNumber() === Number(anchor.principal)
     );
     check('and already settled, since it was read off a confirmed receipt', receivedRows[0]?.status === 'completed');
     check(
@@ -808,11 +927,11 @@ async function main(): Promise<void> {
     // Idempotent: a transfer cannot be recorded twice for one account, so a retry
     // (or the indexer walking the same block again) must not duplicate it.
     await receivedSide({
-      recipient: getAddress(ANCHOR.recipient),
-      amountAsset: Number(ANCHOR.principal),
-      amountFiat: Number(ANCHOR.principal) * quote.fiatPerUsd,
-      asset: ANCHOR.asset,
-      txHash: ANCHOR.txHash,
+      recipient: getAddress(anchor.recipient),
+      amountAsset: Number(anchor.principal),
+      amountFiat: Number(anchor.principal) * quote.fiatPerUsd,
+      asset: anchor.asset,
+      txHash: anchorHash,
       senderAddress: signerWallet.address,
       network: ANCHOR_NETWORK,
       quote,
@@ -841,7 +960,7 @@ async function main(): Promise<void> {
     const gasPriceUsed = anchorReceipt.effectiveGasPrice ?? (await anchorPublicClient.getGasPrice());
     const computedUnits = (anchorReceipt.gasUsed * gasPriceUsed) / scale;
 
-    const token = getTokenContract(ANCHOR.asset).toLowerCase();
+    const token = getTokenContract(anchor.asset, ANCHOR_NETWORK).toLowerCase();
     const feePayment = anchorReceipt.logs
       .filter((entry) => entry.address.toLowerCase() === token)
       .flatMap((entry) => {
@@ -866,7 +985,7 @@ async function main(): Promise<void> {
         `computed ${computedUnits} vs chain charged ${feePayment}`
       );
 
-      const live = await estimateNetworkFee('ousd');
+      const live = await estimateNetworkFee(anchor.asset);
       const liveUnits = BigInt(Math.round(Number(live.feeAsset) * 1_000_000));
       check(
         'the live estimate is the same order of magnitude as a real batch fee',

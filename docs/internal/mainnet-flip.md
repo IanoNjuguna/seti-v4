@@ -126,18 +126,27 @@ transfer(recipient,        principal)
 transfer(SETI_TREASURY_ADDRESS, fee)      # both legs in the same receipt
 ```
 
-- **💰 It needs a funded mainnet address.** `npm run prove:batch` today targets
-  Moderato and funds a throwaway key from the **testnet** faucet; there is no
-  faucet on mainnet. The mainnet proof therefore needs a funded mainnet address
-  and a variant of that script (or a hand-signed transaction) that skips the
-  faucet and spends real funds. **Do not point the existing script at mainnet and
-  expect it to fund itself.**
+- **💰 It needs a funded mainnet address.** `npm run prove:batch` now has a
+  mainnet mode — it no longer funds itself there, because there is no faucet:
+
+  ```bash
+  # 1. no key set → prints a fresh signer address and the amount to fund, sends nothing
+  npm run prove:batch --workspace backend -- --network=mainnet
+  # 2. fund it with 0.51 USDT0 (+ gas), then sign with your own key
+  PROVE_BATCH_PRIVATE_KEY=0x… npm run prove:batch --workspace backend -- --network=mainnet
+  #    without --confirm-real-money that is a DRY RUN: full summary, nothing sent
+  ```
+  Mainnet runs send only with BOTH `--network=mainnet` and `--confirm-real-money`,
+  and refuse unless `ALLOW_MAINNET=true`. The signer must be an address no wallet
+  row holds on mainnet — `check:send` registers the anchor's signer as its own
+  wallet, so a key that is already an account's cannot anchor a proof.
 - **🔑 Signed by the owner.** The key that signs this is the operator's, never an
   agent's, and never a user's.
 - **Accept:** a real mainnet receipt (`chainId 4217`) whose **single**
   transaction carries both `Transfer` logs — principal to the recipient, fee to
   the treasury — in the right amounts. Paste the receipt; it becomes
-  `PAYOUT_ANCHOR_TX` in step 7.
+  `TEMPO_MAINNET_SEND_ANCHOR_TX` (the tool prints the exact line). No code change
+  is needed: `check:send` derives its fixture from the receipt it is given.
 
 Nothing else in this document may proceed to real money until this receipt
 exists. A batched transaction that has only ever run on Moderato is a promise,
