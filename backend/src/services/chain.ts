@@ -424,13 +424,19 @@ export async function estimateErc20TransferGas(
 const MEASURED_BATCH_GAS: Record<SupportedAsset, bigint> = {
   pathusd: BigInt(298_172),
   ousd: BigInt(790_472),
-  // Not yet measured: no Seti receipt spends USDT0 or USDC.e. Both quote the
-  // PESSIMISTIC end of the measured range until one exists, because this figure
-  // decides whether a customer can afford a payment — over-reserving refuses a
-  // payment that would have fitted, under-reserving lets one revert after the
-  // money has been signed for. Re-measure with
-  // `npm run prove:batch -- --asset=usdt0` (or usdc.e) and replace the value.
-  usdt0: BigInt(790_472),
+  // MEASURED from a real Seti batch: the mainnet send anchor
+  // 0xe48006e88cd91cfec9f595788ef16579e6be80248839a58e2ca60f9c7ee086ef spent
+  // 52,972 gas moving 0.5 USDT0 to the recipient and 0.01 to the treasury. This
+  // used to hold OUSD's pessimistic 790,472 because no Seti receipt spent USDT0;
+  // that receipt now exists, and the placeholder overstated a send's gas cost —
+  // and therefore the fee shown in the preview — by ~15x. Re-measure with
+  // `npm run prove:batch -- --asset=usdt0` if Tempo reprices.
+  usdt0: BigInt(52_972),
+  // Still unmeasured: no Seti receipt spends USDC.e. Quotes the PESSIMISTIC end
+  // of the measured range until one exists, because this figure decides whether a
+  // customer can afford a payment — over-reserving refuses a payment that would
+  // have fitted, under-reserving lets one revert after the money has been signed
+  // for. Re-measure with `npm run prove:batch -- --asset=usdc.e` and replace it.
   'usdc.e': BigInt(790_472),
 };
 

@@ -1,6 +1,6 @@
-import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { servedNetwork } from './chain.js';
+import { isUniqueViolation } from '../lib/unique-violation.js';
 import { checkAcceptedTermsVersion, recordSignupConsent, type ConsentRefusal } from './consent.js';
 
 /**
@@ -35,11 +35,6 @@ export type CreateAccountResult =
   | { ok: true; userId: string; created: boolean }
   | ({ ok: false } & ConsentRefusal);
 
-/** The email address is already registered — the one collision sign-up expects. */
-function isUniqueCollision(error: unknown): boolean {
-  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
-}
-
 /**
  * Create the account, or adopt the one that email already has.
  *
@@ -67,7 +62,10 @@ export async function createAccount(input: CreateAccountInput): Promise<CreateAc
 
     return { ok: true, userId: user.id, created: true };
   } catch (error) {
-    if (!isUniqueCollision(error)) throw error;
+    // One test for a unique violation, shared with the ledger's idempotency guard
+    // (`lib/unique-violation.ts`): a P2002 here IS the expected collision — the
+    // address already exists — and anything else is a real failure.
+    if (!isUniqueViolation(error)) throw error;
 
     // The address exists, so this is a RETURNING identity, not a sign-up. Nothing
     // is created and nothing is recorded — the account keeps the consent row it

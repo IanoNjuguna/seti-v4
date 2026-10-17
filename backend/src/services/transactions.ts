@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma.js';
 import { env } from '../config/env.js';
 import { describeEvmAddress } from '../lib/address.js';
+import { violatesUniqueOn } from '../lib/unique-violation.js';
 import { resolveSigningWallet } from './wallet-registry.js';
 import { servedNetwork, treasuryAddressFor } from '../config/networks.js';
 import { normalizeNetwork, type Network } from '../lib/network.js';
@@ -22,6 +23,7 @@ import {
   type SupportedAsset,
 } from './chain.js';
 import { decodeEventLog, erc20Abi, getAddress, type Hex, type TransactionReceipt } from 'viem';
+import type { Prisma } from '@prisma/client';
 
 interface CreateTransactionInput {
   userId: string;
@@ -115,6 +117,89 @@ interface RecordSendInput {
  * Rounds to 2dp, avoiding float dust like 10.000000000000002. */
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+/** A ledger row as Prisma returns it, named once so the helper below can say it. */
+type TransactionRow = Awaited<ReturnType<typeof prisma.transaction.create>>;
+
+/**
+ * The columns of `Transaction`'s one ledger key: one row per user per on-chain
+ * transfer per network (prisma/schema.prisma). A unique violation that names
+ * these means "this exact money move is ALREADY recorded for this account".
+ */
+const TRANSACTION_LEDGER_KEY = ['txHash', 'userId', 'network'] as const;
+
+/**
+ * Writes a ledger row from a verified receipt, or returns the one that is already
+ * there — the RECORDING path's idempotency guard.
+ *
+ * There are two writers of `Transaction` on the money path: this one, after a
+ * signature, and the on-chain indexer, which walks the same transfer from the
+ * chain's side. Every write happens AFTER the money has moved, so neither may
+ * answer "already recorded" with a crash: the request fails with a raw `P2002`
+ * while the transfer is on chain and irreversible, the customer sees an error for
+ * a payment that succeeded, and support has a hash with no row to attach it to.
+ * That is exactly what happened on the first real mainnet send anchor, whose fee
+ * leg landed in a treasury that belongs to a real account: the indexer recorded
+ * the inbound row first, and `recordSend` died on the constraint.
+ *
+ * The key is checked, not assumed. Only a violation naming `txHash` — this
+ * table's one ledger key — is treated as idempotency. A P2002 on any OTHER
+ * unique index (a quote, a handle, a wallet address; a collision on this table
+ * that is not the ledger key) is rethrown untouched, because that is a real
+ * collision and swallowing it would lose a write. When the database does not say
+ * which index fired, the error is rethrown for the same reason.
+ *
+ * What this does NOT do, deliberately:
+ *
+ *  - It does not verify anything. The receipt was reconciled before this is
+ *    called, and the row is only attempted once those checks passed, so the
+ *    amount/two-leg/sender checks are neither skipped nor repeated here. A retry
+ *    re-runs them (that is the point of a stateless record call) and then finds
+ *    the row.
+ *  - It does not compare the existing row's figures against the new ones. Two
+ *    writers legitimately describe the same move at different granularity (the
+ *    indexer's inbound `top_up` and this path's `p2p_receive` both carry the
+ *    principal), and refusing on a difference would turn a harmless replay back
+ *    into the crash this exists to prevent.
+ *  - It does not write anything else. `created` is returned so the caller can
+ *    skip its audit entry: the same move must not produce a second
+ *    `payment.recorded` / `send.recorded` row, and balances are summed from rows,
+ *    of which there is still exactly one.
+ *
+ * Exported so `cli/proof-transaction-idempotency.ts` can drive both branches — a
+ * replay of the ledger key, and a violation on a different unique index — without
+ * having to race a live indexer.
+ */
+export async function createTransactionOnce(
+  args: { data: Prisma.TransactionUncheckedCreateInput }
+): Promise<{ transaction: TransactionRow; created: boolean }> {
+  const { data } = args;
+
+  try {
+    const transaction = await prisma.transaction.create({ data });
+    return { transaction, created: true };
+  } catch (error) {
+    if (!violatesUniqueOn(error, TRANSACTION_LEDGER_KEY)) throw error;
+    if (!data.txHash || !data.userId || !data.network) throw error;
+
+    // The winner's row, read by the SAME three columns the index refused on.
+    const existing = await prisma.transaction.findUnique({
+      where: {
+        txHash_userId_network: {
+          txHash: data.txHash,
+          userId: data.userId,
+          network: data.network,
+        },
+      },
+    });
+
+    // The unique index says a row is there; not finding it means the row was
+    // removed between the two statements, and that is not a replay.
+    if (!existing) throw error;
+
+    return { transaction: existing, created: false };
+  }
 }
 
 /**
@@ -266,7 +351,11 @@ export async function receivedSide(input: {
 
   if (existing) return existing;
 
-  return prisma.transaction.create({
+  // Through the idempotency guard, not a bare create: the INDEXER writes this
+  // same row for an inbound transfer to a Seti wallet, and the read above cannot
+  // see a write that is in flight. Losing that race must return the winner's row,
+  // not fail a request whose money has already moved.
+  const { transaction } = await createTransactionOnce({
     data: {
       userId: recipientWallet.userId,
       walletId: recipientWallet.id,
@@ -287,9 +376,11 @@ export async function receivedSide(input: {
       settledAt: new Date(),
       metadata: {
         derived: { from: 'send.recorded', senderAddress: input.senderAddress },
-      } as never,
+      },
     },
   });
+
+  return transaction;
 }
 
 export async function createTransaction(input: CreateTransactionInput) {
@@ -300,6 +391,10 @@ export async function createTransaction(input: CreateTransactionInput) {
   const network = normalizeNetwork(input.network, servedNetwork);
   const wallet = await findActiveWallet(input.userId, network);
 
+  // A bare create, deliberately NOT `createTransactionOnce`: this row has no
+  // txHash (nothing is on chain yet), so it has no ledger key to be idempotent
+  // about — two of these are two different pending scaffolds, not one money move
+  // recorded twice. Any constraint failure here is a real bug and should stay one.
   const transaction = await prisma.transaction.create({
     data: {
       userId: input.userId,
@@ -655,7 +750,10 @@ export async function recordPayment(input: RecordPaymentInput) {
     declaredAddress: wallet.address,
   });
 
-  const transaction = await prisma.transaction.create({
+  // Idempotent on the ledger key: the indexer can record this same transfer for
+  // this account while the request is in flight, and the money has already moved,
+  // so the loser returns the winner's row instead of failing the request.
+  const { transaction, created } = await createTransactionOnce({
     data: {
       userId: input.userId,
       walletId: wallet.id,
@@ -691,29 +789,35 @@ export async function recordPayment(input: RecordPaymentInput) {
     },
   });
 
-  await logAuditEvent({
-    userId: input.userId,
-    action: 'payment.recorded',
-    txHash: input.txHash,
-    metadata: {
-      merchantId: merchant.id,
-      network,
-      feeRoutingMode: batchMode ? 'batch' : 'inside-transfer',
-      gross: reconciledGross,
-      fiatAmount,
-      feeFiat,
-      feeCapped: feeResult.cappedByMaxPercent,
-      merchantNet,
-      fxRate: quote.fiatPerUsd,
-      fxRateSource: quote.source,
-      // Which wallet the payment was recorded against, and the reason it is that
-      // one: the address the client declared and the chain confirmed as the
-      // sender. Support needs both halves when a row is questioned.
-      signedBy: wallet.address,
-      receiptSender: receipt.from,
-      ...(batchMode ? { treasuryFeeObserved } : {}),
-    },
-  });
+  // Only the writer that CREATED the row records the audit entry. A replay — a
+  // retry, or the indexer having got there first — already has its
+  // `payment.recorded` row, and a second one would say a payment was recorded
+  // twice when the ledger holds one row for one transfer.
+  if (created) {
+    await logAuditEvent({
+      userId: input.userId,
+      action: 'payment.recorded',
+      txHash: input.txHash,
+      metadata: {
+        merchantId: merchant.id,
+        network,
+        feeRoutingMode: batchMode ? 'batch' : 'inside-transfer',
+        gross: reconciledGross,
+        fiatAmount,
+        feeFiat,
+        feeCapped: feeResult.cappedByMaxPercent,
+        merchantNet,
+        fxRate: quote.fiatPerUsd,
+        fxRateSource: quote.source,
+        // Which wallet the payment was recorded against, and the reason it is that
+        // one: the address the client declared and the chain confirmed as the
+        // sender. Support needs both halves when a row is questioned.
+        signedBy: wallet.address,
+        receiptSender: receipt.from,
+        ...(batchMode ? { treasuryFeeObserved } : {}),
+      },
+    });
+  }
 
   // The MERCHANT's side of the same payment, when the merchant is a Seti account.
   //
@@ -929,7 +1033,12 @@ export async function recordSend(input: RecordSendInput) {
     declaredAddress: wallet.address,
   });
 
-  const transaction = await prisma.transaction.create({
+  // THE bug this helper exists for: the treasury leg of this same batch is an
+  // inbound USDT0 transfer to a wallet a real account owns, so the indexer writes
+  // a row for one of these users from the chain's side. Whoever loses that race
+  // must return the winner's row, because this send's money has already moved —
+  // the first real mainnet anchor failed here with a bare P2002.
+  const { transaction, created } = await createTransactionOnce({
     data: {
       userId: input.userId,
       walletId: wallet.id,
@@ -984,27 +1093,31 @@ export async function recordSend(input: RecordSendInput) {
     quote,
   });
 
-  await logAuditEvent({
-    userId: input.userId,
-    action: 'send.recorded',
-    txHash: input.txHash,
-    metadata: {
-      recipient,
-      network,
-      feeRoutingMode: 'batch',
-      gross: grossAsset,
-      fiatAmount: principalFiat,
-      feeFiat,
-      feeCapped: feeResult.cappedByMaxPercent,
-      fxRate: quote.fiatPerUsd,
-      fxRateSource: quote.source,
-      treasuryFeeObserved,
-      // Same evidence as `payment.recorded`: the wallet this send was bound to,
-      // and the sender the chain recorded for it.
-      signedBy: wallet.address,
-      receiptSender: receipt.from,
-    },
-  });
+  // The audit entry belongs to the writer that created the row: a replay has one
+  // already, and a second `send.recorded` would claim two recordings of one move.
+  if (created) {
+    await logAuditEvent({
+      userId: input.userId,
+      action: 'send.recorded',
+      txHash: input.txHash,
+      metadata: {
+        recipient,
+        network,
+        feeRoutingMode: 'batch',
+        gross: grossAsset,
+        fiatAmount: principalFiat,
+        feeFiat,
+        feeCapped: feeResult.cappedByMaxPercent,
+        fxRate: quote.fiatPerUsd,
+        fxRateSource: quote.source,
+        treasuryFeeObserved,
+        // Same evidence as `payment.recorded`: the wallet this send was bound to,
+        // and the sender the chain recorded for it.
+        signedBy: wallet.address,
+        receiptSender: receipt.from,
+      },
+    });
+  }
 
   return transaction;
 }
