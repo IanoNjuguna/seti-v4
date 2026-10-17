@@ -1,0 +1,427 @@
+# Deploy on merge to main: verify → build/push the API image → ship it → ship the
+# web Worker.
+#
+# This replaces the laptop runbook. The one behaviour it exists to make
+# impossible: removing the running container before the new image is on the box.
+# In the `backend` job the remote script pulls FIRST and only then removes, so a
+# failed pull (registry down, tag typo, revoked credential) leaves the old API
+# serving. That ordering is commented at the line that enforces it.
+#
+# The image is tagged with the commit SHA and `latest`. `latest` is a convenience
+# for a human on the box; it is never what this pipeline runs, because a box
+# running `:latest` has no knowable version.
+#
+# Every credential comes from `secrets.*` and every public build-time value from
+# `vars.*`. The full list an owner must create is in docs/internal/ci.md.
+# Nothing in this file contains a secret, and the workflow creates none of them:
+# until they exist, the first job that needs one fails.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One deploy at a time. `cancel-in-progress: false` on purpose: cancelling a run
+# halfway through the SSH step could stop it between `docker rm -f` and
+# `docker run`, which is the outage this pipeline is meant to prevent. A queued
+# run waits instead.
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+# `packages: write` is for the GHCR push; nothing else here needs more than read.
+permissions:
+  contents: read
+  packages: write
+
+env:
+  # GHCR repository names must be lowercase; `github.repository_owner` preserves
+  # the case the owner typed. The `backend` job lowercases it once and every
+  # later step uses that output, so the tag pushed and the tag pulled on the box
+  # can never differ by case.
+  IMAGE_NAME: seti-api
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. The gate. The same `npm run verify` a developer runs, which is the only
+  #    thing that authorizes a deploy.
+  # ---------------------------------------------------------------------------
+  verify:
+    name: verify (typecheck + lint + checks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      # The check suites that touch a database need a Postgres instance, not a
+      # credential: this is a throwaway container with fixed local-only values,
+      # and every row the suites write uses a `check-*` key. Mirrors
+      # .github/workflows/verify.yml so CI and the PR gate agree.
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: seti
+          POSTGRES_PASSWORD: seti
+          POSTGRES_DB: seti
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U seti -d seti"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      NODE_ENV: development
+      # Local-only values for the throwaway service above. Not secrets.
+      DATABASE_URL: postgresql://seti:seti@127.0.0.1:5433/seti?schema=public
+      JWT_SECRET: ci-only-jwt-secret-not-a-real-secret
+      SETI_TREASURY_ADDRESS: "0x48cb25f9d82aF721e71437feAfb295da627BA475"
+      TEMPO_CHAIN_ID: "42431"
+      TEMPO_TOKEN_PATHUSD: "0x20c0000000000000000000000000000000000000"
+      TEMPO_TOKEN_OUSD: "0x20c0000000000000000000006a37da5c996874be"
+      DEV_BYPASS_AUTH: "false"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install (npm workspace root)
+        run: npm ci
+
+      - name: Generate the Prisma client
+        run: npx prisma generate
+        working-directory: backend
+
+      # Hand-written SQL + `migrate deploy`, never `migrate dev`: the latter is
+      # interactive and would try to author migrations inside the pipeline.
+      - name: Apply migrations to the throwaway database
+        run: npx prisma migrate deploy
+        working-directory: backend
+
+      # TO KNOW WHAT THIS GATE DOES *NOT* PROVE: `check:send` reconciles a
+      # receipt pinned per chain as TEMPO_<NETWORK>_SEND_ANCHOR_TX. On this CI
+      # database no anchor is pinned for the served chain (42431 here), so the
+      # suite prints "SKIPPED — NOT passed" and exits 0. That is the suite's
+      # honest behaviour — it refuses to reconcile a receipt from the other
+      # chain — and it is not a failure. Nothing about send reconciliation is
+      # verified by a green run of this job; the pinned-anchor run is the proof.
+      - name: Run the gate
+        run: npm run verify
+
+  # ---------------------------------------------------------------------------
+  # 2. The API image and its deploy. Depends on the gate: nothing is built or
+  #    shipped for a commit that does not pass it.
+  # ---------------------------------------------------------------------------
+  backend:
+    name: build + deploy API
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    outputs:
+      image: ${{ steps.image.outputs.ref }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve the image reference
+        id: image
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${IMAGE_NAME}"
+          echo "ref=${image}" >> "$GITHUB_OUTPUT"
+          echo "tag=${image}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # CONTEXT IS THE REPOSITORY ROOT, not backend/. The Dockerfile copies
+      # package.json and web/package.json to satisfy the npm workspace, so a
+      # backend/-scoped context fails at `npm ci`. Target `runner` is the image
+      # that serves the API; `build` and `migrate` are stages of the same build.
+      #
+      # linux/amd64 because the Lightsail box is x86_64. The Dockerfile is
+      # architecture-neutral (Prisma's engine is generated inside the build), but
+      # an image built for the wrong platform is a `docker pull` that succeeds and
+      # a container that exec-fails.
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile
+          target: runner
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.image.outputs.tag }}
+            ${{ steps.image.outputs.ref }}:latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Install the deploy key
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$HOME/.ssh"
+          # Via env, never interpolated into the command line: the key spans
+          # several lines and a `${{ }}` expansion into shell text would be
+          # re-parsed by the shell.
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$HOME/.ssh/deploy_key"
+          chmod 600 "$HOME/.ssh/deploy_key"
+          # Pin the host key before the first connection instead of letting ssh
+          # trust whatever answers. Trust-on-first-use, recorded once per run:
+          # see docs/internal/ci.md for the strict alternative.
+          ssh-keyscan -T 10 -H "$DEPLOY_HOST" > "$HOME/.ssh/known_hosts" 2>/dev/null
+          test -s "$HOME/.ssh/known_hosts" || {
+            echo "::error::ssh-keyscan got no host key from $DEPLOY_HOST — check DEPLOY_HOST and that port 22 is reachable."
+            exit 1
+          }
+
+      # THE DEPLOY. Read the remote script in the next step for the ordering that
+      # keeps a failed pull from taking the API down.
+      - name: Deploy over SSH (pull before remove)
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          IMAGE_TAG: ${{ steps.image.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          cat > "$RUNNER_TEMP/deploy-api.sh" <<'REMOTE'
+          #!/usr/bin/env bash
+          # Runs ON THE BOX. $1 is the full image reference, e.g.
+          # ghcr.io/<owner>/seti-api:<commit-sha>.
+          set -euo pipefail
+
+          IMAGE_REF="${1:?usage: deploy-api.sh <image-ref>}"
+          CONTAINER=seti-api
+          NETWORK=seti-net
+          ENV_FILE=/home/ubuntu/seti/.env.production
+          HEALTH_URL=http://127.0.0.1:4000/health
+          HEALTH_TRIES=30
+          HEALTH_SLEEP=2
+
+          echo "==> deploying $IMAGE_REF"
+
+          # ---------------------------------------------------------------------
+          # 1. PULL FIRST. This line is the fix for the outage: if it fails, the
+          #    script exits here with the OLD container still running and still
+          #    serving. Nothing below this point has touched it.
+          # ---------------------------------------------------------------------
+          if ! docker pull "$IMAGE_REF"; then
+            echo "::error::docker pull $IMAGE_REF failed. The existing container was NOT removed — the previous version is still serving. Nothing was changed on this host."
+            exit 1
+          fi
+
+          NEW_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$IMAGE_REF")"
+          echo "==> pulled image id: $NEW_IMAGE_ID"
+
+          # ---------------------------------------------------------------------
+          # 2. Preflight the things the new container needs, still BEFORE the
+          #    running one is disturbed. A missing env file or network is a
+          #    failure that must not cost downtime either.
+          # ---------------------------------------------------------------------
+          if [ ! -f "$ENV_FILE" ]; then
+            echo "::error::$ENV_FILE is missing on the host. Existing container left untouched."
+            exit 1
+          fi
+
+          # The health poll below needs curl. Checking it HERE means a host
+          # without curl fails before the running container is replaced,
+          # instead of after.
+          if ! command -v curl >/dev/null 2>&1; then
+            echo "::error::curl is not installed on the host, so the health check could not run. Installing it would be a change to the host this pipeline does not make. Existing container left untouched."
+            exit 1
+          fi
+
+          if ! docker network inspect "$NETWORK" >/dev/null 2>&1; then
+            echo "==> creating docker network $NETWORK"
+            docker network create "$NETWORK" >/dev/null
+          fi
+
+          # ---------------------------------------------------------------------
+          # 3. Only now, with the image on disk and the preflight clean, replace
+          #    the container. seti-db is deliberately untouched: this pipeline
+          #    deploys the API process, not the database.
+          # ---------------------------------------------------------------------
+          if docker inspect "$CONTAINER" >/dev/null 2>&1; then
+            echo "==> removing the existing $CONTAINER"
+            docker rm -f "$CONTAINER" >/dev/null
+          else
+            echo "==> no existing $CONTAINER"
+          fi
+
+          docker run -d \
+            --name "$CONTAINER" \
+            --network "$NETWORK" \
+            --restart unless-stopped \
+            --env-file "$ENV_FILE" \
+            -p 127.0.0.1:4000:4000 \
+            "$IMAGE_REF"
+
+          # ---------------------------------------------------------------------
+          # 4. Assert the running container is the image that was just pulled,
+          #    not a stale one docker decided to reuse.
+          # ---------------------------------------------------------------------
+          RUNNING_IMAGE_ID="$(docker inspect --format '{{.Image}}' "$CONTAINER")"
+          if [ "$RUNNING_IMAGE_ID" != "$NEW_IMAGE_ID" ]; then
+            echo "::error::$CONTAINER is running $RUNNING_IMAGE_ID, expected $NEW_IMAGE_ID. The deploy did not take effect."
+            exit 1
+          fi
+
+          # ---------------------------------------------------------------------
+          # 5. Liveness. /health touches nothing (it answers even with the
+          #    database down), so this proves the process booted and is listening,
+          #    not that payments work. /health/sweep is the readiness probe.
+          # ---------------------------------------------------------------------
+          for attempt in $(seq 1 "$HEALTH_TRIES"); do
+            if curl -fsS --max-time 3 "$HEALTH_URL" >/dev/null 2>&1; then
+              echo "==> healthy after ${attempt} attempt(s): $(curl -fsS --max-time 3 "$HEALTH_URL")"
+              exit 0
+            fi
+            echo "    waiting for $HEALTH_URL (${attempt}/${HEALTH_TRIES})"
+            sleep "$HEALTH_SLEEP"
+          done
+
+          echo "::error::$CONTAINER did not answer $HEALTH_URL within $((HEALTH_TRIES * HEALTH_SLEEP))s. The NEW container is left running for inspection; the previous version is gone. See the last 100 log lines above."
+          docker logs --tail 100 "$CONTAINER" || true
+          exit 1
+          REMOTE
+
+          chmod +x "$RUNNER_TEMP/deploy-api.sh"
+
+          ssh -i "$HOME/.ssh/deploy_key" \
+            -o IdentitiesOnly=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes \
+            -o ConnectTimeout=15 \
+            -o ServerAliveInterval=15 \
+            "ubuntu@${DEPLOY_HOST}" \
+            'bash -s' -- "$IMAGE_TAG" < "$RUNNER_TEMP/deploy-api.sh"
+
+      - name: What is running now
+        if: always()
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          ssh -i "$HOME/.ssh/deploy_key" \
+            -o IdentitiesOnly=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes \
+            -o ConnectTimeout=15 \
+            "ubuntu@${DEPLOY_HOST}" \
+            'docker inspect --format "{{.Config.Image}} {{.State.Status}} {{.State.StartedAt}}" seti-api' || true
+
+  # ---------------------------------------------------------------------------
+  # 3. The web Worker. Runs in parallel with the backend job: neither waits on
+  #    the other, both wait on the gate.
+  # ---------------------------------------------------------------------------
+  web:
+    name: build + deploy web worker
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # NOTE: NODE_ENV is deliberately NOT set for this job. `npm ci` would drop
+      # devDependencies under NODE_ENV=production (vite, vinext, wrangler are all
+      # devDependencies here), and the build guard treats an unset NODE_ENV as
+      # production — which is the behaviour we want.
+      - name: Install (npm workspace root)
+        run: npm ci
+
+      # Every NEXT_PUBLIC_* is INLINED into the client bundle at build time. A
+      # missing one does not fail the build — it ships a client pointing at
+      # localhost, and no runtime setting can repair it. So fail here, by name.
+      # These are public values (they end up in the shipped JavaScript), which is
+      # why they live in `vars` and not `secrets`; see docs/internal/ci.md.
+      - name: Refuse to build with a missing public value
+        env:
+          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_SITE_ORIGIN: ${{ vars.NEXT_PUBLIC_SITE_ORIGIN }}
+          NEXT_PUBLIC_TEMPO_CHAIN_ID: ${{ vars.NEXT_PUBLIC_TEMPO_CHAIN_ID }}
+          NEXT_PUBLIC_ALLOW_MAINNET: ${{ vars.NEXT_PUBLIC_ALLOW_MAINNET }}
+          NEXT_PUBLIC_TEMPO_ASSET: ${{ vars.NEXT_PUBLIC_TEMPO_ASSET }}
+          NEXT_PUBLIC_TEMPO_TOKEN_OUSD: ${{ vars.NEXT_PUBLIC_TEMPO_TOKEN_OUSD }}
+          NEXT_PUBLIC_TEMPO_TOKEN_PATHUSD: ${{ vars.NEXT_PUBLIC_TEMPO_TOKEN_PATHUSD }}
+          NEXT_PUBLIC_PRIVY_APP_ID: ${{ vars.NEXT_PUBLIC_PRIVY_APP_ID }}
+          NEXT_PUBLIC_PRIVY_SYNC_CHANNEL_ID: ${{ vars.NEXT_PUBLIC_PRIVY_SYNC_CHANNEL_ID }}
+          NEXT_PUBLIC_AUTH_SOURCE: ${{ vars.NEXT_PUBLIC_AUTH_SOURCE }}
+        run: |
+          set -uo pipefail
+          missing=()
+          for name in \
+            NEXT_PUBLIC_API_URL \
+            NEXT_PUBLIC_SITE_ORIGIN \
+            NEXT_PUBLIC_TEMPO_CHAIN_ID \
+            NEXT_PUBLIC_ALLOW_MAINNET \
+            NEXT_PUBLIC_TEMPO_ASSET \
+            NEXT_PUBLIC_TEMPO_TOKEN_OUSD \
+            NEXT_PUBLIC_TEMPO_TOKEN_PATHUSD \
+            NEXT_PUBLIC_PRIVY_APP_ID \
+            NEXT_PUBLIC_PRIVY_SYNC_CHANNEL_ID \
+            NEXT_PUBLIC_AUTH_SOURCE
+          do
+            if [ -z "${!name:-}" ]; then missing+=("$name"); fi
+          done
+
+          if [ ${#missing[@]} -gt 0 ]; then
+            printf '::error::%d build-time value(s) unset: %s\n' "${#missing[@]}" "${missing[*]}"
+            echo "These are NEXT_PUBLIC_* — inlined into the client bundle at build"
+            echo "time, so a missing one ships a broken client rather than failing."
+            echo "Create them as repository/environment VARIABLES (not secrets):"
+            echo "  docs/internal/ci.md"
+            exit 1
+          fi
+          echo "All 10 build-time values are present."
+          # The API URL's own guard is NOT duplicated here: scripts/guard-production-env.mjs
+          # refuses a localhost/private URL with no bypass, and running a weaker
+          # copy first would only add a second place to disagree. It runs inside
+          # `npm run build:vinext` below.
+
+      - name: Build the Worker
+        env:
+          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_SITE_ORIGIN: ${{ vars.NEXT_PUBLIC_SITE_ORIGIN }}
+          NEXT_PUBLIC_TEMPO_CHAIN_ID: ${{ vars.NEXT_PUBLIC_TEMPO_CHAIN_ID }}
+          NEXT_PUBLIC_ALLOW_MAINNET: ${{ vars.NEXT_PUBLIC_ALLOW_MAINNET }}
+          NEXT_PUBLIC_TEMPO_ASSET: ${{ vars.NEXT_PUBLIC_TEMPO_ASSET }}
+          NEXT_PUBLIC_TEMPO_TOKEN_OUSD: ${{ vars.NEXT_PUBLIC_TEMPO_TOKEN_OUSD }}
+          NEXT_PUBLIC_TEMPO_TOKEN_PATHUSD: ${{ vars.NEXT_PUBLIC_TEMPO_TOKEN_PATHUSD }}
+          NEXT_PUBLIC_PRIVY_APP_ID: ${{ vars.NEXT_PUBLIC_PRIVY_APP_ID }}
+          NEXT_PUBLIC_PRIVY_SYNC_CHANNEL_ID: ${{ vars.NEXT_PUBLIC_PRIVY_SYNC_CHANNEL_ID }}
+          NEXT_PUBLIC_AUTH_SOURCE: ${{ vars.NEXT_PUBLIC_AUTH_SOURCE }}
+        run: npm run build:vinext --workspace web
+
+      # `wrangler deploy` against the config vinext generated for this build
+      # (dist/server/wrangler.json — the same file `npm run preview:worker` runs).
+      # CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID are read by wrangler from the
+      # environment; neither is passed on the command line, so neither can end up
+      # in a shell history or a log line.
+      - name: Deploy the Worker
+        working-directory: web
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --no-install wrangler deploy --config dist/server/wrangler.json
