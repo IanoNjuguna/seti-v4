@@ -60,6 +60,13 @@ Rules for the migration window:
   display-scale text. Over dense 13px rows it muddies them, and over already-marginal ink it
   spends contrast the app has not got. Half the landing's strength, and never animated.
 - Verify a dependency exists in `package.json` before importing it.
+- **The brand mark is a component, and its expression is a ROLE.** `BrandMark`
+  (`components/ui/BrandMark.tsx`) takes `expression` and `canvas` as props; never hand a
+  `src` path to an `<img>`. `neutral` identifies (chrome, receipts, legal, the tab, the
+  app icon, warnings), `friendly` addresses a person (sign-in, onboarding, empty states, a
+  payment that worked). `canvas` follows the surface's own canvas token, because the cream
+  mark is 1.3:1 on white. The role map, the four files and the generator live in
+  `design-kit/seti.live/marks/README.md` — that is the owning document, this is the pointer.
 
 ## Copy & tone
 
