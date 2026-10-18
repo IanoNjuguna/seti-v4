@@ -50,6 +50,16 @@ const NAME_MAIN = 'Check Claim Cafe';
 const NAME_ROUTE = 'Check Claim Route';
 const NAME_UNVERIFIED = 'Check Claim Unverified';
 const NAME_TAMPERED = 'Check Claim Tampered';
+/**
+ * The name this suite expects to be REFUSED.
+ *
+ * It used to borrow the seeded `javahouse` row, which exists on a developer's
+ * machine and never in CI, so the refusal had nothing to refuse there. What is
+ * being pinned is that an UNSIGNED, backfilled row still holds its string, so
+ * the suite creates that row itself, with no signature, and cleanup removes it
+ * with the other fixtures.
+ */
+const NAME_HELD = 'Check Claim Held';
 
 /** Every handle the fixture names derive, so cleanup can be scoped by string. */
 const FIXTURE_NAME_PREFIX = 'Check Claim';
@@ -153,6 +163,36 @@ async function main() {
 
   await registerWallet({ userId: userA.id, chain: 'tempo', asset: 'ousd', address: owner.address });
   await registerWallet({ userId: userB.id, chain: 'tempo', asset: 'ousd', address: forger.address });
+
+  // The two rows this suite asserts ABOUT rather than through a claim. Both are
+  // named with the fixture prefix so `cleanup()` owns them: nothing here depends
+  // on the seed, and a developer's database is not load-bearing.
+  const heldOwner = privateKeyToAccount(generatePrivateKey());
+  await prisma.handle.create({
+    data: {
+      handle: merchantHandle(NAME_HELD),
+      network: servedNetwork,
+      kind: 'business',
+      name: NAME_HELD,
+      address: heldOwner.address,
+    },
+  });
+
+  // A merchant row that predates the network dimension: it lives on `testnet`,
+  // which is what the platform-id resolver has to be asked for.
+  const legacyMerchant = await prisma.merchant.create({
+    data: { id: 'checkclaimlegacy', name: 'Check Claim Legacy' },
+  });
+  await prisma.handle.create({
+    data: {
+      handle: 'checkclaimlegacy',
+      network: 'testnet',
+      kind: 'business',
+      name: 'Check Claim Legacy',
+      address: heldOwner.address,
+      merchantId: legacyMerchant.id,
+    },
+  });
 
   // A minimal server carrying only the handle routes: the HTTP assertions below
   // are about this feature's wiring, and building the whole API would make the
@@ -335,8 +375,14 @@ async function main() {
   });
   check('the original holder is not overwritten', stillHeld.address, owner.address);
 
-  const seeded = await attemptClaim(userA.id, owner, 'business', 'Java House', owner.address);
-  check('an unsigned backfilled handle still reserves its name', seeded?.code, 'handle-taken');
+  const held = await attemptClaim(userA.id, owner, 'business', NAME_HELD, owner.address);
+  check('an unsigned backfilled handle still reserves its name', held?.code, 'handle-taken');
+
+  const heldAfter = await prisma.handle.findFirstOrThrow({
+    where: { handle: merchantHandle(NAME_HELD) },
+  });
+  check('and the refused row is left exactly as it was', heldAfter.address, heldOwner.address);
+  check('and still carries no signature', heldAfter.claimSignature, 'null');
 
   const badName = await refusalOf(() =>
     claimHandle({
@@ -465,14 +511,12 @@ async function main() {
   check('and returns the address beside it', resolvedMain.address, owner.address);
   check('and reports the binding as verified', resolvedMain.verified, true);
 
-  // The seeded `merchant_java_house` row is a PRACTICE row (it predates the
-  // network dimension and was backfilled to `testnet`), and business handles are
-  // per network — so the network-scoped resolver must be asked for the network the
-  // row is on, not for the one this deployment serves. Asserted through the same
-  // resolver the route uses, with the network the row lives on. (What a practice
-  // merchant's name should mean on a live deployment is a product question the
-  // owner has not ruled on; this suite pins that the row itself is intact.)
-  const legacyRow = await findHandleByMerchantId('merchant_java_house', 'testnet');
+  // A handle that predates the network dimension lives on `testnet` alone, and
+  // business handles are per network — so the network-scoped resolver must be
+  // asked for the network the row is on, not for the one this deployment serves.
+  // Asserted through the same resolver the route uses. The row is a fixture: the
+  // seeded equivalent this used to read only exists on a developer's machine.
+  const legacyRow = await findHandleByMerchantId('checkclaimlegacy', 'testnet');
   const legacyView = legacyRow ? await toHandleIdentityView(legacyRow) : null;
   check('a merchant by platform id resolves on its own network', legacyView !== null, true);
   check('but is NOT reported as verified', legacyView?.verified, false);
@@ -545,9 +589,11 @@ async function main() {
   await cleanup();
   await prisma.wallet.deleteMany({ where: { address: routeAccount.address } });
 
-  const seededAfter = await prisma.handle.findFirst({ where: { handle: 'javahouse' } });
-  check('the seeded handle is untouched', seededAfter?.address, '0x20C000000000000000000000b9537d11c60E8b50');
-  check('and carries no claim signature', seededAfter?.claimSignature, 'null');
+  check(
+    'the refused fixture row was removed with the fixtures',
+    await prisma.handle.count({ where: { handle: merchantHandle(NAME_HELD) } }),
+    0
+  );
 
   const realAfter = await prisma.handle.count({ where: { NOT: HANDLE_WHERE } });
   check('real handles were not touched', realAfter, realHandlesBefore);
