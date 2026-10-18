@@ -1,0 +1,12 @@
+# Who reviews what.
+#
+# One owner for the whole repository: Seti is a single-person project, and a
+# pattern per directory would name the same person four times without changing a
+# single review. Add narrower patterns above the wildcard only when a second
+# owner appears.
+#
+# This file assigns reviewers. It does not require them: GitHub only enforces it
+# once "Require review from Code Owners" is ticked in the branch protection rule
+# for `main`. Until then it is a request for review, not a gate.
+
+* @IanoNjuguna

@@ -14,13 +14,15 @@
  * module is imported here at RUNTIME and compared value-for-value, so a drift
  * fails the gate rather than shipping a link that points somewhere else.
  *
- * The migration is pinned too: the six pre-existing merchants moved into the ONE
- * namespace with their handles intact, and a person's username and a business's
+ * The namespace invariant is pinned too: every merchant profile sits behind a
+ * unique handle derived from its name, and a person's username and a business's
  * name are shown to compete for the same string.
  *
  * IMPORTANT: every row this file touches belongs to a fixture user
- * (`check-handle-*@seti.test`) or a fixture handle (`Check Handle …`). The real
- * handles and the seeded rows are snapshotted and checked unchanged.
+ * (`check-handle-*@seti.test`) or a fixture handle (`Check Handle …`), and every
+ * row it ASSERTS about is one it created. It needs no seeded data: a database
+ * built from migrations alone is enough, which is what CI has. Real handles are
+ * snapshotted and checked unchanged.
  */
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
@@ -43,6 +45,7 @@ import {
   type HandleKind,
 } from './handle-claims.js';
 import { findHandleByHandle } from './handles.js';
+import { servedNetwork } from './chain.js';
 import { handleRoutes } from '../routes/handles.js';
 import { publicHandleRoutes } from '../routes/public-handles.js';
 
@@ -221,14 +224,54 @@ async function main() {
   check('both rules agree on the colliding name', merchantHandle(NAME_COLLIDING), HANDLE_COLLISION);
 
   // ---------------------------------------------------------------------------
-  // (d) the migration moved every pre-existing merchant into the namespace
+  // (d) every merchant profile is behind a handle, on rows this suite owns
   // ---------------------------------------------------------------------------
-  console.log('\n(d) the migration:');
-  const handles = await prisma.handle.findMany({ orderBy: { handle: 'asc' } });
-  const handleSet = new Set(handles.map((h) => h.handle));
-  for (const h of ['javahouse', 'safaricomshop', 'seti', 'kfc', 'burgerking', 'ianllc']) {
-    check(`the six merchants kept ${h}`, handleSet.has(h), true);
+  //
+  // This asserted that six merchants from the developer's database had survived
+  // the handle-namespace migration. That measured one machine: CI builds its
+  // database from migrations, so those rows never exist there and the check
+  // failed for a reason that had nothing to do with the code. What the migration
+  // establishes is an INVARIANT — a merchant profile is behind a unique handle
+  // derived from its name — so that is pinned here on six real claims.
+  console.log('\n(d) every merchant profile is behind its handle:');
+  const SIX_NAMES = ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot'].map(
+    (suffix) => `Check Handle Six ${suffix}`
+  );
+  const sixIds: string[] = [];
+  for (const name of SIX_NAMES) {
+    const sixMessage: HandleClaimMessage = {
+      name,
+      address: owner.address,
+      purpose: PURPOSE_FOR_KIND.business,
+      issuedAt: new Date().toISOString(),
+      nonce: nonce(),
+    };
+    const sixClaim = await claimHandle({
+      userId: userA.id,
+      kind: 'business',
+      ...sixMessage,
+      signature: await signClaim(owner, sixMessage),
+    });
+    sixIds.push(sixClaim.id);
   }
+  const sixRows = await prisma.handle.findMany({ where: { id: { in: sixIds } } });
+  check('six claimed merchants each have a handle row', sixRows.length, 6);
+  check('none of them is missing a merchant profile', sixRows.filter((r) => !r.merchantId).length, 0);
+  check(
+    'and every handle is the rule applied to its name',
+    SIX_NAMES.every((name) =>
+      sixRows.some((r) => r.handle === merchantHandle(name) && r.name === name)
+    ),
+    true
+  );
+  check('and the six handles are distinct', new Set(sixRows.map((r) => r.handle)).size, 6);
+  // Business handles are scoped to their network: this one resolves on the
+  // network it was claimed on, asserted through the resolver the route uses.
+  check(
+    'and a claim resolves on its own network',
+    (await findHandleByHandle(sixRows[0].handle, servedNetwork)) !== null,
+    true
+  );
 
   const merchants = await prisma.merchant.findMany({ where: { NOT: MERCHANT_WHERE } });
   const everyMerchantHasHandle = (
@@ -238,17 +281,14 @@ async function main() {
   ).every(Boolean);
   check('every merchant profile is behind a handle', everyMerchantHasHandle, true);
 
-  // The seeded `javahouse` row is a PRACTICE row (backfilled to `testnet`), and a
-  // business handle is PER NETWORK — so the public route, which resolves on the
-  // network this deployment SERVES, cannot see it on a live box. Asserted through
-  // the same resolver the route uses, on the network the row is on: the promise
-  // being pinned is that the seeded row is intact, not that a practice merchant is
-  // payable on live. (Whether a practice business name should resolve on live is a
-  // product question the owner has left open.)
-  const seededRow = await findHandleByHandle('javahouse', 'testnet');
-  const seededView = seededRow ? await toHandleIdentityView(seededRow) : null;
-  check('a seeded handle still resolves on its own network', seededView !== null, true);
-  check('and returns the seeded handle', seededView?.name, 'Java House');
+  // A practice business handle is per network, so the public route — which
+  // resolves on the network this deployment SERVES — must be asked for the one
+  // the row is on. Pinned on a row this suite created, not on the seeded
+  // `javahouse`: whether a practice business name should resolve on live is a
+  // product question the owner has left open, and it is not what this asserts.
+  const practiceView = await toHandleIdentityView(sixRows[0]);
+  check('a claim still resolves on its own network', practiceView !== null, true);
+  check('and returns the claimed name', practiceView?.name, sixRows[0].name);
 
   // ---------------------------------------------------------------------------
   // (a) a claim stores a handle equal to the web's rule
@@ -414,10 +454,6 @@ async function main() {
   // Cleanup, and proof the money path was left alone
   // ---------------------------------------------------------------------------
   await cleanup();
-
-  const seededAfter = await prisma.handle.findFirst({ where: { handle: 'javahouse' } });
-  check('the seeded handle is untouched', seededAfter?.address, '0x20C000000000000000000000b9537d11c60E8b50');
-  check('and carries no claim signature', seededAfter?.claimSignature, 'null');
 
   check('real handles were not touched', await prisma.handle.count({ where: { NOT: HANDLE_WHERE } }), realBefore);
   check('and no fixture was left behind', await prisma.handle.count({ where: HANDLE_WHERE }), 0);
