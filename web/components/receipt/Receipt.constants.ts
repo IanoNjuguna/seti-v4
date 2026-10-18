@@ -1,14 +1,5 @@
 import type { ShareOutcome } from './Receipt.types';
 
-/**
- * The owner's mark, used as the card's letterhead.
- *
- * The card is a document the customer may hold up to a merchant, so it carries
- * the brand that issued it rather than a generic title: the mark is the trust
- * signal at the moment the screen is shown to someone else.
- */
-export const RECEIPT_MARK_SRC = '/red-phoenix-mark.png';
-
 export const RECEIPT_WORDMARK = 'Seti';
 
 /** The dialog's accessible name points here; one id, shared by the card. */

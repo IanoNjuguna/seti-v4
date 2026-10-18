@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Text } from '@/components/ui';
+import { BrandMark, Text } from '@/components/ui';
 import { AppNavLink } from './AppNavLink';
 import { RailIdentityCard } from './RailIdentityCard';
 import { RailNetworkRow } from './RailNetworkRow';
@@ -13,7 +13,7 @@ import { useAppNav } from './useAppNav';
  * bar rotated vertical, and its brand block is exactly one `nav-bar` tall, on its
  * own hairline.
  *
- * The brand is the phoenix mark the landing nav uses plus the wordmark at
+ * The brand is the neutral mark the landing nav uses plus the wordmark at
  * `heading-md`: a 20px wordmark over 48px rows read as a label on the list rather
  * than as the product's name. The size is the `heading-md` VARIANT, not a
  * `text-heading-md` class beside `variant="section"` — two size classes in one
@@ -51,7 +51,7 @@ export function AppRail() {
         href="/app"
         className="mb-2 flex h-[var(--app-nav-bar)] shrink-0 items-center gap-3 border-b border-hairline-dark px-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
-        <img src="/red-phoenix-mark.png" alt="" className="h-8 w-auto" />
+        <BrandMark expression="neutral" canvas="dark" className="h-8" />
         <Text variant="heading-md" as="span" color="inverse">
           seti
         </Text>

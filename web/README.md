@@ -95,8 +95,8 @@ scanning it opens the thing the product actually does, signed out, the way a
 customer meets a printed sticker.
 
 - **The code** comes from `react-qr-code` (already a dependency of the receipt
-  and the merchant surfaces) and is drawn as SVG — never `public/treasury-qr.png`,
-  which is a few hundred pixels of raster and visibly soft at this size. The QR's
+  and the merchant surfaces) and is drawn as SVG, never as raster, which would be
+  visibly soft at this size. The QR's
   own modules stay square; the plate around it is a real surface at `rounded-md`
   (12px) with `p-9`/`md:p-10`, which is both the slot's internal padding and the
   code's quiet zone (the spec wants ~14% of the code's width of clean field).
@@ -125,14 +125,16 @@ customer meets a printed sticker.
 `HERO_PAYMENT_URL` is one constant used by both the code and the printed line, so
 the picture and the text cannot describe different URLs.
 
-`public/hero-banner.png` (1400 × 592, RGBA) is still in the tree — the owner
-resized it and asked for it to stay — but it is **no longer the hero visual**.
+The owner's original hero image (`public/hero-banner.png`) has been deleted. It
+stopped being the hero visual when the live payment QR replaced it, and an asset
+in `public/` that nothing renders reads as part of the page to whoever comes next.
 
 ## Notes
 
 - **The hero's right half is a live payment QR**, not an image. The
   third-party background video that used to sit there is gone — the drifting
-  field replaced it — and `public/hero-banner.png` is retained but unused. See
+  field replaced it — and the owner's banner was deleted along with the video once
+  nothing rendered it. See
   [Hero payment QR](#hero-payment-qr) for what the code encodes and the one env
   var (`NEXT_PUBLIC_SITE_ORIGIN`) that decides it.
 - **Legal placeholders are visible, on purpose.** `app/legal/site.ts` holds the
@@ -147,13 +149,12 @@ resized it and asked for it to stay — but it is **no longer the hero visual**.
   (Privy, Cloudflare, AWS) — and each says plainly that it still needs a
   lawyer's review. Fill the placeholders and get that review before treating
   them as final.
-- **The donations QR is generated, not hand-made.** `public/treasury-qr.png`
-  comes from `scripts/generate-treasury-qr.py`, which reads
-  `SETI_TREASURY_ADDRESS`. Regenerate it whenever the address changes — otherwise
-  the QR points somewhere the visible text does not. NOTE: nothing renders this
-  image any more (the footer block that published the address is gone), so the
-  file and its script are now artefacts with no reader; delete both or give the
-  address a surface, but do not leave a QR nobody displays looking like a live
-  part of the page.
+- **There is no committed donations QR.** `public/treasury-qr.png` and
+  `scripts/generate-treasury-qr.py` are both deleted. The footer block that
+  published a treasury address is gone, so the image had no reader and the script
+  had no consumer; a QR nobody displays in `public/` reads as a live part of the
+  page. Every QR the site draws now comes from `react-qr-code` at render time. If
+  the address ever gets a surface again, generate the code from
+  `SETI_TREASURY_ADDRESS` in the component rather than committing an image of it.
 - Keep this directory focused on marketing content only. Product logic lives in
   `mobile/` and `backend/`.

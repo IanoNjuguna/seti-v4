@@ -1,9 +1,9 @@
 'use client';
 
-import { Text } from '@/components/ui';
+import { BrandMark, Text } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import type { Network } from '@/lib/network';
-import { RECEIPT_COPY, RECEIPT_MARK_SRC, RECEIPT_WORDMARK } from './Receipt.constants';
+import { RECEIPT_COPY, RECEIPT_WORDMARK } from './Receipt.constants';
 
 export interface ReceiptLetterheadProps {
   /** Which network the receipt is from — the one thing that decides its treatment. */
@@ -24,6 +24,9 @@ export interface ReceiptLetterheadProps {
  * have the same shape. Naming it on the card — and in every export — is what makes
  * a shared link unambiguous.
  *
+ * The mark itself is `BrandMark` at `expression="neutral"`, `canvas="dark"`: a
+ * document identifies rather than greets, so it wears the identity's default face.
+ *
  * A PRACTICE receipt wears the same mark in the warning orange the app marks
  * practice with everywhere else (`Text color="attention"`), where a live one is
  * quiet white-on-black. This is the copy of the card that leaves the app: it is
@@ -39,7 +42,7 @@ export function ReceiptLetterhead({ network, networkLabel }: ReceiptLetterheadPr
     <div className="flex items-center justify-between gap-3 pr-14">
       <div className="flex items-center gap-2.5">
         {/* Decorative: the wordmark beside it already names the issuer. */}
-        <img src={RECEIPT_MARK_SRC} alt="" className="h-7 w-auto" />
+        <BrandMark expression="neutral" canvas="dark" className="h-7" />
         <Text variant="section" as="span" color="inverse">
           {RECEIPT_WORDMARK}
         </Text>

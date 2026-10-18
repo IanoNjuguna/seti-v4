@@ -1,5 +1,39 @@
 # AGENTS.md
 
+> **Before you touch anything: every change goes issue → branch → pull request.**
+> No exceptions except production being down. `main` is production. The rule, the
+> issue fields, the PR body and the P0 path are in the `feature-process` skill;
+> `pr-guard` and branch protection enforce the parts a check can enforce. Read that
+> skill before your first line of code, not before the commit.
+
+
+## How work arrives (not negotiable)
+
+**Every change goes issue → branch → pull request.** No exceptions except
+production being down. `main` is production: a merge deploys.
+
+1. **The issue exists before the code does.** Problem, scope and non-goals,
+   testable acceptance criteria, risk and rollback. If those cannot be written,
+   the work is not understood yet.
+2. **The branch is named for it**, cut from current `main`:
+   `feat/142-fee-line-on-receipt`, `fix/71-receipt-404`. Never work on `main`.
+3. **`npm run verify` is green before the PR exists.** Not after, not "to see if
+   CI passes".
+4. **The PR carries the reasoning**: `Closes #142`, what changed in the
+   customer's terms, how it was verified, the decisions and the tradeoffs
+   (options rejected and why), risk and rollback, screenshots for anything
+   visual. `.github/pull_request_template.md` is the shape.
+5. **Merge is deploy.** Watch the deploy workflow.
+
+Enforced, not merely written down: `.github/workflows/pr-guard.yml` fails a pull
+request with no issue link or a branch name without its issue number, and branch
+protection on `main` requires the `verify` check. A P0 (production down) uses the
+`p0-hotfix` label and files the issue within 24 hours.
+
+The full procedure, including the exception and the failure modes it exists to
+prevent, is the `feature-process` skill. That skill is the owner of this rule;
+this section is the summary and must not grow into a second copy of it.
+
 ## Project
 
 A mobile neobank for emerging markets, built on **Tempo**. Users hold stablecoins (OUSD, pathUSD, USDT0 and USDC.e), scan a Seti merchant QR code, and pay the merchant's own wallet directly. v1 settlement is **non-custodial**: the customer's stablecoins go straight to the merchant, and Seti never takes possession of the funds.
@@ -40,6 +74,7 @@ This repo has project skills in `.agents/skills/` that govern all UI work. Load 
 | Brand / visual identity | `brandkit` |
 | Exhaustive code output | `full-output-enforcement` |
 | How/when to edit skills | `skill-gardening` |
+| Issue → branch → PR workflow, and what a PR must say | `feature-process` |
 
 If a rule feels needed in two skills, put it in the owning skill and cross-reference it from the other. Keep each skill inside its stated concern — split rather than bloat.
 

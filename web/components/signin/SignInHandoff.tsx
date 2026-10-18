@@ -1,9 +1,7 @@
 'use client';
 
-import Image from 'next/image';
-import { Text } from '@/components/ui';
+import { BrandMark, Text } from '@/components/ui';
 import { SIGN_IN_HANDOFF_COPY, SIGN_IN_HANDOFF_DELAY_MS } from './SignInHandoff.constants';
-import { SIGN_IN_MARK } from './SignInScreen.constants';
 import { useHandoffVisible } from './useHandoffVisible';
 
 /**
@@ -22,7 +20,10 @@ import { useHandoffVisible } from './useHandoffVisible';
  *     its row's `px-4`, `--app-nav-bar`, `gap-3`, the `h-8` mark and the `heading-md`
  *     wordmark. Restated rather than imported, because the rail is chrome with a
  *     destination in it and this is a holding screen with none. The eye is left where
- *     the app's brand appears, so nothing moves when the app takes over.
+ *     the app's brand appears, so nothing moves when the app takes over. The mark is
+ *     the rail's too — neutral, on the dark canvas — because the whole point of this
+ *     screen is that nothing changes when the app arrives: a friendly face here would
+ *     be one object visibly swapping for another.
  *  3. **One indicator**: the mark, plus one thin indeterminate line, and nothing else.
  *  4. **No splash if the wait is short.** `useHandoffVisible` holds the CONTENT back
  *     for `SIGN_IN_HANDOFF_DELAY_MS`, so the common case — a client navigation that
@@ -43,13 +44,11 @@ export function SignInHandoff() {
           {/* The rail's brand block, in the rail's own box. */}
           <div className="px-3">
             <div className="flex h-[var(--app-nav-bar)] items-center gap-3 px-4">
-              <Image
-                src={SIGN_IN_MARK.src}
-                alt=""
-                width={SIGN_IN_MARK.width}
-                height={SIGN_IN_MARK.height}
+              <BrandMark
+                expression="neutral"
+                canvas="dark"
                 preload
-                className="h-8 w-auto"
+                className="h-8"
               />
               <Text variant="heading-md" as="span" color="inverse">
                 {SIGN_IN_HANDOFF_COPY.wordmark}
