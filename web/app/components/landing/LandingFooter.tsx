@@ -1,3 +1,4 @@
+import { BrandMark } from '@/components/ui';
 import { FOOTER_COPYRIGHT, FOOTER_LINKS, FOOTER_ORIGIN } from './LandingFooter.constants';
 
 /**
@@ -35,7 +36,7 @@ export function LandingFooter() {
       <div className="mx-auto max-w-6xl px-6 py-12">
         <div className="flex flex-col gap-8 md:grid md:grid-cols-3 md:items-center">
           <div className="flex items-center gap-4">
-            <img src="/red-phoenix-mark.png" alt="Seti" className="h-8 w-auto" />
+            <BrandMark expression="neutral" canvas="dark" label="Seti" className="h-8" />
             <p className="text-body-sm text-on-dark-mute">{FOOTER_COPYRIGHT}</p>
           </div>
 

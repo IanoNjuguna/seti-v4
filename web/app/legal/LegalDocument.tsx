@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandMark } from "@/components/ui";
 
 export interface LegalSection {
   /** Numbered clause title, e.g. "3. Privacy". */
@@ -66,7 +67,7 @@ export function LegalDocument({
             href="/"
             className="flex items-center focus:outline-none focus:ring-2 focus:ring-on-dark/60 focus:ring-offset-2 focus:ring-offset-canvas-dark"
           >
-            <img src="/red-phoenix-mark.png" alt="Seti" className="h-9 w-auto" />
+            <BrandMark expression="neutral" canvas="dark" label="Seti" className="h-9" />
           </Link>
         </div>
       </header>

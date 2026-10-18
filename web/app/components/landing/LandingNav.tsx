@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { SearchModal } from '@/app/components/SearchModal';
+import { BrandMark } from '@/components/ui';
 import { SIGN_IN_PATH } from '@/lib/routes';
 import { NavMenuButton } from './NavMenuButton';
 import { NavMenuPanel } from './NavMenuPanel';
@@ -64,7 +65,8 @@ export function LandingNav() {
             href="#hero"
             className="flex items-center gap-3 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-dark focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-dark"
           >
-            <img src="/red-phoenix-mark.png" alt="" className="h-7 w-auto" />
+            {/* Decorative: the wordmark beside it names the product. */}
+            <BrandMark expression="neutral" canvas="dark" className="h-7" />
             <span className="font-brand text-heading-sm font-medium text-on-dark">seti</span>
           </Link>
 

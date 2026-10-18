@@ -16,11 +16,12 @@
  * the single mechanic a visitor needs before typing (a code is emailed; there is no
  * password).
  */
-export const SIGN_IN_MARK = {
-  src: '/red-phoenix-mark.png',
-  width: 424,
-  height: 298,
-} as const;
+/**
+ * The front door wears the FRIENDLY mark: this is the one screen in the product
+ * whose whole job is to welcome someone, so it is the expressive face's first
+ * and clearest home. Drawn by `<BrandMark expression="friendly" canvas="dark" />`
+ * at the call site, on the dark canvas this page already paints.
+ */
 
 export const SIGN_IN_COPY = {
   /** The page's one heading: the instruction, in the customer's own words. */
