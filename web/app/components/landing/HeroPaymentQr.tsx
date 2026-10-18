@@ -34,8 +34,9 @@ import { HERO_QR_COPY } from './HeroPaymentQr.copy';
  * WHY A QR: the hero is the page's loudest surface, and a stock object there is a
  * claim nobody can check. This is one they can. It is drawn as vector
  * (`react-qr-code`, already a dependency of the receipt and merchant surfaces),
- * never the committed `public/treasury-qr.png` — a few hundred pixels of raster
- * would be visibly soft at 198px, and vector stays exact at any size or zoom.
+ * never a committed raster QR: a few hundred pixels of raster would be visibly
+ * soft at 198px, and vector stays exact at any size or zoom. The raster one this
+ * replaced has been deleted from `public/`, and so has the script that made it.
  *
  * WHAT IT SAYS is the owner's wording verbatim (`HeroPaymentQr.copy.ts`). The
  * caption now names the merchant once, in the sentence that stayed. Note what the

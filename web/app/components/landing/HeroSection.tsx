@@ -95,8 +95,9 @@ import { HeroPaymentQr } from './HeroPaymentQr';
  * payment page: the code should open something real, and a treasury code invites
  * strangers to push funds at Seti's fee wallet, while this one opens the thing the
  * product actually does. (The treasury surface that code belonged to has since been
- * deleted from the page entirely.) `public/hero-banner.png` is still in the tree —
- * the owner's asset, kept deliberately — but it is no longer the hero visual.
+ * deleted from the page entirely, and the owner's original banner image has gone
+ * with it: nothing on the page renders an image any more, so it was removed from
+ * `public/` rather than left there looking like part of the page.)
  *
  * No size was touched to fill space: the type, the copy, the code and the
  * seven/five split are what they were.
