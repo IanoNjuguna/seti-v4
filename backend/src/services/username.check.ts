@@ -29,6 +29,7 @@ import { randomBytes } from 'node:crypto';
 import Fastify from 'fastify';
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
 import { prisma } from '../lib/prisma.js';
+import { checkPreexistingUnchanged, snapshotPreexisting } from './preexisting-handles.js';
 import { registerWallet } from './wallet-registry.js';
 import { handleRoutes } from '../routes/handles.js';
 import { publicHandleRoutes } from '../routes/public-handles.js';
@@ -43,11 +44,9 @@ import {
   PURPOSE_FOR_KIND,
   RESERVED_HANDLES,
   claimHandle,
-  toHandleIdentityView,
   type HandleClaimMessage,
   type HandleKind,
 } from './handle-claims.js';
-import { findHandleByHandle } from './handles.js';
 
 const FIXTURE_EMAIL_A = 'check-username-a@seti.test';
 const FIXTURE_EMAIL_B = 'check-username-b@seti.test';
@@ -71,15 +70,8 @@ const MERCHANT_WHERE = {
   name: { startsWith: FIXTURE_NAME_PREFIX, mode: 'insensitive' as const },
 };
 
-/** The six merchants as they resolved before the migration — pinned here. */
-const MERCHANTS = [
-  { handle: 'ianllc', name: 'Ianllc', address: '0xE2eF55fD97f1e666782D1F653d29fcE88D585e28', verified: true },
-  { handle: 'burgerking', name: 'BurgerKing', address: '0x3Ee67d07F52C0bf9DeDaF495B17C72b47B35631a', verified: true },
-  { handle: 'kfc', name: 'KFC', address: '0x3Ee67d07F52C0bf9DeDaF495B17C72b47B35631a', verified: true },
-  { handle: 'seti', name: 'Seti', address: '0x02b02edc794548897CD50D9fb55539197efCA1Ac', verified: true },
-  { handle: 'javahouse', name: 'Java House', address: '0x20C000000000000000000000b9537d11c60E8b50', verified: false },
-  { handle: 'safaricomshop', name: 'Safaricom Shop', address: '0x20c0000000000000000000009e8d7eb59b783726', verified: false },
-];
+// The snapshot and its assertions are shared by every suite that used to pin
+// six hardcoded merchants. See `preexisting-handles.ts` for why.
 
 let failures = 0;
 function check(label: string, actual: unknown, expected: unknown): void {
@@ -145,6 +137,10 @@ async function main() {
   const owner = privateKeyToAccount(generatePrivateKey());
   const rival = privateKeyToAccount(generatePrivateKey());
 
+  // Snapshot taken BEFORE anything is written, so "untouched" is measured against
+  // the database as it was found rather than against a list of names.
+  const preexisting = await snapshotPreexisting(HANDLE_WHERE);
+
   await cleanup();
 
   const userA = await prisma.user.create({ data: { email: FIXTURE_EMAIL_A } });
@@ -167,25 +163,18 @@ async function main() {
   const view = (body: Record<string, unknown>) => body.handle as Record<string, unknown>;
 
   // ---------------------------------------------------------------------------
-  // The six merchants still resolve and still verify (the migration's promise)
+  // Every pre-existing handle still resolves, still verifies, still points where
+  // it did (the migration's promise), measured against the snapshot above
   // ---------------------------------------------------------------------------
-  console.log('the six existing merchants, untouched:');
-  // Read on the network the rows are ON (`testnet` — they predate the network
-  // dimension and were backfilled to practice), through the same resolver the
-  // routes use. The public route resolves on the network this deployment SERVES,
-  // and a BUSINESS handle is per network by the owner's ruling, so a practice
-  // merchant is correctly invisible on a live deployment — asking the route would
-  // assert the opposite of the rule. What a practice business name should mean on
-  // live is a question the owner has left open; this pins that the rows are intact.
-  for (const m of MERCHANTS) {
-    const row = await findHandleByHandle(m.handle, 'testnet');
-    const handle = row ? await toHandleIdentityView(row) : null;
-    check(`${m.handle}: resolves on its own network`, handle !== null, true);
-    check(`${m.handle}: name unchanged`, handle?.name, m.name);
-    check(`${m.handle}: address unchanged`, handle?.address, m.address);
-    check(`${m.handle}: verified unchanged`, handle?.verified, m.verified);
-    check(`${m.handle}: is a business`, handle?.kind, 'business');
-  }
+  console.log(`every pre-existing handle, untouched (${preexisting.length} found):`);
+  check('the snapshot was taken', Array.isArray(preexisting), true);
+  // Read on the network each row is ON, through the same resolver the routes use.
+  // The public route resolves on the network this deployment SERVES, and a
+  // BUSINESS handle is per network by the owner's ruling, so a practice merchant
+  // is correctly invisible on a live deployment — asking the route would assert
+  // the opposite of the rule. What a practice business name should mean on live
+  // is a question the owner has left open; this pins that the rows are intact.
+  await checkPreexistingUnchanged(preexisting, check);
 
   // ---------------------------------------------------------------------------
   // (1) a username claim stores a handle and verifies

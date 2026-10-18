@@ -33,6 +33,7 @@ import { randomBytes } from 'node:crypto';
 import Fastify from 'fastify';
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
 import { prisma } from '../lib/prisma.js';
+import { checkPreexistingUnchanged, snapshotPreexisting } from './preexisting-handles.js';
 import { getActiveWallet, registerWallet } from './wallet-registry.js';
 import { transactionRoutes } from '../routes/transactions.js';
 import { networkScopeHook } from '../middleware/network-scope.js';
@@ -45,7 +46,6 @@ import {
   handleClaimVerifies,
   merchantHandle,
   PURPOSE_FOR_KIND,
-  toHandleIdentityView,
   type HandleClaimMessage,
   type HandleKind,
 } from './handle-claims.js';
@@ -93,14 +93,9 @@ const HANDLE_WHERE = {
 const MERCHANT_WHERE = { name: { startsWith: FIXTURE_NAME_PREFIX, mode: 'insensitive' as const } };
 
 /** The six merchants, as they resolved before network scoping — pinned here. */
-const MERCHANTS = [
-  { handle: 'ianllc', address: '0xE2eF55fD97f1e666782D1F653d29fcE88D585e28', verified: true },
-  { handle: 'burgerking', address: '0x3Ee67d07F52C0bf9DeDaF495B17C72b47B35631a', verified: true },
-  { handle: 'kfc', address: '0x3Ee67d07F52C0bf9DeDaF495B17C72b47B35631a', verified: true },
-  { handle: 'seti', address: '0x02b02edc794548897CD50D9fb55539197efCA1Ac', verified: true },
-  { handle: 'javahouse', address: '0x20C000000000000000000000b9537d11c60E8b50', verified: false },
-  { handle: 'safaricomshop', address: '0x20c0000000000000000000009e8d7eb59b783726', verified: false },
-];
+// The pre-existing handles this suite must not disturb are snapshotted at run
+// time; the hardcoded six lived only in the developer's database, so CI failed
+// on every run. See `preexisting-handles.ts`.
 
 let failures = 0;
 function check(label: string, actual: unknown, expected: unknown): void {
@@ -179,6 +174,8 @@ async function cleanup() {
 }
 
 async function main() {
+  const preexisting = await snapshotPreexisting(HANDLE_WHERE);
+
   await cleanup();
 
   const practiceOwner = privateKeyToAccount(generatePrivateKey());
@@ -247,14 +244,7 @@ async function main() {
   // served network a practice merchant is correctly invisible, which is the rule,
   // not a regression. (Whether a practice business name SHOULD resolve on live is a
   // product question the owner has left open; see the `Handle` model.)
-  for (const m of MERCHANTS) {
-    const row = await findHandleByHandle(m.handle, 'testnet');
-    const view = row ? await toHandleIdentityView(row) : null;
-    check(`${m.handle}: still resolves on its own network`, Boolean(row), true);
-    check(`${m.handle}: address unchanged`, view?.address, m.address);
-    check(`${m.handle}: verified unchanged`, view?.verified, m.verified);
-    check(`${m.handle}: is bound to testnet`, view?.network, 'testnet');
-  }
+  await checkPreexistingUnchanged(preexisting, check);
 
   // ---------------------------------------------------------------------------
   // (a) a practice claim does not block a live claim of the same name
