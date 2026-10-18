@@ -32,7 +32,7 @@
  * on every render.
  */
 
-import { useLoginWithEmail, usePrivy, useWallets } from '@privy-io/react-auth';
+import { useCreateWallet, useLoginWithEmail, usePrivy, useWallets } from '@privy-io/react-auth';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { readPrivyAccessToken } from './privy-access-token';
 
@@ -46,7 +46,10 @@ import { readPrivyAccessToken } from './privy-access-token';
 export interface PrivyEmailSignIn {
   /** Mail the one-time passcode. Resolves once Privy has sent it. */
   sendCode: (email: string) => Promise<void>;
-  /** Consume the passcode. Resolves once Privy has authenticated the user. */
+  /**
+   * Consume the passcode. Resolves once Privy has authenticated the user AND the
+   * account has an embedded wallet to sign with.
+   */
   submitCode: (code: string) => Promise<void>;
   /** The authenticated access token, polled briefly for the post-login race. */
   accessToken: () => Promise<string | null>;
@@ -60,6 +63,15 @@ function usePrivyEmailSignInImpl(): PrivyEmailSignIn {
   const { sendCode, loginWithCode } = useLoginWithEmail();
   const { getAccessToken, authenticated } = usePrivy();
   const { wallets } = useWallets();
+  const { createWallet } = useCreateWallet();
+
+  /**
+   * The address of a wallet created on THIS login, before React has re-rendered
+   * with it. Privy resolves `createWallet()` with the wallet, but `useWallets()`
+   * only catches up on the next render, and the session is verified in the same
+   * tick — so the ref is what lets `walletAddress()` name it on that call.
+   */
+  const createdAddressRef = useRef<string | null>(null);
 
   const authenticatedRef = useRef(authenticated);
   useEffect(() => {
@@ -72,7 +84,45 @@ function usePrivyEmailSignInImpl(): PrivyEmailSignIn {
   }, [wallets]);
 
   const send = useCallback((email: string) => sendCode({ email }), [sendCode]);
-  const submit = useCallback((code: string) => loginWithCode({ code }), [loginWithCode]);
+
+  /**
+   * Ensure the account has an embedded wallet before the session is verified.
+   *
+   * Privy authenticates an email-only account and leaves it with NO wallet, which
+   * is what `createOnLogin: 'users-without-wallets'` is supposed to prevent — but
+   * that setting works by PROMPTING on Privy's own UI, and this app signs in
+   * headless with its own page and its own code field. Nothing ever prompts, so
+   * nothing was ever created: the login succeeded, the account had no wallet, and
+   * `/auth/verify` refused it (production, 2026-10-18, did:privy:cmvdyfweg…).
+   *
+   * Creating it here rather than on the backend is deliberate: the browser has to
+   * hold the key, and `wallet-registry.ts` records what minting wallets server-side
+   * cost — a second wallet nobody could spend from.
+   *
+   * A failure is swallowed on purpose. The verify that follows answers with the
+   * sentence a customer can act on ("Sign in again so the app can create one"),
+   * and failing the login here would replace it with a generic error.
+   */
+  const ensureEmbeddedWallet = useCallback(async (): Promise<void> => {
+    const existing = walletsRef.current.find((wallet) => wallet.walletClientType === 'privy');
+    if (existing) return;
+
+    try {
+      const wallet = await createWallet();
+      createdAddressRef.current = wallet.address;
+    } catch {
+      // Left to the verify call to report: an account that ends up walletless gets
+      // the backend's own sentence, which is more useful than this stack.
+    }
+  }, [createWallet]);
+
+  const submit = useCallback(
+    async (code: string) => {
+      await loginWithCode({ code });
+      await ensureEmbeddedWallet();
+    },
+    [loginWithCode, ensureEmbeddedWallet]
+  );
 
   const accessToken = useCallback(
     () => readPrivyAccessToken(getAccessToken, () => authenticatedRef.current),
@@ -82,7 +132,7 @@ function usePrivyEmailSignInImpl(): PrivyEmailSignIn {
   const walletAddress = useCallback(
     () =>
       (walletsRef.current.find((wallet) => wallet.walletClientType === 'privy') ??
-        walletsRef.current[0])?.address,
+        walletsRef.current[0])?.address ?? createdAddressRef.current ?? undefined,
     []
   );
 
