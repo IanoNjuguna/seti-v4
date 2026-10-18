@@ -1,0 +1,58 @@
+name: pr-guard
+
+# The process is only a process if something says no.
+#
+# `verify` proves the code works. This proves the change ARRIVED properly: an
+# issue exists, and the branch was cut for it. It deliberately checks presence,
+# not quality — a regex cannot judge a tradeoff, and one that tried would teach
+# everyone to write headings instead of reasoning. Quality is the reviewer's job.
+#
+# Editing a PR body re-runs this, so a missing link is fixable without a push.
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  issue-link:
+    name: issue link + branch name
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: A pull request must carry an issue and a branch named for it
+        # Everything untrusted arrives through `env`, never interpolated into the
+        # shell: a PR body is attacker-controlled text.
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          HEAD_REF: ${{ github.head_ref }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          set -euo pipefail
+
+          if printf '%s' ",$LABELS," | grep -q ',p0-hotfix,'; then
+            echo "p0-hotfix: production exception. The issue is filed within 24h and linked here."
+            exit 0
+          fi
+
+          fail=0
+
+          if printf '%s' "$PR_BODY" | grep -Eqi '(closes|fixes|resolves|refs)[[:space:]]+#[0-9]+'; then
+            echo "ok: the body references an issue"
+          else
+            echo "::error::No issue reference. Add 'Closes #<number>' to the description, or label the PR 'p0-hotfix' if production is down."
+            fail=1
+          fi
+
+          if printf '%s' "$HEAD_REF" | grep -Eq '^[a-z]+/[0-9]+-'; then
+            echo "ok: branch '$HEAD_REF' carries its issue number"
+          else
+            echo "::error::Branch '$HEAD_REF' is not named for an issue. Expected feat/<issue>-<slug>, fix/<issue>-<slug>, chore/<issue>-<slug> and so on."
+            fail=1
+          fi
+
+          exit "$fail"
