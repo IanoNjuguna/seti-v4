@@ -30,6 +30,7 @@ import { randomBytes } from 'node:crypto';
 import Fastify from 'fastify';
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
 import { prisma } from '../lib/prisma.js';
+import { checkPreexistingUnchanged, snapshotPreexisting } from './preexisting-handles.js';
 import { registerWallet } from './wallet-registry.js';
 import { handleRoutes } from '../routes/handles.js';
 import { publicHandleRoutes } from '../routes/public-handles.js';
@@ -54,7 +55,6 @@ import {
   type HandleClaimMessage,
   type HandleKind,
 } from './handle-claims.js';
-import { findHandleByHandle } from './handles.js';
 
 const FIXTURE_EMAIL_A = 'check-brand-a@seti.test';
 const FIXTURE_EMAIL_B = 'check-brand-b@seti.test';
@@ -80,14 +80,9 @@ const MERCHANT_WHERE = {
 };
 
 /** The six merchants as they resolve before this feature — pinned here. */
-const MERCHANTS = [
-  { handle: 'ianllc', name: 'Ianllc', address: '0xE2eF55fD97f1e666782D1F653d29fcE88D585e28', verified: true },
-  { handle: 'burgerking', name: 'BurgerKing', address: '0x3Ee67d07F52C0bf9DeDaF495B17C72b47B35631a', verified: true },
-  { handle: 'kfc', name: 'KFC', address: '0x3Ee67d07F52C0bf9DeDaF495B17C72b47B35631a', verified: true },
-  { handle: 'seti', name: 'Seti', address: '0x02b02edc794548897CD50D9fb55539197efCA1Ac', verified: true },
-  { handle: 'javahouse', name: 'Java House', address: '0x20C000000000000000000000b9537d11c60E8b50', verified: false },
-  { handle: 'safaricomshop', name: 'Safaricom Shop', address: '0x20c0000000000000000000009e8d7eb59b783726', verified: false },
-];
+// The pre-existing handles this suite must not disturb are snapshotted at run
+// time; the hardcoded six lived only in the developer's database, so CI failed
+// on every run. See `preexisting-handles.ts`.
 
 let failures = 0;
 function check(label: string, actual: unknown, expected: unknown): void {
@@ -179,6 +174,8 @@ async function main() {
 
   const realBefore = await prisma.handle.count({ where: { NOT: HANDLE_WHERE } });
   const releasesBefore = await prisma.handleRelease.count();
+
+  const preexisting = await snapshotPreexisting(HANDLE_WHERE);
 
   await cleanup();
 
@@ -549,15 +546,7 @@ async function main() {
   // invisible on a live deployment. This asserts the rows are intact, which is this
   // suite's business; whether a practice business name should resolve on live is a
   // question the owner has left open.
-  for (const m of MERCHANTS) {
-    const row = await findHandleByHandle(m.handle, 'testnet');
-    const handle = row ? await toHandleIdentityView(row) : null;
-    check(`${m.handle}: resolves on its own network`, handle !== null, true);
-    check(`${m.handle}: name unchanged`, handle?.name, m.name);
-    check(`${m.handle}: address unchanged`, handle?.address, m.address);
-    check(`${m.handle}: verified unchanged`, handle?.verified, m.verified);
-    check(`${m.handle}: is a business`, handle?.kind, 'business');
-  }
+  await checkPreexistingUnchanged(preexisting, check);
 
   await app.close();
 
@@ -571,8 +560,10 @@ async function main() {
   check('no fixture business profile left behind', await prisma.merchant.count({ where: MERCHANT_WHERE }), 0);
   check('no fixture release record left behind', await prisma.handleRelease.count(), releasesBefore);
 
-  const seededAfter = await prisma.handle.findFirst({ where: { handle: 'javahouse' } });
-  check('the seeded handle is untouched', seededAfter?.address, '0x20C000000000000000000000b9537d11c60E8b50');
+  // A scoped delete that is one predicate too wide shows up here: every handle
+  // that existed before this suite must still exist after its cleanup.
+  const survivors = await prisma.handle.count({ where: { id: { in: preexisting.map((r) => r.id) } } });
+  check('every pre-existing handle survived the cleanup', survivors, preexisting.length);
 
   await prisma.$disconnect();
   console.log(`\n${failures === 0 ? 'All checks passed.' : `${failures} CHECK(S) FAILED.`}`);
