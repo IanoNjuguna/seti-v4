@@ -10,6 +10,15 @@ failed pull then left the API down until the pull was retried.
 and it creates none of it. Until each item exists, the first job that needs it
 fails, with the secret's name in the log.
 
+For its first months the workflow never parsed at all, so it created nothing and
+failed nothing: an empty expression, written as a pair of expression braces with
+nothing between them, sat in a comment inside a `run:` block. GitHub scans `run`
+blocks for expressions, tries to parse that one, and rejects the whole file, so
+every push to `main` produced a run with zero jobs and the `name:` never even
+registered. The fix is in the file: describe the expansion in words instead of
+quoting it. `actionlint .github/workflows/deploy.yml` reproduces the error
+locally in about a second, and is worth running before touching this file.
+
 Create all of it at **repository scope** (Settings → Secrets and variables →
 Actions). The single exception is noted under [Environments](#environments).
 

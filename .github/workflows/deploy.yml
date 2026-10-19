@@ -179,8 +179,11 @@ jobs:
           set -euo pipefail
           install -m 700 -d "$HOME/.ssh"
           # Via env, never interpolated into the command line: the key spans
-          # several lines and a `${{ }}` expansion into shell text would be
-          # re-parsed by the shell.
+          # several lines, and a workflow-expression expansion into shell text
+          # would be re-parsed by the shell. (The words are used on purpose: a
+          # literal expression opener in this comment made the whole file fail
+          # to parse, because GitHub scans run blocks for expressions and an
+          # empty one is a syntax error. See docs/internal/ci.md.)
           printf '%s\n' "$DEPLOY_SSH_KEY" > "$HOME/.ssh/deploy_key"
           chmod 600 "$HOME/.ssh/deploy_key"
           # Pin the host key before the first connection instead of letting ssh
