@@ -208,6 +208,34 @@ Two ways to fix it, pick one:
 The workflow itself does not authenticate the box, so this is a one-time owner
 step either way.
 
+### The workflow must be allowed to push — a different setting from either of those
+
+Neither option above lets the workflow itself write to the package. `push: true` in
+`docker/build-push-action` authenticates as `GITHUB_TOKEN`, and the workflow's
+`permissions: packages: write` grants that *token* the scope. It does not grant
+this *repository* access to a package that already exists, and a package created
+outside the repository has no repository linked to it at all.
+
+The symptom is a failed `Build and push`, before the deploy key is installed and
+before anything is removed:
+
+    ERROR: failed to push ghcr.io/<owner>/seti-api:<sha>:
+      denied: permission_denied: read_package
+
+It says `read_package` because the token cannot even see the package to resolve
+whether the tag exists. Adding `packages: write` again, or making the package
+public, does not change it: the ACL is per package and per repository.
+
+The fix is one setting, once:
+
+1. Package page → **Settings** → **Manage Actions access**
+   (`https://github.com/users/<owner>/packages/container/seti-api/settings`)
+2. **Add Repository** → choose this repository → role **Write**.
+
+A package that Actions created itself is linked to the repository automatically,
+so this step only exists for a package with a history: one pushed by hand with a
+PAT before the pipeline ran. Revoking it is the same screen.
+
 ---
 
 ## 5. Environments
