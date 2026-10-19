@@ -10,6 +10,15 @@ failed pull then left the API down until the pull was retried.
 and it creates none of it. Until each item exists, the first job that needs it
 fails, with the secret's name in the log.
 
+For its first months the workflow never parsed at all, so it created nothing and
+failed nothing: an empty expression, written as a pair of expression braces with
+nothing between them, sat in a comment inside a `run:` block. GitHub scans `run`
+blocks for expressions, tries to parse that one, and rejects the whole file, so
+every push to `main` produced a run with zero jobs and the `name:` never even
+registered. The fix is in the file: describe the expansion in words instead of
+quoting it. `actionlint .github/workflows/deploy.yml` reproduces the error
+locally in about a second, and is worth running before touching this file.
+
 Create all of it at **repository scope** (Settings → Secrets and variables →
 Actions). The single exception is noted under [Environments](#environments).
 
@@ -88,7 +97,7 @@ workflow's `permissions: packages: write` is what lets it push to GHCR.
 
 ---
 
-## 2. Variables (10) — the build-time public values
+## 2. Variables (9) — the build-time public values
 
 Every one of these is `NEXT_PUBLIC_*`, which Next **inlines into the client
 bundle at build time**. They are therefore public by construction — they are
@@ -107,8 +116,7 @@ places to look is how a build ships a value nobody can find later.
 | `NEXT_PUBLIC_TEMPO_ASSET` | `ousd` | Default spend asset. Must be one of `ousd`, `pathusd`, `usdt0`, `usdc.e`. |
 | `NEXT_PUBLIC_TEMPO_TOKEN_OUSD` | `0x20c0000000000000000000006a37da5c996874be` | OUSD override. Equal on both chains; the value is in `web/lib/chain/chain.assets.ts`. |
 | `NEXT_PUBLIC_TEMPO_TOKEN_PATHUSD` | `0x20c0000000000000000000000000000000000000` | pathUSD override. Equal on both chains. |
-| `NEXT_PUBLIC_PRIVY_APP_ID` | `cl…` from the Privy dashboard | Public app id. Its matching `PRIVY_APP_SECRET` belongs on the **backend** only, in the box's `.env.production` — never here. |
-| `NEXT_PUBLIC_PRIVY_SYNC_CHANNEL_ID` | channel id from the Privy dashboard | Cross-tab wallet sync channel. |
+| `NEXT_PUBLIC_PRIVY_APP_ID` | `cm…` from the Privy dashboard | Public app id. Its matching `PRIVY_APP_SECRET` belongs on the **backend** only, in the box's `.env.production` — never here. |
 | `NEXT_PUBLIC_AUTH_SOURCE` | `privy` | Which sign-in path this build uses (`privy` or `dev`). `dev` in production is a configuration error the app reports, not a fallback. |
 
 ```bash
@@ -120,7 +128,6 @@ gh variable set NEXT_PUBLIC_TEMPO_ASSET --repo "$OWNER_REPO" --body "ousd"
 gh variable set NEXT_PUBLIC_TEMPO_TOKEN_OUSD --repo "$OWNER_REPO" --body "0x20c0000000000000000000006a37da5c996874be"
 gh variable set NEXT_PUBLIC_TEMPO_TOKEN_PATHUSD --repo "$OWNER_REPO" --body "0x20c0000000000000000000000000000000000000"
 gh variable set NEXT_PUBLIC_PRIVY_APP_ID --repo "$OWNER_REPO" --body "<privy-app-id>"
-gh variable set NEXT_PUBLIC_PRIVY_SYNC_CHANNEL_ID --repo "$OWNER_REPO" --body "<channel-id>"
 gh variable set NEXT_PUBLIC_AUTH_SOURCE --repo "$OWNER_REPO" --body "privy"
 ```
 
@@ -215,6 +222,12 @@ values would not be found.
 
 ## 6. Deliberately left out
 
+- **`NEXT_PUBLIC_PRIVY_SYNC_CHANNEL_ID`.** It was on the workflow's required list
+  and nothing read it: `grep -rn PRIVY_SYNC_CHANNEL_ID web/` returns nothing and
+  `web/components/providers/PrivyAppProvider.constants.ts` configures no sync
+  channel. Requiring it made the first deploy refuse to build until an owner
+  invented a value that changed nothing, so it is off the list. Add it back, with
+  the code that consumes it, if cross-tab wallet sync is ever wired.
 - **The indexer.** `seti-indexer` runs `node dist/worker.js` from the same image.
   This pipeline replaces `seti-api` only; the indexer keeps running whatever it
   was started with. Restarting it on every deploy was judged worse than useful —
