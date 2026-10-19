@@ -359,6 +359,12 @@ jobs:
       # localhost, and no runtime setting can repair it. So fail here, by name.
       # These are public values (they end up in the shipped JavaScript), which is
       # why they live in `vars` and not `secrets`; see docs/internal/ci.md.
+      #
+      # Every name below is read by web/ source. A value nothing consumed was
+      # removed rather than required: NEXT_PUBLIC_PRIVY_SYNC_CHANNEL_ID sat on
+      # this list while `grep -rn PRIVY_SYNC_CHANNEL_ID web/` returned nothing,
+      # so the first deploy would have refused to build until an owner invented
+      # a value that changed nothing. See docs/internal/ci.md §6.
       - name: Refuse to build with a missing public value
         env:
           NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
@@ -369,7 +375,6 @@ jobs:
           NEXT_PUBLIC_TEMPO_TOKEN_OUSD: ${{ vars.NEXT_PUBLIC_TEMPO_TOKEN_OUSD }}
           NEXT_PUBLIC_TEMPO_TOKEN_PATHUSD: ${{ vars.NEXT_PUBLIC_TEMPO_TOKEN_PATHUSD }}
           NEXT_PUBLIC_PRIVY_APP_ID: ${{ vars.NEXT_PUBLIC_PRIVY_APP_ID }}
-          NEXT_PUBLIC_PRIVY_SYNC_CHANNEL_ID: ${{ vars.NEXT_PUBLIC_PRIVY_SYNC_CHANNEL_ID }}
           NEXT_PUBLIC_AUTH_SOURCE: ${{ vars.NEXT_PUBLIC_AUTH_SOURCE }}
         run: |
           set -uo pipefail
@@ -383,7 +388,6 @@ jobs:
             NEXT_PUBLIC_TEMPO_TOKEN_OUSD \
             NEXT_PUBLIC_TEMPO_TOKEN_PATHUSD \
             NEXT_PUBLIC_PRIVY_APP_ID \
-            NEXT_PUBLIC_PRIVY_SYNC_CHANNEL_ID \
             NEXT_PUBLIC_AUTH_SOURCE
           do
             if [ -z "${!name:-}" ]; then missing+=("$name"); fi
@@ -397,7 +401,7 @@ jobs:
             echo "  docs/internal/ci.md"
             exit 1
           fi
-          echo "All 10 build-time values are present."
+          echo "All 9 build-time values are present."
           # The API URL's own guard is NOT duplicated here: scripts/guard-production-env.mjs
           # refuses a localhost/private URL with no bypass, and running a weaker
           # copy first would only add a second place to disagree. It runs inside
@@ -413,7 +417,6 @@ jobs:
           NEXT_PUBLIC_TEMPO_TOKEN_OUSD: ${{ vars.NEXT_PUBLIC_TEMPO_TOKEN_OUSD }}
           NEXT_PUBLIC_TEMPO_TOKEN_PATHUSD: ${{ vars.NEXT_PUBLIC_TEMPO_TOKEN_PATHUSD }}
           NEXT_PUBLIC_PRIVY_APP_ID: ${{ vars.NEXT_PUBLIC_PRIVY_APP_ID }}
-          NEXT_PUBLIC_PRIVY_SYNC_CHANNEL_ID: ${{ vars.NEXT_PUBLIC_PRIVY_SYNC_CHANNEL_ID }}
           NEXT_PUBLIC_AUTH_SOURCE: ${{ vars.NEXT_PUBLIC_AUTH_SOURCE }}
         run: npm run build:vinext --workspace web
 
