@@ -3,6 +3,7 @@
 import { Text } from '@/components/ui';
 import { Icon } from '@/components/ui/Icon';
 import type { TextVariant } from '@/components/ui/Text.types';
+import { AssetBreakdown } from './AssetBreakdown';
 import { formatBalance, formatDelta } from './home.format';
 import { useBalanceVisibility } from './useBalanceVisibility';
 import type { BalanceFigureProps } from './BalanceFigure.types';
@@ -73,6 +74,17 @@ export function BalanceFigure({ data }: BalanceFigureProps) {
         <Text variant="micro" as="p" color="inverse-muted" className="mt-1">
           {formatDelta(delta)} this month
         </Text>
+      ) : null}
+
+      {/* Only once the dashboard has landed: a visitor never reaches this body, and an
+          account whose read is still in flight has no rows to break down. */}
+      {data && data.currency ? (
+        <AssetBreakdown
+          rows={data.assets}
+          total={data.balance}
+          hidden={hidden}
+          currency={data.currency}
+        />
       ) : null}
     </>
   );
