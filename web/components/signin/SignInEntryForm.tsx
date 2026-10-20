@@ -44,7 +44,7 @@ export function SignInEntryForm({
 }: SignInEntryFormProps) {
   return (
     <div className="flex flex-col">
-      <h1 className="font-brand text-heading-lg font-medium text-on-dark sm:text-display-md">
+      <h1 className="text-balance font-brand text-heading-lg font-medium text-on-dark sm:text-display-md">
         {SIGN_IN_COPY.title}
       </h1>
       <p className="mt-5 text-body-lg text-on-dark-mute">{SIGN_IN_COPY.lede}</p>
