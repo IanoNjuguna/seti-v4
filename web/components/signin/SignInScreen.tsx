@@ -45,9 +45,11 @@ function body(screen: UseSignInScreenReturn): ReactNode {
           sending={screen.sending}
           accepted={screen.accepted}
           previewAvailable={screen.previewAvailable}
+          googleAvailable={screen.googleAvailable}
           onAddressChange={screen.onAddressChange}
           onAcceptChange={screen.onAcceptChange}
           onSubmit={screen.onSubmitAddress}
+          onGoogle={screen.onGoogle}
           onPreviewSent={screen.onPreviewSent}
         />
       );

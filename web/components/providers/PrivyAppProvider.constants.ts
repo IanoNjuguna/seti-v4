@@ -14,7 +14,7 @@ import type { Network } from '@/lib/network';
 
 export const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? '';
 
-export const PRIVY_LOGIN_METHODS = ['email'] as const;
+export const PRIVY_LOGIN_METHODS = ['email', 'google'] as const;
 
 /** The network that is NOT the deployment's own — the one an account may switch to. */
 const OTHER_NETWORK: Network = DEPLOYMENT_NETWORK === 'mainnet' ? 'testnet' : 'mainnet';
