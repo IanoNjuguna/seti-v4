@@ -10,6 +10,12 @@
  * So the Cache API is stubbed with a Map and the three promises are asserted
  * directly: a fresh read is a hit, an expired read with a failing load is a stale
  * serve, and a cold failure still throws so the route can answer 502.
+ *
+ * Run through `tsx`, not `node`: this file imports the TypeScript module under
+ * test, and the CI image is Node 20, where importing a `.ts` file is an
+ * ERR_UNKNOWN_FILE_EXTENSION. Node 24 strips types natively, so it works locally
+ * either way and only CI catches the difference. `tsx` is the same runner the
+ * backend's own check suites use.
  */
 import { readThroughCache } from '../lib/markets/markets.cache.ts';
 
