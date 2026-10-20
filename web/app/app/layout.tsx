@@ -9,10 +9,10 @@ import { SessionProvider } from '@/lib/auth';
  * The product app's layout.
  *
  * No font loading here: the root layout already provides the site's two families
- * and the app uses them as the system specifies — `font-sans` (Plus Jakarta
- * Sans) for body and UI, `font-brand` (Space Grotesk) for display sizes as the
- * Aeonik Pro substitute. Importing a third family for one segment would be a
- * third voice on one site.
+ * and the app uses them as the system specifies — `font-sans` (Poppins) for
+ * body and UI, `font-brand` (Poppins) for display sizes, and `font-mono`
+ * (JetBrains Mono) for every figure, address and hash. Importing a third family
+ * for one segment would be a third voice on one site.
  *
  * The providers are nested outermost-first: Privy (the SDK the session may adopt
  * a token from), then the session, then the account identity (which needs the

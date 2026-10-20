@@ -14,10 +14,13 @@ import { FEE_ROWS } from './FeesSection.constants';
  * nothing — and of those 1104px the 12-column grid's `md:gap-16` gutters are
  * 11 × 64px = 704px. A column is therefore 33.33px, which makes the heading side:
  *
- *   span  measured  "No hidden charges" is Space Grotesk 500 / 40px / -0.02em,
- *   4/12  325.33px  so it renders 348.25px and wrapped as "No hidden" /
- *   5/12  422.66px  "charges" at four. Five fits with 74.4px of air. Six
- *   6/12  519.97px  (519.97px) fits too, but starves the list — see below.
+ *   span  measured  "No hidden charges" is font-brand 500 / 40px / -0.02em,
+ *   4/12  325.33px  so it renders 382.2px in Poppins (348.25px when this band was
+ *   5/12  422.66px  first measured in Space Grotesk, before the face changed) and
+ *                   wrapped as "No hidden" / "charges" at four. Five fits with
+ *   6/12  519.97px  40.5px of air. Six (519.97px) fits too, but starves the list
+ *                   - see below. Re-measure this pair if the display face moves
+ *                   again: the split was chosen against a width, not a glyph set.
  *
  * The rows are `minmax(0,1fr) 18rem` with a 40px gap, so whichever way the split
  * moves, the label column is what pays: 714.67 − 288 − 40 = 386.67px at 8/12,

@@ -1,26 +1,38 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans, JetBrains_Mono, Space_Grotesk } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const plusJakartaSans = Plus_Jakarta_Sans({
-  subsets: ["latin"],
+/**
+ * The three faces, all served from this repository.
+ *
+ * They used to come from `next/font/google`, which self-hosts at RUNTIME but
+ * fetches at BUILD time: every build read `fonts.gstatic.com`, so a build with
+ * no route to Google either failed or fell back without saying so, and the exact
+ * bytes that shipped were not in the diff. The files live in `./fonts` now (see
+ * that directory's README for provenance and licences).
+ *
+ * Poppins carries body text, headings and the wordmark. JetBrains Mono carries
+ * figures, addresses and hashes — including the balance hero, whose variants
+ * name the mono family rather than the brand one. JetBrains Mono is a variable
+ * font, so one file serves 400 through 800; Poppins is static, hence four.
+ */
+const poppins = localFont({
+  src: [
+    { path: "./fonts/poppins-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/poppins-500.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/poppins-600.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/poppins-700.woff2", weight: "700", style: "normal" },
+  ],
   display: "swap",
-  variable: "--font-plus-jakarta",
-  weight: ["400", "500", "600", "700"],
+  variable: "--font-poppins",
 });
 
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
+const jetbrainsMono = localFont({
+  src: "./fonts/jetbrains-mono-var.woff2",
+  weight: "400 800",
+  style: "normal",
   display: "swap",
   variable: "--font-jetbrains",
-  weight: ["400", "500", "600", "700"],
-});
-
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-space-grotesk",
-  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -50,7 +62,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${plusJakartaSans.variable} ${jetbrainsMono.variable} ${spaceGrotesk.variable} h-full font-sans antialiased`}>
+    <html lang="en" className={`${poppins.variable} ${jetbrainsMono.variable} h-full font-sans antialiased`}>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

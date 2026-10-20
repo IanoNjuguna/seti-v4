@@ -236,10 +236,13 @@
   --color-ink-attention: var(--color-ink-attention);
   --color-ink-success: var(--color-ink-success);
 
-  /* Typography */
-  --font-sans: var(--font-plus-jakarta);
+  /* Typography. Poppins carries text, headings and the wordmark; JetBrains Mono
+     carries figures, hashes and addresses. Both are served from
+     `app/fonts/*.woff2` through `next/font/local`, so a build never reaches for
+     Google and the shipped bytes are in the repository. */
+  --font-sans: var(--font-poppins);
   --font-mono: var(--font-jetbrains);
-  --font-brand: var(--font-space-grotesk);
+  --font-brand: var(--font-poppins);
 
   --text-display-xxl: clamp(48px, 10vw, 136px);
   --text-display-xxl--line-height: 1;
@@ -429,9 +432,12 @@
  *    and controls (buttons, inputs, selects) are `rounded-md` (12px); chips and
  *    badges are `rounded-sm` (8px); `rounded-full` is reserved for CIRCLES —
  *    avatars, status dots and round icon buttons stay round and are never squared.
- *  - **Typography:** display sizes are Aeonik Pro at 500 with negative tracking
- *    → `font-brand` (Space Grotesk) is the loaded substitute; body/UI is
- *    `font-sans` at 400/600 with positive tracking (the `text-*` tokens).
+ *  - **Typography:** display sizes are `font-brand` at 500 with negative tracking
+ *    (Poppins, which replaced Space Grotesk as the Aeonik Pro substitute); body/UI
+ *    is `font-sans` at 400/600 with positive tracking (the `text-*` tokens); and
+ *    every figure, address and hash is `font-mono` (JetBrains Mono), which is also
+ *    what `.font-tabular` now names so a number inside a sentence matches the
+ *    figure it belongs to.
  *  - **Colour roles are reserved.** Cobalt `primary` is for links and featured
  *    states, never for a routine action: the primary CTA in a white band is
  *    `button-dark` (black pill, white label), per the doc's Buttons section.
@@ -439,6 +445,11 @@
 
 @layer utilities {
   .font-tabular {
+    /* Figures are in the mono face, not just tabular in whatever face the
+       element inherited. A number set inside a sentence (a fee line, a receipt
+       total) then matches the figure it belongs to, and the digits line up
+       because JetBrains Mono is monospaced to begin with. */
+    font-family: var(--font-mono);
     font-feature-settings: "tnum" 1, "zero" 1;
     font-variant-numeric: tabular-nums slashed-zero;
   }
