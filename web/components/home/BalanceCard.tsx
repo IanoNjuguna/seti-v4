@@ -12,6 +12,13 @@ import type { BalanceCardProps } from './BalanceCard.types';
  * without a shadow (the system has none) or an accent colour (cobalt is
  * reserved for links).
  *
+ * It carries the site's grain at the landing's own strength: this is the one
+ * screen whose text is large enough to pay for the texture, and it is the object
+ * that should read as the same material as the page a customer arrived from. The
+ * layer is `absolute` inside the card, so the working canvas below stays flat;
+ * `overflow-hidden` keeps the noise inside the 12px radius, and `relative` is
+ * what the layer is positioned against.
+ *
  * The card is the SURFACE and one of two bodies, which is the whole of this
  * file: a confirmed account gets its figure (`BalanceFigure`), everybody else
  * gets one sentence where the figure would be (`BalanceNote`). Splitting the
@@ -26,8 +33,9 @@ export function BalanceCard({ data, view }: BalanceCardProps) {
   return (
     <section
       aria-labelledby="balance-heading"
-      className="rounded-md bg-canvas-dark p-6 text-on-dark sm:p-8"
+      className="relative overflow-hidden rounded-md bg-canvas-dark p-6 text-on-dark sm:p-8"
     >
+      <div aria-hidden="true" className="surface-grain" />
       {view === 'signed-in' ? <BalanceFigure data={data} /> : <BalanceNote view={view} />}
     </section>
   );

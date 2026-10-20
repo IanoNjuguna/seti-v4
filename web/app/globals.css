@@ -95,6 +95,10 @@
      layer grains the black bands and does nothing on white; a multiplying layer
      grains the white bands and does nothing on black. That is how film grain is
      actually composited, and it leaves both extremes — #000 and #fff — intact. */
+  /* The one texture, named once: every grain layer below composites this same
+     tiled fractal noise. Fine, static, 160px tile, stitched so the seams do not
+     repeat across a wide band. */
+  --grain-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)'/%3E%3C/svg%3E");
   --field-grain-highlight: 0.1;
   --field-grain-shadow: 0.12;
   /* The app chrome's own pair, beside the field's rather than replacing it: the
@@ -528,7 +532,7 @@
     position: absolute;
     inset: 0;
     background-size: 160px 160px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)'/%3E%3C/svg%3E");
+    background-image: var(--grain-image);
   }
 
   .grain-layer::before {
@@ -579,7 +583,7 @@
     position: absolute;
     inset: 0;
     background-size: 160px 160px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)'/%3E%3C/svg%3E");
+    background-image: var(--grain-image);
   }
 
   .chrome-grain::before {
@@ -590,6 +594,45 @@
   .chrome-grain::after {
     mix-blend-mode: multiply;
     opacity: var(--app-grain-shadow);
+  }
+
+  /* -------------------------------------------------------------------------
+   * The CARD's grain: the landing's field strength on one focal surface.
+   *
+   * Same recipe and same opacity pair as `.grain-layer` (0.1 highlight, 0.12
+   * shadow), but in-surface like `.chrome-grain`: `absolute`, sized by the card,
+   * so a page can carry one textured object without texturing its working
+   * canvas. It exists because the balance hero is the app's poster moment and
+   * the one surface whose text is large enough to pay for the texture.
+   *
+   * `pointer-events: none`, above the card's own children, so the card still
+   * takes a click anywhere on it and the texture reads as film rather than as a
+   * patch behind the figure.
+   * ---------------------------------------------------------------------- */
+  .surface-grain {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  .surface-grain::before,
+  .surface-grain::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-size: 160px 160px;
+    background-image: var(--grain-image);
+  }
+
+  .surface-grain::before {
+    mix-blend-mode: screen;
+    opacity: var(--field-grain-highlight);
+  }
+
+  .surface-grain::after {
+    mix-blend-mode: multiply;
+    opacity: var(--field-grain-shadow);
   }
 
   /* A section rising once. The hidden state is armed by JS (`data-reveal`), so
