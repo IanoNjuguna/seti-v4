@@ -37,6 +37,15 @@ export const SIGN_IN_COPY = {
   orEmail: 'or use your email',
   /** Shared with the app: the same "we are still finding out" line it renders. */
   restoring: 'One moment…',
+  /**
+   * The footnote at the foot of the column.
+   *
+   * Not a marketing line and not a second promise: it is the one thing a person handing
+   * over money should know before they type an address, said in the product's own
+   * words. "Not a bank" is deliberate — `bank` is a licensed word in this market and
+   * this product is not one.
+   */
+  footnote: 'Seti is not a bank. Your money is held in stablecoins you control.',
 } as const;
 
 export const SIGN_IN_SENT_COPY = {
