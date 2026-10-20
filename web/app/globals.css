@@ -491,6 +491,19 @@
     pointer-events: none;
   }
 
+  /**
+   * The same field, scoped to a box.
+   *
+   * The landing page's layer is `fixed` because it is the whole page's weather. The
+   * sign-in page's ambient panel is half a page and has a hard left edge, so it needs
+   * the identical gradients and drift confined to its own box. Same tokens, same
+   * animation, one property changed: that is the whole difference, and a second copy
+   * of the gradients is how the two surfaces would start to disagree.
+   */
+  .field-layer-panel {
+    position: absolute;
+  }
+
   .field-layer::before,
   .field-layer::after {
     content: '';
