@@ -31,6 +31,12 @@ export interface SentTransfer {
   amountFiat: string;
   /** The fee that was collected, in the customer's currency. */
   feeFiat: string;
+  /** Principal + fee + gas, in the customer's currency. What left the wallet. */
+  totalFiat: string;
+  /** The gas the sender funded, in the customer's currency. */
+  networkFeeFiat: string;
+  /** `true` when the gas was measured at the live price, not held as a reserve. */
+  gasEstimated: boolean;
   /** The currency both figures are in — stated, never assumed by the receipt. */
   fiatCurrency: string;
   recipient: string;

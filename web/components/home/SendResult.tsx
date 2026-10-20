@@ -60,10 +60,19 @@ export function SendResult({ sent, onReset }: SendResultProps) {
         </Text>
 
         <Text variant="micro" as="p" color="secondary" className="mt-2">
+          {/* Every figure the wallet moved from, in one sentence, in the words the
+              pay receipt uses for the same three numbers: what left the wallet,
+              the 2% the customer funded, and the gas. The fee rides in the same
+              transfer as the principal, which is why it is one transaction and
+              not three lines. */}
+          You paid <span className="font-tabular">{formatFiat(Number(sent.totalFiat), sent.fiatCurrency)}</span>:{' '}
+          <span className="font-tabular">{formatFiat(Number(sent.feeFiat), sent.fiatCurrency)}</span>{' '}
+          platform fee,{' '}
           <span className="font-tabular">
-            {formatFiat(Number(sent.feeFiat), sent.fiatCurrency)}
+            {sent.gasEstimated ? '≈ ' : ''}
+            {formatFiat(Number(sent.networkFeeFiat), sent.fiatCurrency)}
           </span>{' '}
-          platform fee, charged in the same transaction.
+          network gas, one transaction.
         </Text>
       </div>
 
