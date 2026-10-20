@@ -62,6 +62,11 @@ export function SignInEntryForm({
         {googleAvailable ? <SignInGoogleDoor disabled={!accepted} onGoogle={onGoogle} /> : null}
 
         <form onSubmit={onSubmit} noValidate className="flex flex-col gap-5">
+          {/* No `autoFocus`. The page's one instruction is the heading above, and focusing
+              this field drags the viewport to it: at 780x489 the heading scrolls out of
+              sight and the page appears to start mid-sentence. On a phone it also opens
+              the keyboard over the consent and the two doors, which are the first
+              decision. The field focuses on tap like every other input. */}
           <Input
             label={SIGN_IN_COPY.emailLabel}
             tone="dark"
@@ -69,7 +74,6 @@ export function SignInEntryForm({
             name="email"
             autoComplete="email"
             inputMode="email"
-            autoFocus
             value={address}
             onChange={(event) => onAddressChange(event.target.value)}
           />
