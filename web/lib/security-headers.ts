@@ -49,9 +49,24 @@ function apiOrigin(): string | null {
 /**
  * The report-only allowlist, built from hosts the app is observed to use.
  *
- * Deliberately narrow: every entry below either appears in a production HAR or is
- * required by a library that does the signing. Anything speculative is left out so
- * the reports show it, which is what report-only is for.
+ * Deliberately narrow: every entry below either appears in a production HAR, or is
+ * required by a library that does the signing, or appeared in a real violation report
+ * from `/api/csp-report`. Anything speculative is left out so the reports show it,
+ * which is what report-only is for.
+ *
+ * ## `'unsafe-inline'` is in `script-src`, and that is a finding not a preference
+ *
+ * Nine of the first twelve production reports were `script-src-elem` against
+ * `blocked-uri: inline` on ordinary pages: the framework's own bootstrap scripts, which
+ * are inline by construction. A policy without `'unsafe-inline'` therefore does not
+ * tighten this app, it blanks it. The clean fix is a nonce plus `'strict-dynamic'`, and
+ * it is not available here: the runtime this ships on (vinext) has no nonce plumbing,
+ * and neither the proxy convention's docs nor its build offer one.
+ *
+ * So the honest value of this policy is host allowlisting: no script loads from a host
+ * that is not listed, which is the vector an injected `<script src>` uses. Inline
+ * execution remains possible until a nonce path exists, and that is written down here
+ * rather than hidden behind a directive that reads stricter than it is.
  *
  * `'unsafe-eval'` is added in development only: the dev server needs it for HMR, and
  * a report-only header that cries about the dev server every save teaches everyone to
@@ -74,12 +89,16 @@ export function cspReportOnly(): string {
     'wss://relay.walletconnect.com',
     'wss://relay.walletconnect.org',
     'https://explorer-api.walletconnect.com',
+    // The beacon Cloudflare injects at the edge posts its measurements here.
+    'https://cloudflareinsights.com',
   ];
 
   return [
     "default-src 'self'",
     [
-      "script-src 'self' 'wasm-unsafe-eval' https://auth.privy.io",
+      "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://auth.privy.io",
+      // Injected by Cloudflare itself; three reports named it before it was listed.
+      'https://static.cloudflareinsights.com',
       dev ? "'unsafe-eval'" : '',
     ]
       .filter(Boolean)
