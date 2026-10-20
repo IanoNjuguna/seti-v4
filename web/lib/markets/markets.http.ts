@@ -1,4 +1,5 @@
 import { MARKETS_CACHE_CONTROL } from './markets.constants';
+import type { CacheState } from './markets.cache';
 
 /**
  * The two responses every markets route can give, and the caching that keeps the
@@ -13,16 +14,30 @@ import { MARKETS_CACHE_CONTROL } from './markets.constants';
  * On a failure there is deliberately NO cache header: a 502 that gets cached for
  * a minute is an outage with a delay fuse.
  */
-export function marketsJson(payload: unknown, updatedAt: Date, ifNoneMatch: string | null): Response {
+export function marketsJson(
+  payload: unknown,
+  updatedAt: Date,
+  ifNoneMatch: string | null,
+  cacheState: CacheState
+): Response {
   const etag = etagFor(updatedAt);
+  /**
+   * `x-markets-cache` is how the caching is TOLD APART from its absence. The previous
+   * version of this endpoint set the right headers and served every request from the
+   * venue, and nothing in the response said so — a claim nobody could check. One
+   * header makes a hit, a miss and a stale serve observable with curl.
+   */
+  const headers = {
+    etag,
+    'cache-control': MARKETS_CACHE_CONTROL,
+    'x-markets-cache': cacheState,
+  };
 
   if (ifNoneMatch !== null && ifNoneMatch === etag) {
-    return new Response(null, { status: 304, headers: { etag, 'cache-control': MARKETS_CACHE_CONTROL } });
+    return new Response(null, { status: 304, headers });
   }
 
-  return Response.json(payload, {
-    headers: { etag, 'cache-control': MARKETS_CACHE_CONTROL },
-  });
+  return Response.json(payload, { headers });
 }
 
 export function marketsFailure(message: string): Response {
