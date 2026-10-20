@@ -17,6 +17,7 @@ import {
 } from '../services/statement-model.js';
 import { PaymentRefusalError } from '../services/payment-refusal.js';
 import { previewPayment, previewSend, SendRequiresBatchError } from '../services/payments.js';
+import { previewConvert, ConvertRefusalError } from '../services/convert.js';
 import { toRecentTransaction } from '../services/transaction-view.js';
 import { buildReceipt } from '../services/receipt.js';
 import { mintReceiptLink } from '../services/receipt-link.js';
@@ -81,6 +82,20 @@ const sendPreviewSchema = z.object({
   // Shape only. The checksum is the backend's call (`describeEvmAddress`), and
   // the recipient the client signs must be the one this endpoint returns.
   recipient: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+});
+
+/**
+ * A convert's preview: two assets named, and the amount in the customer's
+ * currency, like every other amount in this product.
+ *
+ * Both sides are required. A send may omit `asset` and let the server pick one
+ * the customer can afford, but a convert IS the pair: a server-chosen side would
+ * be picking what the customer ends up holding.
+ */
+const convertPreviewSchema = z.object({
+  assetIn: assetSchema,
+  assetOut: assetSchema,
+  amountFiat: z.string().regex(/^\d+(\.\d+)?$/),
 });
 
 const sendSchema = z.object({
@@ -274,6 +289,26 @@ export async function transactionRoutes(app: FastifyInstance) {
     }
 
     return reply.status(201).send({ transaction });
+  });
+
+  app.post('/convert/preview', async (request, reply) => {
+    const user = requireUser(request);
+    const body = convertPreviewSchema.parse(request.body);
+
+    try {
+      // `user.network` rather than the served network: a quote is minted for the
+      // network the ACCOUNT acts on, and a practice quote must never price a live
+      // convert.
+      const preview = await previewConvert({ ...body, userId: user.id, network: user.network });
+      return reply.send({ preview });
+    } catch (error) {
+      // Nothing is signed and nothing is written on a preview, so a refusal here
+      // is an answer, not an incident: the code is what the app switches on.
+      if (error instanceof ConvertRefusalError) {
+        return reply.status(422).send({ error: error.message, code: error.code });
+      }
+      throw error;
+    }
   });
 
   app.post('/send/preview', async (request, reply) => {
