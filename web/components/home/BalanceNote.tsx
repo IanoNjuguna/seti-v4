@@ -25,7 +25,10 @@ export function BalanceNote({ view }: BalanceNoteProps) {
       <Text variant="micro" as="p" color="inverse-muted">
         <span id="balance-heading">{BALANCE_NOTE_COPY.label}</span>
       </Text>
-      <Text variant="body" as="p" color="inverse" className="mt-2">
+      {/* `role="status"` on the one surface that still says this in words: with the
+          rail and the activity section now holding shape instead, this line is the
+          single announcement the page makes, so it has to reach assistive tech. */}
+      <Text variant="body" as="p" color="inverse" className="mt-2" role="status">
         {view === 'anonymous'
           ? NO_ACCOUNT_COPY.anonymous(BALANCE_NOTE_COPY.what)
           : NO_ACCOUNT_COPY.restoring}

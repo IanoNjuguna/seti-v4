@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { Text } from '@/components/ui';
-import { NO_ACCOUNT_COPY } from '@/components/app/no-account.constants';
 import { SIGN_IN_PATH } from '@/lib/routes';
 import { RAIL_IDENTITY_COPY } from './RailIdentity.constants';
 import type { RailIdentitySignedOutProps } from './RailIdentitySignedOut.types';
@@ -33,9 +32,19 @@ export function RailIdentitySignedOut({ view }: RailIdentitySignedOutProps) {
   return (
     <div className="mt-auto shrink-0 border-t border-hairline-dark px-4 pb-4 pt-4">
       {view === 'restoring' ? (
-        <Text variant="micro" as="p" color="inverse-muted">
-          {NO_ACCOUNT_COPY.restoring}
-        </Text>
+        /**
+         * A bar, not the sentence. The card is chrome and chrome should not talk:
+         * the same words were already printed twice inside the page, and a visitor
+         * reads the rail's bottom edge as an object rather than a status line.
+         *
+         * The box is the link's own line box: `micro` is `text-body-sm` (14px at
+         * 1.43), so the signed-out card's paragraph is 20px tall. Drawing this at
+         * `h-4` would have moved the rail's bottom edge by 4px the moment the link
+         * arrived, which is the jump this change exists to remove.
+         */
+        <div aria-hidden className="flex h-5 items-center">
+          <span className="block h-3 w-24 rounded-sm bg-hairline-dark" />
+        </div>
       ) : (
         <Text variant="micro" as="p" color="inverse-muted">
           <Link href={SIGN_IN_PATH} className="underline underline-offset-4">
