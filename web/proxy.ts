@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { SECURITY_HEADERS } from '@/lib/security-headers';
+import { securityHeaders } from '@/lib/security-headers';
 
 /**
  * Attach the security headers to every document the app serves.
@@ -21,7 +21,7 @@ import { SECURITY_HEADERS } from '@/lib/security-headers';
 export function proxy() {
   const response = NextResponse.next();
 
-  for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+  for (const [name, value] of Object.entries(securityHeaders())) {
     response.headers.set(name, value);
   }
 
