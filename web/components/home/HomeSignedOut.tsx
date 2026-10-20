@@ -32,16 +32,23 @@ export function HomeSignedOut({ view }: HomeSignedOutProps) {
 
       <QuickActions />
 
-      <section aria-label={HOME_PAGE_COPY.activityTitle} className="flex flex-col gap-4">
-        <Text variant="section" as="h2">
-          {HOME_PAGE_COPY.activityTitle}
-        </Text>
-        <Text variant="body" color="secondary" as="p">
-          {view === 'anonymous'
-            ? NO_ACCOUNT_COPY.anonymous('your activity')
-            : NO_ACCOUNT_COPY.restoring}
-        </Text>
-      </section>
+      {/*
+        * Rendered only once the session has ANSWERED. While it is restoring this
+        * screen says one thing (the balance card's line) and promises nothing else:
+        * `design-enforcement` is explicit that a surface with no confirmed account
+        * behind it invents nothing, and a row skeleton here would claim a history is
+        * coming for an account nobody has confirmed yet.
+        */}
+      {view === 'anonymous' ? (
+        <section aria-label={HOME_PAGE_COPY.activityTitle} className="flex flex-col gap-4">
+          <Text variant="section" as="h2">
+            {HOME_PAGE_COPY.activityTitle}
+          </Text>
+          <Text variant="body" color="secondary" as="p">
+            {NO_ACCOUNT_COPY.anonymous('your activity')}
+          </Text>
+        </section>
+      ) : null}
     </div>
   );
 }
