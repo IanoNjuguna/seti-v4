@@ -12,6 +12,7 @@ import {
 } from './auth.constants';
 import { clearStoredSession, persistSession } from './auth.storage';
 import { usePrivyEmailSignIn } from './privy-email-sign-in';
+import { usePrivyOAuthSignIn } from './privy-oauth-sign-in';
 import { bootstrapStoredSession } from './session-bootstrap';
 import { describeStoredSessionFailure } from './session-identity';
 import { devSignIn, privySignIn } from './session';
@@ -95,6 +96,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [signingIn, setSigningIn] = useState(false);
   const [signInStatus, setSignInStatus] = useState<SignInStatus>('idle');
   const privyEmail = usePrivyEmailSignIn();
+  const privyOauth = usePrivyOAuthSignIn();
   const { source, configured } = useMemo(() => resolveAuthSource(), []);
 
   // State is written only from the promise callback, never synchronously in the
@@ -108,21 +110,52 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     // same place as an expected one — `anonymous`. There is no state this effect
     // can leave a rejection to.
     void bootstrapStoredSession()
-      .then((outcome): SessionState => {
-        if (outcome.kind !== 'restored') {
-          // A rejected pair is reported, because being signed out with no
-          // explanation is indistinguishable from a broken app. A first visit
-          // (`anonymous`) is silent — there was never a session to lose.
-          return {
-            status: 'anonymous',
-            error: outcome.kind === 'rejected' ? outcome.error : null,
-          };
+      .then(async (outcome): Promise<SessionState> => {
+        if (outcome.kind === 'restored') {
+          // Persist the SERVER's copy, not the one that was there at load: the
+          // snapshot is refreshed from the confirmed answer every time.
+          persistSession({ user: outcome.user, token: outcome.token });
+          return { status: 'signed-in', user: outcome.user, token: outcome.token };
         }
 
-        // Persist the SERVER's copy, not the one that was there at load: the
-        // snapshot is refreshed from the confirmed answer every time.
-        persistSession({ user: outcome.user, token: outcome.token });
-        return { status: 'signed-in', user: outcome.user, token: outcome.token };
+        // A Google login does not resolve in a click handler, it resolves HERE.
+        // Privy's headless `initOAuth` redirects, so the browser comes back as a new
+        // document with no Seti token stored: this branch is the only place the
+        // exchange can happen, and the marker is what says a login is waiting.
+        //
+        // The marker is cleared before the exchange: a token that never arrives must
+        // not leave the next page load retrying a session nobody started.
+        if (privyOauth.hasPendingReturn()) {
+          privyOauth.clearReturn();
+          try {
+            const token = await privyEmail.accessToken();
+            if (!token) {
+              throw new Error('Privy returned from Google with no access token.');
+            }
+
+            const { user, token: sessionToken } = await privySignIn(
+              token,
+              privyEmail.walletAddress(),
+              TERMS_VERSION
+            );
+            persistSession({ user, token: sessionToken });
+            setAuthToken(sessionToken);
+            return { status: 'signed-in', user, token: sessionToken };
+          } catch (cause) {
+            // A cancelled Google screen usually arrives as no token at all, and the
+            // customer is back on a front door they recognise. The sentence names the
+            // step rather than blaming the account.
+            return { status: 'anonymous', error: describePrivySignInFailure(cause) };
+          }
+        }
+
+        // A rejected pair is reported, because being signed out with no explanation
+        // is indistinguishable from a broken app. A first visit (`anonymous`) is
+        // silent — there was never a session to lose.
+        return {
+          status: 'anonymous',
+          error: outcome.kind === 'rejected' ? outcome.error : null,
+        };
       })
       .catch((cause: unknown): SessionState => ({
         status: 'anonymous',
@@ -135,7 +168,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [privyEmail, privyOauth]);
 
   /**
    * Land a failed step of the Privy flow.
@@ -316,6 +349,42 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [source, configured, privyEmail, failPrivySignIn]
   );
 
+  /**
+   * Begin Google sign-in.
+   *
+   * This method ENDS EARLY ON PURPOSE: the browser is about to leave for Google, so
+   * there is nothing here to await. What completes the sign-in is the boot effect
+   * above, on the page load Google sends back. Sending the terms version here would
+   * be pointless for the same reason (it is carried on the verify call, which runs
+   * after the return), but the consent is still checked before we leave, so a customer
+   * who has not accepted cannot start a sign-up that would be refused later.
+   */
+  const signInWithGoogle = useCallback(
+    (acceptedTermsVersion: string) => {
+      const refusal = checkAcceptedTermsVersion(acceptedTermsVersion);
+      if (refusal) {
+        failPrivySignIn(refusal);
+        return;
+      }
+
+      if (source !== 'privy') {
+        failPrivySignIn('Google sign-in is not available in this build.');
+        return;
+      }
+
+      if (!configured) {
+        failPrivySignIn('Set NEXT_PUBLIC_PRIVY_APP_ID to enable sign-in.');
+        return;
+      }
+
+      setSignInStatus('sending');
+      void privyOauth.startGoogleLogin().catch((cause: unknown) => {
+        failPrivySignIn(describePrivySignInFailure(cause));
+      });
+    },
+    [source, configured, privyOauth, failPrivySignIn]
+  );
+
   const signOut = useCallback(async () => {
     clearStoredSession();
     setAuthToken(null);
@@ -339,6 +408,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       signInStatus,
       signIn,
       submitSignInCode,
+      signInWithGoogle,
       signOut,
     };
   }, [
@@ -348,6 +418,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     signInStatus,
     signIn,
     submitSignInCode,
+    signInWithGoogle,
     signOut,
   ]);
 

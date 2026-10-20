@@ -27,11 +27,15 @@ export interface UseSignInScreenReturn {
   verifying: boolean;
   /** True only on the `dev` source, and only once there is an address to echo. */
   previewAvailable: boolean;
+  /** True when this build can offer the Google door (a Privy app id is configured). */
+  googleAvailable: boolean;
   onAddressChange: (value: string) => void;
   onCodeChange: (value: string) => void;
   onAcceptChange: (accepted: boolean) => void;
   onSubmitAddress: (event: React.FormEvent<HTMLFormElement>) => void;
   onSubmitCode: (event: React.FormEvent<HTMLFormElement>) => void;
+  /** Leaves for Google. The session completes on the page load Google sends back. */
+  onGoogle: () => void;
   onResend: () => void;
   onUseAnotherAddress: () => void;
   onPreviewSent: () => void;

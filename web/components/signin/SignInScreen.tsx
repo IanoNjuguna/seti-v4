@@ -1,12 +1,11 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Text } from '@/components/ui';
-import { SIGN_IN_COPY } from './SignInScreen.constants';
 import { SignInEntryForm } from './SignInEntryForm';
 import { SignInHandoff } from './SignInHandoff';
 import { SignInPanel } from './SignInPanel';
 import { SignInSentPanel } from './SignInSentPanel';
+import { SignInSkeleton } from './SignInSkeleton';
 import { useSignInScreen } from './useSignInScreen';
 import { useSignedInRedirect } from './useSignedInRedirect';
 import type { UseSignInScreenReturn } from './useSignInScreen.types';
@@ -46,9 +45,11 @@ function body(screen: UseSignInScreenReturn): ReactNode {
           sending={screen.sending}
           accepted={screen.accepted}
           previewAvailable={screen.previewAvailable}
+          googleAvailable={screen.googleAvailable}
           onAddressChange={screen.onAddressChange}
           onAcceptChange={screen.onAcceptChange}
           onSubmit={screen.onSubmitAddress}
+          onGoogle={screen.onGoogle}
           onPreviewSent={screen.onPreviewSent}
         />
       );
@@ -67,11 +68,9 @@ function body(screen: UseSignInScreenReturn): ReactNode {
         />
       );
     case 'restoring':
-      return (
-        <Text variant="body" as="p" color="inverse-muted">
-          {SIGN_IN_COPY.restoring}
-        </Text>
-      );
+      // The page assembling itself, in the shape it will have: a lone sentence on a
+      // black field reads as a broken page rather than a loading one.
+      return <SignInSkeleton />;
     default:
       // `signed-in` is the handoff, rendered above rather than in the panel.
       return null;

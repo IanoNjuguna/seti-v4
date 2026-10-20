@@ -124,5 +124,18 @@ export interface SessionValue {
    * version, is `signInStatus: 'error'` with a reason, not a thrown error.
    */
   submitSignInCode: (code: string, acceptedTermsVersion: string) => Promise<void>;
+  /**
+   * Start signing in with Google.
+   *
+   * Returns VOID, deliberately. The Google path is a REDIRECT, not a popup: Privy's
+   * headless `initOAuth` resolves when the browser is navigating away, so there is no
+   * promise a caller could usefully await, and the sign-in actually completes on the
+   * next page load (`privy-oauth-sign-in.ts` explains the marker that survives it). The
+   * accepted Terms version is still checked before we leave, so a consent that would be
+   * refused is refused here rather than after a round trip to Google.
+   *
+   * Never rejects: a refused start lands in `signInStatus: 'error'` with a reason.
+   */
+  signInWithGoogle: (acceptedTermsVersion: string) => void;
   signOut: () => Promise<void>;
 }

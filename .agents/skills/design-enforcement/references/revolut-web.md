@@ -60,9 +60,16 @@ Radii: `sm`, `md`, `lg`, `xl`, `pill`.
 - **Checkbox (the sign-up terms gate, `components/auth/TermsAcceptance.tsx`)** — a real
   `<input type="checkbox">`, `h-4 w-4 accent-primary`, with the focus ring the other
   controls use (`focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2
-  focus-visible:ring-offset-canvas-light`). The `<label htmlFor>` wraps the whole statement
-  *including* the `/terms` link: verified in Chrome that clicking that link navigates and
-  does **not** toggle the control, and the accessible name is the full sentence. Because a
+  focus-visible:ring-offset-canvas-light`). The statement is **two** `<label htmlFor>` runs
+  either side of the `/terms` `<Link>`, and the input is named by the sentence's own element
+  through `aria-labelledby`: clicking either text run toggles the box, clicking the link
+  navigates, and the announced name is the full sentence, `Terms of Use` included. Do not
+  wrap the statement in one label to shorten the markup — a link inside a label is
+  interactive content in a label, and Chrome then follows neither the link nor the control,
+  so the consent asks a customer to accept a document that silently does not open. A
+  note here once said the single-label version was verified to navigate; it had not been,
+  so the check that counts is a real pointer click on the link, never the markup reading
+  plausibly. Because a
   `disabled` CTA is skipped by Tab, the reason it is blocked is rendered as text beside the
   checkbox and wired with `aria-describedby`, not left to the dead button to explain.
 
