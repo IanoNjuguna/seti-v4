@@ -2,26 +2,25 @@
  * The response headers every page of the web app carries, and the one sentence that
  * explains why each is here.
  *
- * ## The enforcing set, which carries almost no policy
+ * ## How the CSP got here
  *
- * These are the headers that do not depend on knowing the app's script or connection
- * graph: nobody may frame us, nothing may be sniffed into a different type, no
- * referrer leaks past the origin, and the transport is pinned for two years. The
- * ENFORCING `Content-Security-Policy` therefore carries `frame-ancestors` and nothing
- * else.
+ * It started as `frame-ancestors 'none'` and nothing else, because everything else
+ * depends on knowing the app's script and connection graph. Our bundles carry wasm
+ * (secp256k1, sha3, p256), the Privy SDK opens `auth.privy.io`, the connectors reach
+ * WalletConnect, and balances and receipts are read from Tempo's RPC directly: a policy
+ * written without any one of them does not weaken the app, it breaks signing or shows
+ * every balance as zero.
  *
- * A `script-src` on the enforcing header would be the dangerous edit, not the safe
- * one. Our bundles carry wasm (secp256k1, sha3, p256), the Privy SDK opens
- * `auth.privy.io`, the connectors reach WalletConnect, and balances and receipts are
- * read from Tempo's RPC directly. A policy written without any one of them does not
- * weaken the app, it breaks signing or shows every balance as zero.
+ * So the allowlist was written, sent as `Content-Security-Policy-Report-Only` for one
+ * deploy, and corrected by what real browsers reported: the framework's inline
+ * bootstrap scripts and Cloudflare's injected analytics beacon. With both listed the
+ * policy is quiet, and it is now the ENFORCING one. `report-uri` travels with it, so
+ * the telemetry that would justify the next tightening does not vanish the moment this
+ * one starts blocking.
  *
- * ## So the allowlist ships REPORT-ONLY first
- *
- * `Content-Security-Policy-Report-Only` is sent alongside it. The browser evaluates
- * the same policy and reports violations without blocking anything, which is the only
- * honest way to write a policy against a wallet: the reports are the test, and the
- * switch to enforcing is a separate, single-line change once they are quiet.
+ * What that costs is written where it belongs, in `cspPolicy`: inline script execution
+ * is still allowed, because this runtime has no nonce path. The value is that no script
+ * loads from an unlisted host.
  *
  * `api.seti.live` is not hardcoded: the API origin comes from
  * `NEXT_PUBLIC_API_URL`, because a build may point anywhere and a CSP naming the
@@ -72,7 +71,7 @@ function apiOrigin(): string | null {
  * a report-only header that cries about the dev server every save teaches everyone to
  * ignore the reports.
  */
-export function cspReportOnly(): string {
+export function cspPolicy(): string {
   const api = apiOrigin();
   const dev = process.env.NODE_ENV !== 'production';
 
@@ -138,10 +137,19 @@ export function cspReportOnly(): string {
 export function securityHeaders(): Record<string, string> {
   return {
     'X-Frame-Options': 'DENY',
-    // Enforcing, and carrying only the directive that cannot break the app.
-    'Content-Security-Policy': "frame-ancestors 'none'",
-    // The allowlist, measured before it is enforced. See `cspReportOnly`.
-    'Content-Security-Policy-Report-Only': cspReportOnly(),
+    /**
+     * Enforcing, carrying the measured allowlist.
+     *
+     * It was Report-Only for one deploy, which is what found the two things the
+     * policy would have broken: the framework's inline bootstrap scripts and
+     * Cloudflare's injected beacon. With both listed, the policy is quiet on the
+     * public surfaces, so it stops being a suggestion.
+     *
+     * `report-uri` stays inside the enforcing policy: violations of an enforcing
+     * policy are reported too, so the telemetry that decides the next tightening does
+     * not disappear the moment this one starts blocking.
+     */
+    'Content-Security-Policy': cspPolicy(),
     'Strict-Transport-Security': 'max-age=63072000; includeSubDomains',
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
