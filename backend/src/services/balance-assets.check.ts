@@ -22,7 +22,7 @@
  * `eth_call` transcript in the task report.
  */
 import { assetsForChain, tokenAddressFor, TEMPO_ASSETS } from '../config/assets.js';
-import { totalBalanceInFiat, sumBalancesInFiat } from './balance.js';
+import { assetBalanceRows, totalBalanceInFiat, sumBalancesInFiat } from './balance.js';
 import type { SupportedAsset } from '../config/networks.js';
 
 let total = 0;
@@ -187,6 +187,65 @@ check(
   'a malformed balance is not silently dropped',
   Number.isNaN(Number(sumBalancesInFiat([{ asset: 'ousd', balance: 'not-a-number' }], RATE)))
 );
+
+// ---------------------------------------------------------------------------
+// (d) the rows behind the total
+// ---------------------------------------------------------------------------
+
+console.log('asset rows:');
+
+// All four hold something.
+{
+  const { read, asked } = readerFor({ ousd: '1.50', pathusd: '2.25', usdt0: '3.00', 'usdc.e': '4.25' });
+  const rows = await assetBalanceRows(read, mainnetAssets);
+
+  check('one row per listed asset', rows.length === 4 && asked.length === 4, `${rows.length} rows`);
+  check(
+    'largest first',
+    rows.map((row) => row.asset).join(',') === 'usdc.e,usdt0,pathusd,ousd',
+    rows.map((row) => row.asset).join(',')
+  );
+  check(
+    'symbols come from the registry',
+    rows.map((row) => row.symbol).join(',') === 'USDC.e,USDT0,pathUSD,OUSD',
+    rows.map((row) => row.symbol).join(',')
+  );
+  check('amounts are untouched strings, not re-formatted', rows[0]?.amount === '4.25', String(rows[0]?.amount));
+}
+
+// Everything arrived as USDT0: three real zeros, kept.
+{
+  const { read } = readerFor({ usdt0: '3.00' });
+  const rows = await assetBalanceRows(read, mainnetAssets);
+  const zeros = rows.filter((row) => Number(row.amount) === 0).length;
+
+  check('zeros are kept, not dropped', rows.length === 4 && zeros === 3, `${rows.length} rows, ${zeros} zeros`);
+  check('the funded asset leads', rows[0]?.asset === 'usdt0', String(rows[0]?.asset));
+}
+
+// The rows and the total are computed from the SAME read, so they cannot disagree.
+{
+  const { read } = readerFor({ ousd: '1.50', pathusd: '2.25', usdt0: '3.00', 'usdc.e': '4.25' });
+  const rows = await assetBalanceRows(read, mainnetAssets);
+  const fromRows = sumBalancesInFiat(rows.map((row) => ({ asset: row.asset, balance: row.amount })), RATE);
+  const fromRead = await totalBalanceInFiat(readerFor({ ousd: '1.50', pathusd: '2.25', usdt0: '3.00', 'usdc.e': '4.25' }).read, mainnetAssets, RATE);
+
+  check('the rows sum to the figure the card shows', fromRows === fromRead, `${fromRows} vs ${fromRead}`);
+}
+
+// A read that throws is the caller's problem, not a silently short list.
+{
+  let threw = false;
+  try {
+    await assetBalanceRows(async (asset) => {
+      if (asset === 'usdt0') throw new Error('rpc down');
+      return { asset, balance: '0.00' };
+    }, mainnetAssets);
+  } catch {
+    threw = true;
+  }
+  check('a read that throws is not turned into a missing row', threw);
+}
 
 
   console.log('-'.repeat(74));

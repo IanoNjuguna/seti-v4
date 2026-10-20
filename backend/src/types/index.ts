@@ -2,9 +2,25 @@ import type { TransactionType, TransactionStatus } from '@prisma/client';
 
 export { TransactionType, TransactionStatus };
 
+/** One asset's share of a balance, as the breakdown shows it. */
+export interface AssetBalanceRow {
+  /** The ledger label, e.g. `usdc.e`. */
+  asset: string;
+  /** The REGISTRY's spelling, e.g. `USDC.e`. Never the token contract's own claim. */
+  symbol: string;
+  /** The amount in the asset's own units, exactly as the ledger holds it. */
+  amount: string;
+}
+
 export interface HomeDashboard {
   balance: string;
   currency: string;
+  /**
+   * What the balance is made of: one row per asset the chain lists, largest first.
+   * Amounts are in the asset's OWN units and carry no currency — the total above is
+   * the one figure that is money, and it is the only one converted.
+   */
+  assets: AssetBalanceRow[];
   monthToDateDelta: number;
   recentTransactions: RecentTransaction[];
 }
