@@ -160,6 +160,37 @@ function toFiat(amount: number, fiatPerUsd: number): string {
   return (amount * fiatPerUsd).toFixed(2);
 }
 
+export interface WindowFigures {
+  in: string;
+  out: string;
+  net: string;
+}
+
+/**
+ * The three figures a panel shows, reconciled by construction.
+ *
+ * Converting each of the three independently is how the smoke found a cent missing:
+ * in, out and net were rounded separately, so a customer subtracting the first two did
+ * not get the third. The net is therefore not converted at all here — it is the
+ * difference of the two figures as printed, which is the only definition that survives
+ * rounding.
+ *
+ * Rates that produce awkward cents are the point, not the edge case: 129.5 turns
+ * 1,234,567.89 USD into a figure ending in .655, and half-up rounding then decides
+ * which way each of the three goes.
+ */
+export function convertWindow(totals: Pick<WindowTotals, 'in' | 'out'>, fiatPerUsd: number): WindowFigures {
+  const rate = Number.isFinite(fiatPerUsd) ? fiatPerUsd : 0;
+  const inCents = Math.round(totals.in * rate * 100);
+  const outCents = Math.round(totals.out * rate * 100);
+
+  return {
+    in: (inCents / 100).toFixed(2),
+    out: (outCents / 100).toFixed(2),
+    net: ((inCents - outCents) / 100).toFixed(2),
+  };
+}
+
 /**
  * Read the account's own transactions and summarise them.
  *
@@ -194,11 +225,12 @@ export async function getAnalytics(
     currency,
     windows: ANALYTICS_WINDOWS.map((days) => {
       const totals = summariseWindow(analyticsRows, days, now);
+      const figures = convertWindow(totals, fiatPerUsd);
       return {
         days: totals.days,
-        in: toFiat(totals.in, fiatPerUsd),
-        out: toFiat(totals.out, fiatPerUsd),
-        net: toFiat(totals.net, fiatPerUsd),
+        in: figures.in,
+        out: figures.out,
+        net: figures.net,
         count: totals.count,
         skipped: totals.skipped,
         merchants: totals.merchants.map((merchant) => ({

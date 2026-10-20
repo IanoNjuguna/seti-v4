@@ -13,7 +13,7 @@
  * No database: `summariseWindow` takes rows, so the behaviour is provable without one.
  */
 import type { AnalyticsRow } from './analytics.js';
-import { directionOf, summariseWindow } from './analytics.js';
+import { convertWindow, directionOf, summariseWindow } from './analytics.js';
 
 let passed = 0;
 let failures = 0;
@@ -164,6 +164,31 @@ console.log('an empty account:');
   check('zeros, not an error', week.in === 0 && week.out === 0 && week.net === 0);
   check('no merchants', week.merchants.length === 0);
   check('and no invented count', week.count === 0);
+}
+
+console.log('the three figures reconcile:');
+{
+  // An awkward rate on purpose: 129.5 makes each conversion end in a half-cent.
+  const rate = 129.5;
+  const figures = convertWindow({ in: 269270216.43, out: 227095.36 }, rate);
+  const cents = (value: string) => Math.round(Number(value) * 100);
+
+  check(
+    'in minus out equals net, to the cent',
+    cents(figures.in) - cents(figures.out) === cents(figures.net),
+    `${figures.in} - ${figures.out} vs ${figures.net}`
+  );
+
+  const loss = convertWindow({ in: 10, out: 25.5 }, rate);
+  check('a loss-making window has a negative net', Number(loss.net) < 0, loss.net);
+  check(
+    'and still reconciles',
+    cents(loss.in) - cents(loss.out) === cents(loss.net),
+    `${loss.in} - ${loss.out} vs ${loss.net}`
+  );
+
+  const empty = convertWindow({ in: 0, out: 0 }, rate);
+  check('an empty window is three zeros', empty.in === '0.00' && empty.out === '0.00' && empty.net === '0.00');
 }
 
 console.log('-'.repeat(74));
