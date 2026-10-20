@@ -5,6 +5,8 @@ import {
   PRIMARY_ASSET,
   type SupportedAsset,
 } from './chain.js';
+import { symbolFor } from '../config/assets.js';
+import type { AssetBalanceRow } from '../types/index.js';
 import { servedNetwork } from '../config/networks.js';
 import type { Network } from '../lib/network.js';
 import { isValidEvmAddress } from '../lib/address.js';
@@ -55,6 +57,64 @@ export async function getUserBalance(
     console.error('[balance] failed to read on-chain balance', error);
     return { asset, balance: '0.00' };
   }
+}
+
+/**
+ * One entry per asset the served chain lists: what the total is MADE OF.
+ *
+ * The total alone was the whole contract for a long time, and it is a correct
+ * total: `getUserTotalBalanceInFiat` reads every listed asset and adds them. What a
+ * customer could not do was find out which stablecoin their money arrived in, and
+ * what the markets move would have to say about which asset it takes. This is that
+ * missing half.
+ */
+/** Same shape as `AssetBalanceRow` in `types/index.ts`, narrowed to a supported asset. */
+export type SupportedAssetBalanceRow = AssetBalanceRow & { asset: SupportedAsset };
+
+/** Ordering value for a row: malformed is last, not first, and never NaN. */
+function orderValue(amount: string): number {
+  const value = Number(amount);
+  return Number.isFinite(value) ? value : 0;
+}
+
+/**
+ * The rows, one per listed asset, largest first and zeros last.
+ *
+ * Zeros are KEPT, deliberately. A customer holding only USDT0 has three real zeros,
+ * and dropping them would make the breakdown disagree with the total that counts
+ * them — the same class of bug as reading one asset and calling it the balance.
+ *
+ * The reader is the same shape the total uses, so a caller can produce both from ONE
+ * set of reads and the two cannot drift apart.
+ */
+export async function assetBalanceRows(
+  read: (asset: SupportedAsset) => Promise<{ asset: SupportedAsset; balance: string }>,
+  assets: readonly SupportedAsset[]
+): Promise<SupportedAssetBalanceRow[]> {
+  const read_rows = await Promise.all(
+    assets.map(async (asset, index) => {
+      const { balance } = await read(asset);
+      return { index, row: { asset, symbol: symbolFor(asset), amount: balance } };
+    })
+  );
+
+  return read_rows
+    .sort((a, b) => {
+      const difference = orderValue(b.row.amount) - orderValue(a.row.amount);
+      return difference !== 0 ? difference : a.index - b.index;
+    })
+    .map((entry) => entry.row);
+}
+
+/** The rows for one customer, read on the network their wallet belongs to. */
+export async function getUserAssetBalances(
+  userId: string,
+  network: Network = servedNetwork
+): Promise<SupportedAssetBalanceRow[]> {
+  return assetBalanceRows(
+    (asset) => getUserBalance(userId, asset, network),
+    assetsForNetwork(network)
+  );
 }
 
 /**

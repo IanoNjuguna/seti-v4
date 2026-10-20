@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import type { HomeDashboard, RecentTransaction } from '../types/index.js';
-import { getUserTotalBalanceInFiat } from './balance.js';
+import { getUserAssetBalances, sumBalancesInFiat } from './balance.js';
 import { toRecentTransaction } from './transaction-view.js';
 import { getFiatPerUsd, resolveUserFiat } from './payments.js';
 import { servedNetwork } from '../config/networks.js';
@@ -46,8 +46,19 @@ export async function getHomeDashboard(
   // dashboard total and the pay screen cannot report different KES figures for
   // the same balances.
   const fiatCurrency = await resolveUserFiat(userId);
+
+  /**
+   * ONE read, two answers. The total and the breakdown are computed from the same
+   * asset rows rather than read twice, so the figure on the card can never disagree
+   * with the rows the breakdown shows for the same moment. It is also one set of RPC
+   * calls instead of two.
+   */
+  const assets = wallet ? await getUserAssetBalances(userId, network) : [];
   const balance = wallet
-    ? await getUserTotalBalanceInFiat(userId, await getFiatPerUsd(fiatCurrency), network)
+    ? sumBalancesInFiat(
+        assets.map((row) => ({ asset: row.asset, balance: row.amount })),
+        await getFiatPerUsd(fiatCurrency)
+      )
     : '0.00';
 
   const now = new Date();
@@ -73,6 +84,7 @@ export async function getHomeDashboard(
   return {
     balance,
     currency: fiatCurrency,
+    assets,
     monthToDateDelta,
     recentTransactions,
   };

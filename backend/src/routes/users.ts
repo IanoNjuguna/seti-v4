@@ -3,10 +3,6 @@ import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { getHomeDashboard } from '../services/wallet.js';
-import { getUserBalance } from '../services/balance.js';
-import { resolveUserFiat } from '../services/payments.js';
-import { PRIMARY_ASSET } from '../services/chain.js';
-import { normalizeNetwork } from '../lib/network.js';
 
 const paramsSchema = z.object({
   id: z.string().cuid(),
@@ -57,30 +53,4 @@ export async function userRoutes(app: FastifyInstance) {
     return dashboard;
   });
 
-  app.get('/:id/balance', async (request, reply) => {
-    const { id } = paramsSchema.parse(request.params);
-
-    if (!assertOwnsResource(request, reply, id)) return;
-
-    const user = await prisma.user.findUnique({ where: { id } });
-    if (!user) {
-      return reply.status(404).send({ error: 'User not found' });
-    }
-
-    // The ACCOUNT's network, not the served one: the wallet row was already found
-    // by it, and the address is only meaningful on that chain. Without this the
-    // balance of a practice account was read off the live chain and came back 0.
-    const network = normalizeNetwork(user.network);
-    const balance = await getUserBalance(id, PRIMARY_ASSET, network);
-
-    /**
-     * A balance read answers in the customer's CURRENCY, never in a token.
-     *
-     * The per-asset figure is machinery: an address holds every supported asset,
-     * the card shows one fiat total, and naming the token here put a ticker in
-     * front of a customer who is paying in shillings. The asset label stays
-     * internal (`BalanceResult.asset`); the response carries the currency.
-     */
-    return { balance: balance.balance, currency: await resolveUserFiat(id) };
-  });
 }

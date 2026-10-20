@@ -28,9 +28,24 @@ export interface RecentTransaction {
   to: string | null;
 }
 
+/**
+ * One asset's share of the balance.
+ *
+ * Amounts are in the asset's OWN units and carry no currency: the total above is the
+ * one figure that is money. The symbol is the registry's spelling, never the token
+ * contract's own claim about itself.
+ */
+export interface AssetBalanceRow {
+  asset: string;
+  symbol: string;
+  amount: string;
+}
+
 export interface HomeDashboard {
   balance: string;
   currency: string;
+  /** What the balance is made of: one row per asset the chain lists, largest first. */
+  assets: AssetBalanceRow[];
   monthToDateDelta: number;
   recentTransactions: RecentTransaction[];
 }
