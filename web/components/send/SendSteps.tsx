@@ -2,6 +2,7 @@
 
 import { MerchantPayStep } from '@/components/pay/MerchantPayStep';
 import { SendPanel } from '@/components/home/SendPanel';
+import { MfaGate } from '@/components/mfa/MfaGate';
 import { Button, Skeleton, StateMessage } from '@/components/ui';
 import { RecipientStep } from './RecipientStep';
 import { SEND_FLOW_COPY } from './Send.constants';
@@ -70,10 +71,16 @@ export function SendSteps({
         {/* The merchant step carries its own session guard, and so does the panel
             below: the money steps refuse to price or sign without an account
             wherever they are mounted, not only on this screen. */}
-        <MerchantPayStep payment={payment} onCancel={onBackToWho} />
+        <MfaGate>
+          <MerchantPayStep payment={payment} onCancel={onBackToWho} />
+        </MfaGate>
       </div>
     );
   }
 
-  return <SendPanel initialRecipient={recipient ?? undefined} />;
+  return (
+    <MfaGate>
+      <SendPanel initialRecipient={recipient ?? undefined} />
+    </MfaGate>
+  );
 }
