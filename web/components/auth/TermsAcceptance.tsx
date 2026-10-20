@@ -10,6 +10,7 @@ import {
   TERMS_LABEL_PREFIX,
   TERMS_LABEL_SUFFIX,
   TERMS_LINK_LABEL,
+  TERMS_SENTENCE_ID,
   TERMS_TONE_CLASSES,
 } from './TermsAcceptance.constants';
 import type { TermsAcceptanceProps } from './TermsAcceptance.types';
@@ -22,10 +23,16 @@ import type { TermsAcceptanceProps } from './TermsAcceptance.types';
  * controlled by the caller, which disables sign-in until it is ticked — the
  * gate lives on the control that acts, not only in a click handler.
  *
- * The label wraps the whole statement, including the link to the Terms, so the
- * checkbox's accessible name is the sentence the customer is agreeing to; the
- * link stays separately reachable by Tab. `text-mute` on a white canvas, and the
- * cobalt focus ring is the system's emphasis colour, as in `Input`.
+ * The sentence is split into two `<label htmlFor>` runs either side of the link
+ * to `/terms`, and the input is named by the sentence's own element through
+ * `aria-labelledby`. One label wrapping the whole statement reads better in the
+ * source, but a link inside a label is interactive content in a label: Chrome
+ * then neither follows the link nor activates the control, so the consent linked
+ * to a document that silently would not open. Two labels plus
+ * `aria-labelledby` keep both: either text run ticks the box, the link navigates,
+ * and the announced name is still the whole sentence, `Terms of Use` included.
+ * `text-mute` on a white canvas, and the cobalt focus ring is the system's
+ * emphasis colour, as in `Input`.
  *
  * The hint is rendered only while unchecked and wired to the input by
  * `aria-describedby`, because a disabled button cannot say why it is disabled.
@@ -46,22 +53,23 @@ export function TermsAcceptance({ checked, onChange, tone = 'light' }: TermsAcce
           type="checkbox"
           checked={checked}
           onChange={(event) => onChange(event.target.checked)}
+          aria-labelledby={TERMS_SENTENCE_ID}
           aria-describedby={checked ? undefined : TERMS_CHECKBOX_HINT_ID}
           className={cn(
             'mt-0.5 h-4 w-4 shrink-0 accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
             classes.focusRing
           )}
         />
-        <label
-          htmlFor={TERMS_CHECKBOX_ID}
+        <p
+          id={TERMS_SENTENCE_ID}
           className={cn('text-body-sm leading-relaxed', classes.label)}
         >
-          {TERMS_LABEL_PREFIX}{' '}
+          <label htmlFor={TERMS_CHECKBOX_ID}>{TERMS_LABEL_PREFIX}</label>{' '}
           <Link href={TERMS_URL} className={classes.link}>
             {TERMS_LINK_LABEL}
           </Link>
-          {TERMS_LABEL_SUFFIX}
-        </label>
+          <label htmlFor={TERMS_CHECKBOX_ID}>{TERMS_LABEL_SUFFIX}</label>
+        </p>
       </div>
 
       {checked ? null : (
