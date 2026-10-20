@@ -22,7 +22,7 @@
  * from the sentences beside it.
  */
 
-export const MFA_ENROLLMENT_ENFORCED = false;
+export const MFA_ENROLLMENT_ENFORCED = true;
 
 export const MFA_ENROL_COPY = {
   /** The panel's one heading: the action, in the customer's own words. */
