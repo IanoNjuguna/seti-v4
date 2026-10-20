@@ -16,6 +16,17 @@ export const TERMS_CHECKBOX_ID = 'terms-acceptance';
 /** Describes the disabled state, and is only rendered while it is disabled. */
 export const TERMS_CHECKBOX_HINT_ID = `${TERMS_CHECKBOX_ID}-hint`;
 
+/**
+ * The whole sentence, as one element the input can be named by.
+ *
+ * The input's accessible name comes from this rather than from its `<label>`s,
+ * because the sentence's two text runs are separate labels either side of the
+ * `/terms` link (so both tick the box while the link stays clickable). Two labels
+ * concatenate into a name that drops the link's own words, so naming by the
+ * sentence is what keeps "Terms of Use" in the announced name.
+ */
+export const TERMS_SENTENCE_ID = `${TERMS_CHECKBOX_ID}-sentence`;
+
 export const TERMS_LABEL_PREFIX = 'I am 18 or over, and I accept Seti’s';
 
 export const TERMS_LINK_LABEL = 'Terms of Use';
