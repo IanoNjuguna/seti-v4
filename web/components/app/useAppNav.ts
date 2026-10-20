@@ -12,15 +12,17 @@ export interface UseAppNavReturn {
 /**
  * Active-tab logic lives here rather than in JSX.
  *
- * The comparison is exact rather than `startsWith`, so `/app` is not active
- * while you are on `/app/pay` — a prefix match marks Home active on every
- * screen, which is the classic nav bug.
+ * Exact match for a top-level destination, plus a child path for a destination that
+ * has sub-routes — `/app/markets/<event>` must keep Markets selected. The exception
+ * is `/app` itself: a prefix match there marks Home active on every screen, which is
+ * the classic nav bug this comment used to guard against, so Home stays exact.
  */
 export function useAppNav(): UseAppNavReturn {
   const pathname = usePathname();
 
   return {
     items: APP_NAV_ITEMS,
-    isActive: (href) => pathname === href,
+    isActive: (href) =>
+      pathname === href || (href !== '/app' && pathname.startsWith(`${href}/`)),
   };
 }
