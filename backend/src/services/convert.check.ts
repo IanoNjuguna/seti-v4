@@ -29,7 +29,8 @@ import {
   previewConvert,
   quoteDexConvert,
 } from './convert.js';
-import { servedNetwork } from './chain.js';
+import { networkConfigFor, servedNetwork } from './chain.js';
+import { SUPPORTED_ASSETS } from '../config/assets.js';
 
 let total = 0;
 let failures = 0;
@@ -89,10 +90,44 @@ async function main(): Promise<void> {
   );
   check('an asset this product does not support is refused by code', unknownAsset === 'convert-unknown-asset', unknownAsset);
 
-  const unlistedPair = await refusalOf(() =>
-    previewConvert({ userId: 'check-convert', assetIn: 'usdt0', assetOut: 'ousd', amountFiat: '100', network: NETWORK })
-  );
-  check('a supported asset with no market is refused by code', unlistedPair === 'convert-pair-unavailable', unlistedPair);
+  // The two refusals below are the same DISTINCTION on either network, and the
+  // codes differ per network on purpose: `usdt0` is supported by the product and
+  // absent from practice, which is `convert-unknown-asset`; a listed pair that the
+  // allowlist does not carry is `convert-pair-unavailable`. Asserting the mainnet
+  // answer while CI serves practice is what this suite did once, and it failed —
+  // so both cases are derived from the network actually being served rather than
+  // written down for one of them.
+  const listed = networkConfigFor(NETWORK).assets;
+  const foreign = SUPPORTED_ASSETS.find((a) => !listed.includes(a));
+  if (foreign) {
+    const code = await refusalOf(() =>
+      previewConvert({ userId: 'check-convert', assetIn: foreign, assetOut: listed[0], amountFiat: '100', network: NETWORK })
+    );
+    check(
+      `an asset this network does not list (${foreign}) is refused as unknown`,
+      code === 'convert-unknown-asset',
+      code
+    );
+  } else {
+    console.log(`skip  every supported asset is listed on ${NETWORK}, so there is no foreign asset to refuse`);
+  }
+
+  const outsidePairs = listed
+    .flatMap((a, i) => listed.slice(i + 1).map((b) => [a, b] as const))
+    .filter(([a, b]) => !isAllowedPair(a, b, NETWORK));
+  if (outsidePairs.length > 0) {
+    const [pairIn, pairOut] = outsidePairs[0];
+    const code = await refusalOf(() =>
+      previewConvert({ userId: 'check-convert', assetIn: pairIn, assetOut: pairOut, amountFiat: '100', network: NETWORK })
+    );
+    check(
+      `a listed pair with no market (${pairIn} → ${pairOut}) is refused by code`,
+      code === 'convert-pair-unavailable',
+      code
+    );
+  } else {
+    console.log('skip  every listed pair is on the allowlist, so there is no unlisted pair to refuse');
+  }
 
   const badAmount = await refusalOf(() =>
     previewConvert({ userId: 'check-convert', assetIn: 'ousd', assetOut: 'pathusd', amountFiat: '0', network: NETWORK })
