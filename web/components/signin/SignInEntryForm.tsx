@@ -44,7 +44,17 @@ export function SignInEntryForm({
 }: SignInEntryFormProps) {
   return (
     <div className="flex flex-col">
-      <h1 className="font-brand text-heading-lg font-medium text-on-dark sm:text-display-md">
+      {/*
+        * `text-balance`: at 40px in a 384px column this instruction wrapped as
+        * "Sign in with your / email.", a six-glyph last line — a rag that reads as a
+        * mistake on the page's only heading. Balancing gives two near-equal lines with
+        * the copy, the size and the column untouched.
+        *
+        * The fallback is the current behaviour, not a broken one: an engine without
+        * `text-wrap: balance` ignores the declaration and wraps exactly as it does
+        * today, which is why this is safe on the front door.
+        */}
+      <h1 className="text-balance font-brand text-heading-lg font-medium text-on-dark sm:text-display-md">
         {SIGN_IN_COPY.title}
       </h1>
       <p className="mt-5 text-body-lg text-on-dark-mute">{SIGN_IN_COPY.lede}</p>
