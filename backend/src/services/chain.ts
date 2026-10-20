@@ -297,6 +297,19 @@ export async function getTransactionReceipt(txHash: Hex, target: Network = serve
 export const FEE_AMM_ADDRESS = '0xfeec000000000000000000000000000000000000' as Hex;
 
 /**
+ * The Stablecoin DEX: Tempo's enshrined orderbook for stablecoin-to-stablecoin
+ * swaps, at the same address on every network.
+ *
+ * A PRECOMPILE, not a deployed contract, which is why `eth_getCode` answers the
+ * single byte `0xef` for it exactly as it does for a TIP-20. It prices with
+ * `quoteSwapExactAmountIn` and executes with `swapExactAmountIn`, needs no
+ * allowance ("implicit approvals for listed precompiles"), and settles a swap's
+ * OUTPUT straight to the wallet — the DEX balance that order fills land in never
+ * appears on a swap path, so there is nothing to withdraw afterwards.
+ */
+export const STABLECOIN_DEX_ADDRESS = '0xdec0000000000000000000000000000000000000' as Hex;
+
+/**
  * The wall-clock time a block was mined, on the network that block is on.
  *
  * Network-scoped for the same reason as `getTransactionReceipt`: a practice block
@@ -470,9 +483,16 @@ export interface NetworkFeeEstimate {
  * Falls back to `reserveNetworkFee` when the RPC cannot answer: a payment preview
  * must not fail because a fee estimate did.
  */
-export async function estimateNetworkFee(asset: SupportedAsset): Promise<NetworkFeeEstimate> {
+export async function estimateNetworkFee(
+  asset: SupportedAsset,
+  network: Network = servedNetwork
+): Promise<NetworkFeeEstimate> {
   try {
-    const gasPrice = await publicClient.getGasPrice();
+    // The gas PRICE belongs to the chain the transaction will land on. Reading the
+    // served chain's price for a quote priced for the other network would put the
+    // wrong number behind `hasEnoughBalance`, which is the one figure that decides
+    // whether a customer can send at all.
+    const gasPrice = await publicClientFor(network).getGasPrice();
     const feeWei = MEASURED_BATCH_GAS[asset] * gasPrice;
 
     return {
