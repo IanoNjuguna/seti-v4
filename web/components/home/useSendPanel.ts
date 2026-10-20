@@ -376,6 +376,12 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
             txHash,
             amountFiat: preview.fiatAmount,
             feeFiat: preview.feeFiat,
+            // The receipt names what left the wallet, so it reads the same quote
+            // the transfer was signed with. The server's total, never a sum done
+            // here: principal + fee + gas is the quote's claim, not this file's.
+            totalFiat: preview.totalFiat,
+            networkFeeFiat: preview.networkFeeFiat,
+            gasEstimated: preview.networkFeeSource === 'estimate',
             fiatCurrency: preview.fiatCurrency,
             recipient: preview.recipient,
           },
