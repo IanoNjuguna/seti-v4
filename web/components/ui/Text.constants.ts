@@ -19,12 +19,12 @@ export const VARIANT_CLASSES: Record<TextVariant, string> = {
   // 40px / 1.2 / -0.4px on desktop, 24px on phones. A 320px viewport leaves ~181px
   // of card, which 32px text overflows for a compact 8-char amount, so the number
   // broke mid-value — the one thing a balance must never do.
-  balance: 'font-brand font-medium text-heading-md sm:text-display-md',
+  balance: 'font-mono font-medium text-heading-md sm:text-display-md',
   // The same figure, one step down per length. A balance must never be rounded and must
   // never wrap mid-value, so the SIZE gives way as the number grows: the amount stays
   // exactly what the ledger says, and the type shrinks to fit it.
-  'balance-compact': 'font-brand font-medium text-heading-sm sm:text-heading-md',
-  'balance-tight': 'font-brand font-medium text-heading-sm',
+  'balance-compact': 'font-mono font-medium text-heading-sm sm:text-heading-md',
+  'balance-tight': 'font-mono font-medium text-heading-sm',
   // 24px / 1.33 / 500 — `heading-md`, the size a lockup or panel title uses. Added
   // when the rail's wordmark asked for `heading-md` on top of `section` (20px): a
   // second size class cannot win there. Tailwind emits a FIXED order for these
