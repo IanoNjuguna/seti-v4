@@ -45,7 +45,8 @@
     "check:statement": "tsx src/services/statement.check.ts",
     "review:brand": "tsx src/cli/review-brand.ts",
     "prove:batch": "tsx src/cli/prove-batch.ts",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "check:convert": "tsx src/services/convert.check.ts"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.0",
