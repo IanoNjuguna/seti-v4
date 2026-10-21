@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAccountIdentity } from '@/lib/account';
 import { useSession } from '@/lib/auth';
 import { AppLoading } from './AppLoading';
+import { SettlementRunner } from './SettlementRunner';
 import { AppShell } from './AppShell';
 import { ONBOARDING_PATH } from './AppGate.constants';
 import { decideGatePlacement, isOnboardingRoute } from './gate-decision';
@@ -42,7 +43,21 @@ export function AppGate({ children }: AppGateProps) {
 
   if (placement === 'loading') return <AppLoading />;
   if (placement === 'onboarding') return <>{children}</>;
-  if (placement === 'shell') return <AppShell>{children}</AppShell>;
+  if (placement === 'shell') {
+    return (
+      <>
+        {/*
+          The settlement pass lives here rather than in the layout because this is
+          the one branch that means "an onboarded account with a wallet, on a real
+          app surface". It renders nothing; it signs a swap into OUSD only while
+          the customer has the app open, which is the only time their own wallet can
+          sign. See useSettlementRunner.
+        */}
+        <SettlementRunner />
+        <AppShell>{children}</AppShell>
+      </>
+    );
+  }
 
   // A redirect is in flight. The destination's own surfaces must not paint in the
   // meantime — that frame is the half-onboarded state this gate exists to refuse.
