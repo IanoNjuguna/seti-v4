@@ -5,7 +5,7 @@ description: Elite mobile app image-generation skill for creating premium, app-n
 
 # PROJECT LOCALIZATION: CALM FINANCE / SETI
 
-This project is a **Tempo-based mobile neobank for Nairobi, Kenya**. When generating mobile app images for this repo, read `DESIGN.md` at the repository root first. The design system is **Calm Finance**: quiet, trustworthy, modern minimalist fintech.
+This project is a **Tempo-based neobank for Nairobi, Kenya**. When generating mobile app images for this repo, read `design/revolut.md` at the repository root first. That one document is the design system for every surface.
 
 Bias all generated images toward:
 - **Mood:** calm, clean, breathable, low density; no exclamation marks, no gamification, no flashy gradients.

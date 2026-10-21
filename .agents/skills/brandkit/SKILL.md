@@ -5,7 +5,7 @@ description: Premium brand-kit image generation skill for creating high-end bran
 
 # PROJECT LOCALIZATION: CALM FINANCE / SETI
 
-This project is a **Tempo-based mobile neobank for Nairobi, Kenya**. When generating brand-kit images for this repo, read `DESIGN.md` at the repository root first. The design system is **Calm Finance**: quiet, trustworthy, modern minimalist fintech.
+This project is a **Tempo-based neobank for Nairobi, Kenya**. When generating brand-kit images for this repo, read `design/revolut.md` at the repository root first. That one document is the design system for every surface.
 
 Bias every brand board toward:
 - **Category:** fintech / payments / stablecoin neobank.
@@ -17,7 +17,7 @@ Bias every brand board toward:
 - **Currency format:** `KES 1,250.00`.
 - **Copy tone:** direct, reassuring, quiet; no exclamation marks; taglines one sentence max.
 
-Use the "Light Editorial / Compliance" or a custom "Calm Finance" visual mode: warm ivory/paper surfaces, sage accent, slate secondary, minimal noise. Prefer simple geometric construction marks, app mockups, and card applications over cliché fintech dashboards.
+Use the system's own two canvases: a black canvas with a white band, cobalt as the single emphasis colour, and no shadows. Prefer simple geometric construction marks, app mockups, and card applications over cliché fintech dashboards.
 
 # BRANDKIT IMAGE GENERATION SKILL
 

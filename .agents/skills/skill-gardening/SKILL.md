@@ -14,7 +14,7 @@ The skills in `.agents/skills/` are living documents. When reality disagrees wit
 - **You made a mistake** that a clearer rule would have prevented (e.g. applied Next.js rules to the Vite app, broke a public import path, restyled during a refactor).
 - **The user corrected you** — user corrections are the highest-value signal; encode them so they never need repeating.
 - **You discovered something new**: an undocumented convention, a load-bearing ID/storage key/provider-order dependency, a verification quirk (e.g. "lint is broken, use tsc + build").
-- **Standards changed**: dependency upgrades, framework version bumps, design-token changes in `DESIGN.md`, new verification gates.
+- **Standards changed**: dependency upgrades, framework version bumps, design-token changes in `design/revolut.md`, new verification gates.
 
 ## How to update
 

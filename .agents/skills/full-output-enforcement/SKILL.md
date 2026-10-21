@@ -5,11 +5,11 @@ description: Overrides default LLM truncation behavior. Enforces complete code g
 
 # Full-Output Enforcement
 
-## Project Localization: Calm Finance / Seti
+## Project Localization: Seti
 
 When this skill is used to generate UI code for the **seti-v4** repo (a Tempo-based mobile neobank for Nairobi), completeness includes:
 
-- Reading `DESIGN.md` first and using its Calm Finance tokens/type scale.
+- Reading `design/revolut.md` first and using its tokens and type scale.
 - Outputting full component files (not partial snippets) that reference semantic tokens like `color-bg-canvas`, `color-surface-card`, `color-text-primary`, `color-accent-primary`, `text-balance`, and `font-tabular`.
 - Including all requested screens/sections with complete markup, styles, and accessibility attributes.
 - Preserving the quiet copy tone: no exclamation marks, no placeholders for copy, CTA labels 2–4 words.

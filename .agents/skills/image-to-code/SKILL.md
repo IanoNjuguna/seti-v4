@@ -5,11 +5,11 @@ description: Elite website image-to-code skill for Codex. For visually important
 
 # PROJECT LOCALIZATION: CALM FINANCE / SETI
 
-This project is a **Tempo-based mobile neobank for Nairobi, Kenya**. When implementing frontend for this repo, read `DESIGN.md` at the repository root first. The design system is **Calm Finance**: quiet, trustworthy, modern minimalist fintech.
+This project is a **Tempo-based neobank for Nairobi, Kenya**. When implementing frontend for this repo, read `design/revolut.md` at the repository root first. That one document is the design system for every surface.
 
 Implementation constraints:
 - **Target platform:** React Native + Expo (mobile-first). Do not use Next.js, `next/image`, `next/link`, or SSR assumptions unless explicitly asked for a web surface.
-- **Tokens:** use the semantic tokens and type scale from `DESIGN.md` (e.g., `color-bg-canvas`, `color-surface-card`, `color-text-primary`, `color-accent-primary`, `text-balance`, `font-tabular`). Never hard-code raw hex without a token mapping.
+- **Tokens:** use the semantic tokens and type scale from `design/revolut.md` (e.g., `bg-canvas-light`, `canvas-dark`, `surface-soft`, `text-ink`, `on-dark-mute`, `border-hairline-light`, `text-body-md-bold`, `rounded-md`). Never hard-code raw hex without a token mapping.
 - **Typography:** Inter / system sans; apply `font-tabular` to every monetary value.
 - **Currency format:** `KES 1,250.00` — symbol, space, thousands separator, two decimals.
 - **Components:** compose from `components/ui/` primitives (Button, Input, Card, Sheet, Badge, TransactionRow, AmountInput) and use the project's `cn()` utility.

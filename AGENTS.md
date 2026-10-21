@@ -53,7 +53,7 @@ This repo has project skills in `.agents/skills/` that govern all UI work. Load 
 
 - **`modular-ui-authoring`** — when **writing new** components, screens, or views — React Native / Expo **and** the web app. New UI must be modular from the start: typed hooks, `*.types.ts` / `*.constants.ts` files, <80-line component files, logic extracted to hooks.
 - **`modular-ui-refactor`** — when **changing existing** UI structure. Zero behavior changes; public import paths and export styles are contracts.
-- **`design-enforcement`** — for **all** styling. The surface decides the system: `design/revolut.md` governs every web surface, `DESIGN.md` (Calm Finance) still governs `mobile/` until it migrates. Semantic tokens only, no raw hex, no mixed vocabularies on one surface.
+- **`design-enforcement`** — for **all** styling. One system governs every surface: `design/revolut.md`. There is no second vocabulary and no `mobile/` waiting to migrate. Semantic tokens only, no raw hex.
 - **`apple-design`** — for **design judgment calls** where the system files are silent: hierarchy, rhythm and spacing steps, motion and whether it means anything, target sizes, contrast, and what to remove. When a call is a matter of taste rather than of tokens, this skill decides it, and the reasoning is recorded next to the code it changed. Where it conflicts with `design/revolut.md`, the repo's system wins on *tokens* and this skill wins on *judgment*.
 - **`imagegen-frontend-mobile`** — for generating premium mobile app screen concepts and flows.
 - **`image-to-code`** — for converting generated design images into web frontend when needed.
@@ -68,7 +68,7 @@ This repo has project skills in `.agents/skills/` that govern all UI work. Load 
 | --- | --- |
 | Structure of **new** UI code | `modular-ui-authoring` |
 | Restructuring **existing** UI, behavior preservation | `modular-ui-refactor` |
-| Styling, tokens, design system | `design-enforcement` (web: `design/revolut.md` · mobile: `DESIGN.md`) |
+| Styling, tokens, design system | `design-enforcement` (owner: `design/revolut.md`) |
 | Design judgment calls (hierarchy, rhythm, motion, target size, contrast, what to cut) | `apple-design` |
 | Mobile screen image generation | `imagegen-frontend-mobile` |
 | Brand / visual identity | `brandkit` |
@@ -85,8 +85,8 @@ If a rule feels needed in two skills, put it in the owning skill and cross-refer
 - `mobile/` — React Native + Expo app (planned location; create if missing).
 - `backend/` — Node.js API service (planned location; create if missing).
 - `.agents/skills/` — project-local agent skills.
-- `design/revolut.md` — source of truth for every web surface, and the target system for the whole repo.
-- `DESIGN.md` — Calm Finance. Still the source of truth for `mobile/`; legacy once mobile migrates to the Revolut system.
+- `design/revolut.md` — the source of truth for every surface, web or native. `design/motion.md`
+  sits beside it and is cited by the landing's reveals.
 - `tailwind.config.js` — NativeWind / Tailwind token configuration.
 - `design.tokens.json` — machine-readable design tokens for Figma/style-dictionary pipelines.
 

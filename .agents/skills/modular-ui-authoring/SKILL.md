@@ -35,21 +35,21 @@ and five things bite:
   `@theme inline` in `web/app/globals.css`. The Revolut system expresses its two
   canvases as *tokens* (`canvas-light` / `canvas-dark`, `surface-soft` /
   `surface-elevated`) rather than as a `.dark` theme flip, so there is no
-  per-element light/dark pair to write — the Calm rule about dark-mode
-  equivalents is a **mobile** rule. RN's `active:` becomes
+  per-element light/dark pair to write: the canvas IS a token, and a component
+  inherits it. RN's `active:` becomes
   `hover:`/`active:`/`focus-visible:`; `duration-press` is not a token — use
   `duration-[120ms]`. v4 derives spacing from one unit, so `p-4.5` is 18px with
   no token.
 - **`web/`'s typecheck and lint are already in `npm run verify`**, so new web code
   is gated automatically — no script changes needed.
 
-### One design system per surface — never two on one
+### One design system, one vocabulary
 
 `web/` (landing page **and** the product app) follows `design/revolut.md`, and its
 tokens are already declared in `web/app/globals.css`: `bg-canvas-light`, `text-ink`,
 `border-hairline-light`, `rounded-lg`, `bg-surface-soft`, `text-caption`,
-`text-body-md-bold`. `mobile/` follows Calm Finance (`DESIGN.md`) until it migrates.
-Do not declare alias tokens for a surface and do not
+`text-body-md-bold`. One system governs every surface, so there is no second
+vocabulary to translate to. Do not declare alias tokens for a surface and do not
 introduce `--seti-*`-style raw names to "bridge" the two systems — that was tried,
 it produced a duplicate vocabulary that silently rotted, and it is removed. If the
 token you want is missing, add it to the surface's own system and say so.
