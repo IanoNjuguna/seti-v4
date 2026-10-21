@@ -57,7 +57,15 @@ export function TermsAcceptance({ checked, onChange, tone = 'light' }: TermsAcce
           aria-describedby={checked ? undefined : TERMS_CHECKBOX_HINT_ID}
           className={cn(
             'mt-0.5 h-4 w-4 shrink-0 accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
-            classes.focusRing
+            classes.focusRing,
+            // The box a native checkbox paints follows the page's colour scheme, not
+            // the colour behind it. On `canvas-dark` the document is `normal`, so the
+            // control rendered as a solid white 16px block: it read as a placeholder,
+            // not as something to tick. `color-scheme: dark` on the control alone paints
+            // it as a dark box with a visible edge, without hiding the native input,
+            // without a redrawn box, and without losing the keyboard and screen-reader
+            // behaviour the comment above is careful about.
+            classes.control
           )}
         />
         <p

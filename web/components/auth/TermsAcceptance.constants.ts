@@ -53,11 +53,13 @@ export const TERMS_TONE_CLASSES = {
     link: 'font-semibold text-link underline underline-offset-4 transition-colors hover:text-primary-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-light',
     hint: 'text-caption text-stone',
     focusRing: 'focus-visible:ring-offset-canvas-light',
+    control: 'scheme-light',
   },
   dark: {
     label: 'text-on-dark-mute',
     link: 'font-semibold text-on-dark underline underline-offset-4 transition-colors hover:text-on-dark-mute focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-dark focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-dark',
     hint: 'text-caption text-on-dark-mute',
     focusRing: 'focus-visible:ring-offset-canvas-dark',
+    control: 'scheme-dark',
   },
 } as const;
