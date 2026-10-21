@@ -147,17 +147,21 @@ export function useSave(): UseSaveReturn {
             depositAmount: fresh.swapOut,
             minSwapOut: fresh.minSwapOut,
             minShares: fresh.minShares,
+            // The quote chose this from the balances, so the batch spends what the
+            // customer actually holds; pathUSD needs no swap leg at all.
+            assetIn: fresh.assetIn,
             recipient: wallet.address as Address,
             vault: fresh.vault as Address,
             network,
           });
 
           const txHash = await sendTempoTransaction(
-            buildTempoTransaction({ asset: 'ousd', calls, network })
+            buildTempoTransaction({ asset: fresh.assetIn, calls, network })
           );
 
           await recordSavingsDeposit({
             txHash,
+            assetIn: fresh.assetIn,
             amountIn: fresh.amountIn,
             depositAmount: fresh.swapOut,
             minShares: fresh.minShares,
