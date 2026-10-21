@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { authMiddleware } from '../middleware/auth.js';
@@ -17,6 +17,7 @@ import {
   STATEMENT_CONTENT_TYPE,
 } from '../services/statement-model.js';
 import { PaymentRefusalError } from '../services/payment-refusal.js';
+import { refusalResponse } from './refusal-response.js';
 import { previewPayment, previewSend, SendRequiresBatchError } from '../services/payments.js';
 import { previewConvert, ConvertRefusalError } from '../services/convert.js';
 import { planSettlement } from '../services/settlement.js';
@@ -170,14 +171,6 @@ function requireUser(request: FastifyRequest) {
  * "something went wrong". The refusal itself is already in audit_logs (keyed by
  * txHash), so this body only has to be actionable for the client.
  */
-function refusalResponse(reply: FastifyReply, error: PaymentRefusalError) {
-  return reply.status(422).send({
-    error: error.message,
-    code: error.code,
-    txHash: error.txHash,
-  });
-}
-
 export async function transactionRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authMiddleware);
 
