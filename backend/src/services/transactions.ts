@@ -1168,7 +1168,13 @@ interface RecordSavingsDepositInput {
   txHash: string;
   /** The address the CLIENT signed with — the `from` of the transaction. */
   walletAddress?: string;
-  /** The OUSD the customer spent, in OUSD units. Checked against the chain. */
+  /**
+   * Which asset funded the deposit. The quote chooses it from the customer's actual
+   * balances, so the receipt check has to look at the same one: verifying OUSD while
+   * the customer spent pathUSD would refuse a correct deposit.
+   */
+  assetIn?: SupportedAsset;
+  /** The asset's amount the customer spent, in its own units. Checked. */
   amountIn: string;
   /** What the vault received, in pathUSD units. Checked against the chain. */
   depositAmount: string;
@@ -1260,9 +1266,10 @@ export async function recordSavingsDeposit(input: RecordSavingsDepositInput) {
   const receipt = found.receipt;
 
   // 1. the OUSD left the wallet, for the DEX.
+  const assetIn: SupportedAsset = input.assetIn ?? 'ousd';
   const inLeg = readTransferredAmount(
     receipt,
-    getTokenContract('ousd', network),
+    getTokenContract(assetIn, network),
     STABLECOIN_DEX_ADDRESS,
     'ousd'
   );

@@ -191,8 +191,15 @@ export async function getSavingsSummary(input: {
   const fx = await getFxQuote(fiatCurrency);
   const fiatPerUsd = fx.fiatPerUsd;
 
-  const { balance } = await getUserBalance(input.userId, 'ousd', network);
-  const spendableFiat = (Number(balance) * fiatPerUsd).toFixed(2);
+  // What can actually be saved, which is not the same as what is OUSD. The customer
+  // holds whatever the payment arrived in; this figure has to agree with the balance
+  // on home or the screen tells them they are broke while showing they are not.
+  let spendable = 0;
+  for (const asset of DEPOSIT_FUNDING_ASSETS) {
+    const { balance } = await getUserBalance(input.userId, asset, network);
+    spendable += Number(balance);
+  }
+  const spendableFiat = (spendable * fiatPerUsd).toFixed(2);
 
   const vaultAddress = SAVINGS_VAULT[network];
   const address = await walletAddressFor(input.userId, network);
@@ -322,6 +329,38 @@ export interface SavingsDepositQuote {
   spendableFiat: string;
 }
 
+/**
+ * The assets that can fund a deposit in ONE hop.
+ *
+ * `pathusd` is the vault's own asset, so it needs no swap at all. `ousd` and `usdc.e`
+ * each reach it in a single swap. `usdt0` is deliberately absent: Tempo has no market
+ * for it, so listing it would let the screen count money that cannot be moved.
+ */
+const DEPOSIT_FUNDING_ASSETS: SupportedAsset[] = ['pathusd', 'ousd', 'usdc.e'];
+
+/**
+ * Which asset pays for a deposit, given the balances and the amount.
+ *
+ * A deposit consumes ONE asset in ONE hop, so the rule is: the first funding asset
+ * that covers the amount, else the one holding the most — which is the balance the
+ * customer would reach for, and therefore the balance the "you have X" line must
+ * name. Pulled out as a pure function because it is the whole of the bug in #126:
+ * the screen priced everything off OUSD while the customer held pathUSD.
+ */
+export function chooseDepositAsset(
+  funding: { asset: SupportedAsset; balance: bigint }[],
+  amountIn: bigint
+): { asset: SupportedAsset; balance: bigint } | null {
+  if (funding.length === 0) return null;
+
+  const covering = funding.find((candidate) => candidate.balance >= amountIn);
+  if (covering) return covering;
+
+  return funding.reduce((largest, candidate) =>
+    candidate.balance > largest.balance ? candidate : largest
+  );
+}
+
 /** The tolerance on both legs of a deposit, in basis points. */
 export const SAVINGS_TOLERANCE_BPS = 50;
 
@@ -343,19 +382,39 @@ export async function quoteSavingsDeposit(input: {
   const fx = await getFxQuote(fiatCurrency);
   const fiatPerUsd = fx.fiatPerUsd;
 
-  // OUSD → pathUSD has a book on mainnet; on a network without one the whole
-  // deposit is refused here rather than signing a swap that cannot fill.
-  if (!isAllowedPair('ousd', SAVINGS_ASSET, network)) {
-    throw new Error(`No market for ${'ousd'} → ${SAVINGS_ASSET} on ${network}.`);
+  const amountIn = parseUnits((amountFiat / fiatPerUsd).toFixed(ASSET_DECIMALS), ASSET_DECIMALS);
+
+  /*
+   * Which asset pays, decided from balances rather than assumed.
+   *
+   * A deposit consumes ONE asset in ONE hop, so the candidates are the ones that can
+   * reach the vault directly; an asset with no book is filtered out here rather than
+   * signing a swap that cannot fill. The first candidate that covers the amount wins,
+   * and when none does, the one holding the most — that keeps `hasEnoughBalance` and
+   * its "you have X" line pointing at the balance the customer would use.
+   */
+  const funding: { asset: SupportedAsset; balance: bigint }[] = [];
+  for (const asset of DEPOSIT_FUNDING_ASSETS) {
+    const hasMarket = asset === SAVINGS_ASSET || isAllowedPair(asset, SAVINGS_ASSET, network);
+    if (!hasMarket) continue;
+    const { balance } = await getUserBalance(input.userId, asset, network);
+    funding.push({ asset, balance: parseUnits(balance, ASSET_DECIMALS) });
   }
 
-  const amountIn = parseUnits((amountFiat / fiatPerUsd).toFixed(ASSET_DECIMALS), ASSET_DECIMALS);
-  const { amountOut, minAmountOut } = await quoteDexConvert({
-    assetIn: 'ousd',
-    assetOut: SAVINGS_ASSET,
-    amountIn,
-    network,
-  });
+  const chosen = chooseDepositAsset(funding, amountIn);
+  if (!chosen) throw new Error(`No asset can reach ${SAVINGS_ASSET} on ${network}.`);
+  const assetIn = chosen.asset;
+
+  // Already the vault's asset: nothing to swap, and the deposit is exact.
+  const { amountOut, minAmountOut } =
+    assetIn === SAVINGS_ASSET
+      ? { amountOut: amountIn, minAmountOut: amountIn }
+      : await quoteDexConvert({
+          assetIn,
+          assetOut: SAVINGS_ASSET,
+          amountIn,
+          network,
+        });
 
   // Shares are priced by the vault, not by us: at a share price of P, one unit buys
   // 1/P shares. The floor is the same 50bps the swap gets, so a vault fee taken at
@@ -366,8 +425,8 @@ export async function quoteSavingsDeposit(input: {
   const minShares =
     (BigInt(Math.floor(expectedShares * 1e6)) * BigInt(10_000 - SAVINGS_TOLERANCE_BPS)) / BigInt(10_000);
 
-  const { balance } = await getUserBalance(input.userId, 'ousd', network);
-  const hasEnoughBalance = parseUnits(balance, ASSET_DECIMALS) >= amountIn;
+  const hasEnoughBalance = chosen.balance >= amountIn;
+  const spendableTotal = funding.reduce((sum, candidate) => sum + candidate.balance, BigInt(0));
 
   const quoteId = issueQuote({
     userId: input.userId,
@@ -383,7 +442,7 @@ export async function quoteSavingsDeposit(input: {
     fiatCurrency,
     fiatAmount: amountFiat.toFixed(2),
     amountIn: formatUnits(amountIn, ASSET_DECIMALS),
-    assetIn: 'ousd',
+    assetIn,
     swapOut: formatUnits(amountOut, ASSET_DECIMALS),
     minSwapOut: formatUnits(minAmountOut, ASSET_DECIMALS),
     minShares: formatUnits(minShares, ASSET_DECIMALS),
@@ -391,7 +450,9 @@ export async function quoteSavingsDeposit(input: {
     vault,
     quoteId,
     hasEnoughBalance,
-    spendableFiat: (Number(balance) * fiatPerUsd).toFixed(2),
+    spendableFiat: (
+      Number(formatUnits(spendableTotal, ASSET_DECIMALS)) * fiatPerUsd
+    ).toFixed(2),
   };
 }
 

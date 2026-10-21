@@ -8,6 +8,8 @@ import { refusalResponse } from './refusal-response.js';
 
 const depositSchema = z.object({
   txHash: z.string().regex(/^0x[a-fA-F0-9]+$/),
+  /** Which asset funded it; the quote chose it from the customer's balances. */
+  assetIn: z.enum(['ousd', 'pathusd', 'usdt0', 'usdc.e']).optional(),
   /** The OUSD the customer spent, in OUSD units. */
   amountIn: z.string().regex(/^\d+(\.\d+)?$/),
   /** What the vault received, in pathUSD units. */

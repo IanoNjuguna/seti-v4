@@ -40,7 +40,8 @@ export interface SavingsDepositQuote {
   fiatCurrency: string;
   fiatAmount: string;
   amountIn: string;
-  assetIn: string;
+  /** Which asset the quote chose to fund it: pathUSD needs no swap at all. */
+  assetIn: 'ousd' | 'pathusd' | 'usdt0' | 'usdc.e';
   swapOut: string;
   minSwapOut: string;
   minShares: string;
@@ -109,6 +110,8 @@ export async function recordSavingsWithdrawal(
 }
 
 export interface RecordSavingsDepositInput {
+  /** Which asset funded the deposit — the quote's choice, not ours. */
+  assetIn?: 'ousd' | 'pathusd' | 'usdt0' | 'usdc.e';
   txHash: string;
   amountIn: string;
   depositAmount: string;

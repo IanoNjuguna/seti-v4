@@ -80,6 +80,8 @@ export function buildDepositCalls(input: {
   depositAmount: string;
   /** The floor on the swap, so a moving book cannot under-deliver. */
   minSwapOut: string;
+  /** Which asset funds it. `pathusd` is the vault's own asset: no swap leg at all. */
+  assetIn: 'ousd' | 'pathusd' | 'usdc.e' | 'usdt0';
   /** The floor on shares, so a vault fee cannot quietly shrink the position. */
   minShares: string;
   /** Where the shares are minted: the address that signs. */
@@ -87,7 +89,6 @@ export function buildDepositCalls(input: {
   vault: Address;
   network: Network;
 }): TempoCall[] {
-  const ousd = getTokenContractFor('ousd', input.network);
   const pathUsd = getTokenContractFor('pathusd', input.network);
 
   const amountIn = parseUnits(input.amountIn, ASSET_DECIMALS.ousd);
@@ -105,15 +106,30 @@ export function buildDepositCalls(input: {
     throw new Error('Refusing to sign a deposit without a floor on the swap and the shares.');
   }
 
-  const swap: TempoCall = {
-    to: STABLECOIN_DEX_ADDRESS,
-    data: encodeFunctionData({
-      abi: DEX_SWAP_ABI,
-      functionName: 'swapExactAmountIn',
-      args: [ousd, pathUsd, amountIn, minSwapOut],
-    }),
-    value: BigInt(0),
-  };
+  /*
+   * The swap leg exists only when the customer's asset is not the vault's. A customer
+   * holding pathUSD deposits it directly — one fewer call, one fewer way to fail, and
+   * no exposure to the book at all.
+   */
+  const swap: TempoCall[] =
+    input.assetIn === 'pathusd'
+      ? []
+      : [
+          {
+            to: STABLECOIN_DEX_ADDRESS,
+            data: encodeFunctionData({
+              abi: DEX_SWAP_ABI,
+              functionName: 'swapExactAmountIn',
+              args: [
+                getTokenContractFor(input.assetIn, input.network),
+                pathUsd,
+                amountIn,
+                minSwapOut,
+              ],
+            }),
+            value: BigInt(0),
+          },
+        ];
 
   const approve: TempoCall = {
     to: pathUsd,
@@ -135,7 +151,7 @@ export function buildDepositCalls(input: {
     value: BigInt(0),
   };
 
-  return [swap, approve, deposit];
+  return [...swap, approve, deposit];
 }
 
 /**
