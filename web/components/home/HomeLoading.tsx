@@ -18,8 +18,8 @@ import { Skeleton } from '@/components/ui';
  *     bordered panel used to stand in for a pay card that was deleted when Pay
  *     became a page of its own — a skeleton for a card that no longer exists
  *     reserved its whole height and collapsed when the real screen landed.
- *  3. **The activity section was a bordered container.** The real list is rows on
- *     the canvas separated by their own hairlines (`HomeActivity`), so a container
+ *  3. **The activity section was a bordered container.** The real rows are on the
+ *     canvas separated by their own hairlines (`HomeMerchants`), so a container
  *     drew a card the content never delivers. The screen jumped by its border and
  *     radius at the bottom.
  *

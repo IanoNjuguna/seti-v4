@@ -33,7 +33,7 @@ export const SEND_FLOW_COPY = {
  * What the flow says to someone with no account.
  *
  * The ACTION is what needs an account, so this is where the ask belongs — the
- * entry points that lead here stay visible and tappable (`QuickActions` on Home),
+ * entry points that lead here stay visible and tappable (`HomeActions` on Home),
  * and a visitor meets this instead of a flow that would sign for them. Plain,
  * second person, and it names the reason rather than the mechanism: money leaves
  * the CUSTOMER's account, which is why there has to be one.
