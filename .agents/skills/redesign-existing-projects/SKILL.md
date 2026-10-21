@@ -5,22 +5,22 @@ description: Upgrades existing websites and apps to premium quality. Audits curr
 
 # Redesign Skill
 
-## Project Localization: Calm Finance / Seti
+## Project Localization: Seti
 
-This project is a **Tempo-based neobank for Nairobi, Kenya**, with a React Native app (`mobile/`) and a Next.js web app (`web/`). Which design system governs depends on the surface: **`design/revolut.md`** for every web surface (the landing page and the product app at `/app`), and **Calm Finance** (`DESIGN.md` at the repository root) for `mobile/` until it migrates — the Revolut system is the repo's target. Read the surface's doc first and treat it as the single source of truth; never apply one system's tokens to the other surface.
+This project is a **Tempo-based neobank for Nairobi, Kenya**, whose surface is the Next.js web app (`web/`): the landing page and the product app at `/app`. **`design/revolut.md`** governs every surface and is the single source of truth for tokens, hierarchy, shape and motion. Read it first; there is no second system to translate between.
 
 The following generic redesign defaults **do not apply** here and must be overridden:
 
 - **Typeface:** keep Inter / system sans; do not swap to Geist, Outfit, Cabinet Grotesk, Satoshi, or serif pairings unless the user explicitly asks.
 - **Background:** maintain the light canvas (`#F8F9FA`) and white card surfaces; do not force dark mode or charcoal backgrounds.
 - **Accent color:** the single accent is sage green (`#059669`); do not introduce additional accent colors.
-- **Texture:** Calm Finance is intentionally flat and minimal. Do not add grain, noise, heavy gradients, glassmorphism, or texture overlays unless explicitly requested.
+- **Texture:** grain belongs to chrome, never to content, at half strength and never animated (`design/revolut.md`). No gradients, glassmorphism, or texture overlays beyond that.
 - **Layout:** prefer calm, centered, structured mobile-first layouts; do not force broken-grid asymmetry, parallax stacks, or split-screen scroll.
 - **Money:** all monetary values must use `font-tabular` (tabular lining figures) and the `KES 1,250.00` format.
 - **Copy tone:** direct, reassuring, transparent, quiet. No exclamation marks, no clichés, no aggressive upsells. CTA labels 2–4 words.
 - **Platform:** React Native + Expo mobile app. Respect safe areas, bottom tab bar, 44×44 pt touch targets.
 
-Apply the audit below only in ways that strengthen the existing Calm Finance system. If a recommendation conflicts with `DESIGN.md`, follow `DESIGN.md` and note the conflict instead of drifting silently.
+Apply the audit below only in ways that strengthen the existing system. If a recommendation conflicts with `design/revolut.md`, follow the doc and note the conflict instead of drifting silently.
 
 ## How This Works
 

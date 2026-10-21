@@ -41,7 +41,7 @@ export type TextColor =
 export interface TextProps {
   variant?: TextVariant;
   color?: TextColor;
-  /** Tabular figures. Required on every monetary value (DESIGN.md §3). */
+  /** Tabular figures. Required on every monetary value (design/revolut.md, type). */
   tabular?: boolean;
   className?: string;
   children: ReactNode;

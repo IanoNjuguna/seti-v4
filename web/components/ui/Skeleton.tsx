@@ -6,7 +6,7 @@ export interface SkeletonProps {
 
 /**
  * Loading placeholder. Callers size it to the shape it stands in for, so the
- * layout does not jump when real content arrives (DESIGN.md §7).
+ * layout does not jump when real content arrives (design/revolut.md, elevation and loading).
  */
 export function Skeleton({ className }: SkeletonProps) {
   return (

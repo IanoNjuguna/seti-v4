@@ -1,35 +1,27 @@
 ---
 name: design-enforcement
-description: Enforce this repo's design systems for any UI work — design/revolut.md on every web surface, Calm Finance (DESIGN.md) on mobile until it migrates
+description: Enforce this repo's design system for any UI work — design/revolut.md governs every surface, web and native
 type: prompt
 whenToUse: When the user asks to write, modify, or review UI/frontend code (components, screens, styles) on any surface — web (Next.js) or mobile (React Native / Expo)
 ---
 
 # Design Enforcement
 
-Two systems are in play and **the surface decides which one governs**. Route before you
-style: applying the wrong one re-paints an entire surface, and the token names collide,
-so a mixed recipe renders unstyled.
+**One system governs everything: `design/revolut.md`.** There is no second vocabulary to
+route between, and no surface where a different set of token names applies.
 
-| Surface | Source of truth | Status |
-| --- | --- | --- |
-| `web/` — landing page (`web/app/page.tsx`) and the product app (`web/app/app/*`, served at `/app`) | `design/revolut.md` | **in force** |
-| `mobile/` — React Native / Expo app | `DESIGN.md` (Calm Finance) | **legacy — the repo target is the Revolut system; mobile migrates later** |
+| Surface | Source of truth |
+| --- | --- |
+| `web/` — landing page (`web/app/page.tsx`) and the product app (`web/app/app/*`, served at `/app`) | `design/revolut.md` |
+| Native, if it is ever built | the same doc: tokens, hierarchy, the no-shadow rule |
 
-Per-surface detail (load the one you need):
+Vocabulary to load: `references/revolut-web.md` — tokens, the no-shadow rule, pill
+geometry, the black-on-white primary CTA, and the gotchas already paid for.
 
-- `references/revolut-web.md` — web vocabulary: tokens, the no-shadow rule, pill geometry,
-  black-on-white primary CTA, the gotchas already paid for.
-- `references/calm-finance-mobile.md` — the Calm tokens, type scale, shape and component
-  recipes still governing `mobile/`.
-
-Rules for the migration window:
-
-- Keep `mobile/` Calm. Its tokens are correct *there*; do not "fix" them to match web.
-- Any **new** work on a web surface uses the Revolut system.
-- Never mix the two vocabularies on one surface. If you find a Calm token on a web
-  surface (or vice versa), that is a real defect, not a style preference — flag it.
-- Mobile migration is not a drive-by: it is one deliberate pass, per surface.
+The old Calm Finance document (`DESIGN.md`) is deleted, together with its reference file,
+because it described a surface that does not exist and split the token vocabulary in two.
+A Calm token, or a `DESIGN.md` citation, is now a defect to correct rather than a rule to
+follow.
 
 ## Invariants (both surfaces)
 

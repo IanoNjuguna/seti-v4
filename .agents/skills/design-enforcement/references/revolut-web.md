@@ -4,17 +4,17 @@ Source of truth: `design/revolut.md`. In force for `web/` — the landing page
 (`web/app/page.tsx`) and the product app (`web/app/app/*`, served at `/app`).
 This is the **target system for the whole repo**; mobile follows it after migration.
 
-Loaded from `design-enforcement`. The Calm tokens on mobile are a separate
+Loaded from `design-enforcement`. This is the only vocabulary in the repo; the old
 vocabulary — see `calm-finance-mobile.md`.
 
 ## Rules that are structural, not decorative
 
 - **No shadows at all.** "The system has no traditional drop-shadow language."
   Depth is a 1px hairline plus canvas/soft/elevated luminance steps. `shadow-ambient`
-  and every `shadow-*` utility are Calm leftovers on a web surface.
+  and every `shadow-*` utility are leftovers from the deleted Calm system.
 - **Two canvases, not a theme pair.** `canvas-light` (#fff) for product surfaces,
   `canvas-dark` (#000) for chrome and storytelling. There is **no light/dark mode
-  equivalence requirement** here — that rule belongs to Calm. Do not add a `.dark`
+  equivalence requirement** here — that rule went with Calm. Do not add a `.dark`
   block for a web surface.
 - **One radius, not a pill.** Surfaces and controls are `rounded-md` (12px) — buttons and
   inputs alike; chips and badges are `rounded-sm` (8px). **Circles stay circles**:

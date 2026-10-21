@@ -6,7 +6,7 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   /** Small helper line under the field; hidden while an error is shown. */
   hint?: string;
   /**
-   * Inline validation copy. DESIGN.md §4.x puts field errors in `color-alert` as
+   * Inline validation copy. design/revolut.md puts field errors in `color-alert` as
    * a caption under the field, so the field owns its own message rather than
    * being reported somewhere else on the screen.
    */
