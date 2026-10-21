@@ -6,35 +6,37 @@ import { ApiError, refusalMessage } from '@/lib/api';
 import {
   fetchSavings,
   quoteSavingsDeposit,
+  quoteSavingsWithdraw,
   recordSavingsDeposit,
+  recordSavingsWithdrawal,
   type SavingsDepositQuote,
   type SavingsSummary,
+  type SavingsWithdrawQuote,
 } from '@/lib/api/savings';
-import { buildDepositCalls } from '@/lib/pay/build-savings';
+import { buildDepositCalls, buildWithdrawCalls } from '@/lib/pay/build-savings';
 import { buildTempoTransaction } from '@/lib/pay/build-transfer';
 import { useEmbeddedWallet } from '@/hooks/useEmbeddedWallet';
 import { useTempoSender } from '@/hooks/useTempoSender';
 import { useAppNetwork } from '@/components/app/useAppNetwork';
-import type { SaveStatus, UseSaveReturn } from './useSave.types';
+import type { SaveMode, SaveStatus, UseSaveReturn } from './useSave.types';
 
 const QUOTE_DEBOUNCE_MS = 400;
 
 function message(error: unknown): string {
   if (error instanceof ApiError) return refusalMessage(error, 'account');
-  return 'Could not complete that deposit. Nothing was moved.';
+  return 'Could not complete that. Nothing was moved.';
 }
 
 /**
- * The Save screen's state: the figures, the amount being typed, and the one commit.
+ * The Save screen's state, in both directions.
  *
- * Cash App's shape in a hook: the saved figure is the page, `Add money` opens an
- * amount, and the amount is committed with one press. The spendable balance is read
- * again after a deposit, because "what is left" is the number the customer checks
- * next.
+ * `add` and `withdraw` are the same shape — an amount, a quote, one press — so they
+ * share the amount field and differ only in which calls get signed. Keeping them in
+ * one hook is what stops the two flows drifting: a deposit that re-quotes at signing
+ * time and a withdrawal that does not would be a bug waiting to be found in
+ * production, and it could not happen here.
  *
- * Every money figure comes from the server — `savedFiat`, `spendableFiat`, the
- * quote's `swapOut` and `minShares`. The only arithmetic here is choosing which
- * figure to show.
+ * Every money figure comes from the server. The only arithmetic is choosing a figure.
  */
 export function useSave(): UseSaveReturn {
   const { network } = useAppNetwork();
@@ -43,11 +45,13 @@ export function useSave(): UseSaveReturn {
 
   const [summary, setSummary] = useState<SavingsSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mode, setMode] = useState<SaveMode>(null);
   const [amountFiat, setAmountFiat] = useState('');
-  const [quote, setQuote] = useState<SavingsDepositQuote | null>(null);
+  const [depositQuote, setDepositQuote] = useState<SavingsDepositQuote | null>(null);
+  const [withdrawQuote, setWithdrawQuote] = useState<SavingsWithdrawQuote | null>(null);
   const [status, setStatus] = useState<SaveStatus>('idle');
   const [error, setError] = useState<string | null>(null);
-  const [deposited, setDeposited] = useState<{ fiatAmount: string; shares: string } | null>(null);
+  const [done, setDone] = useState<{ mode: 'add' | 'withdraw'; fiatAmount: string } | null>(null);
 
   const load = useCallback(() => {
     fetchSavings()
@@ -78,23 +82,29 @@ export function useSave(): UseSaveReturn {
     };
   }, []);
 
-  /** Price the amount as it is typed. Nothing is signed from this quote. */
+  /** Price the amount as it is typed, in whichever direction the sheet is in. */
   useEffect(() => {
     const amount = Number(amountFiat);
-    if (!Number.isFinite(amount) || amount <= 0) return;
+    if (!mode || !Number.isFinite(amount) || amount <= 0) return;
 
     let active = true;
     const timer = setTimeout(() => {
       if (!active) return;
-      quoteSavingsDeposit(amountFiat)
+
+      const run =
+        mode === 'add' ? quoteSavingsDeposit(amountFiat) : quoteSavingsWithdraw(amountFiat);
+
+      run
         .then((next) => {
           if (!active) return;
-          setQuote(next);
+          if (mode === 'add') setDepositQuote(next as SavingsDepositQuote);
+          else setWithdrawQuote(next as SavingsWithdrawQuote);
           setError(null);
         })
         .catch((caught: unknown) => {
           if (!active) return;
-          setQuote(null);
+          setDepositQuote(null);
+          setWithdrawQuote(null);
           setError(message(caught));
         });
     }, QUOTE_DEBOUNCE_MS);
@@ -103,56 +113,94 @@ export function useSave(): UseSaveReturn {
       active = false;
       clearTimeout(timer);
     };
-  }, [amountFiat]);
+  }, [amountFiat, mode]);
+
+  const reset = useCallback(() => {
+    setMode(null);
+    setAmountFiat('');
+    setDepositQuote(null);
+    setWithdrawQuote(null);
+    setError(null);
+  }, []);
 
   const submit = useCallback(() => {
-    if (status === 'submitting') return;
+    if (status === 'submitting' || !mode) return;
 
     setStatus('submitting');
     setError(null);
 
     void (async () => {
       try {
-        // Re-quote at the moment of signing: the floors the chain enforces must come
-        // from a price that is still true, not one that has been on screen.
-        const fresh = await quoteSavingsDeposit(amountFiat);
-
-        if (!fresh.hasEnoughBalance) {
-          setError('That is more than your available balance.');
-          setStatus('idle');
-          return;
-        }
-
         const wallet = await getSigningWallet();
 
-        const calls = buildDepositCalls({
-          amountIn: fresh.amountIn,
-          depositAmount: fresh.swapOut,
-          minSwapOut: fresh.minSwapOut,
-          minShares: fresh.minShares,
-          recipient: wallet.address as Address,
-          vault: fresh.vault as Address,
-          network,
-        });
+        if (mode === 'add') {
+          // Re-quote at signing time: the floors the chain enforces must be current.
+          const fresh = await quoteSavingsDeposit(amountFiat);
+          if (!fresh.hasEnoughBalance) {
+            setError('That is more than your available balance.');
+            setStatus('idle');
+            return;
+          }
 
-        const txHash = await sendTempoTransaction(
-          // Gas in OUSD: it is the asset being spent, so it is the balance the
-          // quote checked.
-          buildTempoTransaction({ asset: 'ousd', calls, network })
-        );
+          const calls = buildDepositCalls({
+            amountIn: fresh.amountIn,
+            depositAmount: fresh.swapOut,
+            minSwapOut: fresh.minSwapOut,
+            minShares: fresh.minShares,
+            recipient: wallet.address as Address,
+            vault: fresh.vault as Address,
+            network,
+          });
 
-        await recordSavingsDeposit({
-          txHash,
-          amountIn: fresh.amountIn,
-          depositAmount: fresh.swapOut,
-          minShares: fresh.minShares,
-          walletAddress: wallet.address,
-          quoteId: fresh.quoteId,
-        });
+          const txHash = await sendTempoTransaction(
+            buildTempoTransaction({ asset: 'ousd', calls, network })
+          );
 
-        setDeposited({ fiatAmount: fresh.fiatAmount, shares: fresh.minShares });
-        setAmountFiat('');
-        setQuote(null);
+          await recordSavingsDeposit({
+            txHash,
+            amountIn: fresh.amountIn,
+            depositAmount: fresh.swapOut,
+            minShares: fresh.minShares,
+            walletAddress: wallet.address,
+            quoteId: fresh.quoteId,
+          });
+
+          setDone({ mode: 'add', fiatAmount: fresh.fiatAmount });
+        } else {
+          const fresh = await quoteSavingsWithdraw(amountFiat);
+
+          if (!fresh.canWithdraw) {
+            setError('This vault cannot pay out immediately right now.');
+            setStatus('idle');
+            return;
+          }
+
+          const calls = buildWithdrawCalls({
+            shares: fresh.shares,
+            minAssets: fresh.minAssets,
+            minSwapOut: fresh.minSwapOut,
+            recipient: wallet.address as Address,
+            vault: fresh.vault as Address,
+            shareToken: fresh.shareToken as Address,
+            network,
+          });
+
+          const txHash = await sendTempoTransaction(
+            buildTempoTransaction({ asset: 'pathusd', calls, network })
+          );
+
+          await recordSavingsWithdrawal({
+            txHash,
+            shares: fresh.shares,
+            minSwapOut: fresh.minSwapOut,
+            walletAddress: wallet.address,
+            quoteId: fresh.quoteId,
+          });
+
+          setDone({ mode: 'withdraw', fiatAmount: fresh.fiatAmount });
+        }
+
+        reset();
         setStatus('idle');
         load();
       } catch (caught: unknown) {
@@ -160,19 +208,28 @@ export function useSave(): UseSaveReturn {
         setStatus('idle');
       }
     })();
-  }, [amountFiat, getSigningWallet, load, network, sendTempoTransaction, status]);
+  }, [amountFiat, getSigningWallet, load, mode, network, reset, sendTempoTransaction, status]);
+
+  const quote = mode === 'add' ? depositQuote : mode === 'withdraw' ? withdrawQuote : null;
+  const ready =
+    mode === 'add'
+      ? depositQuote !== null && depositQuote.hasEnoughBalance
+      : withdrawQuote !== null && withdrawQuote.canWithdraw;
 
   return {
     summary,
     loading,
+    mode,
     amountFiat,
     quote,
     status,
     error,
-    deposited,
-    canSubmit: status !== 'submitting' && quote !== null && quote.hasEnoughBalance,
+    done,
+    canSubmit: status !== 'submitting' && ready,
+    setMode,
     setAmount: setAmountFiat,
     submit,
-    dismiss: () => setDeposited(null),
+    reset,
+    dismiss: () => setDone(null),
   };
 }

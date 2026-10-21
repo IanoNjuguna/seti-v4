@@ -8,25 +8,30 @@ import type { SaveActionsProps } from '@/hooks/useSave.types';
  * The two actions, Cash App's pair: a primary `Add money` and a secondary
  * `Withdraw`.
  *
- * `Withdraw` is DISABLED while nothing is saved, and its label says why — "Nothing
- * saved yet" — rather than the button looking broken. A dead control that explains
- * its condition is honest; a dead control that says "Withdraw" is a bug.
+ * `Withdraw` is disabled only when there is genuinely nothing to take out — no
+ * position, or a vault that cannot redeem immediately — and the line underneath says
+ * which of the two it is. A dead control that explains its condition is honest; a
+ * dead control that just looks broken is a bug.
  *
- * The withdrawal PATH (redeem, swap home, record) is the next PR. Until it exists,
- * withdraw can only ever be disabled here: nobody holds a position before their
- * first deposit, because depositing is the only way to get one. So this is a fact
- * about the account, not a placeholder.
+ * When it is enabled it opens the same amount sheet as `Add money`, mirrored: the
+ * withdrawal it signs is approve-the-shares → redeem → swap home, in one transaction.
  */
-export function SaveActions({ canWithdraw, onAdd }: SaveActionsProps) {
+export function SaveActions({ canWithdraw, withdrawReason, onAdd, onWithdraw }: SaveActionsProps) {
   return (
     <div className="flex flex-col gap-3">
       <Button type="button" fullWidth onClick={onAdd}>
         {SAVE_COPY.addAction}
       </Button>
 
-      <Button type="button" variant="secondary" fullWidth disabled={!canWithdraw}>
+      <Button type="button" variant="secondary" fullWidth disabled={!canWithdraw} onClick={onWithdraw}>
         {SAVE_COPY.withdrawAction}
       </Button>
+
+      {!canWithdraw && withdrawReason ? (
+        <Text variant="micro" color="secondary" as="p" className="text-center">
+          {withdrawReason}
+        </Text>
+      ) : null}
 
       <Text variant="micro" color="secondary" as="p" className="text-center">
         {SAVE_COPY.custodyNote}

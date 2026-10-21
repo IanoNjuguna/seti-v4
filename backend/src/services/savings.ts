@@ -427,6 +427,12 @@ export interface SavingsWithdrawQuote {
   /** The OUSD the swap home must deliver, and its floor. */
   swapOut: string;
   minSwapOut: string;
+  /**
+   * What that payout is worth in the customer's currency. Computing it here keeps the
+   * exchange rate in one place: the screen shows the vault's honest quote, not the
+   * number that was typed.
+   */
+  fiatOut: string;
   vault: string;
   shareToken: string;
   quoteId: string;
@@ -524,6 +530,7 @@ export async function quoteSavingsWithdraw(input: {
     minAssets: formatUnits(minAssets, ASSET_DECIMALS),
     swapOut: formatUnits(swapOut, ASSET_DECIMALS),
     minSwapOut: formatUnits(minSwapOut, ASSET_DECIMALS),
+    fiatOut: (Number(formatUnits(swapOut, ASSET_DECIMALS)) * fiatPerUsd).toFixed(2),
     vault,
     shareToken,
     quoteId,
