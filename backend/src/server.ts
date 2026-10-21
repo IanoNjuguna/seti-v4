@@ -14,6 +14,7 @@ import { userRoutes } from './routes/users.js';
 import { walletRoutes } from './routes/wallets.js';
 import { handleRoutes } from './routes/handles.js';
 import { accountRoutes } from './routes/account.js';
+import { savingsRoutes } from './routes/savings.js';
 import { publicHandleRoutes } from './routes/public-handles.js';
 import { transactionRoutes } from './routes/transactions.js';
 import { receiptRoutes } from './routes/receipts.js';
@@ -212,6 +213,7 @@ export async function buildServer(options: BuildServerOptions = {}) {
   // own registration because it is about the ACCOUNT, not about the namespace
   // `handleRoutes` owns.
   await app.register(accountRoutes, { prefix: '/account' });
+  await app.register(savingsRoutes, { prefix: '/savings' });
   // The public half of the same feature: the `seti.live/m/<handle>` and
   // `seti.live/u/<handle>` pages read this signed out, which is why it is its own
   // registration with no auth hook rather than a route inside `handleRoutes`.
