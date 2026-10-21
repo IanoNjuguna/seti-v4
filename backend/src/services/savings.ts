@@ -35,6 +35,9 @@
  */
 
 import { prisma } from '../lib/prisma.js';
+import { isAllowedPair, quoteDexConvert } from './convert.js';
+import { issueQuote } from './quote.js';
+import { parseUnits } from 'viem';
 import { servedNetwork } from '../config/networks.js';
 import { getUserBalance } from './balance.js';
 import { getFxQuote, resolveUserFiat } from './payments.js';
@@ -245,5 +248,119 @@ export async function getSavingsSummary(input: {
     apy: null,
     canDeposit: !paused && aligned,
     canWithdraw: BigInt(shares) > BigInt(0),
+  };
+}
+
+/**
+ * What saving an amount would do, before anything is signed.
+ *
+ * A deposit is THREE calls in one Tempo transaction, and this prices all of them:
+ *
+ *   1. `swapExactAmountIn` OUSD → pathUSD on the DEX, because there is no OUSD
+ *      vault and OUSD is what the customer actually holds;
+ *   2. `approve` the vault for that pathUSD;
+ *   3. `deposit(amount, recipient, shareMin)` on the vault.
+ *
+ * One signature, atomic: the customer taps once and either all three land or none
+ * do. That is why this is one quote rather than a swap endpoint and a deposit
+ * endpoint — a customer who swapped and then failed to deposit would be holding the
+ * wrong asset with no way to know why.
+ *
+ * The floor is carried on both legs for the same reason the convert path carries
+ * one: the book and the vault price at a moment, and the signature should bind the
+ * customer to bounds they can see rather than to whatever lands.
+ */
+export interface SavingsDepositQuote {
+  network: Network;
+  fiatCurrency: string;
+  /** What the customer typed, in their currency. */
+  fiatAmount: string;
+  /** The OUSD that leaves the spendable balance. */
+  amountIn: string;
+  assetIn: SupportedAsset;
+  /** The pathUSD the swap must deliver. The vault takes this. */
+  swapOut: string;
+  minSwapOut: string;
+  /** The floor on shares minted, so a vault fee cannot quietly eat the deposit. */
+  minShares: string;
+  sharePrice: string;
+  vault: string;
+  /** Signed frozen rate, so the ledger is written from the rate the quote showed. */
+  quoteId: string;
+  hasEnoughBalance: boolean;
+  /** The spendable balance converted to fiat, for the "is this more than I have" line. */
+  spendableFiat: string;
+}
+
+/** The tolerance on both legs of a deposit, in basis points. */
+export const SAVINGS_TOLERANCE_BPS = 50;
+
+export async function quoteSavingsDeposit(input: {
+  userId: string;
+  amountFiat: string;
+  network?: Network;
+}): Promise<SavingsDepositQuote> {
+  const network = normalizeNetwork(input.network, servedNetwork);
+  const vault = SAVINGS_VAULT[network];
+  if (!vault) throw new Error(`Savings are not offered on ${network}.`);
+
+  const amountFiat = Number(input.amountFiat);
+  if (!Number.isFinite(amountFiat) || amountFiat <= 0) {
+    throw new Error('The amount to save must be a positive number.');
+  }
+
+  const fiatCurrency = await resolveUserFiat(input.userId);
+  const fx = await getFxQuote(fiatCurrency);
+  const fiatPerUsd = fx.fiatPerUsd;
+
+  // OUSD → pathUSD has a book on mainnet; on a network without one the whole
+  // deposit is refused here rather than signing a swap that cannot fill.
+  if (!isAllowedPair('ousd', SAVINGS_ASSET, network)) {
+    throw new Error(`No market for ${'ousd'} → ${SAVINGS_ASSET} on ${network}.`);
+  }
+
+  const amountIn = parseUnits((amountFiat / fiatPerUsd).toFixed(ASSET_DECIMALS), ASSET_DECIMALS);
+  const { amountOut, minAmountOut } = await quoteDexConvert({
+    assetIn: 'ousd',
+    assetOut: SAVINGS_ASSET,
+    amountIn,
+    network,
+  });
+
+  // Shares are priced by the vault, not by us: at a share price of P, one unit buys
+  // 1/P shares. The floor is the same 50bps the swap gets, so a vault fee taken at
+  // deposit cannot reduce the position below what the customer was shown.
+  const vaultRecord = await earnGet<EarnVault>(`/vaults/${vault}?chainId=${network === 'mainnet' ? 4217 : 42431}`);
+  const sharePrice = Number(vaultRecord?.sharePrice?.formatted ?? '1');
+  const expectedShares = sharePrice > 0 ? Number(amountOut) / sharePrice : 0;
+  const minShares =
+    (BigInt(Math.floor(expectedShares * 1e6)) * BigInt(10_000 - SAVINGS_TOLERANCE_BPS)) / BigInt(10_000);
+
+  const { balance } = await getUserBalance(input.userId, 'ousd', network);
+  const hasEnoughBalance = parseUnits(balance, ASSET_DECIMALS) >= amountIn;
+
+  const quoteId = issueQuote({
+    userId: input.userId,
+    fiatCurrency,
+    fiatPerUsd,
+    source: fx.source,
+    asOf: fx.asOf,
+    network,
+  });
+
+  return {
+    network,
+    fiatCurrency,
+    fiatAmount: amountFiat.toFixed(2),
+    amountIn: formatUnits(amountIn, ASSET_DECIMALS),
+    assetIn: 'ousd',
+    swapOut: formatUnits(amountOut, ASSET_DECIMALS),
+    minSwapOut: formatUnits(minAmountOut, ASSET_DECIMALS),
+    minShares: formatUnits(minShares, ASSET_DECIMALS),
+    sharePrice: String(sharePrice),
+    vault,
+    quoteId,
+    hasEnoughBalance,
+    spendableFiat: (Number(balance) * fiatPerUsd).toFixed(2),
   };
 }
