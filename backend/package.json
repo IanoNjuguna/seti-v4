@@ -48,7 +48,8 @@
     "lint": "eslint src",
     "check:convert": "tsx src/services/convert.check.ts",
     "check:convert-record": "tsx src/services/convert.record.check.ts",
-    "check:settle": "tsx src/services/settlement.check.ts"
+    "check:settle": "tsx src/services/settlement.check.ts",
+    "report:gas": "tsx src/services/gas-report.ts"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.0",

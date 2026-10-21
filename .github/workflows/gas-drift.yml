@@ -1,0 +1,105 @@
+# What gas costs the customer, every morning.
+#
+# This is a REPORT, not a gate. It is deliberately not part of `npm run verify`
+# and cannot block a merge: `check:send` is the gate, and it fails only when a
+# constant is genuinely wrong (issue #107). This job covers the other half of
+# that story — telling someone that the CHAIN moved before a deploy gate goes red
+# for a reason that has nothing to do with the diff.
+#
+# A trip opens exactly ONE issue and keeps updating it; a clean report closes it
+# again. Silence means healthy, and a missing run means broken CI, which is why
+# the absence of an issue is not the only signal.
+name: gas drift report
+
+on:
+  schedule:
+    # 06:15 UTC = 09:15 EAT.
+    - cron: '15 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+# One run at a time: two overlapping runs would race on the same issue.
+concurrency:
+  group: gas-drift-report
+  cancel-in-progress: false
+
+env:
+  NODE_ENV: development
+  # Public values, the same ones verify.yml uses. No secrets: the report reads a
+  # public RPC and a receipt by hash, both of which a browser can read.
+  SETI_TREASURY_ADDRESS: '0x48cb25f9d82aF721e71437feAfb295da627BA475'
+  TEMPO_CHAIN_ID: '42431'
+  TEMPO_TOKEN_PATHUSD: '0x20c0000000000000000000000000000000000000'
+  TEMPO_TOKEN_OUSD: '0x20c0000000000000000000006a37da5c996874be'
+  # The database is not read by this script; a value is set only because the
+  # config module validates the environment as a whole.
+  DATABASE_URL: postgresql://seti:seti@127.0.0.1:5433/seti?schema=public
+  JWT_SECRET: ci-only-jwt-secret-not-a-real-secret
+
+jobs:
+  report:
+    name: gas report
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install (npm workspace root)
+        run: npm ci
+
+      # The script always exits 0: this step cannot fail the job on a trip.
+      - name: Report
+        run: npm run report:gas | tee "$RUNNER_TEMP/gas-report.txt"
+
+      - name: One issue, opened, updated or closed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPORT: ${{ runner.temp }}/gas-report.txt
+        run: |
+          set -euo pipefail
+          title='gas drift report'
+
+          existing=$(gh issue list --state open --json number,title \
+            --jq ".[] | select(.title == \"$title\") | .number" | head -1)
+
+          if grep -q '^VERDICT: ok' "$REPORT"; then
+            echo "report is clean"
+            if [ -n "$existing" ]; then
+              {
+                echo 'Clean again on this run.'
+                echo
+                echo '```'
+                cat "$REPORT"
+                echo '```'
+              } > "$RUNNER_TEMP/body.md"
+              gh issue comment "$existing" --body-file "$RUNNER_TEMP/body.md"
+              gh issue close "$existing" --reason completed
+            fi
+            exit 0
+          fi
+
+          echo "report tripped:"
+          grep '^VERDICT:' "$REPORT"
+          {
+            echo 'The daily gas report tripped. Nothing is blocked by this: it is a report, not a gate.'
+            echo
+            echo '```'
+            cat "$REPORT"
+            echo '```'
+          } > "$RUNNER_TEMP/body.md"
+
+          if [ -n "$existing" ]; then
+            echo "updating issue #$existing"
+            gh issue comment "$existing" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh issue create --title "$title" --body-file "$RUNNER_TEMP/body.md"
+          fi
