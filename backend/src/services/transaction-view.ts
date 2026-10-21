@@ -69,6 +69,14 @@ const TYPE_LABELS: Record<string, string> = {
   top_up: 'Deposit',
   withdrawal: 'Withdrawal',
   fee: 'Fee',
+  /**
+   * One stablecoin exchanged for another. The row reads as what the customer now
+   * holds, so the label names the act rather than a counterparty that does not
+   * exist. The sign and the two-figure treatment (in and out on one row) are not
+   * this slice: `INFLOW_TYPES` is unchanged, which renders a convert as an
+   * outflow of the amount that ARRIVED until the renderer learns the pair.
+   */
+  convert: 'Convert',
 };
 
 export function describeType(type: string): string {

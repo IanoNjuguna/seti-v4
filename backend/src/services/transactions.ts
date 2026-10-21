@@ -14,10 +14,13 @@ import {
   refusal,
   type ReceiptFailureCode,
 } from './payment-refusal.js';
+import { isAllowedPair } from './convert.js';
 import {
   assetDecimals,
   formatUnits,
   getTokenContract,
+  STABLECOIN_DEX_ADDRESS,
+  SUPPORTED_ASSETS,
   waitForTransactionReceipt,
   getTransactionReceipt,
   type SupportedAsset,
@@ -459,7 +462,7 @@ async function readReceipt(txHash: string, network: Network): Promise<ReceiptLoo
  * recorded. Returns the Transfer `value` for the expected recipient so the
  * caller can compare rather than trust.
  */
-function readTransferredAmount(
+export function readTransferredAmount(
   receipt: TransactionReceipt,
   tokenAddress: Hex,
   expectedRecipient: string,
@@ -1113,6 +1116,300 @@ export async function recordSend(input: RecordSendInput) {
         treasuryFeeObserved,
         // Same evidence as `payment.recorded`: the wallet this send was bound to,
         // and the sender the chain recorded for it.
+        signedBy: wallet.address,
+        receiptSender: receipt.from,
+      },
+    });
+  }
+
+  return transaction;
+}
+
+/**
+ * Whether the book paid less than the customer signed for.
+ *
+ * The floor is a promise made at signing time, so the comparison is one-sided and
+ * strict. The single token unit of slack (6-decimal units, so `0.000001`) exists
+ * only so that an exact fill is not called short by floating-point representation —
+ * every figure here came through `formatUnits` as a Number.
+ *
+ * Exported because it is the one rule a convert can be lost to, and a rule that
+ * decides whether a customer's money is recorded should be provable without a
+ * database.
+ */
+export function shortOfFloor(observed: number, floor: number): boolean {
+  return observed + 0.000001 < floor;
+}
+
+interface RecordConvertInput {
+  userId: string;
+  /** The network the convert happened on — the session's network. */
+  network?: Network;
+  /** What the customer gave up, and what they asked for. Both named. */
+  assetIn: string;
+  assetOut: string;
+  /** The input the client SIGNED, in `assetIn` units. Checked against the chain. */
+  amountIn: string;
+  /**
+   * The floor the client SIGNED, in `assetOut` units — the preview's
+   * `minAmountOut`, never a freshly quoted figure.
+   *
+   * This is the one number a convert can be under-delivered against: the book
+   * fills at whatever the resting orders give, and the signature promised at least
+   * this much. A receipt that pays less is refused rather than recorded at 1%
+   * tolerance, because the customer consented to a bound and not to a range.
+   */
+  minAmountOut: string;
+  txHash: string;
+  /**
+   * The address the CLIENT signed with — the `from` of the transaction.
+   *
+   * Optional at the type level for the same reason a send's is: the refusal for a
+   * missing declaration (`signer-not-declared`) is a code the app can act on, and
+   * one that a validation error at the boundary would turn into a 400.
+   */
+  walletAddress?: string;
+  /** The frozen rate token the preview minted. Absent is refused as `quote-missing`. */
+  quoteId?: string;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Record a convert, from the receipt rather than from the claim.
+ *
+ * It lives beside `recordSend` because it needs the same private gates — the
+ * declared-wallet binding, the frozen quote, the receipt read, the leg reader and
+ * `createTransactionOnce` — and because splitting it out would mean exporting
+ * five internals meant to stay internal to this file.
+ *
+ * What makes a convert different from every other row in this ledger:
+ *
+ *  1. It has TWO legs and no counterparty. The input leg is a transfer to the DEX
+ *     precompile — money leaving the wallet for a contract, not a person — and the
+ *     output leg is a transfer from that contract back to the same wallet. Both
+ *     are read off the receipt, in that order, before anything is written.
+ *  2. The row names what ARRIVED: `amount`/`asset` are the output leg, the fiat
+ *     figure is that amount at the frozen rate, and the input leg rides in
+ *     `metadata` with the floor that was signed. A customer looking at Activity
+ *     asked what they ended up holding.
+ *  3. No fee. `fees.ts` is not on this path and `feeAmount` stays null, because
+ *     the 2% is attributed to a merchant payment and a convert has no merchant.
+ *
+ * `readTransferredAmount` returns the FIRST matching transfer, which is the right
+ * answer for both legs here: the input leaves the wallet once, and the book pays
+ * out to it once. A swap that moved the same token twice would be a different
+ * transaction shape and is not one this product builds.
+ */
+export async function recordConvert(input: RecordConvertInput) {
+  const network = normalizeNetwork(input.network, servedNetwork);
+
+  // The wallet that SIGNED, checked against the caller's own wallets on this
+  // network. An account can hold several embedded wallets, so "the active wallet"
+  // is not the one that made this transaction.
+  const wallet = await declaredWalletOrRefuse({
+    userId: input.userId,
+    txHash: input.txHash,
+    walletAddress: input.walletAddress,
+    network,
+  });
+
+  const assetIn = input.assetIn as SupportedAsset;
+  const assetOut = input.assetOut as SupportedAsset;
+
+  if (!SUPPORTED_ASSETS.includes(assetIn) || !SUPPORTED_ASSETS.includes(assetOut)) {
+    throw await refusal({
+      userId: input.userId,
+      txHash: input.txHash,
+      code: 'convert-pair-unavailable',
+      reason: `Unsupported asset. Supported: ${SUPPORTED_ASSETS.join(', ')}.`,
+    });
+  }
+
+  if (assetIn === assetOut) {
+    throw await refusal({
+      userId: input.userId,
+      txHash: input.txHash,
+      code: 'convert-same-asset',
+      reason: 'Both sides of the convert are the same asset, so nothing would move.',
+    });
+  }
+
+  if (!isAllowedPair(assetIn, assetOut, network)) {
+    throw await refusal({
+      userId: input.userId,
+      txHash: input.txHash,
+      code: 'convert-pair-unavailable',
+      reason: `No market for ${assetIn} → ${assetOut} on ${network}.`,
+    });
+  }
+
+  const claimedIn = Number(input.amountIn);
+  const floor = Number(input.minAmountOut);
+
+  if (!Number.isFinite(claimedIn) || claimedIn <= 0 || !Number.isFinite(floor) || floor <= 0) {
+    throw await refusal({
+      userId: input.userId,
+      txHash: input.txHash,
+      code: 'amount-invalid',
+      reason: 'The input and the floor must both be positive numbers',
+      claimedAmount: claimedIn,
+    });
+  }
+
+  // The rate is FROZEN at quote time. Resolve the signed quote or refuse: there is
+  // no live-rate fallback on this path either.
+  const quote = await resolveFrozenRate({
+    quoteId: input.quoteId,
+    userId: input.userId,
+    network,
+    txHash: input.txHash,
+  });
+
+  const found = await readReceipt(input.txHash, network);
+  if (!found.ok) {
+    throw await refusal({
+      userId: input.userId,
+      txHash: input.txHash,
+      code: found.code,
+      reason: `Convert could not be verified on-chain: ${found.reason}`,
+      claimedAmount: claimedIn,
+    });
+  }
+  const receipt = found.receipt;
+
+  // The INPUT leg: the customer's token, to the DEX. If this is missing, nothing
+  // left the wallet and there is no convert to write.
+  const inLeg = readTransferredAmount(
+    receipt,
+    getTokenContract(assetIn, network),
+    STABLECOIN_DEX_ADDRESS,
+    assetIn
+  );
+  if (!inLeg.ok) {
+    throw await refusal({
+      userId: input.userId,
+      txHash: input.txHash,
+      code: 'convert-leg-unverified',
+      reason:
+        `No ${assetIn} transfer to the DEX in this transaction: ${inLeg.reason}. ` +
+        'A convert is only recorded when the input reached the book.',
+      claimedAmount: claimedIn,
+    });
+  }
+
+  // The OUTPUT leg: the other token, back to the same wallet.
+  const outLeg = readTransferredAmount(
+    receipt,
+    getTokenContract(assetOut, network),
+    wallet.address,
+    assetOut
+  );
+  if (!outLeg.ok) {
+    throw await refusal({
+      userId: input.userId,
+      txHash: input.txHash,
+      code: 'convert-leg-unverified',
+      reason:
+        `No ${assetOut} transfer back to the signing wallet: ${outLeg.reason}. ` +
+        'The input left but the book did not pay out, so there is nothing to record.',
+      claimedAmount: claimedIn,
+      observedAmount: inLeg.value,
+    });
+  }
+
+  if (Math.abs(inLeg.value - claimedIn) > claimedIn * 0.01) {
+    throw await refusal({
+      userId: input.userId,
+      txHash: input.txHash,
+      code: 'amount-mismatch',
+      reason:
+        `Convert input mismatch: client claimed ${claimedIn} ${assetIn}, ` +
+        `chain recorded ${inLeg.value} ${assetIn}`,
+      claimedAmount: claimedIn,
+      observedAmount: inLeg.value,
+    });
+  }
+
+  // One token unit of 6-decimal slack, so an exact fill is not refused by float
+  // representation; anything under the floor by more than that is refused.
+  if (shortOfFloor(outLeg.value, floor)) {
+    throw await refusal({
+      userId: input.userId,
+      txHash: input.txHash,
+      code: 'convert-below-floor',
+      reason:
+        `Convert under-delivered: the customer signed for at least ${floor} ${assetOut}, ` +
+        `the chain paid ${outLeg.value} ${assetOut}.`,
+      claimedAmount: claimedIn,
+      observedAmount: outLeg.value,
+    });
+  }
+
+  // Last gate before a row exists: the chain's sender must be the wallet the client
+  // declared it signed with.
+  await assertReceiptSender({
+    userId: input.userId,
+    txHash: input.txHash,
+    receipt,
+    declaredAddress: wallet.address,
+  });
+
+  // What arrived, at the rate the customer was quoted. The fiat figure is the
+  // OUTPUT leg's, because that is what the account now holds.
+  const fiatAmount = round2(outLeg.value * quote.fiatPerUsd);
+
+  const { transaction, created } = await createTransactionOnce({
+    data: {
+      userId: input.userId,
+      walletId: wallet.id,
+      network,
+      type: 'convert',
+      status: 'processing',
+      amount: outLeg.value.toFixed(8),
+      asset: assetOut,
+      counterparty: null,
+      txHash: input.txHash,
+      fiatAmount: fiatAmount.toFixed(2),
+      fiatCurrency: quote.fiatCurrency,
+      // No fee leg, on purpose: a convert is not a payment and nothing is
+      // attributed to a merchant. Null rather than zero, so "no fee applies" and
+      // "a fee of nothing" are distinguishable.
+      feeAmount: null,
+      fxRate: quote.fiatPerUsd.toFixed(8),
+      fxRateSource: quote.source,
+      fxRateAsOf: quote.asOf,
+      metadata: {
+        // Namespaced, like every other row this file writes: the caller's own keys
+        // must not sit level with derived evidence.
+        client: input.metadata ?? {},
+        convert: {
+          venue: 'tempo-dex',
+          dexAddress: STABLECOIN_DEX_ADDRESS,
+          assetIn,
+          amountIn: inLeg.value.toFixed(8),
+          assetOut,
+          amountOut: outLeg.value.toFixed(8),
+          minAmountOut: floor.toFixed(8),
+        },
+      } as never,
+    },
+  });
+
+  if (created) {
+    await logAuditEvent({
+      userId: input.userId,
+      action: 'convert.recorded',
+      txHash: input.txHash,
+      metadata: {
+        network,
+        assetIn,
+        amountIn: inLeg.value,
+        assetOut,
+        amountOut: outLeg.value,
+        minAmountOut: floor,
+        fiatAmount,
+        fxRate: quote.fiatPerUsd,
+        fxRateSource: quote.source,
         signedBy: wallet.address,
         receiptSender: receipt.from,
       },
