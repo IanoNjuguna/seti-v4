@@ -6,18 +6,19 @@ import { SAVE_COPY } from './Save.constants';
 import type { SaveAmountProps } from '@/hooks/useSave.types';
 
 /**
- * The amount step: one field, one line about what happens, one button.
+ * The amount step, in both directions.
  *
- * The same decision as the convert page — one screen, the button is the
- * confirmation. No recipient, no fee to acknowledge, so a review step would only
- * repeat the figure back.
+ * One field, one line about what happens, one button — the same decision as the
+ * convert page, because there is no recipient and no fee to acknowledge, so a review
+ * step would only repeat the figure back.
  *
- * It shows what will actually be saved (`swapOut`, from the server's quote, not from
- * the number typed) beside what is available. A customer moving money wants both
- * numbers in front of them, and neither is arithmetic this component does: the
- * quote's own `fiatAmount`/`amountIn` pair converts the swap leg back to currency.
+ * It shows what will actually move, taken from the server's quote rather than from
+ * the number typed: for a deposit that is `swapOut` (the vault's asset), for a
+ * withdrawal it is what lands back in the spendable balance. A customer moving money
+ * wants both numbers in front of them, and neither is arithmetic this component does.
  */
 export function SaveAmount({
+  mode,
   currency,
   amount,
   quote,
@@ -25,13 +26,33 @@ export function SaveAmount({
   error,
   canSubmit,
   spendableFiat,
+  savedFiat,
   onAmount,
   onSubmit,
   onCancel,
 }: SaveAmountProps) {
-  const ratio = quote && Number(quote.amountIn) > 0 ? Number(quote.fiatAmount) / Number(quote.amountIn) : 0;
-  const willSave = quote ? formatFiat(Number(quote.swapOut) * ratio, currency) : null;
-  const notEnough = quote !== null && !quote.hasEnoughBalance;
+  const adding = mode === 'add';
+
+  // Both numbers come from the server: a deposit moves what was typed, and a
+  // withdrawal moves what the vault's own redeem quote pays out — which is not the
+  // same figure, because the vault takes its fee on the way out.
+  const willMove = !quote
+    ? null
+    : adding
+      ? formatFiat(Number(quote.fiatAmount), currency)
+      : formatFiat(Number('fiatOut' in quote ? quote.fiatOut : 0), currency);
+
+  const overLimit = adding
+    ? quote !== null && 'hasEnoughBalance' in quote && !quote.hasEnoughBalance
+    : Number(amount) > Number(savedFiat);
+
+  const hint = overLimit
+    ? adding
+      ? `That is more than your ${formatFiat(Number(spendableFiat), currency)} available balance.`
+      : `That is more than the ${formatFiat(Number(savedFiat), currency)} you have saved.`
+    : adding
+      ? SAVE_COPY.amountHint
+      : SAVE_COPY.withdrawHint;
 
   return (
     <form
@@ -42,27 +63,23 @@ export function SaveAmount({
       }}
     >
       <Text variant="card-title" as="h2">
-        {SAVE_COPY.amountTitle}
+        {adding ? SAVE_COPY.amountTitle : SAVE_COPY.withdrawTitle}
       </Text>
 
       <Input
-        id={SAVE_COPY.amountInputId}
-        label={SAVE_COPY.amountLabel}
+        id={adding ? SAVE_COPY.amountInputId : SAVE_COPY.withdrawInputId}
+        label={adding ? SAVE_COPY.amountLabel : SAVE_COPY.withdrawLabel}
         value={amount}
         onChange={(event) => onAmount(event.target.value)}
         inputMode="decimal"
         autoComplete="off"
         placeholder={SAVE_COPY.amountPlaceholder}
-        hint={
-          notEnough
-            ? `That is more than your ${formatFiat(Number(spendableFiat), currency)} available balance.`
-            : SAVE_COPY.amountHint
-        }
+        hint={hint}
       />
 
-      {willSave && !notEnough ? (
+      {willMove && !overLimit ? (
         <Text variant="micro" color="secondary" as="p">
-          {willSave} — {SAVE_COPY.amountNote}
+          {adding ? `${willMove} — ${SAVE_COPY.amountNote}` : `${willMove} — ${SAVE_COPY.withdrawNote}`}
         </Text>
       ) : null}
 
@@ -73,7 +90,7 @@ export function SaveAmount({
       ) : null}
 
       <Button type="submit" fullWidth loading={status === 'submitting'} disabled={!canSubmit}>
-        {SAVE_COPY.amountButton}
+        {adding ? SAVE_COPY.amountButton : SAVE_COPY.withdrawButton}
       </Button>
 
       <Button type="button" variant="ghost" fullWidth onClick={onCancel}>

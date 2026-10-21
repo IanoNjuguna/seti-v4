@@ -61,6 +61,53 @@ export async function quoteSavingsDeposit(amountFiat: string): Promise<SavingsDe
   return quote;
 }
 
+export interface SavingsWithdrawQuote {
+  network: string;
+  fiatCurrency: string;
+  fiatAmount: string;
+  shares: string;
+  assetOut: string;
+  minAssets: string;
+  swapOut: string;
+  minSwapOut: string;
+  /** What the payout is worth in the customer's currency, priced by the server. */
+  fiatOut: string;
+  vault: string;
+  shareToken: string;
+  quoteId: string;
+  /** True only when the vault redeems immediately; a queued exit is not offered. */
+  canWithdraw: boolean;
+  instantLiquidity: string | null;
+  positionShares: string;
+}
+
+export async function quoteSavingsWithdraw(amountFiat: string): Promise<SavingsWithdrawQuote> {
+  const { quote } = await post<{ quote: SavingsWithdrawQuote }>('/savings/withdraw/quote', {
+    amountFiat,
+  });
+  return quote;
+}
+
+export interface RecordSavingsWithdrawalInput {
+  txHash: string;
+  /** The shares redeemed, in share units. */
+  shares: string;
+  /** The OUSD floor that was signed. */
+  minSwapOut: string;
+  walletAddress: string;
+  quoteId?: string;
+}
+
+export async function recordSavingsWithdrawal(
+  input: RecordSavingsWithdrawalInput
+): Promise<{ id: string; status: string }> {
+  const { transaction } = await post<{ transaction: { id: string; status: string } }>(
+    '/savings/withdraw',
+    input
+  );
+  return transaction;
+}
+
 export interface RecordSavingsDepositInput {
   txHash: string;
   amountIn: string;
