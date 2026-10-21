@@ -25,9 +25,8 @@ import type { BalanceCardProps } from './BalanceCard.types';
  * body out is what keeps the dark surface, the label and the place on the screen
  * identical in both — a visitor is shown the product, not a different card.
  *
- * One thing, the balance. Deposit and Send — and the panels they opened inside
- * this card — are tiles in the quick-actions strip below, each on a page of its
- * own. A hero that is also a menu is neither.
+ * One thing, the balance. Pay and Receive — and the panels they open — are the two
+ * buttons below, each on a page of its own. A hero that is also a menu is neither.
  */
 export function BalanceCard({ data, view }: BalanceCardProps) {
   return (

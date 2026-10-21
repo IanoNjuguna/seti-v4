@@ -3,7 +3,7 @@
 import { Text } from '@/components/ui';
 import { Icon } from '@/components/ui/Icon';
 import type { TextVariant } from '@/components/ui/Text.types';
-import { formatBalance, formatDelta } from './home.format';
+import { formatBalance } from './home.format';
 import { useBalanceVisibility } from './useBalanceVisibility';
 import type { BalanceFigureProps } from './BalanceFigure.types';
 
@@ -31,12 +31,22 @@ import type { BalanceFigureProps } from './BalanceFigure.types';
  * offer a control that does nothing.
  *
  * The card's own surface belongs to `BalanceCard`, which picks this body or that
- * one; the delta stays outside the row so it sits under the figure rather than
- * beside the hide control.
+ * one.
+ *
+ * `You have` rather than `Available balance` (#94): the label speaks to the customer
+ * about their money instead of naming a banking field, and the eye still sits at the
+ * right end of the label line with the figure left-aligned under it — the eye belongs
+ * to the line it changes, not to the number.
+ *
+ * The month's movement used to sit under the figure as `KES 234.00 this month`, read
+ * off the dashboard's own delta. It is gone from here because the page now carries a
+ * period row whose `out` and `in` come from the reconciled analytics response, and two
+ * different "this month" numbers on one screen — one a delta, one a pair of totals —
+ * is exactly the sort of disagreement a customer re-adds and loses trust over. One
+ * figure of movement, from one answer, under the balance.
  */
 export function BalanceFigure({ data }: BalanceFigureProps) {
   const { hidden, toggle } = useBalanceVisibility();
-  const delta = data?.monthToDateDelta ?? 0;
   const figure = hidden
     ? `${data?.currency ?? ''} ••••••`
     : formatBalance(data?.balance, data?.currency);
@@ -53,7 +63,7 @@ export function BalanceFigure({ data }: BalanceFigureProps) {
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <Text variant="micro" as="p" color="inverse-muted">
-            <span id="balance-heading">Available balance</span>
+            <span id="balance-heading">You have</span>
           </Text>
           <Text
             variant={balanceVariant}
@@ -76,12 +86,6 @@ export function BalanceFigure({ data }: BalanceFigureProps) {
           <Icon name={hidden ? 'eyeOff' : 'eye'} />
         </button>
       </div>
-
-      {delta !== 0 ? (
-        <Text variant="micro" as="p" color="inverse-muted" className="mt-1">
-          {formatDelta(delta)} this month
-        </Text>
-      ) : null}
 
     </>
   );

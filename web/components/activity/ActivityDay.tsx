@@ -17,8 +17,8 @@ import type { ActivityDayGroupProps } from './Activity.types';
  * their own hairline — a box around a box, and a radius the rows' square corners
  * did not share. The separators carry the grouping now and the day heading carries
  * the meaning; only the trailing edge is suppressed, because a separator belongs
- * between two rows. The full rationale is in `HomeActivity` (the same call, on
- * the home list).
+ * between two rows, and the same call is made on the home screen's merchant list
+ * (`HomeMerchants`).
  *
  * The rows rise 4px and settle, staggered 24ms and capped at six
  * (`app/app/motion.css`): the one thing a ledger list has to communicate is that

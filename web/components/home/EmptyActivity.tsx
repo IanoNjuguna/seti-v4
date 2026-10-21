@@ -23,7 +23,7 @@ const ACTION_CLASS =
  * screens render, imported by `ActivityStates` rather than re-drawn, because
  * "nothing has moved yet" is one idea with one voice — Home under "Recent
  * activity", Activity under "Activity". No margin of its own: the step to it
- * belongs to whichever page stacks it (`HomeActivitySection`'s `gap-4`, `ActivityList`'s `gap-6`).
+ * belongs to the page that stacks it (`ActivityList`'s `gap-6`).
  *
  * Nothing here is plated: an empty state has no object to hold a surface, so
  * there is no well, no ring and no medallion. It used to be a `surface-soft` well
