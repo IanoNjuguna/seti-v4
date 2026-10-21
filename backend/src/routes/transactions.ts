@@ -19,6 +19,7 @@ import {
 import { PaymentRefusalError } from '../services/payment-refusal.js';
 import { previewPayment, previewSend, SendRequiresBatchError } from '../services/payments.js';
 import { previewConvert, ConvertRefusalError } from '../services/convert.js';
+import { planSettlement } from '../services/settlement.js';
 import { toRecentTransaction } from '../services/transaction-view.js';
 import { buildReceipt } from '../services/receipt.js';
 import { mintReceiptLink } from '../services/receipt-link.js';
@@ -311,6 +312,26 @@ export async function transactionRoutes(app: FastifyInstance) {
     }
 
     return reply.status(201).send({ transaction });
+  });
+
+  /**
+   * What this account should settle into OUSD, priced.
+   *
+   * A READ, and deliberately so: the backend cannot sign for a customer (see
+   * `settlement.ts`), so this answers "is there anything worth doing, and at what
+   * floor", and the app signs it while the customer has the app open. Nothing is
+   * written here and nothing moves.
+   *
+   * `skipped` is not an error list. It is every asset that stays where it is, with
+   * the reason — dust, no book, a spread wider than the cap, or already OUSD — and
+   * the balance surface needs none of it, because it shows one USD figure.
+   */
+  app.get('/settle/plan', async (request, reply) => {
+    const user = requireUser(request);
+
+    const plan = await planSettlement({ userId: user.id, network: user.network });
+
+    return reply.send({ plan });
   });
 
   app.post('/convert/preview', async (request, reply) => {
