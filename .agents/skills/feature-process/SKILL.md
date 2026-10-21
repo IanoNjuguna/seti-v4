@@ -44,6 +44,14 @@ The number after the slash is the issue number. The prefix is the kind of
 change: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `skill`. Never work
 on `main`, and never commit to it.
 
+The branch has to exist BEFORE the first commit of the work. `gh pr merge
+--delete-branch` deletes the head branch and leaves the working tree on `main`, so
+a commit made straight after a merge lands on `main` — the one branch this repo
+never commits to, and whose push is refused, which is how you find out. Check
+`git branch --show-current` after any merge. Recover with `git branch <name> &&
+git switch <name> && git branch -f main origin/main`; never `git reset --hard`,
+which discards whatever another session has uncommitted in the same tree.
+
 ## 3. Work in small commits that stand alone
 
 `commit` skill for message format. Reference the issue in the body:
