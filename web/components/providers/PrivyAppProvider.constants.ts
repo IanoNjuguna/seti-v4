@@ -72,19 +72,4 @@ export const PRIVY_CONFIG = {
       createOnLogin: 'users-without-wallets' as const,
     },
   },
-  /**
-   * No external wallets, and the reason is not only product scope.
-   *
-   * v1 never connects one: the customer signs with the embedded wallet Privy
-   * creates on first login, and the send flow refuses any other signer. Left on,
-   * the connector manager initialises on the first user gesture, probes for
-   * injected providers and starts WalletConnect, and on the sign-in page that
-   * initialisation never settles: the first real click or keystroke leaves React
-   * re-rendering in a loop and the tab stops responding (issue #92, traced to
-   * ~2,300 React calls a second with no app frame on the stack). A synthetic
-   * click hides it, which is why every earlier test of the page passed.
-   */
-  externalWallets: {
-    disableAllExternalWallets: true,
-  },
 };
