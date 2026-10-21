@@ -14,6 +14,7 @@
     "check:tabs": "tsx scripts/check-tabs.mjs",
     "check:activity-bands": "tsx scripts/check-activity-bands.mjs",
     "check:activity-retry": "tsx scripts/check-activity-retry.mjs",
+    "check:home-summary": "tsx scripts/check-home-summary.mjs",
     "dev:vinext": "vite dev --port 3001",
     "build:vinext": "node scripts/guard-production-env.mjs && vite build && npm run restore:route-types",
     "restore:route-types": "next typegen",
