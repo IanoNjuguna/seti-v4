@@ -53,4 +53,19 @@ export interface QuickAction {
 export const QUICK_ACTIONS: QuickAction[] = [
   { key: 'receive', label: 'Receive', icon: 'add', href: '/app/receive' },
   { key: 'send', label: 'Send', icon: 'send', href: '/app/send' },
+  /*
+   * Convert is the third tile, and the only one that moves money without a
+   * counterparty: it trades one stablecoin this account holds for another against
+   * Tempo's enshrined book. It earns a tile because it is the one action a funded
+   * account reaches for that the strip had no answer to — a customer holding USDC.e
+   * and needing OUSD had nowhere to go but a different app.
+   *
+   * The glyph is the set's own `convert` mark — two arrows trading places — added
+   * for this tile: `send` (a paper plane) and `add` (a plus) both say nothing about
+   * exchanging, and reusing either would make two tiles read as the same action.
+   *
+   * Not `Swap`: the product word is Convert everywhere (the URL, the page title, the
+   * activity label), and "exchange" is a licensed category in this market.
+   */
+  { key: 'convert', label: 'Convert', icon: 'convert', href: '/app/convert' },
 ];

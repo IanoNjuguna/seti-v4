@@ -67,6 +67,24 @@ export const REFUSAL_BY_CODE: Record<string, string> = {
     'This account has no wallet for that token yet. Add money, then try again.',
   'insufficient-funds': 'Not enough to cover this payment. Add money, then try again.',
   'merchant-no-payout-address': 'This merchant has no payout address yet, so it cannot be paid.',
+  // --- convert: the book, and the two legs a swap has to prove -------------
+  // Every sentence names what the customer can DO. A convert has no recipient to
+  // fix, so the fixes are: a different pair, a smaller amount, or a retry.
+  'convert-amount-invalid':
+    'That is not an amount we can convert. Enter a figure with up to two decimal places.',
+  'convert-pair-unavailable':
+    'There is no market for that pair yet. Pick a different one.',
+  'convert-same-asset': 'Those are the same stablecoin. Pick two different ones.',
+  'convert-unknown-asset':
+    'That stablecoin is not one this app converts. Pick one from the list.',
+  'convert-no-liquidity':
+    'The book has nothing resting for that pair right now. Try a smaller amount or another pair.',
+  'convert-insufficient-balance':
+    'You do not hold enough of that stablecoin, plus the network fee. Convert a smaller amount.',
+  'convert-leg-unverified':
+    'We could not confirm the swap on chain, so nothing was recorded. Check Activity before trying again.',
+  'convert-below-floor':
+    'The book filled below the amount you approved, so we did not record it. Check Activity before trying again.',
   'send-requires-batch':
     'Sending is not available in this configuration, and nothing left your wallet.',
 

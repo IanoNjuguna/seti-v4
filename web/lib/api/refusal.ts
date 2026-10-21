@@ -11,6 +11,7 @@ export type RefusalContext =
   | 'statement'
   | 'payment'
   | 'send'
+  | 'convert'
   | 'claim'
   | 'lookup'
   | 'receipt';
@@ -22,6 +23,7 @@ const TITLE: Record<RefusalContext, string> = {
   statement: 'Could not make your statement',
   payment: 'Payment not sent',
   send: 'Transfer not sent',
+  convert: 'Not converted',
   claim: 'Name not claimed',
   lookup: 'Could not find that merchant',
   receipt: 'Could not open the receipt',
@@ -41,6 +43,7 @@ const NEXT_STEP: Record<RefusalContext, string> = {
   statement: 'Nothing was downloaded. Try again in a moment.',
   payment: 'Nothing was sent. Try again, or check your wallet first.',
   send: 'Nothing was sent. Try again, or check the details above.',
+  convert: 'Nothing was converted. Try again, or check the amount above.',
   claim: 'Nothing was claimed. Try again.',
   lookup: 'Check the spelling, or paste the link again.',
   receipt: 'Try again in a moment.',

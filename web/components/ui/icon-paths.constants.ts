@@ -8,13 +8,15 @@
  */
 export const ICON_PATHS = {
   home: ['m3 10 9-7 9 7', 'M5 9.2V20h14V9.2', 'M10 20v-6h4v6'],
-  /* A trend line over a baseline: the odds surface is a price that moves, not a
-     list and not a chart axis. Two strokes, like every other mark here. */
-  markets: ['m4 15.5 5-5 3 3 7-8', 'M4 20h16'],
   activity: ['M4 6.5h16', 'M4 12h16', 'M4 17.5h10'],
   profile: ['M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z', 'M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6'],
   scan: ['M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8', 'M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8', 'M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16', 'M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16', 'M4 12h16'],
   send: ['m4 12 16-8-6 16-2.5-6.5L4 12Z'],
+  /* Two arrows trading places: out along the top, back along the bottom. The
+     convert tile's mark, and the flip control's glyph — exchanging one stablecoin
+     for another, which the paper plane and the plus in this set both say nothing
+     about. */
+  convert: ['M4 9h13', 'm14.5 5.5 3.5 3.5-3.5 3.5', 'M20 15H7', 'm9.5 11.5L6 15l3.5 3.5'],
   add: ['M12 5.5v13', 'M5.5 12h13'],
   eye: ['M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z'],
   eyeOff: ['m3 3 18 18', 'M10.6 5.2A9.9 9.9 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.3 4.1', 'M6.6 7.7A16.4 16.4 0 0 0 2 12s3.6 7 10 7a10 10 0 0 0 4.2-.9'],
