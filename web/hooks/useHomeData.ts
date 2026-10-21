@@ -125,5 +125,8 @@ export function mapRecentToUiTransaction(transaction: RecentTransaction): Transa
     asset: transaction.asset,
     from: transaction.from,
     to: transaction.to,
+    // Carried through untouched: the row decides whether it can offer to pay this
+    // person again, and a name this mapper dropped is a pill nobody can draw.
+    payeeHandle: transaction.payeeHandle,
   };
 }

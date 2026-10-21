@@ -26,6 +26,14 @@ export interface RecentTransaction {
   /** Both ends of the transfer, each null when it is not a known address. */
   from: string | null;
   to: string | null;
+  /**
+   * The name this person was resolved from, when the row has one.
+   *
+   * A label the customer saw, never how the money was routed. It exists because an
+   * address cannot be resolved back to a name, so a failed row without this can
+   * only offer a `0x…` the send flow cannot be pointed at.
+   */
+  payeeHandle: string | null;
 }
 
 /**
