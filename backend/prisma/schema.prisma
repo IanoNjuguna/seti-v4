@@ -395,6 +395,10 @@ enum TransactionType {
   top_up
   withdrawal
   fee
+  /// One stablecoin exchanged for another against the DEX. No counterparty: the
+  /// money went to a contract and came back as a different token, so the row's
+  /// `amount`/`asset` are what ARRIVED and the input leg rides in `metadata`.
+  convert
 }
 
 enum TransactionStatus {

@@ -90,7 +90,23 @@ export type PaymentRefusalCode =
   | 'quote-missing'
   | 'quote-invalid'
   | 'quote-expired'
-  | 'quote-not-yours';
+  | 'quote-not-yours'
+  /**
+   * The convert path's own refusals.
+   *
+   * A convert is verified from two legs rather than one, and neither leg has a
+   * counterparty: the input goes to the DEX precompile and the output comes back
+   * from it. They are named separately from `transfer-not-found` because the fix
+   * is different in each case — a missing input leg means the money never left the
+   * wallet, a missing output leg means the book did not pay out — and because a
+   * conversion that under-delivers against the floor the customer SIGNED is not a
+   * mismatch to be tolerated at 1%, it is a refusal.
+   */
+  | 'convert-pair-unavailable'
+  | 'convert-leg-unverified'
+  | 'convert-below-floor'
+  /** Both sides of a convert named the same asset, so nothing would move. */
+  | 'convert-same-asset';
 
 /** Why an on-chain receipt could not be used to verify a leg. */
 export type ReceiptFailureCode =

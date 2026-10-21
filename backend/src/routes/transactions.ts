@@ -5,6 +5,7 @@ import { authMiddleware } from '../middleware/auth.js';
 import {
   confirmTransactionByHash,
   createTransaction,
+  recordConvert,
   recordPayment,
   recordSend,
 } from '../services/transactions.js';
@@ -96,6 +97,27 @@ const convertPreviewSchema = z.object({
   assetIn: assetSchema,
   assetOut: assetSchema,
   amountFiat: z.string().regex(/^\d+(\.\d+)?$/),
+});
+
+/**
+ * A convert's RECORD: what the client signed, and the receipt that proves it.
+ *
+ * `amountIn` and `minAmountOut` are carried back from the preview so the record
+ * path can check the chain against the figures the customer actually agreed to —
+ * the input it spent, and the floor it accepted. Neither is trusted: both are
+ * compared with the receipt.
+ */
+const convertSchema = z.object({
+  assetIn: assetSchema,
+  assetOut: assetSchema,
+  amountIn: z.string().regex(/^\d+(\.\d+)?$/),
+  minAmountOut: z.string().regex(/^\d+(\.\d+)?$/),
+  txHash: z.string().regex(/^0x[a-fA-F0-9]+$/),
+  /** The wallet the client signed with. See `sendSchema.walletAddress`. */
+  walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/).optional(),
+  /** The signed rate quote from `/convert/preview`. */
+  quoteId: z.string().optional(),
+  metadata: z.record(z.unknown()).optional(),
 });
 
 const sendSchema = z.object({
@@ -309,6 +331,35 @@ export async function transactionRoutes(app: FastifyInstance) {
       }
       throw error;
     }
+  });
+
+  app.post('/convert', async (request, reply) => {
+    const user = requireUser(request);
+    const body = convertSchema.parse(request.body);
+
+    let transaction: Awaited<ReturnType<typeof recordConvert>>;
+    try {
+      transaction = await recordConvert({
+        ...body,
+        userId: user.id,
+        network: user.network,
+      });
+    } catch (error) {
+      // The record path's refusals are 422 with a code, exactly like a payment's:
+      // nothing was written, and the code is what the app switches on.
+      if (error instanceof PaymentRefusalError) {
+        return refusalResponse(reply, error);
+      }
+      throw error;
+    }
+
+    try {
+      await confirmTransactionByHash(body.txHash, user.id, user.network);
+    } catch (error) {
+      console.error('[transactions/convert] confirmation failed', error);
+    }
+
+    return reply.status(201).send({ transaction });
   });
 
   app.post('/send/preview', async (request, reply) => {

@@ -1,0 +1,16 @@
+-- A convert is a movement of money, not a payment: the customer's stablecoin
+-- leaves their wallet for the DEX and a different stablecoin arrives in the same
+-- wallet. Activity has to be able to say so, and until now the ledger's type enum
+-- had no word for it — a convert would have had to be filed as a payment or a
+-- send, both of which claim a counterparty that does not exist.
+--
+-- Additive only: one enum value, no column changes. The row's `amount`/`asset`
+-- carry what ARRIVED (what the customer now holds), and the input leg rides in
+-- `metadata` beside the floor that was signed. That split is deliberate — a
+-- two-amount column pair would be a schema change this product has not earned
+-- yet, and the existing renderer reads one figure.
+--
+-- Safe to apply on a live table: ADD VALUE does not rewrite rows, and every
+-- reader that switches on the existing values treats an unknown one as "not an
+-- inflow" rather than failing.
+ALTER TYPE "TransactionType" ADD VALUE IF NOT EXISTS 'convert';
