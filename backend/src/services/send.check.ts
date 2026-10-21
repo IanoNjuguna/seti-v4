@@ -68,7 +68,11 @@ import {
   publicClientFor,
   estimateNetworkFee,
   servedNetwork,
+  MEASURED_BATCH_GAS,
+  GAS_WEI_PER_TOKEN_UNIT,
+  assetDecimals,
 } from './chain.js';
+import type { SupportedAsset } from './chain.js';
 import { treasuryAddressFor } from '../config/networks.js';
 import { env } from '../config/env.js';
 import type { Network } from '../lib/network.js';
@@ -986,11 +990,125 @@ async function main(): Promise<void> {
       );
 
       const live = await estimateNetworkFee(anchor.asset);
-      const liveUnits = BigInt(Math.round(Number(live.feeAsset) * 1_000_000));
+
+      /**
+       * The predicates, named so the assertions below can also be exercised with
+       * inputs that must be REFUSED. A check that cannot fail is decoration, and the
+       * gate going green has to mean something on a quiet day.
+       */
+      const coversRealBatch = (measured: bigint, charged: bigint): boolean =>
+        measured > BigInt(0) && measured >= (charged * BigInt(9)) / BigInt(10);
+
+      const notWildlyAbove = (measured: bigint, charged: bigint): boolean =>
+        measured <= charged * BigInt(3);
+
+      const ratio = (a: bigint, b: bigint): string => (Number(a) / Number(b)).toFixed(2);
+
+      const expectedFee = (asset: SupportedAsset, measured: bigint, price: bigint): string =>
+        formatUnits((measured * price) / GAS_WEI_PER_TOKEN_UNIT, assetDecimals[asset]);
+
+      const estimateIsMeasuredAt = (
+        asset: SupportedAsset,
+        fee: string,
+        measured: bigint,
+        price: bigint
+      ): boolean => fee === expectedFee(asset, measured, price);
+
+      const toUnits = (fee: string, asset: SupportedAsset): bigint =>
+        BigInt(Math.round(Number(fee) * 10 ** assetDecimals[asset]));
+
+      /** 0.5% of a 1,000-unit send, in the asset's own units: the promise the preview makes. */
+      const ticketCeilingUnits = (asset: SupportedAsset): bigint =>
+        (BigInt(1_000) * BigInt(10) ** BigInt(assetDecimals[asset]) * BigInt(5)) / BigInt(1000);
+
+      const withinTicketBound = (units: bigint, ceiling: bigint): boolean =>
+        units > BigInt(0) && units <= ceiling;
+
+      // --- Gas UNITS: gas against gas, with no price anywhere in it -----------
+      //
+      // The assertion that used to live here put TODAY's estimate and the anchor
+      // receipt's PAST fee in one 10x band. The receipt's fee embeds the gas price of
+      // the block it landed in, so the band was really asking whether the chain's
+      // price had moved less than 10x since that block: on practice it moved 42x
+      // inside a day, and the gate failed and passed on identical code (issue #107).
+      // These compare the two things that are ours — the gas figure and the
+      // arithmetic — and take the price out of the comparison.
+      const measured = MEASURED_BATCH_GAS[anchor.asset];
+      const charged = anchorReceipt.gasUsed;
+
       check(
-        'the live estimate is the same order of magnitude as a real batch fee',
-        liveUnits > BigInt(0) && liveUnits <= feePayment * BigInt(10) && liveUnits * BigInt(10) >= feePayment,
-        `estimate ${live.feeAsset} (${live.source}) vs real ${formatUnits(feePayment, 6)}`
+        'the measured batch gas covers what a real batch spent',
+        coversRealBatch(measured, charged),
+        `measured ${measured} vs receipt ${charged} (${ratio(measured, charged)}x)`
+      );
+      check(
+        'and is not wildly above it',
+        notWildlyAbove(measured, charged),
+        `measured ${measured} vs receipt ${charged} (${ratio(measured, charged)}x)`
+      );
+
+      // The arithmetic, against a price read in the same breath as the estimate. The
+      // second read exists because the price can move between the estimator's read and
+      // ours, and one extra call is the difference between reporting that and reporting
+      // a flake.
+      const priceBefore = await anchorPublicClient.getGasPrice();
+      const priceAfter = estimateIsMeasuredAt(anchor.asset, live.feeAsset, measured, priceBefore)
+        ? priceBefore
+        : await anchorPublicClient.getGasPrice();
+
+      check(
+        'the estimate is the measured gas at the gas price of this moment',
+        live.source === 'estimate' &&
+          (estimateIsMeasuredAt(anchor.asset, live.feeAsset, measured, priceBefore) ||
+            estimateIsMeasuredAt(anchor.asset, live.feeAsset, measured, priceAfter)),
+        `estimate ${live.feeAsset} (${live.source}) vs measured x price ${expectedFee(anchor.asset, measured, priceBefore)} at ${priceBefore} wei`
+      );
+
+      // --- The one bound about money, and it is about a ticket, not a receipt ---
+      const ceiling = ticketCeilingUnits(anchor.asset);
+      const estimateUnits = toUnits(live.feeAsset, anchor.asset);
+      const decimals = assetDecimals[anchor.asset];
+
+      check(
+        'the estimate stays under 0.5% of a 1,000-unit send',
+        withinTicketBound(estimateUnits, ceiling),
+        `estimate ${live.feeAsset} vs ceiling ${formatUnits(ceiling, decimals)}`
+      );
+
+      // The property #107 is about, made executable: the same measured gas at ten times
+      // the price still clears the same bound, so a spike cannot turn this red.
+      const spiked = (measured * priceBefore * BigInt(10)) / GAS_WEI_PER_TOKEN_UNIT;
+      check(
+        'and it would still hold if the gas price were ten times higher',
+        withinTicketBound(spiked, ceiling),
+        `at 10x price ${formatUnits(spiked, decimals)} vs ceiling ${formatUnits(ceiling, decimals)}`
+      );
+
+      // --- The assertions themselves can fail --------------------------------
+      check(
+        'a measured figure ten times too large is refused',
+        !notWildlyAbove(charged * BigInt(10), charged),
+        `measured ${charged * BigInt(10)} vs receipt ${charged}`
+      );
+      check(
+        'a measured figure that under-quotes is refused',
+        !coversRealBatch(charged / BigInt(2), charged),
+        `measured ${charged / BigInt(2)} vs receipt ${charged}`
+      );
+      check(
+        'an estimate priced at a stale price is refused',
+        !estimateIsMeasuredAt(
+          anchor.asset,
+          expectedFee(anchor.asset, measured, priceBefore * BigInt(4)),
+          measured,
+          priceBefore
+        ),
+        'the same gas priced at 4x the live price, checked against the live one'
+      );
+      check(
+        'an estimate above the ticket bound is refused',
+        !withinTicketBound(ceiling + BigInt(1), ceiling),
+        `estimate ${ceiling + BigInt(1)} vs ceiling ${ceiling}`
       );
     }
   }
