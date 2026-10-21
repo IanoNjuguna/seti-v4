@@ -23,6 +23,12 @@ export type AuditAction =
    * was missing.
    */
   | 'send.backfilled'
+  /**
+   * A convert that was recorded after BOTH legs verified on-chain: the input
+   * reached the DEX and the output reached the signing wallet, at or above the
+   * floor the customer signed.
+   */
+  | 'convert.recorded'
   /** A payment that was refused before any row was written. See payment-refusal.ts. */
   | 'payment.rejected'
   | 'offramp.initiate'
