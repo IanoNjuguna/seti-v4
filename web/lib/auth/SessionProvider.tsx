@@ -135,7 +135,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, [privyEmail]);
+    // EMPTY ON PURPOSE, and it must stay empty.
+    //
+    // This used to depend on `privyEmail`, the object `usePrivyEmailSignIn()`
+    // returns. Nothing in the body reads it — the dependency outlived the Google
+    // return branch that did. The object is memoized on callbacks that wrap Privy's
+    // own, and once the SDK has initialised those come back with a fresh identity
+    // on every render, so the effect re-ran on every render, resolved, and set state
+    // to a NEW object literal: render -> effect -> setState -> render, at ~2,300
+    // React calls a second. The page never yielded, so the first real keystroke or
+    // click on `/signin` froze the tab (issue #96). A bootstrap runs once on mount;
+    // everything it touches (`bootstrapStoredSession`, `persistSession`, the state
+    // setter) is module-level or stable.
+  }, []);
 
   /**
    * Land a failed step of the Privy flow.
