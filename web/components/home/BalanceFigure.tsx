@@ -3,13 +3,20 @@
 import { Text } from '@/components/ui';
 import { Icon } from '@/components/ui/Icon';
 import type { TextVariant } from '@/components/ui/Text.types';
-import { AssetBreakdown } from './AssetBreakdown';
 import { formatBalance, formatDelta } from './home.format';
 import { useBalanceVisibility } from './useBalanceVisibility';
 import type { BalanceFigureProps } from './BalanceFigure.types';
 
 /**
  * The balance itself: the figure, the hide control, and the month's movement.
+ *
+ * ONE figure, and there is deliberately no breakdown under it any more. The account
+ * settles into OUSD in the background (the settlement pass), so which token holds
+ * the money is housekeeping, not information: a customer who holds KES 4,800 wants
+ * to know they hold KES 4,800, and a disclosure listing OUSD, USDC.e and pathUSD
+ * turned that answer into a crypto question with four parts. The per-asset figures
+ * still exist in the ledger and in the statement — the customer just is not asked
+ * to think about them.
  *
  * The figure is EXACT and pinned to one line. It used to compact at a million
  * ("KES 4.8M") to stop a long number wrapping, which put a rounded figure where
@@ -76,16 +83,6 @@ export function BalanceFigure({ data }: BalanceFigureProps) {
         </Text>
       ) : null}
 
-      {/* Only once the dashboard has landed: a visitor never reaches this body, and an
-          account whose read is still in flight has no rows to break down. */}
-      {data && data.currency ? (
-        <AssetBreakdown
-          rows={data.assets}
-          total={data.balance}
-          hidden={hidden}
-          currency={data.currency}
-        />
-      ) : null}
     </>
   );
 }
