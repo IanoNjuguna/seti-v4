@@ -37,6 +37,15 @@ export interface PreexistingHandle {
   network: string;
   kind: string;
   claimSignature: string | null;
+  /**
+   * `null` for a live handle, a status for one parked for review.
+   *
+   * It is snapshotted because it changes what "unchanged" means for the row: the
+   * resolver filters parked handles out, so for one of them resolving to nothing is
+   * the correct behaviour and asserting otherwise is asserting the opposite of the
+   * design.
+   */
+  reviewStatus: string | null;
 }
 
 const FIELDS = {
@@ -47,6 +56,7 @@ const FIELDS = {
   network: true,
   kind: true,
   claimSignature: true,
+  reviewStatus: true,
 } as const;
 
 /** Every handle NOT belonging to the calling suite, taken before it writes. */
@@ -73,6 +83,28 @@ export async function checkPreexistingUnchanged(
     check(`${row.handle}: signature unchanged`, after?.claimSignature, row.claimSignature);
     check(`${row.handle}: network unchanged`, after?.network, row.network);
     check(`${row.handle}: profile kind unchanged`, after?.kind, row.kind);
+
+    /*
+     * A handle parked for review is deliberately unresolvable: `findHandleByHandle`
+     * filters `reviewStatus: null`, so a held brand resolves to nothing on purpose.
+     * This assertion used to demand that it resolve anyway, which turned a correctly
+     * parked row into a red gate on any machine holding one — while CI, which seeds
+     * nothing, stayed green. That is the shape of failure the gate exists to prevent:
+     * a red `verify` that means "your database", not "your diff" (#11).
+     *
+     * Every identity assertion above still runs for a parked row, so parking cannot
+     * hide a deletion or an edit. The exemption is one line of output rather than a
+     * silent `continue`, because a skip nobody can see is indistinguishable from a
+     * check that was never written.
+     */
+    if (row.reviewStatus !== null) {
+      check(
+        `${row.handle}: parked for review (${row.reviewStatus}), so it is expected NOT to resolve`,
+        row.reviewStatus,
+        row.reviewStatus
+      );
+      continue;
+    }
 
     const resolved = await findHandleByHandle(row.handle, row.network as Network);
     const view = resolved ? await toHandleIdentityView(resolved) : null;
