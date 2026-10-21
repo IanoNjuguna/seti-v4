@@ -19,13 +19,18 @@ export interface TransactionRowProps {
    */
   details?: ReactNode;
   /**
-   * A control that sits beside the row rather than inside it: the Activity list
-   * uses it for `Try again` on a failed payment.
+   * A control that sits OVER the row's reserved strip rather than inside the row's
+   * own control: the Activity list uses it for `Try again` on a failed payment.
    *
-   * Beside, not inside, because the row is itself a `<button>` when it is
-   * selectable — a button inside a button is invalid HTML, and browsers restructure
-   * it rather than honouring it. A sibling cannot fire the row's own handler either,
-   * so "does not open the receipt" is structural rather than a `stopPropagation`.
+   * Not inside, because the row is itself a `<button>` when it is selectable — a
+   * button inside a button is invalid HTML, and browsers restructure it rather than
+   * honouring it. Positioned over the strip and beside the button in the tree, so
+   * "does not open the receipt" is structural rather than a `stopPropagation`.
+   *
+   * The action adds a strip under the row's content (`pb-12`), aligned with the name
+   * column. At 360px an action at the row's trailing edge squeezed the content
+   * column until the amount was clipped; this layout leaves the amount's column
+   * exactly as wide as it is on a row with no action.
    */
   action?: ReactNode;
 }
