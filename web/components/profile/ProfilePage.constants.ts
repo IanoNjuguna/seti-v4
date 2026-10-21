@@ -15,6 +15,13 @@
  * `@handle`), and the page deliberately does not repeat a line the rail already
  * states.
  */
+/** The row that opens the security screen, and where it points. */
+export const PROFILE_SECURITY_COPY = {
+  title: 'Security',
+  intro: 'How you sign in, and what stops someone else doing it.',
+  href: '/app/profile/security',
+} as const;
+
 export const PROFILE_PAGE_COPY = {
   /** The page's own title, at page level — the same word the nav uses for the route. */
   title: 'Profile',
