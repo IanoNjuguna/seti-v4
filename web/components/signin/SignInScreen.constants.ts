@@ -31,10 +31,6 @@ export const SIGN_IN_COPY = {
   emailLabel: 'Email',
   submit: 'Continue with email',
   errorTitle: 'Could not sign in',
-  /** The shared with the app sentence for Google, and the divider above the email form. */
-  google: 'Continue with Google',
-  /** Says what the field below is FOR, so the two doors do not read as a choice of equals. */
-  orEmail: 'or use your email',
   /** Shared with the app: the same "we are still finding out" line it renders. */
   restoring: 'One moment…',
   /**

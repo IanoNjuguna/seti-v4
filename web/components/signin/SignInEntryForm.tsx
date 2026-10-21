@@ -5,26 +5,24 @@ import { TermsAcceptance } from '@/components/auth/TermsAcceptance';
 import { SIGN_IN_COPY } from './SignInScreen.constants';
 import { SignInDevPreview } from './SignInDevPreview';
 import { SignInFailure } from './SignInFailure';
-import { SignInGoogleDoor } from './SignInGoogleDoor';
 import type { SignInEntryFormProps } from './SignInScreen.types';
 
 /**
- * The front door: the one instruction, one field, the consent, one button — plus, on a
- * Privy build, the Google shortcut above the field.
+ * The front door: the one instruction, the consent, one field and one button.
  *
  * The type is the landing page's own — `font-brand` at `heading-lg` stepping to
  * `display-md` with the lede at `body-lg` in `on-dark-mute`, exactly the hero's pair.
  * The display line is raw markup rather than `Text` because the system's display sizes
  * have no `Text` variant; `HeroCopy` and `ClosingSection` do the same.
  *
- * ## The consent moved ABOVE both doors
+ * ## The consent sits above the form
  *
  * It used to sit between the field and the button, because the gate belongs on the
- * control that acts. There are two controls that act now, and either of them can create
- * the account, so the gate belongs on both — which means above both. Each is disabled
- * until it is ticked, and the control's own hint says why while it is not.
+ * control that acts. With one door it could live either side of the field and mean the
+ * same thing; it stays above because the sentence is then read before the field is
+ * filled, not after, and the control it gates is still the last thing on the page.
  *
- * Neither button is disabled for an empty address: only the consent gates them, and the
+ * The button is not disabled for an empty address: only the consent gates it, and the
  * session already answers a missing address with a plain sentence in the failure block
  * directly above. `noValidate` keeps the browser's bubble out of it, so the reason a
  * press did not work is always Seti's sentence in Seti's language.
@@ -35,11 +33,9 @@ export function SignInEntryForm({
   sending,
   accepted,
   previewAvailable,
-  googleAvailable,
   onAddressChange,
   onAcceptChange,
   onSubmit,
-  onGoogle,
   onPreviewSent,
 }: SignInEntryFormProps) {
   return (
@@ -69,14 +65,12 @@ export function SignInEntryForm({
       <div className="mt-6 flex flex-col gap-5">
         <TermsAcceptance tone="dark" checked={accepted} onChange={onAcceptChange} />
 
-        {googleAvailable ? <SignInGoogleDoor disabled={!accepted} onGoogle={onGoogle} /> : null}
-
         <form onSubmit={onSubmit} noValidate className="flex flex-col gap-5">
           {/* No `autoFocus`. The page's one instruction is the heading above, and focusing
               this field drags the viewport to it: at 780x489 the heading scrolls out of
               sight and the page appears to start mid-sentence. On a phone it also opens
-              the keyboard over the consent and the two doors, which are the first
-              decision. The field focuses on tap like every other input. */}
+              the keyboard over the consent and the door, which are the first decision.
+              The field focuses on tap like every other input. */}
           <Input
             label={SIGN_IN_COPY.emailLabel}
             tone="dark"

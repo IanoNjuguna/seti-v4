@@ -40,21 +40,12 @@ export interface SignInEntryFormProps {
   address: string;
   error: string | null;
   sending: boolean;
-  /** The consent gate: BOTH doors are disabled until this is true. */
+  /** The consent gate: the email control is disabled until this is true. */
   accepted: boolean;
   previewAvailable: boolean;
-  /**
-   * Whether Google is available on this build at all.
-   *
-   * False on a build with no Privy app id, where there is no provider to start the
-   * redirect with: the control is not drawn rather than drawn dead.
-   */
-  googleAvailable: boolean;
   onAddressChange: (value: string) => void;
   onAcceptChange: (accepted: boolean) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  /** Leaves for Google; the sign-in completes on the page load that comes back. */
-  onGoogle: () => void;
   onPreviewSent: () => void;
 }
 
