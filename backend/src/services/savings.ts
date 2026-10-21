@@ -37,14 +37,14 @@
 import { prisma } from '../lib/prisma.js';
 import { isAllowedPair, quoteDexConvert } from './convert.js';
 import { issueQuote } from './quote.js';
-import { parseUnits } from 'viem';
+import { formatUnits, parseUnits } from 'viem';
 import { servedNetwork } from '../config/networks.js';
 import { getUserBalance } from './balance.js';
 import { getFxQuote, resolveUserFiat } from './payments.js';
 import { normalizeNetwork, type Network } from '../lib/network.js';
 import { isValidEvmAddress } from '../lib/address.js';
 import { ASSET_DECIMALS, type SupportedAsset } from '../config/assets.js';
-import { formatUnits } from 'viem';
+import { publicClientFor } from './chain.js';
 
 const EARN_API = 'https://api.tempo.xyz/v1/earn';
 
@@ -131,8 +131,25 @@ interface EarnEarnings {
 
 interface EarnVault {
   sharePrice?: { formatted?: string };
+  instantLiquidity?: string | null;
+  capabilities?: {
+    syncRedeem?: boolean;
+    asyncRedeem?: boolean;
+    exactWithdraw?: boolean;
+  };
   state?: { depositsPaused?: boolean; isAccountingAligned?: boolean };
 }
+
+/** The two read functions a withdrawal needs from the vault. */
+const VAULT_REDEEM_ABI = [
+  {
+    name: 'previewRedeem',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ type: 'uint256', name: 'shares' }],
+    outputs: [{ type: 'uint256', name: 'assets' }],
+  },
+] as const;
 
 /** A read from Tempo's Earn API, or null — a failed read is "unknown", not "zero". */
 async function earnGet<T>(path: string): Promise<T | null> {
@@ -375,5 +392,143 @@ export async function quoteSavingsDeposit(input: {
     quoteId,
     hasEnoughBalance,
     spendableFiat: (Number(balance) * fiatPerUsd).toFixed(2),
+  };
+}
+
+/**
+ * What taking money OUT would do, before anything is signed.
+ *
+ * A withdrawal is three calls in one Tempo transaction — approve the SHARE token,
+ * `redeem(shares, recipient, assetMin)`, then swap the vault's asset back into OUSD:
+ *
+ *   1. `previewRedeem(shares)` is the vault's own quote, including its fees. That is
+ *      the number to trust, not share price × shares, which ignores a withdrawal
+ *      fee the vault may charge.
+ *   2. `redeem` takes `(uint256, address, uint256)` — NOT the ERC-4626 signature —
+ *      so the floor is an asset minimum, not a share one.
+ *   3. The swap home carries its own floor, so a moving book cannot under-deliver on
+ *      the way back to the spendable asset.
+ *
+ * An immediate redemption needs liquidity, so this refuses when the vault does not
+ * support synchronous redeem. A queued withdrawal is a different product: it has a
+ * request, a claim, and a wait, and pretending one is the other is how a savings
+ * screen breaks a promise.
+ */
+export interface SavingsWithdrawQuote {
+  network: Network;
+  fiatCurrency: string;
+  fiatAmount: string;
+  /** The shares to redeem, in share units. */
+  shares: string;
+  /** What the vault says those shares are worth, in its asset units. */
+  assetOut: string;
+  /** The floor on the redeem, in the vault's asset units. */
+  minAssets: string;
+  /** The OUSD the swap home must deliver, and its floor. */
+  swapOut: string;
+  minSwapOut: string;
+  vault: string;
+  shareToken: string;
+  quoteId: string;
+  /** True only when the vault redeems immediately. A queued exit is not offered. */
+  canWithdraw: boolean;
+  /** Vault-wide liquidity, when the vault reports it. Not an account-specific quote. */
+  instantLiquidity: string | null;
+  /** The account's whole position, for a "withdraw everything" affordance. */
+  positionShares: string;
+}
+
+export async function quoteSavingsWithdraw(input: {
+  userId: string;
+  amountFiat: string;
+  network?: Network;
+}): Promise<SavingsWithdrawQuote> {
+  const network = normalizeNetwork(input.network, servedNetwork);
+  const vault = SAVINGS_VAULT[network];
+  const shareToken = SAVINGS_SHARE_TOKEN[network];
+  if (!vault || !shareToken) throw new Error(`Savings are not offered on ${network}.`);
+
+  const amountFiat = Number(input.amountFiat);
+  if (!Number.isFinite(amountFiat) || amountFiat <= 0) {
+    throw new Error('The amount to withdraw must be a positive number.');
+  }
+
+  const chainId = network === 'mainnet' ? 4217 : 42431;
+  const vaultRecord = await earnGet<EarnVault>(`/vaults/${vault}?chainId=${chainId}`);
+  const address = await walletAddressFor(input.userId, network);
+
+  const fiatCurrency = await resolveUserFiat(input.userId);
+  const fx = await getFxQuote(fiatCurrency);
+  const fiatPerUsd = fx.fiatPerUsd;
+
+  const sharePrice = Number(vaultRecord?.sharePrice?.formatted ?? '1');
+  const synced = vaultRecord?.capabilities?.syncRedeem === true;
+
+  // Shares to redeem for this fiat amount. The vault's own preview is the authority
+  // on what they are worth, so this only decides HOW MANY.
+  const assetsWanted = amountFiat / fiatPerUsd;
+  const shares = sharePrice > 0 ? assetsWanted / sharePrice : 0;
+  const shareAmount = parseUnits(shares.toFixed(ASSET_DECIMALS), ASSET_DECIMALS);
+
+  let assetOut = BigInt(0);
+  if (address && shareAmount > BigInt(0)) {
+    try {
+      // The ABI's return type is `uint256`, so viem already types this as bigint.
+      assetOut = await publicClientFor(network).readContract({
+        address: vault as `0x${string}`,
+        abi: VAULT_REDEEM_ABI,
+        functionName: 'previewRedeem',
+        args: [shareAmount],
+      });
+    } catch {
+      assetOut = BigInt(0);
+    }
+  }
+
+  const minAssets = (assetOut * BigInt(10_000 - SAVINGS_TOLERANCE_BPS)) / BigInt(10_000);
+
+  // The swap home: the vault's asset back to OUSD, priced on the same book the
+  // deposit came through.
+  let swapOut = BigInt(0);
+  let minSwapOut = BigInt(0);
+  if (assetOut > BigInt(0) && isAllowedPair(SAVINGS_ASSET, 'ousd', network)) {
+    const quoted = await quoteDexConvert({
+      assetIn: SAVINGS_ASSET,
+      assetOut: 'ousd',
+      amountIn: assetOut,
+      network,
+    });
+    swapOut = quoted.amountOut;
+    minSwapOut = quoted.minAmountOut;
+  }
+
+  const position = address
+    ? await earnGet<{ shareBalance: string }>(`/vaults/${vault}/positions/${address}?chainId=${chainId}`)
+    : null;
+
+  const quoteId = issueQuote({
+    userId: input.userId,
+    fiatCurrency,
+    fiatPerUsd,
+    source: fx.source,
+    asOf: fx.asOf,
+    network,
+  });
+
+  return {
+    network,
+    fiatCurrency,
+    fiatAmount: amountFiat.toFixed(2),
+    shares: formatUnits(shareAmount, ASSET_DECIMALS),
+    assetOut: formatUnits(assetOut, ASSET_DECIMALS),
+    minAssets: formatUnits(minAssets, ASSET_DECIMALS),
+    swapOut: formatUnits(swapOut, ASSET_DECIMALS),
+    minSwapOut: formatUnits(minSwapOut, ASSET_DECIMALS),
+    vault,
+    shareToken,
+    quoteId,
+    canWithdraw: synced && assetOut > BigInt(0),
+    instantLiquidity: vaultRecord?.instantLiquidity ?? null,
+    positionShares: position ? formatUnits(BigInt(position.shareBalance), ASSET_DECIMALS) : '0',
   };
 }
