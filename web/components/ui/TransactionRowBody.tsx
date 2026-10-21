@@ -1,3 +1,4 @@
+import { cn } from '@/lib/cn';
 import { formatFiat } from '@/lib/formatCurrency';
 import { Text } from './Text';
 import { TransactionRowSubtitle } from './TransactionRowSubtitle';
@@ -28,6 +29,14 @@ function formatDate(date: Date): string {
  * The counterparty address sits UNDER the name it belongs to: a merchant name is
  * something a wallet signed for, while the address is the only part of the pair
  * that cannot be chosen.
+ *
+ * A FAILED row is struck through, and the word stays under the amount. The suffix
+ * in the meta line (`10 Oct · Payment · Failed`) was the first attempt and it lost:
+ * the meta line is the one column allowed to elide at 360px, so the last word of it
+ * was the first thing cut — the state disappeared exactly where the row was
+ * narrowest. The amount column is `shrink-0` and never truncates, so the word goes
+ * there beside the struck figure: two signals in the one place on the row that
+ * cannot be clipped.
  */
 export function TransactionRowBody({ transaction, details }: TransactionRowBodyProps) {
   const { merchant, category, amount, currency, date, status, from, to } = transaction;
@@ -71,7 +80,7 @@ export function TransactionRowBody({ transaction, details }: TransactionRowBodyP
           tabular
           as="span"
           color={isOutflow ? 'primary' : 'success'}
-          className="shrink-0 whitespace-nowrap"
+          className={cn('shrink-0 whitespace-nowrap', status === 'failed' && 'line-through')}
         >
           {isOutflow ? '-' : '+'}
           {formatted}
