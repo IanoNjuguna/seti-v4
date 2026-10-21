@@ -61,17 +61,25 @@ async function main(): Promise<void> {
   console.log(`allowlist (${NETWORK}):`);
   for (const [a, b] of CONVERT_PAIRS[NETWORK]) console.log(`     ${a} ↔ ${b}`);
 
+  // This assertion used to read "usdt0 is offered on no network". It had a book on
+  // mainnet by the evening of the same day, so the check now pins WHERE it is offered
+  // rather than pretending it never is: mainnet yes, testnet no (unlisted there).
   check(
-    'usdt0 is offered on no network: neither the book nor Uniswap has a market for it',
-    Object.values(CONVERT_PAIRS).every((pairs) => pairs.every(([a, b]) => a !== 'usdt0' && b !== 'usdt0'))
+    'usdt0 is offered on mainnet, and only there',
+    CONVERT_PAIRS.mainnet.some(([a, b]) => a === 'usdt0' || b === 'usdt0') &&
+      !CONVERT_PAIRS.testnet.some(([a, b]) => a === 'usdt0' || b === 'usdt0')
   );
   check(
     'the allowlist is symmetric: a pair can be converted in either direction',
     CONVERT_PAIRS[NETWORK].every(([a, b]) => isAllowedPair(a, b, NETWORK) && isAllowedPair(b, a, NETWORK))
   );
   check(
-    'an unlisted pair is refused even though both assets are supported',
-    isAllowedPair('usdt0', 'ousd', NETWORK) === false
+    'a pair with no measured book is refused even though both assets are supported',
+    // `usdt0 ↔ pathusd` is on mainnet's list; on testnet it is not, and that is the
+    // unlisted-pair case. Derive from the served network rather than hardcode it.
+    NETWORK === 'testnet'
+      ? isAllowedPair('usdt0', 'pathusd', NETWORK) === false
+      : isAllowedPair('usdt0', 'pathusd', NETWORK) === true
   );
 
   // -------------------------------------------------------------------------
