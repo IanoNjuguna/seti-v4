@@ -49,7 +49,8 @@
     "check:convert": "npm run check:convert --workspace backend",
     "check:convert-record": "npm run check:convert-record --workspace backend",
     "check:settle": "npm run check:settle --workspace backend",
-    "check:tabs": "npm run check:tabs --workspace web"
+    "check:tabs": "npm run check:tabs --workspace web",
+    "report:gas": "npm run report:gas --workspace backend"
   },
   "engines": {
     "node": ">=20.0.0"
