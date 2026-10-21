@@ -1,10 +1,9 @@
 'use client';
 
-import { Button, Text } from '@/components/ui';
+import { Button } from '@/components/ui';
 import { ActivityDay } from './ActivityDay';
 import { ActivityEmpty, ActivityError, ActivityLoading } from './ActivityStates';
 import { ACTIVITY_COPY } from './Activity.constants';
-import { StatementRow } from './StatementRow';
 import { useActivity } from './useActivity';
 import type { ActivityListProps } from './Activity.types';
 
@@ -29,14 +28,6 @@ export function ActivityList({ onSelect }: ActivityListProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <header>
-        <Text variant="section" as="h1">
-          {ACTIVITY_COPY.title}
-        </Text>
-      </header>
-
-      <StatementRow />
-
       {activity.loading ? <ActivityLoading /> : null}
 
       {activity.error ? <ActivityError message={activity.error} onRetry={activity.retry} /> : null}

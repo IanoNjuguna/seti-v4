@@ -1,48 +1,75 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { Suspense, useCallback, useState } from 'react';
+import { Skeleton, TabPanel, Tabs } from '@/components/ui';
+import { ActivityAnalytics } from '@/components/activity/ActivityAnalytics';
+import { ActivityHeader } from '@/components/activity/ActivityHeader';
 import { ActivityList } from '@/components/activity/ActivityList';
 import { ActivitySignedOut } from '@/components/activity/ActivitySignedOut';
+import {
+  ACTIVITY_VIEW_COPY,
+  ACTIVITY_VIEW_ID_PREFIX,
+  ACTIVITY_VIEWS,
+} from '@/components/activity/ActivityView.constants';
+import { useActivityView } from '@/components/activity/useActivityView';
 import { ReceiptSheet } from '@/components/receipt/ReceiptSheet';
 import { useSession } from '@/lib/auth';
 import type { Transaction } from '@/lib/types';
 
 /**
- * Activity: the full history, grouped by day, with each row opening its receipt.
+ * Activity: two views of one account, with the statement above both.
  *
- * Two of the session's three states render the same screen: a confirmed account
- * gets the list — which owns its own loading, empty and failure states, because
- * those are facts about a history it is actually reading — and everybody else
- * gets the page's header with one sentence where the rows would be
- * (`ActivitySignedOut`). Both carry the page's own title, so the two cannot
- * disagree about what this screen is.
+ * The title and the statement row sit OUTSIDE the switcher, because neither belongs to
+ * a tab: the statement acts on the whole account, and a heading that changed with the
+ * tab would make the page look like two pages.
  *
- * The list is mounted ONLY for a confirmed account, which is what keeps an
- * account-scoped read from firing for a visitor. It is also why the row skeleton
- * that used to stand in for a restoring session is gone: it promised rows for an
- * account nobody had confirmed, and a restore that never answers would never pay
- * that promise off.
- *
- * The open row lives here rather than in the list: the sheet is a sibling of the
- * list, and a row that closed itself would have to reach back up to unmount it.
- * The closer is stable so the dialog's focus and scroll lock are established
- * once, on open, instead of on every render.
+ * The switcher is inside a Suspense boundary because it reads the URL. Both panels stay
+ * mounted — the list keeps the pages it has loaded, and the analytics panel keeps its
+ * figures — so a switch is a change of what is visible, not a refetch. `hidden` on the
+ * inactive panel is what keeps it out of the accessibility tree and the tab order.
  */
 export default function ActivityPage() {
   const session = useSession();
-  const [selected, setSelected] = useState<Transaction | null>(null);
-  const closeReceipt = useCallback(() => setSelected(null), []);
 
   if (session.status !== 'signed-in') {
     return <ActivitySignedOut view={session.status} />;
   }
 
   return (
-    <>
-      <ActivityList onSelect={setSelected} />
-      {selected ? (
-        <ReceiptSheet transactionId={selected.id} onClose={closeReceipt} />
-      ) : null}
-    </>
+    <div className="flex flex-col gap-6">
+      <ActivityHeader />
+
+      <Suspense fallback={<Skeleton className="h-11 w-full" />}>
+        <ActivityViews />
+      </Suspense>
+    </div>
+  );
+}
+
+function ActivityViews() {
+  const { view, setView } = useActivityView();
+  const [selected, setSelected] = useState<Transaction | null>(null);
+  const closeReceipt = useCallback(() => setSelected(null), []);
+
+  return (
+    <div className="flex flex-col gap-6">
+      <Tabs
+        items={ACTIVITY_VIEWS}
+        value={view}
+        onChange={setView}
+        label={ACTIVITY_VIEW_COPY.label}
+        idPrefix={ACTIVITY_VIEW_ID_PREFIX}
+      />
+
+      <TabPanel idPrefix={ACTIVITY_VIEW_ID_PREFIX} tabId="transactions" visible={view === 'transactions'}>
+        <ActivityList onSelect={setSelected} />
+      </TabPanel>
+
+      <TabPanel idPrefix={ACTIVITY_VIEW_ID_PREFIX} tabId="analytics" visible={view === 'analytics'}>
+        <ActivityAnalytics active={view === 'analytics'} />
+      </TabPanel>
+
+      {selected ? <ReceiptSheet transactionId={selected.id} onClose={closeReceipt} /> : null}
+    </div>
   );
 }
