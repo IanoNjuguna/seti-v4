@@ -34,6 +34,8 @@ export type AuditAction =
    * reached the vault, and the vault minted shares to the signing wallet.
    */
   | 'savings.deposit.recorded'
+  /** A savings withdrawal that verified on all three legs and paid OUSD back. */
+  | 'savings.withdrawal.recorded'
   /** A payment that was refused before any row was written. See payment-refusal.ts. */
   | 'payment.rejected'
   | 'offramp.initiate'

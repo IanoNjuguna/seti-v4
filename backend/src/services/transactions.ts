@@ -1378,6 +1378,208 @@ export async function recordSavingsDeposit(input: RecordSavingsDepositInput) {
   return transaction;
 }
 
+interface RecordSavingsWithdrawalInput {
+  userId: string;
+  network?: Network;
+  txHash: string;
+  walletAddress?: string;
+  /** The shares redeemed, in share units. Checked against the chain. */
+  shares: string;
+  /** The OUSD the customer must receive back, in OUSD units. Checked. */
+  minSwapOut: string;
+  quoteId?: string;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Record money taken OUT of a savings vault, from the receipt.
+ *
+ * The mirror of a deposit, and checked the same way — three legs, any of which
+ * failing means the customer did not get their money:
+ *
+ *  1. the SHARES LEFT the wallet for the vault (the redeem's approval + pull);
+ *  2. the vault's ASSET reached the wallet;
+ *  3. the OUSD arrived back, at or above the floor that was signed.
+ *
+ * The third is the one that matters to a customer: an exit that stops at pathUSD is
+ * not a withdrawal back to a spendable balance, and the ledger must not say it is.
+ */
+export async function recordSavingsWithdrawal(input: RecordSavingsWithdrawalInput) {
+  const network = normalizeNetwork(input.network, servedNetwork);
+
+  const vault = SAVINGS_VAULT[network];
+  const shareToken = SAVINGS_SHARE_TOKEN[network];
+  if (!vault || !shareToken) {
+    throw await refusal({
+      userId: input.userId,
+      txHash: input.txHash,
+      code: 'convert-pair-unavailable',
+      reason: `Savings are not offered on ${network}.`,
+    });
+  }
+
+  const wallet = await declaredWalletOrRefuse({
+    userId: input.userId,
+    txHash: input.txHash,
+    walletAddress: input.walletAddress,
+    network,
+  });
+
+  const shares = Number(input.shares);
+  const floor = Number(input.minSwapOut);
+
+  if (!Number.isFinite(shares) || shares <= 0 || !Number.isFinite(floor) || floor <= 0) {
+    throw await refusal({
+      userId: input.userId,
+      txHash: input.txHash,
+      code: 'amount-invalid',
+      reason: 'The shares and the floor must both be positive',
+      claimedAmount: shares,
+    });
+  }
+
+  const quote = await resolveFrozenRate({
+    quoteId: input.quoteId,
+    userId: input.userId,
+    network,
+    txHash: input.txHash,
+  });
+
+  const found = await readReceipt(input.txHash, network);
+  if (!found.ok) {
+    throw await refusal({
+      userId: input.userId,
+      txHash: input.txHash,
+      code: found.code,
+      reason: `Withdrawal could not be verified on-chain: ${found.reason}`,
+      claimedAmount: shares,
+    });
+  }
+  const receipt = found.receipt;
+
+  // 1. the shares left the wallet, for the vault.
+  const shareLeg = readTransferredAmount(receipt, shareToken as Hex, vault, SAVINGS_ASSET);
+  if (!shareLeg.ok || Math.abs(shareLeg.value - shares) > shares * 0.01) {
+    throw await refusal({
+      userId: input.userId,
+      txHash: input.txHash,
+      code: 'savings-leg-unverified',
+      reason: shareLeg.ok
+        ? `Shares redeemed do not match: claimed ${shares}, chain ${shareLeg.value}.`
+        : `No shares reached the vault in this transaction: ${shareLeg.reason}.`,
+      claimedAmount: shares,
+      ...(shareLeg.ok ? { observedAmount: shareLeg.value } : {}),
+    });
+  }
+
+  // 2. the vault's asset came back to the wallet.
+  const assetLeg = readTransferredAmount(
+    receipt,
+    getTokenContract(SAVINGS_ASSET, network),
+    wallet.address,
+    SAVINGS_ASSET
+  );
+  if (!assetLeg.ok) {
+    throw await refusal({
+      userId: input.userId,
+      txHash: input.txHash,
+      code: 'savings-leg-unverified',
+      reason: `The vault paid nothing back to the wallet: ${assetLeg.reason}.`,
+      claimedAmount: shares,
+    });
+  }
+
+  // 3. the OUSD arrived, above the floor that was signed.
+  const ousdLeg = readTransferredAmount(
+    receipt,
+    getTokenContract('ousd', network),
+    wallet.address,
+    'ousd'
+  );
+  if (!ousdLeg.ok) {
+    throw await refusal({
+      userId: input.userId,
+      txHash: input.txHash,
+      code: 'savings-leg-unverified',
+      reason:
+        `No OUSD reached the wallet: ${ousdLeg.reason}. ` +
+        'A withdrawal that stops at the vault\'s asset is not a spendable balance.',
+      claimedAmount: shares,
+    });
+  }
+
+  if (ousdLeg.value + 0.000001 < floor) {
+    throw await refusal({
+      userId: input.userId,
+      txHash: input.txHash,
+      code: 'convert-below-floor',
+      reason: `Withdrawal under-delivered: signed for at least ${floor} OUSD, chain paid ${ousdLeg.value}.`,
+      claimedAmount: shares,
+      observedAmount: ousdLeg.value,
+    });
+  }
+
+  await assertReceiptSender({
+    userId: input.userId,
+    txHash: input.txHash,
+    receipt,
+    declaredAddress: wallet.address,
+  });
+
+  const fiatAmount = round2(ousdLeg.value * quote.fiatPerUsd);
+
+  const { transaction, created } = await createTransactionOnce({
+    data: {
+      userId: input.userId,
+      walletId: wallet.id,
+      network,
+      type: 'savings_withdrawal',
+      status: 'processing',
+      amount: ousdLeg.value.toFixed(8),
+      asset: 'ousd',
+      counterparty: null,
+      txHash: input.txHash,
+      fiatAmount: fiatAmount.toFixed(2),
+      fiatCurrency: quote.fiatCurrency,
+      feeAmount: null,
+      fxRate: quote.fiatPerUsd.toFixed(8),
+      fxRateSource: quote.source,
+      fxRateAsOf: quote.asOf,
+      metadata: {
+        client: input.metadata ?? {},
+        savings: {
+          vault,
+          shareToken,
+          sharesRedeemed: shareLeg.value.toFixed(8),
+          assetsRedeemed: assetLeg.value.toFixed(8),
+          swappedToOusd: ousdLeg.value.toFixed(8),
+          minOusd: floor.toFixed(8),
+        },
+      } as never,
+    },
+  });
+
+  if (created) {
+    await logAuditEvent({
+      userId: input.userId,
+      action: 'savings.withdrawal.recorded',
+      txHash: input.txHash,
+      metadata: {
+        kind: 'savings_withdrawal',
+        network,
+        vault,
+        shares: shareLeg.value,
+        assets: assetLeg.value,
+        ousd: ousdLeg.value,
+        fiatAmount,
+        signedBy: wallet.address,
+      },
+    });
+  }
+
+  return transaction;
+}
+
 interface RecordConvertInput {
   userId: string;
   /** The network the convert happened on — the session's network. */

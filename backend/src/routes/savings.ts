@@ -1,8 +1,8 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { authMiddleware } from '../middleware/auth.js';
-import { getSavingsSummary, quoteSavingsDeposit } from '../services/savings.js';
-import { recordSavingsDeposit } from '../services/transactions.js';
+import { getSavingsSummary, quoteSavingsDeposit, quoteSavingsWithdraw } from '../services/savings.js';
+import { recordSavingsDeposit, recordSavingsWithdrawal } from '../services/transactions.js';
 import { PaymentRefusalError } from '../services/payment-refusal.js';
 import { refusalResponse } from './refusal-response.js';
 
@@ -16,6 +16,20 @@ const depositSchema = z.object({
   minShares: z.string().regex(/^\d+(\.\d+)?$/),
   walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/).optional(),
   /** The frozen rate from `/savings/quote`. */
+  quoteId: z.string().optional(),
+});
+
+const withdrawQuoteSchema = z.object({
+  amountFiat: z.string().regex(/^\d+(\.\d+)?$/),
+});
+
+const withdrawSchema = z.object({
+  txHash: z.string().regex(/^0x[a-fA-F0-9]+$/),
+  /** The shares redeemed, in share units. */
+  shares: z.string().regex(/^\d+(\.\d+)?$/),
+  /** The OUSD floor that was signed. */
+  minSwapOut: z.string().regex(/^\d+(\.\d+)?$/),
+  walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/).optional(),
   quoteId: z.string().optional(),
 });
 
@@ -88,6 +102,48 @@ export async function savingsRoutes(app: FastifyInstance) {
 
     try {
       const transaction = await recordSavingsDeposit({
+        ...body,
+        userId: user.id,
+        network: user.network,
+      });
+      return reply.status(201).send({ transaction });
+    } catch (error) {
+      if (error instanceof PaymentRefusalError) return refusalResponse(reply, error);
+      throw error;
+    }
+  });
+
+  /** Price a withdrawal: shares out, the vault's own redeem quote, and the way home. */
+  app.post('/withdraw/quote', async (request: FastifyRequest, reply) => {
+    const user = request.user;
+    if (!user) throw new Error('savings route reached without an authenticated user');
+
+    const body = withdrawQuoteSchema.parse(request.body);
+
+    try {
+      const quote = await quoteSavingsWithdraw({
+        userId: user.id,
+        amountFiat: body.amountFiat,
+        network: user.network,
+      });
+      return reply.send({ quote });
+    } catch (error) {
+      return reply.status(422).send({
+        error: error instanceof Error ? error.message : 'Could not price that withdrawal.',
+        code: 'savings-quote-unavailable',
+      });
+    }
+  });
+
+  /** Record a withdrawal the customer signed, from all three legs. */
+  app.post('/withdraw', async (request: FastifyRequest, reply) => {
+    const user = request.user;
+    if (!user) throw new Error('savings route reached without an authenticated user');
+
+    const body = withdrawSchema.parse(request.body);
+
+    try {
+      const transaction = await recordSavingsWithdrawal({
         ...body,
         userId: user.id,
         network: user.network,
