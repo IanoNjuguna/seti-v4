@@ -18,6 +18,16 @@ export interface TransactionRowProps {
    * its rows are unchanged.
    */
   details?: ReactNode;
+  /**
+   * A control that sits beside the row rather than inside it: the Activity list
+   * uses it for `Try again` on a failed payment.
+   *
+   * Beside, not inside, because the row is itself a `<button>` when it is
+   * selectable — a button inside a button is invalid HTML, and browsers restructure
+   * it rather than honouring it. A sibling cannot fire the row's own handler either,
+   * so "does not open the receipt" is structural rather than a `stopPropagation`.
+   */
+  action?: ReactNode;
 }
 
 /** The row's content, rendered by whichever wrapper the row needs. */
