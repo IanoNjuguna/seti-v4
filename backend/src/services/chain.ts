@@ -433,8 +433,11 @@ export async function estimateErc20TransferGas(
  * Re-measure with `npm run prove:batch -- --asset=<asset>` if Tempo changes its
  * pricing; the calibration assertion in `send.check.ts` fails if the assumed
  * 18-decimal-gas → 6-decimal-token conversion stops holding.
+ *
+ * Exported because the checks assert THIS figure rather than a copy of it: a test
+ * that carries its own copy of a constant stops noticing when the two drift.
  */
-const MEASURED_BATCH_GAS: Record<SupportedAsset, bigint> = {
+export const MEASURED_BATCH_GAS: Record<SupportedAsset, bigint> = {
   pathusd: BigInt(298_172),
   ousd: BigInt(790_472),
   // MEASURED from a real Seti batch: the mainnet send anchor
@@ -454,7 +457,7 @@ const MEASURED_BATCH_GAS: Record<SupportedAsset, bigint> = {
 };
 
 /** Gas rounding: wei (18dp) to the token's own units (6dp) for a $1 stablecoin. */
-const GAS_WEI_PER_TOKEN_UNIT = BigInt(10 ** 12);
+export const GAS_WEI_PER_TOKEN_UNIT = BigInt(10 ** 12);
 
 /**
  * The gas price the BALANCE RESERVATION assumes, in wei.
