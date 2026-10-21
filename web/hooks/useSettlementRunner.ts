@@ -94,6 +94,10 @@ export function useSettlementRunner(): void {
               minAmountOut: item.minAmountOut,
               txHash,
               walletAddress: wallet.address,
+              // The plan's frozen rate. Without it `recordConvert` refuses with
+              // `quote-missing` and no settlement is ever recorded — the gap the
+              // first end-to-end run found (#105).
+              ...(plan.quoteId ? { quoteId: plan.quoteId } : {}),
             });
           }
         } catch {

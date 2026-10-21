@@ -41,7 +41,9 @@ import {
   quoteDexConvert,
 } from './convert.js';
 import { getUserAssetBalances } from './balance.js';
-import { assetsForNetwork, isListedOn, servedNetwork } from './chain.js';
+import { getFxQuote, resolveUserFiat } from './payments.js';
+import { issueQuote } from './quote.js';
+import { assetsForNetwork, estimateNetworkFee, isListedOn, servedNetwork } from './chain.js';
 import { ASSET_DECIMALS, type SupportedAsset } from '../config/assets.js';
 import { normalizeNetwork, type Network } from '../lib/network.js';
 
@@ -109,6 +111,18 @@ export interface SettleSkip {
 export interface SettlePlan {
   network: Network;
   target: SupportedAsset;
+  /**
+   * The frozen rate the plan priced in, when there is anything to settle.
+   *
+   * Settlement is the one path where nothing is SHOWN before it happens, so there
+   * is no preview to carry a quote id — but `recordConvert` still refuses a row
+   * without a frozen rate, and that discipline is what keeps every ledger figure
+   * reproducible. So the plan mints one, and the app hands it back with the hash.
+   * Found by the first end-to-end run (#105), not by a unit test: the plan existed,
+   * the runner existed, and every settlement would have been refused
+   * `quote-missing` between them.
+   */
+  quoteId: string | null;
   /** Worth doing now, priced. The app signs these, one transaction each. */
   items: SettleableAsset[];
   /** Everything else, with the reason. Never shown to a customer. */
@@ -221,7 +235,23 @@ export async function planSettlement(input: {
       continue;
     }
 
-    const amountIn = parseUnits(row.amount, ASSET_DECIMALS);
+    /**
+     * What can actually be swapped: the balance MINUS the gas for the swap.
+     *
+     * Found the hard way (#105): a plan that offers the whole balance signs a swap
+     * that spends every unit it holds, leaving nothing to pay the fee — and the
+     * transaction reverts on chain. Gas is charged in the INPUT token on Tempo, so
+     * the input has to leave room for it.
+     *
+     * The preview path avoids this with `hasEnoughBalance` ("input plus gas"), but a
+     * settlement has no preview. Deducting here is the same rule, applied at the
+     * moment the amount is chosen.
+     */
+    const grossBalance = parseUnits(row.amount, ASSET_DECIMALS);
+    const gasEstimate = await estimateNetworkFee(asset, network);
+    const gasInAsset = parseUnits(gasEstimate.feeAsset, ASSET_DECIMALS);
+    const spendableUnits = grossBalance > gasInAsset ? grossBalance - gasInAsset : BigInt(0);
+    const amountIn = spendableUnits;
 
     let quote: { amountIn: bigint; amountOut: bigint } | null = null;
     try {
@@ -237,7 +267,8 @@ export async function planSettlement(input: {
       quote = null;
     }
 
-    const decision = classifySettle({ asset, balance: row.amount, quote, allowed });
+    const spendable = formatUnits(spendableUnits, ASSET_DECIMALS);
+    const decision = classifySettle({ asset, balance: spendable, quote, allowed });
     if (!decision.settle || !quote) {
       skipped.push({ asset, balance: row.amount, reason: decision.reason ?? 'no-market' });
       continue;
@@ -257,7 +288,23 @@ export async function planSettlement(input: {
     });
   }
 
-  return { network, target: SETTLE_TARGET, items, skipped };
+  // One rate for the plan, not one per asset: every figure settles at the same
+  // moment, and a per-item rate would let two rows disagree about the same minute.
+  let quoteId: string | null = null;
+  if (items.length > 0) {
+    const fiatCurrency = await resolveUserFiat(input.userId);
+    const fx = await getFxQuote(fiatCurrency);
+    quoteId = issueQuote({
+      userId: input.userId,
+      fiatCurrency,
+      fiatPerUsd: fx.fiatPerUsd,
+      source: fx.source,
+      asOf: fx.asOf,
+      network,
+    });
+  }
+
+  return { network, target: SETTLE_TARGET, items, skipped, quoteId };
 }
 
 /** The listed assets on a network, in display order — for the plan's own logs. */

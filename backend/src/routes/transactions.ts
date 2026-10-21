@@ -380,7 +380,10 @@ export async function transactionRoutes(app: FastifyInstance) {
       console.error('[transactions/convert] confirmation failed', error);
     }
 
-    return reply.status(201).send({ transaction });
+    // `toRecentTransaction`, not the raw row: `blockNumber` is a Prisma BigInt and
+    // Fastify cannot serialise one, so returning the row 500s whenever the indexer
+    // owns the hash (it writes that column). The row itself is fine.
+    return reply.status(201).send({ transaction: toRecentTransaction(transaction) });
   });
 
   app.post('/send/preview', async (request, reply) => {
