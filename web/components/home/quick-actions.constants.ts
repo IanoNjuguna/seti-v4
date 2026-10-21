@@ -53,4 +53,16 @@ export interface QuickAction {
 export const QUICK_ACTIONS: QuickAction[] = [
   { key: 'receive', label: 'Receive', icon: 'add', href: '/app/receive' },
   { key: 'send', label: 'Send', icon: 'send', href: '/app/send' },
+  /*
+   * Save is the third tile. It earns the slot because it is the one thing a funded
+   * account can do with money it is NOT spending: the strip answered "move it" and
+   * "ask for it", never "put it to work". The page is Cash App's shape — one saved
+   * figure, what it earns, `Add money` / `Withdraw` — and the position is the
+   * customer's own shares in a Tempo vault, so nothing here is custodial.
+   *
+   * The glyph is a percent mark, added for this tile: `add` and `send` describe
+   * moving money, and a coin or piggy-bank would introduce object vocabulary the
+   * rest of the set does not use.
+   */
+  { key: 'save', label: 'Save', icon: 'percent', href: '/app/save' },
 ];

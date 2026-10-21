@@ -27,6 +27,13 @@ export const ICON_PATHS = {
   verified: ['M12 3.5 14 6l3-.4.9 3 2.6 1.5-1.2 2.8 1.2 2.8-2.6 1.5-.9 3-3-.4-2 2.5-2-2.5-3 .4-.9-3-2.6-1.5L5.5 13 4 12l1.5-2.8-.9-3 3-.4Z', 'm9 12 2 2 4-4.5'],
   arrowRight: ['M4 12h15', 'm13 6 6 6-6 6'],
   close: ['m6 6 12 12', 'm18 6-12 12'],
+  /* A percent mark: a slash and two rings. The Save tile's glyph — "this money
+     earns" — where `add` and `send` describe moving money, and a coin or a
+     piggy-bank would invent object vocabulary the rest of this set does not use. */
+  percent: ['M19 5 5 19', 'M8.5 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z', 'M15.5 20a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z'],
+  /* A percent mark: a slash and two rings. The Save tile's glyph — "this money
+     earns" — where `add` and `send` describe moving money, and a coin or a
+     piggy-bank would invent object vocabulary the rest of this set does not use. */
   /* Two sheets, sharp corners like the rest of the set: the front one whole, the
      back one open on the edges the front covers. */
   copy: ['M9 9h12v12H9z', 'M15 6V4.5A1.5 1.5 0 0 0 13.5 3h-9A1.5 1.5 0 0 0 3 4.5v9A1.5 1.5 0 0 0 4.5 15H6'],
