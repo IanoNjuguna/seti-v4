@@ -283,6 +283,16 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
 
     const recipient = destination.address;
     const amountFiat = state.amountFiat;
+    /**
+     * The name this recipient was found by, when they were found by one.
+     *
+     * `appliedTo` is the same guard the form uses to apply a resolution: it answers
+     * only when the resolution belongs to what is currently typed, so a name from a
+     * previous lookup can never be written onto this transfer's row. An address-only
+     * send declares nothing, and the row then offers no "pay them again" — which is
+     * correct, because an address cannot be resolved back to a name (#119).
+     */
+    const payee = appliedTo(state.recipient, state.resolution);
 
     void (async () => {
       patch({ step: 'previewing', recipientError: null, amountError: null, formError: null });
@@ -340,6 +350,7 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
             amount: preview.amount,
             asset: resolvedAsset(preview),
             recipient: preview.recipient,
+            recipientHandle: payee?.handle,
             txHash,
             walletAddress: address,
             quoteId,

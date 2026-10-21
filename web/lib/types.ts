@@ -50,4 +50,6 @@ export interface Transaction {
   asset?: string;
   from?: string | null;
   to?: string | null;
+  /** The name the payee was resolved from, when there is one. See `Transaction`. */
+  payeeHandle?: string | null;
 }

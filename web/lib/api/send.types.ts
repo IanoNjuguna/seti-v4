@@ -72,6 +72,12 @@ export interface RecordSendInput {
   amount: string;
   asset: string;
   recipient: string;
+  /**
+   * The name the customer resolved this recipient from, when they sent to a name
+   * rather than pasting an address. The row keeps it so a failed transfer can
+   * offer to pay the same person again; the backend drops it if it is not a handle.
+   */
+  recipientHandle?: string;
   txHash: string;
   /**
    * The address the wallet signed with — the `from` of the transfer.
