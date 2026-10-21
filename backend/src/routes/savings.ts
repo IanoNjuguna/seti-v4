@@ -2,6 +2,22 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { authMiddleware } from '../middleware/auth.js';
 import { getSavingsSummary, quoteSavingsDeposit } from '../services/savings.js';
+import { recordSavingsDeposit } from '../services/transactions.js';
+import { PaymentRefusalError } from '../services/payment-refusal.js';
+import { refusalResponse } from './refusal-response.js';
+
+const depositSchema = z.object({
+  txHash: z.string().regex(/^0x[a-fA-F0-9]+$/),
+  /** The OUSD the customer spent, in OUSD units. */
+  amountIn: z.string().regex(/^\d+(\.\d+)?$/),
+  /** What the vault received, in pathUSD units. */
+  depositAmount: z.string().regex(/^\d+(\.\d+)?$/),
+  /** The share floor that was signed. */
+  minShares: z.string().regex(/^\d+(\.\d+)?$/),
+  walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/).optional(),
+  /** The frozen rate from `/savings/quote`. */
+  quoteId: z.string().optional(),
+});
 
 const quoteSchema = z.object({
   /** The amount the customer typed, in THEIR currency — as everywhere in this app. */
@@ -57,6 +73,29 @@ export async function savingsRoutes(app: FastifyInstance) {
         error: error instanceof Error ? error.message : 'Could not price that deposit.',
         code: 'savings-quote-unavailable',
       });
+    }
+  });
+
+  /**
+   * Record a deposit the customer signed: one transaction, three calls, and every
+   * leg checked against the receipt before a row exists.
+   */
+  app.post('/deposit', async (request: FastifyRequest, reply) => {
+    const user = request.user;
+    if (!user) throw new Error('savings route reached without an authenticated user');
+
+    const body = depositSchema.parse(request.body);
+
+    try {
+      const transaction = await recordSavingsDeposit({
+        ...body,
+        userId: user.id,
+        network: user.network,
+      });
+      return reply.status(201).send({ transaction });
+    } catch (error) {
+      if (error instanceof PaymentRefusalError) return refusalResponse(reply, error);
+      throw error;
     }
   });
 }

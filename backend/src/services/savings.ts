@@ -56,6 +56,19 @@ export const SAVINGS_VAULT: Partial<Record<Network, string>> = {
 /** The asset the chosen vault takes. Savings are denominated in it, not in OUSD. */
 export const SAVINGS_ASSET: SupportedAsset = 'pathusd';
 
+/**
+ * The vault's SHARE token, per network.
+ *
+ * A constant like the vault, and for the same reason: it is the contract whose
+ * Transfer events prove shares were minted to the customer, so it must not be
+ * something a caller can name. Mainnet shares are `tvSENPATHUSDTest1E` at this
+ * address (the vault's own label carries "Test", which is Tempo's naming — it is
+ * the live, funded vault).
+ */
+export const SAVINGS_SHARE_TOKEN: Partial<Record<Network, string>> = {
+  mainnet: '0x20c000000000000000000000732df315102e4518',
+};
+
 export interface SavingsEarnings {
   /** Lifetime earnings in the vault's asset units. */
   lifetime: string;
