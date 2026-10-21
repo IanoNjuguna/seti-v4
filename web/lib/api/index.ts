@@ -32,6 +32,8 @@ export type {
   SupportedAsset,
 } from './pay.types';
 export { previewSend, recordSend } from './send';
+export { previewConvert, recordConvert } from './convert';
+export type { ConvertPreview, RecordConvertInput, RecordConvertResult } from './convert.types';
 export type { SendPreview, RecordSendInput, RecordSendResult } from './send.types';
 export { resolveHandle, fetchHandleStatus, claimHandle, fetchPublicHandle } from './handles';
 export { fetchAccountIdentity, setAccountIntent, setAccountNetwork, fetchDepositTarget } from './account';
