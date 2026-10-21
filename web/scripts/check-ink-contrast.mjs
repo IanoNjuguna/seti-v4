@@ -225,6 +225,10 @@ const PAIRS = [
   ['--color-on-dark', CANVAS_DARK, 'dark', 'inverse: text on the black chrome'],
   ['--color-on-dark-mute', CANVAS_DARK, 'dark', 'inverse-muted: nav labels and quiet chrome'],
   ['--color-on-dark', '--color-surface-elevated', 'dark', 'inverse: the active destination'],
+  // The disabled `on-dark` CTA. It used to be a white pill dimmed to 60%, which put its
+  // label at 2.93:1 — this pair is the one that replaced it, asserted so the dimming
+  // cannot come back without failing here.
+  ['--color-on-dark-mute', '--color-surface-elevated', 'dark', 'the disabled on-dark CTA label'],
   ['--color-ink-alert', CANVAS_LIGHT, 'light', 'alert: a refusal on a white band'],
   ['--color-ink-alert', CANVAS_DARK, 'dark', 'alert: a refusal on the receipt card'],
   ['--color-ink-warning', CANVAS_LIGHT, 'light', 'warning: a caution on a white band'],
