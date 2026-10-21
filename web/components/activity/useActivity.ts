@@ -16,15 +16,17 @@ import type { UseActivityReturn } from './Activity.types';
 export function useActivity(): UseActivityReturn {
   const session = useSession();
   const userId = session.user?.id ?? null;
-  const { groups, hasMore, loadingMore, error, loadMore, retry } = useActivityPages(userId);
+  const { bands, hasMore, loadingMore, error, loadMore, retry } = useActivityPages(userId);
 
   return {
-    groups,
-    loading: Boolean(userId) && groups === null && error === null,
+    bands,
+    loading: Boolean(userId) && bands === null && error === null,
     loadingMore,
     hasMore,
     error,
-    empty: groups !== null && groups.length === 0,
+    // Every row lands in a band — pending or by month — so an empty band list is
+    // exactly an account with no activity.
+    empty: bands !== null && bands.length === 0,
     loadMore,
     retry,
   };

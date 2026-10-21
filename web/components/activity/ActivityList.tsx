@@ -1,22 +1,22 @@
 'use client';
 
 import { Button } from '@/components/ui';
-import { ActivityDay } from './ActivityDay';
+import { ActivityBand } from './ActivityBand';
 import { ActivityEmpty, ActivityError, ActivityLoading } from './ActivityStates';
 import { ACTIVITY_COPY } from './Activity.constants';
 import { useActivity } from './useActivity';
 import type { ActivityListProps } from './Activity.types';
 
 /**
- * The full history, grouped by day.
+ * The full history: bands, then the day groups inside each.
  *
  * Every state the page can be in is rendered from the hook's own flags rather than
  * guessed in JSX: a failed first page shows the error and a retry, an empty account
  * says so, and a page still arriving shows the shape of what is coming.
  *
- * The statement row comes first, under the title and above the day groups: it acts
+ * The statement row comes first, under the title and above the bands: it acts
  * on the whole account rather than on a page of it, so it does not belong inside a
- * day and it is available whether the list is loading, empty or failed. It is its
+ * band and it is available whether the list is loading, empty or failed. It is its
  * own module (`StatementRow`) because its state — a format being generated — has
  * nothing to do with the list's.
  *
@@ -34,8 +34,8 @@ export function ActivityList({ onSelect }: ActivityListProps) {
 
       {activity.empty ? <ActivityEmpty /> : null}
 
-      {activity.groups?.map((group) => (
-        <ActivityDay key={group.key} group={group} onSelect={onSelect} />
+      {activity.bands?.map((band) => (
+        <ActivityBand key={band.key} band={band} onSelect={onSelect} />
       ))}
 
       {activity.hasMore && !activity.error ? (
