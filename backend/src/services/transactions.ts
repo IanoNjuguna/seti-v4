@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma.js';
 import { env } from '../config/env.js';
 import { describeEvmAddress } from '../lib/address.js';
+import { asHandle } from '../lib/payee.js';
 import { violatesUniqueOn } from '../lib/unique-violation.js';
 import { resolveSigningWallet } from './wallet-registry.js';
 import { servedNetwork, treasuryAddressFor } from '../config/networks.js';
@@ -97,6 +98,12 @@ interface RecordSendInput {
   asset: string;
   /** The address the money was sent to, as the customer typed it. */
   recipient: string;
+  /**
+   * The name the customer resolved this recipient from, when they had one — the
+   * handle they typed or the one their link carried. A label for the row; see
+   * `lib/payee.ts`. Never used to decide who was paid.
+   */
+  recipientHandle?: string;
   txHash: string;
   /**
    * The address the CLIENT signed this send with — the `from` of the transfer.
@@ -1026,6 +1033,15 @@ export async function recordSend(input: RecordSendInput) {
   // Recomputed only to report whether a cap governed; it does not set the fee.
   const feeResult = calculateMerchantFee(principalFiat);
 
+  /**
+   * The payee's name, if the client declared one that IS a name.
+   *
+   * Read here rather than at the write so the row's metadata stays a description
+   * of what the ledger holds: an unusable value is simply absent, and the UI then
+   * offers no "pay them again" on that row instead of offering one to nobody.
+   */
+  const payee = asHandle(input.recipientHandle);
+
   // The wallet that signed is the wallet this row — and the recipient's — is bound
   // to. The legs above reconciled the TRANSFER; this is the last gate before any
   // row exists, and it is what stops a send being attributed to a wallet that did
@@ -1072,6 +1088,10 @@ export async function recordSend(input: RecordSendInput) {
         client: input.metadata ?? {},
         feeRoutingMode: 'batch',
         treasuryFeeObserved: treasuryFeeObserved.toFixed(8),
+        // The name the customer resolved, beside the derived keys rather than
+        // inside `client`: it is a fact about this transfer that the UI renders,
+        // not a reporter's note (#119). Dropped when it is not a handle.
+        payee: payee ? { handle: payee } : undefined,
       } as never,
     },
   });

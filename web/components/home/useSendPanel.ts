@@ -391,7 +391,7 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
         patch({ step: 'idle', formError: message.replace('{ASSET}', ASSET_LABEL) });
       }
     })();
-  }, [state.recipient, state.amountFiat, address, resolved, sendTempoTransaction, appNetwork, patch]);
+  }, [state.recipient, state.amountFiat, state.resolution, address, resolved, sendTempoTransaction, appNetwork, patch]);
 
   const reset = useCallback(() => setState(INITIAL), []);
 

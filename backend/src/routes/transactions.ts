@@ -132,6 +132,18 @@ const sendSchema = z.object({
   walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/).optional(),
   /** The signed rate quote from `/send/preview`. See `paySchema.quoteId`. */
   quoteId: z.string().optional(),
+  /**
+   * The name the customer resolved before signing, when they sent to one.
+   *
+   * Optional and cosmetic, and it decides nothing: the receipt already decided who
+   * was paid. What it buys is a failed row that can offer to pay the same person
+   * again — an address cannot be resolved back to a name, so without this the only
+   * thing a row knows is `0x…`, which the send flow cannot be pointed at.
+   *
+   * Bounded rather than shape-checked here: `asHandle` drops a value that is not a
+   * handle, because a name typo must never fail a transfer that has already moved.
+   */
+  recipientHandle: z.string().min(1).max(64).optional(),
   description: z.string().optional(),
   metadata: z.record(z.unknown()).optional(),
 });
