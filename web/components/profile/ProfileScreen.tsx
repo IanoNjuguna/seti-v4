@@ -3,6 +3,7 @@
 import { SignOutButton } from '@/components/auth/SignOutButton';
 import { CHAIN_NAME } from '@/lib/chain';
 import { ProfileLegalSection } from './ProfileLegalSection';
+import { ProfileSecurityRow } from './ProfileSecurityRow';
 import { ProfileModeSection } from './ProfileModeSection';
 import { ProfileNetworkSection } from './ProfileNetworkSection';
 import { useProfileIntent } from './useProfileIntent';
@@ -47,6 +48,8 @@ export function ProfileScreen() {
         error={intent.error}
         onSwitch={(mode) => void intent.switchTo(mode)}
       />
+
+      <ProfileSecurityRow />
 
       <ProfileLegalSection />
 
