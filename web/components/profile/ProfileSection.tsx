@@ -1,4 +1,5 @@
 import { Text } from '@/components/ui';
+import { Icon } from '@/components/ui/Icon';
 import type { ProfileSectionProps } from './ProfileSection.types';
 
 /**
@@ -16,18 +17,33 @@ import type { ProfileSectionProps } from './ProfileSection.types';
  * role, so the row's own words step down and whatever FIGURE the row carries — the
  * deposit address, the handle — is the one thing left at full contrast.
  */
-export function ProfileSection({ title, intro, children }: ProfileSectionProps) {
+export function ProfileSection({ icon, title, intro, children }: ProfileSectionProps) {
   return (
     <section className="border-t border-hairline-light pt-6">
-      <Text variant="card-title" as="h2">
-        {title}
-      </Text>
+      <div className="flex items-start gap-3">
+        {/*
+          * A 40px well, the same diameter the transaction rows use for their
+          * medallion, so a mark on this page and a mark in Activity are the same
+          * object at the same size. Decorative: the heading beside it is the name.
+          */}
+        {icon ? (
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-soft">
+            <Icon name={icon} className="h-5 w-5" />
+          </span>
+        ) : null}
 
-      {intro ? (
-        <Text variant="micro" as="p" color="secondary" className="mt-1">
-          {intro}
-        </Text>
-      ) : null}
+        <div className="min-w-0 flex-1">
+          <Text variant="card-title" as="h2">
+            {title}
+          </Text>
+
+          {intro ? (
+            <Text variant="micro" as="p" color="secondary" className="mt-1">
+              {intro}
+            </Text>
+          ) : null}
+        </div>
+      </div>
 
       {children ? <div className="mt-4">{children}</div> : null}
     </section>
