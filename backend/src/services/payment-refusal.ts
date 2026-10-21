@@ -106,7 +106,17 @@ export type PaymentRefusalCode =
   | 'convert-leg-unverified'
   | 'convert-below-floor'
   /** Both sides of a convert named the same asset, so nothing would move. */
-  | 'convert-same-asset';
+  | 'convert-same-asset'
+  /**
+   * A savings deposit's legs did not all verify: the OUSD did not leave, the
+   * pathUSD did not reach the vault, or the vault minted no shares to the wallet.
+   *
+   * Named separately from a payment's `transfer-not-found` because the fix is
+   * different — a deposit has three legs and the customer's money is mid-flight
+   * between them, so the sentence has to say WHICH one failed rather than "not
+   * found".
+   */
+  | 'savings-leg-unverified';
 
 /** Why an on-chain receipt could not be used to verify a leg. */
 export type ReceiptFailureCode =

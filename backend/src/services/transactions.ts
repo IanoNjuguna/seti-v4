@@ -15,6 +15,7 @@ import {
   type ReceiptFailureCode,
 } from './payment-refusal.js';
 import { isAllowedPair } from './convert.js';
+import { SAVINGS_ASSET, SAVINGS_VAULT, SAVINGS_SHARE_TOKEN } from './savings.js';
 import {
   assetDecimals,
   formatUnits,
@@ -1141,6 +1142,242 @@ export function shortOfFloor(observed: number, floor: number): boolean {
   return observed + 0.000001 < floor;
 }
 
+interface RecordSavingsDepositInput {
+  userId: string;
+  network?: Network;
+  txHash: string;
+  /** The address the CLIENT signed with — the `from` of the transaction. */
+  walletAddress?: string;
+  /** The OUSD the customer spent, in OUSD units. Checked against the chain. */
+  amountIn: string;
+  /** What the vault received, in pathUSD units. Checked against the chain. */
+  depositAmount: string;
+  /** The floor on minted shares, in share units. Under-delivery is refused. */
+  minShares: string;
+  /** The frozen rate from `/savings/quote`. */
+  quoteId?: string;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Record money moved INTO a savings vault, from the receipt.
+ *
+ * A deposit is one customer action carrying three calls, so this checks three
+ * things and refuses on any of them:
+ *
+ *  1. the OUSD LEFT the wallet — otherwise nothing was saved, whatever else landed;
+ *  2. the pathUSD REACHED THE VAULT — a swap that filled but a deposit that did not
+ *     leaves the customer holding the wrong asset;
+ *  3. the vault MINTED SHARES TO THE WALLET — the position exists only if the share
+ *     token says so, and a deposit that mints nothing is money handed to a contract.
+ *
+ * The row records what reached the vault and how many shares it bought. The swap leg
+ * rides in `metadata.savings` because it is the mechanism, not the outcome.
+ *
+ * Lives beside `recordConvert` for the same reason that does: the gates it needs
+ * (declared wallet, frozen rate, receipt read, leg reader, single write) are private
+ * to this file on purpose.
+ */
+export async function recordSavingsDeposit(input: RecordSavingsDepositInput) {
+  const network = normalizeNetwork(input.network, servedNetwork);
+
+  const vault = SAVINGS_VAULT[network];
+  const shareToken = SAVINGS_SHARE_TOKEN[network];
+  if (!vault || !shareToken) {
+    throw await refusal({
+      userId: input.userId,
+      txHash: input.txHash,
+      code: 'convert-pair-unavailable',
+      reason: `Savings are not offered on ${network}.`,
+    });
+  }
+
+  const wallet = await declaredWalletOrRefuse({
+    userId: input.userId,
+    txHash: input.txHash,
+    walletAddress: input.walletAddress,
+    network,
+  });
+
+  const claimedIn = Number(input.amountIn);
+  const claimedDeposit = Number(input.depositAmount);
+  const floor = Number(input.minShares);
+
+  if (
+    !Number.isFinite(claimedIn) ||
+    claimedIn <= 0 ||
+    !Number.isFinite(claimedDeposit) ||
+    claimedDeposit <= 0 ||
+    !Number.isFinite(floor) ||
+    floor <= 0
+  ) {
+    throw await refusal({
+      userId: input.userId,
+      txHash: input.txHash,
+      code: 'amount-invalid',
+      reason: 'The amount, the deposit and the share floor must all be positive',
+      claimedAmount: claimedIn,
+    });
+  }
+
+  const quote = await resolveFrozenRate({
+    quoteId: input.quoteId,
+    userId: input.userId,
+    network,
+    txHash: input.txHash,
+  });
+
+  const found = await readReceipt(input.txHash, network);
+  if (!found.ok) {
+    throw await refusal({
+      userId: input.userId,
+      txHash: input.txHash,
+      code: found.code,
+      reason: `Savings deposit could not be verified on-chain: ${found.reason}`,
+      claimedAmount: claimedIn,
+    });
+  }
+  const receipt = found.receipt;
+
+  // 1. the OUSD left the wallet, for the DEX.
+  const inLeg = readTransferredAmount(
+    receipt,
+    getTokenContract('ousd', network),
+    STABLECOIN_DEX_ADDRESS,
+    'ousd'
+  );
+  if (!inLeg.ok || Math.abs(inLeg.value - claimedIn) > claimedIn * 0.01) {
+    throw await refusal({
+      userId: input.userId,
+      txHash: input.txHash,
+      code: 'savings-leg-unverified',
+      reason: inLeg.ok
+        ? `OUSD spent does not match: claimed ${claimedIn}, chain ${inLeg.value}.`
+        : `No OUSD transfer to the DEX in this transaction: ${inLeg.reason}.`,
+      claimedAmount: claimedIn,
+      ...(inLeg.ok ? { observedAmount: inLeg.value } : {}),
+    });
+  }
+
+  // 2. the pathUSD reached the vault.
+  const vaultLeg = readTransferredAmount(
+    receipt,
+    getTokenContract(SAVINGS_ASSET, network),
+    vault,
+    SAVINGS_ASSET
+  );
+  if (!vaultLeg.ok || Math.abs(vaultLeg.value - claimedDeposit) > claimedDeposit * 0.01) {
+    throw await refusal({
+      userId: input.userId,
+      txHash: input.txHash,
+      code: 'savings-leg-unverified',
+      reason: vaultLeg.ok
+        ? `Deposit does not match: claimed ${claimedDeposit}, chain ${vaultLeg.value}.`
+        : `No ${SAVINGS_ASSET} transfer to the vault: ${vaultLeg.reason}.`,
+      claimedAmount: claimedDeposit,
+      ...(vaultLeg.ok ? { observedAmount: vaultLeg.value } : {}),
+    });
+  }
+
+  // 3. the vault minted shares to the wallet. TIP-20s are all 6dp, so the same
+  //    leg reader handles a share token.
+  const shareLeg = readTransferredAmount(
+    receipt,
+    shareToken as Hex,
+    wallet.address,
+    SAVINGS_ASSET
+  );
+  if (!shareLeg.ok) {
+    throw await refusal({
+      userId: input.userId,
+      txHash: input.txHash,
+      code: 'savings-leg-unverified',
+      reason:
+        `The vault minted no shares to the signing wallet: ${shareLeg.reason}. ` +
+        'A deposit that mints nothing is money handed to a contract.',
+      claimedAmount: claimedDeposit,
+    });
+  }
+  if (shareLeg.value + 0.000001 < floor) {
+    throw await refusal({
+      userId: input.userId,
+      txHash: input.txHash,
+      code: 'convert-below-floor',
+      reason:
+        `The vault minted ${shareLeg.value} shares, below the ${floor} the customer signed.`,
+      claimedAmount: claimedDeposit,
+      observedAmount: shareLeg.value,
+    });
+  }
+
+  await assertReceiptSender({
+    userId: input.userId,
+    txHash: input.txHash,
+    receipt,
+    declaredAddress: wallet.address,
+  });
+
+  const fiatAmount = round2(claimedDeposit * quote.fiatPerUsd);
+
+  const { transaction, created } = await createTransactionOnce({
+    data: {
+      userId: input.userId,
+      walletId: wallet.id,
+      network,
+      type: 'savings_deposit',
+      status: 'processing',
+      amount: vaultLeg.value.toFixed(8),
+      asset: SAVINGS_ASSET,
+      counterparty: null,
+      txHash: input.txHash,
+      fiatAmount: fiatAmount.toFixed(2),
+      fiatCurrency: quote.fiatCurrency,
+      // Savings earn; they are not a payment, so nothing is attributed to anyone.
+      feeAmount: null,
+      fxRate: quote.fiatPerUsd.toFixed(8),
+      fxRateSource: quote.source,
+      fxRateAsOf: quote.asOf,
+      metadata: {
+        client: input.metadata ?? {},
+        savings: {
+          vault,
+          shareToken,
+          shares: shareLeg.value.toFixed(8),
+          minShares: floor.toFixed(8),
+          swap: {
+            assetIn: 'ousd',
+            amountIn: inLeg.value.toFixed(8),
+            assetOut: SAVINGS_ASSET,
+            amountOut: vaultLeg.value.toFixed(8),
+            venue: 'tempo-dex',
+          },
+        },
+      } as never,
+    },
+  });
+
+  if (created) {
+    await logAuditEvent({
+      userId: input.userId,
+      action: 'convert.recorded',
+      txHash: input.txHash,
+      metadata: {
+        kind: 'savings_deposit',
+        network,
+        vault,
+        amountIn: inLeg.value,
+        deposited: vaultLeg.value,
+        shares: shareLeg.value,
+        fiatAmount,
+        fxRate: quote.fiatPerUsd,
+        signedBy: wallet.address,
+      },
+    });
+  }
+
+  return transaction;
+}
+
 interface RecordConvertInput {
   userId: string;
   /** The network the convert happened on — the session's network. */
@@ -1398,7 +1635,7 @@ export async function recordConvert(input: RecordConvertInput) {
   if (created) {
     await logAuditEvent({
       userId: input.userId,
-      action: 'convert.recorded',
+      action: 'savings.deposit.recorded',
       txHash: input.txHash,
       metadata: {
         network,

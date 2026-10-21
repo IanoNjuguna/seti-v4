@@ -399,6 +399,14 @@ enum TransactionType {
   /// money went to a contract and came back as a different token, so the row's
   /// `amount`/`asset` are what ARRIVED and the input leg rides in `metadata`.
   convert
+  /// Money moved INTO a savings vault. The row's `amount` is what reached the
+  /// vault and `metadata.savings` carries the shares minted, the vault address and
+  /// the swap leg — one row for one customer action, even though the transaction
+  /// carries three calls.
+  savings_deposit
+  /// Money brought back OUT of the vault. `amount` is what arrived back in the
+  /// spendable asset after the swap home.
+  savings_withdrawal
 }
 
 enum TransactionStatus {
