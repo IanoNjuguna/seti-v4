@@ -55,15 +55,23 @@ export const CONVERT_TOLERANCE_BPS = 50;
 /**
  * The pairs we will convert, per network, in the direction the book was measured.
  *
- * Order does not matter — {@link isAllowedPair} accepts either direction — but
- * the entries are the measured ones, not every permutation of four assets, and
- * `usdt0` appears in none of them because neither network has a book for it.
+ * Order does not matter — {@link isAllowedPair} accepts either direction — but the
+ * entries are the measured ones, not every permutation of four assets.
+ *
+ * `usdt0` joined this list late on 2026-10-21: it had no book anywhere when first
+ * measured, and by evening mainnet quoted `usdt0 → ousd` at 1bps and
+ * `usdt0 → pathusd` at 2bps, flat from 10 units to 50,000. It stays out on testnet,
+ * where the token is not listed at all. A book can appear, so this list is a
+ * measurement with a date on it — the quote still has the final say, and a pair that
+ * stops filling is refused by `convert-no-liquidity` rather than by this table.
  */
 export const CONVERT_PAIRS: Record<Network, ReadonlyArray<readonly [SupportedAsset, SupportedAsset]>> = {
   mainnet: [
     ['usdc.e', 'ousd'],
     ['pathusd', 'ousd'],
     ['usdc.e', 'pathusd'],
+    ['usdt0', 'ousd'],
+    ['usdt0', 'pathusd'],
   ],
   testnet: [['ousd', 'pathusd']],
 };

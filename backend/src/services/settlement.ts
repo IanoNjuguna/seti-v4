@@ -27,8 +27,13 @@
  * `quoteSwapExactAmountIn`, 2026-10-21, mainnet (4217, where the product runs):
  * `pathusd → ousd` 0.0bps and `usdc.e → ousd` 1.0bps, flat from 1 unit to 1,000,000.
  * Practice (42431, CI and dev only): `pathusd → ousd` dies just above 2,400 units
- * and `usdc.e → ousd` has no book at all. `usdt0` has no book on either network, in
- * either direction.
+ * and `usdc.e → ousd` has no book at all.
+ *
+ * `usdt0` was measured with no book in either direction earlier on 2026-10-21 and
+ * re-measured with one late the same day: on mainnet, `usdt0 → pathusd` 2bps and
+ * `usdt0 → ousd` 1bps, both flat from 10 units to 50,000, and the reverse
+ * (`pathusd`/`ousd → usdt0`) at 0–1bps. Books appear; a skip decision must read the
+ * book at the moment it runs rather than trust a note like this one.
  *
  * Those numbers are why the spread cap below is what it is: on mainnet no pair we
  * offer comes close to it, so the cap only fires when the book has genuinely

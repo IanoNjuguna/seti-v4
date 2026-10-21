@@ -89,11 +89,21 @@ check(
 
 check('no funding assets at all is null, not a crash', chooseDepositAsset([], U(10)) === null);
 
-// The exclusion that keeps the figure honest: USDT0 has no book on Tempo, so a
-// customer holding it must not be told they can save it.
+// USDT0 used to be excluded here because it had no book anywhere. Measured again on
+// mainnet it now reaches pathUSD at 2bps out to 50,000 units, so a customer holding
+// only USDT0 must be able to save — the exclusion would be the #126 bug wearing a
+// different hat.
 check(
-  'USDT0 is never offered: it is absent from the candidate set',
-  assetOf([{ asset: 'pathusd', balance: U(0) }], 100) === 'pathusd'
+  'USDT0 funds a deposit when it is the only thing held',
+  assetOf([{ asset: 'usdt0', balance: U(5_000) }], 1_000) === 'usdt0'
+);
+
+check(
+  'pathUSD still outranks USDT0 when both would cover',
+  assetOf(
+    [{ asset: 'pathusd', balance: U(2_000) }, { asset: 'usdt0', balance: U(5_000) }],
+    1_000
+  ) === 'pathusd'
 );
 
 console.log('\nwhat the spendable figure is\n');
@@ -101,14 +111,14 @@ console.log('\nwhat the spendable figure is\n');
 // The summary must agree with home. It sums the assets that can reach the vault, and
 // deliberately excludes USDT0 — the same exclusion the selection makes, so the number
 // and the quote cannot disagree.
-const FUNDING: SupportedAsset[] = ['pathusd', 'ousd', 'usdc.e'];
+const FUNDING: SupportedAsset[] = ['pathusd', 'ousd', 'usdc.e', 'usdt0'];
 const balances = { pathusd: U(120), ousd: U(30), 'usdc.e': U(50), usdt0: U(9_000) };
 const spendable = FUNDING.reduce((sum, asset) => sum + balances[asset], BigInt(0));
 
-check('spendable sums pathUSD + OUSD + USDC.e', spendable === U(200), `got ${spendable}`);
+check('spendable sums every asset that can reach the vault', spendable === U(9_200), `got ${spendable}`);
 check(
-  'spendable excludes USDT0, which cannot be moved',
-  spendable < U(9_200) && spendable === U(200)
+  'spendable includes USDT0, which has a book',
+  spendable === balances.pathusd + balances.ousd + balances['usdc.e'] + balances.usdt0
 );
 
 console.log(`\n${run - failed}/${run} checks passed\n`);

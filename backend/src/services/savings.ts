@@ -332,11 +332,17 @@ export interface SavingsDepositQuote {
 /**
  * The assets that can fund a deposit in ONE hop.
  *
- * `pathusd` is the vault's own asset, so it needs no swap at all. `ousd` and `usdc.e`
- * each reach it in a single swap. `usdt0` is deliberately absent: Tempo has no market
- * for it, so listing it would let the screen count money that cannot be moved.
+ * `pathusd` is the vault's own asset, so it needs no swap at all; `ousd` and `usdc.e`
+ * each reach it in a single swap.
+ *
+ * `usdt0` belongs here too, and the reason is worth writing down because the opposite
+ * was true earlier today: on mainnet it now has a book BOTH ways, measured at 1–2bps
+ * flat from 10 units to 50,000 (`usdt0 → pathusd` 2bps, `usdt0 → ousd` 1bps). The
+ * earlier "no market anywhere" reading was accurate when it was taken and is stale
+ * now. A network that does not LIST the token still refuses on its own, which is what
+ * practice does — that is a listing question, not a liquidity one.
  */
-const DEPOSIT_FUNDING_ASSETS: SupportedAsset[] = ['pathusd', 'ousd', 'usdc.e'];
+const DEPOSIT_FUNDING_ASSETS: SupportedAsset[] = ['pathusd', 'ousd', 'usdc.e', 'usdt0'];
 
 /**
  * Which asset pays for a deposit, given the balances and the amount.
