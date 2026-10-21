@@ -32,6 +32,8 @@ export interface SettleSkip {
 export interface SettlePlan {
   network: string;
   target: string;
+  /** The frozen rate the plan priced in. Hand it back with the hash to record. */
+  quoteId: string | null;
   items: SettlePlanItem[];
   skipped: SettleSkip[];
 }

@@ -27,6 +27,7 @@ import {
   REPLICA_ID,
   tryAcquireLock,
 } from './indexer-store.js';
+import { STABLECOIN_DEX_ADDRESS } from './chain.js';
 
 const TRANSFER_EVENT = parseAbiItem([
   'event Transfer(address indexed from, address indexed to, uint256 value)',
@@ -195,7 +196,15 @@ async function scanWindow(window: BlockWindow): Promise<void> {
         }
       }
 
-      if (toWallet && !fromWallet) {
+      // A payout from the DEX is one leg of a SWAP, not money arriving from
+      // outside: the customer's own stablecoin went the other way in the same
+      // transaction. Recording it as a deposit told the ledger the account had been
+      // topped up (and, because the unique key is (txHash, userId, network), it also
+      // stopped the convert path from recording what actually happened). Found by
+      // the first end-to-end settlement run (#105).
+      const fromDex = log.args.from?.toLowerCase() === STABLECOIN_DEX_ADDRESS.toLowerCase();
+
+      if (toWallet && !fromWallet && !fromDex) {
         // Inbound transfer to a Seti wallet from an external address:
         // create a top-up transaction if one does not already exist. Scoped to the
         // recipient: the same hash can legitimately carry a row for each party.
