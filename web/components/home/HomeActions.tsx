@@ -1,6 +1,7 @@
 import { Text } from '@/components/ui';
 import { HomeAction } from './HomeAction';
 import { HOME_ACTIONS } from './HomeActions.constants';
+import { HOME_PAGE_COPY } from './HomePage.constants';
 import type { HomeActionsProps } from './HomeActions.types';
 
 /**
@@ -22,7 +23,7 @@ import type { HomeActionsProps } from './HomeActions.types';
  */
 export function HomeActions({ actions = HOME_ACTIONS }: HomeActionsProps) {
   return (
-    <nav aria-label="Actions" className="flex gap-3">
+    <nav aria-label={HOME_PAGE_COPY.actionsLabel} className="flex gap-3">
       {actions.map((action) => (
         <HomeAction key={action.key} action={action} />
       ))}

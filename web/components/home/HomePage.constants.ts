@@ -20,6 +20,9 @@ export const HOME_PAGE_COPY = {
    */
   summaryLabel: (days: number): string => `Last ${days} days`,
 
+  /** The two actions are a set of destinations, so the group is named once. */
+  actionsLabel: 'Actions',
+
   /** The row leads to the figures behind it, on Activity's analytics view. */
   summaryHref: '/app/activity?view=analytics',
 
