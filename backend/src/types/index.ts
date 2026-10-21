@@ -43,6 +43,14 @@ export interface RecentTransaction {
   date: Date;
   status: TransactionStatus;
   /**
+   * The name the recipient was resolved from, when the customer had one.
+   *
+   * A label, not a decision: the receipt says who was paid. It exists because an
+   * address cannot be resolved back to a name, so without it a failed row can
+   * only offer a raw `0x…` the send flow cannot be pointed at (#119).
+   */
+  payeeHandle: string | null;
+  /**
    * The on-chain hash, when the row has one. Carried so the Activity screen can
    * show the transfer the way an explorer does, and so a row with nothing on
    * chain is visibly journal-only rather than silently so.

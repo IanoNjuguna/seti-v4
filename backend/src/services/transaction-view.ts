@@ -1,4 +1,5 @@
 import type { RecentTransaction, TransactionStatus } from '../types/index.js';
+import { payeeHandleOf } from '../lib/payee.js';
 
 /**
  * How a ledger row becomes something a person reads.
@@ -132,6 +133,8 @@ export function toRecentTransaction(row: {
   txHash: string | null;
   wallet?: { address: string } | null;
   merchant?: { name: string; category: string | null; payoutAddress: string | null } | null;
+  /** Untyped Json on the row; the payee's name is read out of it defensively. */
+  metadata?: unknown;
 }): RecentTransaction {
   return {
     id: row.id,
@@ -145,6 +148,16 @@ export function toRecentTransaction(row: {
     status: row.status as TransactionStatus,
     txHash: row.txHash,
     asset: row.asset,
+    /**
+     * The name this person was resolved from, when the row has one.
+     *
+     * An address cannot be resolved back to a name, so this is the only way a
+     * failed row can offer to pay the same person again (#119). Null on every row
+     * written before it existed, on a merchant payment, and on a send whose
+     * client declared no name — all of which must read as "no payee", not as an
+     * error.
+     */
+    payeeHandle: payeeHandleOf(row.metadata),
     ...endsOf(row),
   };
 }
