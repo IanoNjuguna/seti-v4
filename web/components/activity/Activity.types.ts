@@ -41,6 +41,25 @@ export interface ActivityBandProps {
   onSelect?: (transaction: Transaction) => void;
 }
 
+/**
+ * The one action a row can carry.
+ *
+ * `href` is already the resolved destination (`activity.retry.ts`), never a path
+ * built in the component: the rule about which rows may offer it belongs with the
+ * data, not with the chip.
+ */
+export interface ActivityRowActionProps {
+  href: string;
+  /** The payee, for the accessible name: "Try again" alone does not say what. */
+  merchant: string;
+}
+
+/** One Activity row, with the action the row's own state allows. */
+export interface ActivityRowProps {
+  transaction: Transaction;
+  onSelect?: (transaction: Transaction) => void;
+}
+
 /** The list itself. */
 export interface ActivityListProps {
   onSelect?: (transaction: Transaction) => void;

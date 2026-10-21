@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
-import { Text, TransactionRow } from '@/components/ui';
-import { ActivityRowDetail } from './ActivityRowDetail';
+import { Text } from '@/components/ui';
+import { ActivityRow } from './ActivityRow';
 import type { ActivityDayGroupProps } from './Activity.types';
 
 /**
@@ -41,11 +41,7 @@ export function ActivityDay({ group, onSelect }: ActivityDayGroupProps) {
             className="row-enter"
             style={{ '--i': index } as CSSProperties}
           >
-            <TransactionRow
-              transaction={transaction}
-              onSelect={onSelect}
-              details={<ActivityRowDetail transaction={transaction} />}
-            />
+            <ActivityRow transaction={transaction} onSelect={onSelect} />
           </li>
         ))}
       </ul>
