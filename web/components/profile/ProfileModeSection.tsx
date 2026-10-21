@@ -22,7 +22,7 @@ export function ProfileModeSection({
   onSwitch,
 }: ProfileModeSectionProps) {
   return (
-    <ProfileSection title={PROFILE_INTENT_COPY.title} intro={PROFILE_INTENT_COPY.intro}>
+    <ProfileSection icon="profile" title={PROFILE_INTENT_COPY.title} intro={PROFILE_INTENT_COPY.intro}>
       <div className="flex flex-col gap-4">
         <ProfileIntentSwitch intent={intent} switching={switching} onSwitch={onSwitch} />
 

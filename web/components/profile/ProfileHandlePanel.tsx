@@ -2,6 +2,8 @@
 
 import { RAIL_IDENTITY_COPY } from '@/components/app/RailIdentity.constants';
 import { CopyRow } from '@/components/copy/CopyRow';
+import { Icon } from '@/components/ui/Icon';
+import { Text } from '@/components/ui';
 import { MerchantQr } from '@/components/merchant/MerchantQr';
 import { RECEIVE_COPY } from '@/components/receive/receive.constants';
 import { HANDLE_KIND_FOR_INTENT } from '@/lib/account';
@@ -64,6 +66,24 @@ export function ProfileHandlePanel({ intent, handle }: ProfileHandlePanelProps) 
           />
         ) : null}
       </div>
+
+      {/*
+        * The verified mark sits under the name it attests, not in a header far from it.
+        * The word is in the chip because a tick alone is colour-and-shape only: someone
+        * who cannot see the glyph still hears "Verified", and the chip is aria-labelled
+        * by that same word.
+        */}
+      {handle.verified ? (
+        <span
+          className="inline-flex w-fit items-center gap-1 rounded-full bg-surface-soft px-2.5 py-1"
+          role="status"
+        >
+          <Icon name="verified" className="h-3.5 w-3.5" />
+          <Text variant="micro" as="span">
+            Verified
+          </Text>
+        </span>
+      ) : null}
 
       <ProfileHandleStatus kind={kind} handle={handle} />
 

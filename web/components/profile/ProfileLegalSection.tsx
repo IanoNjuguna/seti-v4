@@ -14,7 +14,7 @@ import { ProfileSection } from './ProfileSection';
  */
 export function ProfileLegalSection() {
   return (
-    <ProfileSection title={PROFILE_PAGE_COPY.legalTitle}>
+    <ProfileSection icon="document" title={PROFILE_PAGE_COPY.legalTitle}>
       <ProfileLegalCard />
     </ProfileSection>
   );
