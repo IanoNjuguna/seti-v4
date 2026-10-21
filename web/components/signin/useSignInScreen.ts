@@ -36,7 +36,7 @@ import type { UseSignInScreenReturn } from './useSignInScreen.types';
  * (`previewAvailable`), so a Privy build cannot reach it.
  */
 export function useSignInScreen(): UseSignInScreenReturn {
-  const { status, signInStatus, source, error, signIn, submitSignInCode, signInWithGoogle } =
+  const { status, signInStatus, source, error, signIn, submitSignInCode } =
     useSession();
   const { accepted, setAccepted } = useTermsAcceptance();
   const [address, setAddress] = useState('');
@@ -92,20 +92,6 @@ export function useSignInScreen(): UseSignInScreenReturn {
     void signIn(address, TERMS_VERSION);
   }, [signIn, address]);
 
-  /**
-   * The Google door. Same consent gate as the form's own submit, checked HERE as well
-   * as on the disabled control: the gate has to hold for the handler, not only for the
-   * thing that draws it.
-   *
-   * Nothing is awaited. `signInWithGoogle` returns void because the browser is already
-   * leaving for Google; the sign-in completes when Google sends it back, which is the
-   * session provider's boot path, not this handler's.
-   */
-  const onGoogle = useCallback(() => {
-    if (!accepted) return;
-    signInWithGoogle(TERMS_VERSION);
-  }, [accepted, signInWithGoogle]);
-
   const onUseAnotherAddress = useCallback(() => {
     setCode('');
     setPastFirstSend(false);
@@ -127,13 +113,11 @@ export function useSignInScreen(): UseSignInScreenReturn {
     sending: signInStatus === 'sending',
     verifying,
     previewAvailable: source === 'dev' && address.trim() !== '',
-    googleAvailable: source === 'privy',
     onAddressChange,
     onCodeChange,
     onAcceptChange,
     onSubmitAddress,
     onSubmitCode,
-    onGoogle,
     onResend,
     onUseAnotherAddress,
     onPreviewSent,
