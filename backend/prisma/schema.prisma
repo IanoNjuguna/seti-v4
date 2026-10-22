@@ -272,9 +272,9 @@ model Handle {
 /// The vocabulary of `reason` is load-bearing, not prose:
 ///  - `'renamed'` — a live name the owner moved off; the string is HELD to that
 ///    account for 30 days (`RENAME_HOLD_DAYS`) and nobody else can claim it.
-///  - `'renamed-unlive'` — a name that never resolved (parked for review, or a
-///    row with no signature). Nothing was in use, so nothing is held: a hold
-///    would make an unpublished name resolvable.
+///  - `'renamed-unlive'` — a name that never resolved (a row with no signature,
+///    such as a `reserved` first-refusal hold). Nothing was in use, so nothing is
+///    held: a hold would make an unpublished name resolvable.
 ///  - anything else — a brand reassignment or a migration, with
 ///    `reassignedTo` set or not. No hold is ever read from these.
 ///

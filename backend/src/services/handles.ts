@@ -15,6 +15,7 @@
 import { prisma } from '../lib/prisma.js';
 import { describeMerchantName, normalizeMerchantName } from '../lib/merchant-name.js';
 import { servedNetwork, type Network } from '../config/networks.js';
+import { findActiveRenameHold, toHeldHandleRow } from './handle-rename.js';
 
 export interface QrPayload {
   type: 'merchant' | 'unknown';
@@ -101,6 +102,13 @@ export const HANDLE_PROFILE_SELECT = {
  * it every existing username vanishes the moment the deployment serves the other
  * network — `seti.live/u/<name>` 404s and a send-by-username cannot resolve, on the
  * person's OWN name, with no way for them to tell why.
+ *
+ * And a THIRD, last: a person name released by a RENAME. For `RENAME_HOLD_DAYS`
+ * the old string has no `handles` row — it lives in `handle_releases`, held to the
+ * account that renamed — and it must still resolve to that account, or every link
+ * and printed QR shared before the rename breaks on the day it happened. The hold
+ * is invisible to nothing else: a string that some account has CLAIMED always wins
+ * over a release row, which is why this is the last lookup and not a parallel one.
  */
 export async function findHandleByHandle(handle: string, network: Network = servedNetwork) {
   const scoped = await prisma.handle.findFirst({
@@ -110,10 +118,15 @@ export async function findHandleByHandle(handle: string, network: Network = serv
 
   if (scoped) return scoped;
 
-  return prisma.handle.findFirst({
+  const globalPerson = await prisma.handle.findFirst({
     where: { handle: handle.toLowerCase(), reviewStatus: null, kind: 'person' },
     include: HANDLE_PROFILE_SELECT,
   });
+
+  if (globalPerson) return globalPerson;
+
+  const hold = await findActiveRenameHold(handle);
+  return hold ? toHeldHandleRow(hold, network) : null;
 }
 
 /**
