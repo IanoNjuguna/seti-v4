@@ -49,8 +49,12 @@ export function formatFiat(amount: number, currency: string): string {
  *
  * Falls back to 2: an unknown code is a configuration problem, and two decimals is
  * the safer wrong answer for a money figure than zero.
+ *
+ * Exported because the pay page's fee arithmetic has to round to the same minor
+ * unit this formatter prints (a JPY fee of 0.4 is JPY 0, and a total that does not
+ * equal its own lines is a page nobody trusts).
  */
-function currencyDecimals(currency: string): number {
+export function currencyDecimals(currency: string): number {
   try {
     return (
       new Intl.NumberFormat('en-KE', { style: 'currency', currency })
