@@ -6,14 +6,13 @@ import { useHomeSummary } from '@/hooks/useHomeSummary';
 import { useSession } from '@/lib/auth';
 import { BalanceCard } from './BalanceCard';
 import { HomeActions } from './HomeActions';
-import { HomeGreeting } from './HomeGreeting';
 import { HomeLoading } from './HomeLoading';
 import { HomeMerchants } from './HomeMerchants';
 import { HomeSummary } from './HomeSummary';
 
 /**
- * Home for a confirmed account: who you are, what you have, the two things the
- * account is for, and what the money did and where it went.
+ * Home for a confirmed account: what you have, the two things the account is for,
+ * and what the money did and where it went.
  *
  * THE ORDER is the argument of #94. The balance is the sentence a customer opens the
  * app to read, so it is a sentence (`You have`, then the figure). Then the two
@@ -29,8 +28,8 @@ import { HomeSummary } from './HomeSummary';
  * dashboard is the whole screen's error (`StateMessage`), a failed summary simply
  * leaves the two sections out — never a zero where a figure belongs.
  *
- * Rhythm: greeting and balance are one unit (`gap-4` — the line labels the card),
- * then each working section a step apart (`gap-6`; 32px from `md` up).
+ * Rhythm: the balance card opens the screen and each working section follows a step
+ * apart (`gap-6`; 32px from `md` up).
  */
 export function HomeScreen() {
   const session = useSession();
@@ -55,10 +54,7 @@ export function HomeScreen() {
 
   return (
     <div className="flex flex-col gap-6 md:gap-8">
-      <div className="flex flex-col gap-4">
-        <HomeGreeting />
-        <BalanceCard data={data} view="signed-in" />
-      </div>
+      <BalanceCard data={data} view="signed-in" />
 
       <HomeActions />
 
