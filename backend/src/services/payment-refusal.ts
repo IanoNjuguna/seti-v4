@@ -116,7 +116,41 @@ export type PaymentRefusalCode =
    * between them, so the sentence has to say WHICH one failed rather than "not
    * found".
    */
-  | 'savings-leg-unverified';
+  | 'savings-leg-unverified'
+  /**
+   * The charge path's refusals (`services/charge.ts`).
+   *
+   * A charge is a signed request for a stranger on the internet to be paid, and a
+   * classifier decides its status from an observed transfer with no chain, no
+   * database and no user. These codes name the ways that decision refuses. They
+   * live HERE, in the one taxonomy, rather than in a vocabulary of their own: a
+   * surface that already renders a refusal code renders these too, and support has
+   * one list to search.
+   *
+   * They reuse `receipt-unavailable` and `amount-invalid` where the fact is the
+   * same fact a payment already names — an unconfirmed transfer is an unconfirmed
+   * transfer whichever object asked.
+   */
+  /** The charge is already decided; nothing leaves a terminal state. */
+  | 'charge-not-pending'
+  /**
+   * The charge's signature does not recover to its own `recipient`. The link was
+   * edited in flight (amount, memo, expiry, nonce), so what the page shows is not
+   * what the payee signed.
+   */
+  | 'charge-signature-invalid'
+  /** The charge is past `expiresAt` — or its expiry cannot be read — so it is inert. */
+  | 'charge-expired'
+  /** The transfer paid an address other than the charge's recipient. */
+  | 'recipient-mismatch'
+  /** The transfer moved a different token than the charge names. */
+  | 'asset-mismatch'
+  /**
+   * The transfer's memo does not carry the charge id. A TIP-20 transfer has no
+   * other identifier, so without it a reused link cannot be told apart from an
+   * unrelated transfer.
+   */
+  | 'memo-missing-charge-id';
 
 /** Why an on-chain receipt could not be used to verify a leg. */
 export type ReceiptFailureCode =

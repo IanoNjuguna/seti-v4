@@ -8,6 +8,7 @@ is built and what is unresolved — not how to integrate with it.
 | [Operations](../operations.md) | How Seti is deployed: production boot refusals, managed Postgres and migrations, the indexer cursor as data, the honest state of error tracking, and the CI gate |
 | [CI / deploy pipeline](./ci.md) | The secrets and variables an owner must create for `.github/workflows/deploy.yml`, and why the deploy pulls before it removes |
 | [The mainnet flip](./mainnet-flip.md) | The owner-run procedure to move to mainnet, in order, gated on a mainnet batch proof before any real money moves |
+| [The charge object](./charge-object.md) | The frozen shape a hosted page, a public API and an MCP tool all render: the signed field set and why `scope` is outside it, the status transitions, and the pure classifier behind `check:charge` |
 | [Product requirements](./prd.md) | Scope, a per-area implementation status table, non-functional requirements, risks, resolved questions and what is still open |
 | [Fee routing](./fee-routing.md) | How the 2% merchant fee is meant to reach Seti's treasury: the options considered, the dead ends, and the current correction that batching is protocol-native |
 
