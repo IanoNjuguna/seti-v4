@@ -104,12 +104,17 @@ a page, an API response and an MCP tool cannot each invent their own sentence fo
 
 ## The classifier
 
-`classifyCharge({ charge, transfer, chainId, now })` → the next status, or a refusal
-code. No chain read, no database, no user, no clock of its own. Gates, in order:
+`classifyCharge({ charge, transfer, chainId, now, recipientHasCode? })` → the next
+status, or a refusal code. No database, no user, no clock of its own, and no chain read
+of its own: the one it can need is injected. Gates, in order:
 
 1. **Undecided?** A terminal charge refuses (`charge-not-pending`).
-2. **Signature verifies?** Otherwise `charge-signature-invalid` — nothing about a forged
-   charge is worth classifying.
+2. **Signature verifies?** Otherwise a refusal — nothing about a forged charge is worth
+   classifying. Which refusal depends on the signer: `charge-signature-contract-wallet`
+   when the recipient has code (a Safe, a smart account, which no ECDSA recovery can
+   answer for), and `charge-signature-invalid` otherwise. Telling a merchant with a
+   contract wallet that their signature "does not come from the recipient" would accuse
+   them of forging their own charge.
 3. **Live?** Past `expiresAt`, or an expiry that cannot be read, refuses
    (`charge-expired`).
 4. **Confirmed?** An unmined transfer decides nothing (`receipt-unavailable`).
@@ -156,11 +161,14 @@ underpaid — plus the same boundary at a 1.000000 charge, to prove it scales.
 ## Open questions for a human
 
 1. **Smart-account payees.** `chargeVerifies` uses viem's `verifyTypedData` with no
-   `publicClient`, which covers ECDSA (EOA / embedded-wallet) signatures only. A payee
-   whose address is a contract account (EIP-1271/6492) would be refused as
-   `charge-signature-invalid`. Supporting one means the verification path needs a chain
-   client — which stops it being pure. Decide when a merchant actually wants to receive
-   at a smart account, before a page ships.
+   `publicClient`, which covers ECDSA (EOA / embedded-wallet) signatures only. A contract
+   payee is now refused honestly, as `charge-signature-contract-wallet`, via one
+   `getCode` on the failure path (`hasCodeAt`), rather than being accused of a bad
+   signature. What is still missing is the verification itself: EIP-1271 needs a chain
+   client handed to `verifyTypedData` (viem supports it), which moves verification out of
+   the pure classifier into its caller — scope it when a merchant asks. EIP-6492
+   (counterfactual, not-yet-deployed accounts) additionally needs the universal validator
+   on Tempo; do not build it before someone shows up with such a wallet.
 2. **Refusal copy for the six new codes** is not in `web/lib/api/refusal.constants.ts`
    yet. Nothing can emit them (no route exists), and that file's fallback is calm and
    safe, so the copy lands with #131 where the codes can first be rendered.

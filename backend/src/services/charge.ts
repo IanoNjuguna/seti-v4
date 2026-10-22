@@ -332,6 +332,32 @@ export async function chargeVerifies(charge: SignedCharge, chainId: number): Pro
   }
 }
 
+/**
+ * Whether an address has code, which is what makes it a contract account.
+ *
+ * The one chain read a failed signature needs, ready to be handed to
+ * {@link classifyCharge} as `recipientHasCode`: `(address) => hasCodeAt(client, address)`.
+ * It lives here rather than in the classifier so the classifier keeps taking a function
+ * instead of a client, and a check can pass a fake.
+ *
+ * A 7702 delegated account answers `0xef`, not `0x`, and it still counts as code: the
+ * address has behaviour behind it, so an ECDSA recovery is not proof on its own.
+ *
+ * Any failure is `false`. An unreachable node must fall back to today's refusal, never
+ * turn into a claim about the payee.
+ */
+export async function hasCodeAt(
+  client: { getCode: (args: { address: Address }) => Promise<string | undefined> },
+  address: Address
+): Promise<boolean> {
+  try {
+    const code = await client.getCode({ address });
+    return typeof code === 'string' && code.length > 2;
+  } catch {
+    return false;
+  }
+}
+
 /** Convenience for the signing side: the domain to hand a wallet, typed for viem. */
 export function chargeTypedData(charge: ChargeFields, chainId: number) {
   return {
@@ -470,6 +496,12 @@ export type ChargeRefusalCode =
   | 'charge-not-pending'
   /** The signature does not recover to `recipient`: the link was edited in flight. */
   | 'charge-signature-invalid'
+  /**
+   * The recipient has code, so no ECDSA recovery can answer for it (a Safe, a smart
+   * account). The signature may be authentic; contract-wallet verification is not built
+   * yet. Never a claim that the payee forged the charge.
+   */
+  | 'charge-signature-contract-wallet'
   /** Past `expiresAt` (or an expiry that cannot be read) — the link is inert. */
   | 'charge-expired'
   /** The chain has no usable receipt for the transfer yet. */
@@ -598,6 +630,15 @@ export async function classifyCharge(input: {
   transfer: ObservedTransfer;
   chainId: number;
   now: Date;
+  /**
+   * Whether the recipient is a contract, asked only when the signature fails.
+   *
+   * The classifier is otherwise free of chain reads and of the network: the caller
+   * passes `(address) => hasCodeAt(client, address)`, and a caller that passes nothing
+   * gets today's behaviour exactly, which is the old refusal. Injected so a check can
+   * prove both branches without a node.
+   */
+  recipientHasCode?: (recipient: Address) => Promise<boolean>;
 }): Promise<ChargeDecision> {
   const { charge, transfer, chainId, now } = input;
 
@@ -611,6 +652,25 @@ export async function classifyCharge(input: {
 
   // 2. Integrity. A charge that does not verify is not a charge.
   if (!(await chargeVerifies(charge, chainId))) {
+    /*
+     * Two different failures share one recovery. A contract recipient (a Safe, a smart
+     * account) cannot answer an ECDSA recovery at all, so reporting "this does not come
+     * from the recipient" would accuse an honest merchant of forging their own charge.
+     * One `getCode` on the failure path tells them apart, and an honest payment never
+     * pays for it.
+     */
+    const contractSigner = input.recipientHasCode
+      ? await input.recipientHasCode(charge.recipient).catch(() => false)
+      : false;
+
+    if (contractSigner) {
+      return refuse(
+        'charge-signature-contract-wallet',
+        `${charge.recipient} is a contract account, and charges signed by one cannot be ` +
+          'checked yet. Ask the payee for a charge signed from a wallet key instead.'
+      );
+    }
+
     return refuse(
       'charge-signature-invalid',
       `The signature on charge ${charge.id} does not come from ${charge.recipient}, ` +

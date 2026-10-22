@@ -45,6 +45,7 @@ import {
   chargeVerifies,
   classifyCharge,
   defaultChargeExpiry,
+  hasCodeAt,
   isTerminal,
   nextChargeStatus,
   recoverChargeSigner,
@@ -131,9 +132,10 @@ function classify(
   charge: Charge,
   over: Partial<ObservedTransfer> = {},
   now: Date = NOW,
-  chainId: number = TESTNET
+  chainId: number = TESTNET,
+  recipientHasCode?: (recipient: string) => Promise<boolean>
 ): Promise<ChargeDecision> {
-  return classifyCharge({ charge, transfer: transfer(over), chainId, now });
+  return classifyCharge({ charge, transfer: transfer(over), chainId, now, recipientHasCode });
 }
 
 /** The refusal code, or a loud marker when the decision was not a refusal. */
@@ -439,6 +441,8 @@ async function main(): Promise<void> {
     over: Partial<ObservedTransfer>;
     expect: string;
     now?: Date;
+    /** Only the contract-account fixtures need this; the rest leave it undefined. */
+    recipientHasCode?: (recipient: string) => Promise<boolean>;
   }> = [
     {
       label: 'the wrong asset is refused',
@@ -495,13 +499,62 @@ async function main(): Promise<void> {
       over: {},
       expect: 'charge-signature-invalid',
     },
+    {
+      // A Safe (or any contract account) cannot answer an ECDSA recovery at all. Saying
+      // "this did not come from the recipient" would accuse an honest merchant of
+      // forging their own charge, so the refusal names the real limitation instead.
+      label: 'a charge signed from a contract account is refused as unsupported, not as a forgery',
+      charge: {
+        ...BASE,
+        signature: await STRANGER.signTypedData(chargeTypedData(BASE, TESTNET)),
+        status: 'pending',
+        txHash: null,
+      },
+      over: {},
+      expect: 'charge-signature-contract-wallet',
+      recipientHasCode: async () => true,
+    },
+    {
+      // The same signature against an address with no code is still a forgery: the probe
+      // must not soften a real one.
+      label: 'the same signature against an address with no code is still invalid',
+      charge: {
+        ...BASE,
+        signature: await STRANGER.signTypedData(chargeTypedData(BASE, TESTNET)),
+        status: 'pending',
+        txHash: null,
+      },
+      over: {},
+      expect: 'charge-signature-invalid',
+      recipientHasCode: async () => false,
+    },
   ];
 
   for (const refusal of refusals) {
-    const decision = await classify(refusal.charge, refusal.over, refusal.now ?? NOW);
+    const decision = await classify(
+      refusal.charge,
+      refusal.over,
+      refusal.now ?? NOW,
+      TESTNET,
+      refusal.recipientHasCode
+    );
     seenRefusals.add(refusalCode(decision));
     check(refusal.label, refusalCode(decision) === refusal.expect, refusalCode(decision));
   }
+
+  // The contract-account probe itself: code is code, even when it is a 7702 delegation,
+  // and an unreachable node must never become a claim about the payee.
+  const probeClient = (code: string | undefined | Error) => ({
+    getCode: async (_args: { address: `0x${string}` }): Promise<string | undefined> => {
+      if (code instanceof Error) throw code;
+      return code;
+    },
+  });
+  check('code at the address counts, including a 7702 delegation', await hasCodeAt(probeClient('0xef'), BASE.recipient));
+  check('a plain contract counts as code', await hasCodeAt(probeClient('0x60806040'), BASE.recipient));
+  check('no code is not a contract', !(await hasCodeAt(probeClient('0x'), BASE.recipient)));
+  check('an undefined answer is not a contract', !(await hasCodeAt(probeClient(undefined), BASE.recipient)));
+  check('an unreachable node is not a contract', !(await hasCodeAt(probeClient(new Error('rpc down')), BASE.recipient)));
 
   // Amount shapes that are not amounts.
   const unreadable = await signed({ ...BASE, amount: 'one hundred' });
@@ -541,6 +594,7 @@ async function main(): Promise<void> {
     'asset-mismatch',
     'charge-expired',
     'charge-not-pending',
+    'charge-signature-contract-wallet',
     'charge-signature-invalid',
     'memo-missing-charge-id',
     'receipt-unavailable',
