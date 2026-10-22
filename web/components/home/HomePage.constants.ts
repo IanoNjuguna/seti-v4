@@ -33,4 +33,6 @@ export const HOME_PAGE_COPY = {
   seeAll: 'See all',
   /** What makes a total legible: one payment and nine are different facts. */
   paymentCount: (count: number): string => (count === 1 ? '1 payment' : `${count} payments`),
+  /** The invite that brought this visitor names nobody (see `HomeSignedOutGate`). */
+  inviteNotLive: 'That invite link is not live.',
 } as const;
