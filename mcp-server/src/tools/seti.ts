@@ -30,19 +30,20 @@ export function registerSetiTools(server: McpServer): string[] {
     {
       title: 'Resolve a merchant QR payload',
       description:
-        "Resolve a Seti merchant QR payload to a merchant record. Accepts the Seti deep link " +
-        "(seti://pay?merchantId=…&amount=…), 'merchant:<id>', or a bare merchant id. Note this parser " +
-        'accepts only Seti-issued payloads — it does not read other QR standards.',
+        'Resolve a Seti payload through the one resolver: a username, a business name, a stored ' +
+        "handle, a platform id or a Seti deep link (seti://pay?merchantId=…&amount=…), all as one " +
+        'string. Returns the name, the ADDRESS the money goes to, and whether the binding verifies. ' +
+        'Note this parser accepts only Seti-issued payloads; it does not read other QR standards.',
       inputSchema: {
         qr: z.string().describe('The scanned or pasted QR payload.'),
       },
     },
     async ({ qr }) => {
       try {
-        const result = await setiRequest<{ merchant: unknown; suggestedAmount: string | null }>({
+        const result = await setiRequest<{ handle: unknown; suggestedAmount: string | null }>({
           method: 'GET',
-          path: '/merchants/resolve',
-          query: { qr },
+          path: '/handles/resolve',
+          query: { q: qr },
         });
         return toolJson(result);
       } catch (error) {
