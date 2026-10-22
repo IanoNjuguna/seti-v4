@@ -139,6 +139,14 @@ export type PaymentRefusalCode =
    * what the payee signed.
    */
   | 'charge-signature-invalid'
+  /**
+   * The recipient is a CONTRACT (a Safe, a smart account), so an ECDSA recovery cannot
+   * answer for it at all. Distinct from `charge-signature-invalid` on purpose: the
+   * signature may be perfectly authentic, and telling a merchant they forged their own
+   * charge is a false accusation. EIP-1271 verification is not built yet, so this code
+   * says "we cannot check this kind of signer", which is the truth.
+   */
+  | 'charge-signature-contract-wallet'
   /** The charge is past `expiresAt` — or its expiry cannot be read — so it is inert. */
   | 'charge-expired'
   /** The transfer paid an address other than the charge's recipient. */
