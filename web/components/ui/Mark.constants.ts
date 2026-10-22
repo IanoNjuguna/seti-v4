@@ -48,3 +48,13 @@ export const MARK_SIZE_CLASS: Record<MarkSize, string> = {
 
 export const MARK_BASE_CLASS =
   'inline-flex shrink-0 select-none items-center justify-center rounded-full font-semibold uppercase';
+
+/**
+ * The well used when an account has no name to take letters from.
+ *
+ * Not a tone: the brand mark is drawn in the colourway the surface dictates, and the cream
+ * mark on a coloured circle is the one pair `BrandMark`'s own rule forbids. So an unnamed
+ * account gets the same neutral well a shortcut's mark uses, with the product's face in it,
+ * and the moment the account is named it takes its initials and a tone instead.
+ */
+export const MARK_FALLBACK_CLASS = 'bg-surface-soft';
