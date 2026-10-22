@@ -19,6 +19,7 @@
 * [Deploy the backend (Oracle free tier / AWS Lightsail)](deploy-oracle.md)
 * [Product requirements](internal/prd.md)
 * [Fee routing](internal/fee-routing.md)
+* [The charge object](internal/charge-object.md)
 * [The mainnet flip (owner-run)](internal/mainnet-flip.md)
 
 ## Policy
