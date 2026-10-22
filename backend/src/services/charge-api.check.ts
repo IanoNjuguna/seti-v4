@@ -256,6 +256,22 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 async function main(): Promise<void> {
   console.log(`charge API check — chain ${CHAIN_ID} (${NETWORK}), primary asset ${PRIMARY_ASSET}\n`);
 
+  /*
+   * One precondition, stated once. The webhook half of this suite signs real deliveries
+   * and verifies them with the receiver's copy of the secret, so with none set nineteen
+   * assertions fail for a single reason. Say the reason instead of nineteen symptoms,
+   * because a wall of failures reads as broken code.
+   */
+  if (!env.SETI_WEBHOOK_SECRET) {
+    console.error(
+      'check:charge-api needs SETI_WEBHOOK_SECRET: the webhook assertions sign real deliveries\n' +
+        'and verify the signature with the same value. Set it to any strong value locally,\n' +
+        'e.g. SETI_WEBHOOK_SECRET=check-only-webhook-secret, and run again. CI sets it in\n' +
+        '.github/workflows/verify.yml and deploy.yml.'
+    );
+    process.exit(1);
+  }
+
   const realChargesBefore = await prisma.charge.count({
     where: { NOT: { publicId: { startsWith: 'chk' } } },
   });
