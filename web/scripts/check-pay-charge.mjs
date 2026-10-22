@@ -17,6 +17,7 @@
  *
  * Run from `web/`: npm run check:pay-charge (part of the root `verify` gate).
  */
+import { execFileSync } from 'node:child_process';
 import { chargeAmounts } from '../lib/charges/charge-fee.ts';
 import { buildChargeUri, readChargeId } from '../lib/charges/charge-uri.ts';
 import { loadCharge } from '../lib/charges/load-charge.ts';
@@ -214,6 +215,51 @@ check(
     return formatFiat(parts.amount + parts.fee, 'KES') === formatFiat(parts.total, 'KES');
   })
 );
+
+/*
+ * 5. The fixture never answers in a deployed build (#161).
+ *
+ * A fixture charge names an amount and an address nobody controls, so a production
+ * build must refuse every fixture id, with the same `not-found` an unknown id gets.
+ * Proved in a child process, because the flag is read at module load and this process
+ * is already in development mode.
+ */
+{
+  const loaderUrl = new URL('../lib/charges/load-charge.ts', import.meta.url).href;
+  const fixtureUrl = new URL('../lib/charges/charge.fixture.ts', import.meta.url).href;
+  const probe = `
+    const { loadCharge } = await import(${JSON.stringify(loaderUrl)});
+    const { FIXTURE_CHARGE_IDS } = await import(${JSON.stringify(fixtureUrl)});
+    const leaked = [];
+    for (const id of FIXTURE_CHARGE_IDS) {
+      const r = await loadCharge(id);
+      if (r.kind !== 'not-found') leaked.push(id + ':' + r.kind);
+    }
+    if (leaked.length) { console.error(leaked.join(',')); process.exit(3); }
+  `;
+
+  let refused = false;
+  try {
+    execFileSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', probe], {
+      env: { ...process.env, NODE_ENV: 'production' },
+      stdio: 'pipe',
+      timeout: 60_000,
+    });
+    refused = true;
+  } catch (error) {
+    const said = String(error.stderr ?? error.message).trim().split('\n').slice(-1)[0] ?? '';
+    check('a deployed build refuses every fixture id', false, said.slice(0, 140));
+  }
+  if (refused) check('a deployed build refuses every fixture id', true);
+
+  const { FIXTURE_CHARGE_IDS } = await import('../lib/charges/charge.fixture.ts');
+  const refusedInDev = [];
+  for (const id of FIXTURE_CHARGE_IDS) {
+    const result = await loadCharge(id, { now: NOW });
+    if (result.kind === 'not-found') refusedInDev.push(id);
+  }
+  check('a development build still renders the fixture', refusedInDev.length === 0, refusedInDev.join(','));
+}
 
 console.log(`${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

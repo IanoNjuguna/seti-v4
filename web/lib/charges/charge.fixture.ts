@@ -149,6 +149,15 @@ export function fixtureSignatureFor(id: string): string {
   return `fixture-sig:${id}`;
 }
 
+/**
+ * Every id the fixture answers.
+ *
+ * Exported so the gate can assert the whole set rather than one lucky id: a
+ * production build must refuse all of them (#161), and a development build must
+ * still render them.
+ */
+export const FIXTURE_CHARGE_IDS: readonly string[] = Object.keys(CHARGES);
+
 /** The stored payload for `id`, signed — or null when there is no such charge. */
 export const fixtureChargeSource: ChargeSource = {
   async read(id: string): Promise<unknown> {

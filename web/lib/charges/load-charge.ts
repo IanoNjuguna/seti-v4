@@ -49,6 +49,21 @@ export interface ChargeLoadDeps {
 }
 
 /**
+ * Whether the fixture source may answer a request.
+ *
+ * The fixture exists so this page could be built before charges existed (#131). In a
+ * deployed build it must answer nothing: a fixture charge names an amount and an
+ * address nobody controls, and the page then invites a real payment to that address,
+ * which Seti cannot take back. So in production every fixture id reads as `not-found`,
+ * the same refusal an unknown id gets — the page leaks nothing about what is
+ * unimplemented, and there is no second "fixtures are off" state for anyone to notice.
+ *
+ * `NODE_ENV` is `production` in the deployed build, so this needs no workflow or env
+ * change, and `check:pay-charge` proves the production path in a child process.
+ */
+const FIXTURE_SOURCE_ENABLED = process.env.NODE_ENV !== 'production';
+
+/**
  * Load one charge by id.
  *
  * `deps` is a partial override for tests only; the route calls it with the id alone.
@@ -59,7 +74,8 @@ export async function loadCharge(
 ): Promise<ChargeLoadResult> {
   if (!CHARGE_ID_PATTERN.test(id)) return { kind: 'not-found' };
 
-  const source = deps.source ?? fixtureChargeSource;
+  const source = deps.source ?? (FIXTURE_SOURCE_ENABLED ? fixtureChargeSource : null);
+  if (!source) return { kind: 'not-found' };
   const directory = deps.directory ?? FIXTURE_PAYEE_DIRECTORY;
   const now = deps.now ?? new Date();
 
