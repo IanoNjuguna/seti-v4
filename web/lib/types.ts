@@ -9,7 +9,15 @@ export type ButtonVariant =
   | 'on-dark'
   /* `button-outline-dark` — its secondary, a hairline outline on the dark
      canvas. Both are only ever used on a dark band. */
-  | 'outline-dark';
+  | 'outline-dark'
+  /*
+   * `button-soft` carrying the DESTRUCTIVE TEXT role: `surface-soft` fill, and a
+   * label in the doc's inline error ink (`accent-deep-red`, via the `alert` text
+   * role) rather than white on red. For an action that ends a session instead of
+   * one that moves money: a filled red button on a settings list is the loudest
+   * pixel on the page, and on Profile the loudest thing has to be the person.
+   */
+  | 'destructive-soft';
 
 export type BadgeVariant = 'success' | 'neutral' | 'warning' | 'danger';
 

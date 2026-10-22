@@ -50,7 +50,7 @@ export function PrivySignOutControl() {
 
   return (
     <div className="flex flex-col gap-4">
-      <Button variant="secondary" onClick={() => void handleSignOut()}>
+      <Button variant="destructive-soft" fullWidth onClick={() => void handleSignOut()}>
         Sign out
       </Button>
       {error ? <StateMessage variant="failure" title="Could not sign out" body={error} /> : null}

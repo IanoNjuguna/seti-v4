@@ -11,6 +11,12 @@ import { PrivySignOutControl } from './PrivySignOutControl';
  * session has only ours. Picking here keeps `usePrivy` out of every component
  * that offers a sign-out, and keeps it out of the `dev` path entirely — where
  * there is no Privy provider to read from.
+ *
+ * BOTH paths wear `destructive-soft`: a full-width soft pill whose label is the
+ * destructive text role, not the filled primary button it used to be. Sign out is
+ * the last row on the page and the one thing a customer should not tap by
+ * accident, and a black 48px CTA at the end of a settings list read as the page's
+ * main action, which it is not.
  */
 export function SignOutButton() {
   const { source, signOut } = useSession();
@@ -20,7 +26,7 @@ export function SignOutButton() {
   }
 
   return (
-    <Button variant="secondary" onClick={() => void signOut()}>
+    <Button variant="destructive-soft" fullWidth onClick={() => void signOut()}>
       Sign out
     </Button>
   );

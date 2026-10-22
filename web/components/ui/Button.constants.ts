@@ -46,6 +46,21 @@ export const VARIANT_CLASSES: Record<ButtonVariant, string> = {
      brightens — which here means the surface lifts to `surface-elevated`. */
   'outline-dark':
     'bg-transparent text-on-dark border border-on-dark hover:bg-surface-elevated rounded-md min-touch h-12 px-7 inline-flex items-center justify-center font-semibold transition-colors duration-(--duration-quick) ease-out active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-dark focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-dark',
+  /*
+   * `button-soft` with the destructive TEXT role.
+   *
+   * The doc keeps two reds apart: `accent-danger` is the destructive STATE (a
+   * fill, chosen to read on black) and `accent-deep-red` is "inline error text".
+   * Sign out is not an error and not a state badge, so the loud red FILL
+   * (`destructive`) is the wrong tool on a white settings list: it becomes the
+   * brightest object on a page whose subject is a person. A soft pill with the
+   * text-grade red says "this ends the session" without taking the page.
+   *
+   * The colour is the `alert` ROLE, not a raw accent: `text-ink-alert` resolves
+   * per canvas (`#8b0000` on white), which `npm run check:ink` measures.
+   */
+  'destructive-soft':
+    'bg-surface-soft hover:bg-faint rounded-md min-touch h-12 px-7 inline-flex items-center justify-center font-semibold transition-colors duration-200 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
 };
 
 export const TEXT_VARIANT: Record<ButtonVariant, 'button' | 'tab'> = {
@@ -56,10 +71,11 @@ export const TEXT_VARIANT: Record<ButtonVariant, 'button' | 'tab'> = {
   pill: 'tab',
   'on-dark': 'button',
   'outline-dark': 'button',
+  'destructive-soft': 'button',
 };
 
 /** Label colour per variant — white on the black pill, ink on the white ones. */
-export const TEXT_COLOR: Record<ButtonVariant, 'inverse' | 'primary' | 'accent'> = {
+export const TEXT_COLOR: Record<ButtonVariant, 'inverse' | 'primary' | 'accent' | 'alert'> = {
   primary: 'inverse',
   secondary: 'primary',
   ghost: 'accent',
@@ -69,4 +85,7 @@ export const TEXT_COLOR: Record<ButtonVariant, 'inverse' | 'primary' | 'accent'>
      `ink`; the system's own text colour is the right token for a label). */
   'on-dark': 'primary',
   'outline-dark': 'inverse',
+  /* The `alert` ROLE on a soft surface: the doc's inline error red, taken one
+     step to the text grade so it is legible on `surface-soft`. */
+  'destructive-soft': 'alert',
 };
