@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { Text } from '@/components/ui';
+import { MaskedAmount } from '@/components/ui/MaskedAmount';
+import { useAmountPrivacy } from '@/lib/privacy/amount-privacy.context';
 import { HOME_PAGE_COPY } from './HomePage.constants';
 import { formatFiat } from '@/lib/formatCurrency';
 import type { HomeSummaryProps } from './HomeSummary.types';
@@ -47,6 +49,8 @@ function movementLine(window: HomeSummaryProps['window'], currency: string): str
 }
 
 export function HomeSummary({ window, currency }: HomeSummaryProps) {
+  const { hidden } = useAmountPrivacy();
+
   return (
     <Link
       href={HOME_PAGE_COPY.summaryHref}
@@ -55,9 +59,11 @@ export function HomeSummary({ window, currency }: HomeSummaryProps) {
       <Text variant="micro" as="span" color="secondary">
         {HOME_PAGE_COPY.summaryLabel(window.days)}
       </Text>
-      <Text variant="body-medium" as="span" tabular>
-        {movementLine(window, currency)}
-      </Text>
+      <MaskedAmount hidden={hidden} variant="body-medium">
+        <Text variant="body-medium" as="span" tabular>
+          {movementLine(window, currency)}
+        </Text>
+      </MaskedAmount>
     </Link>
   );
 }
