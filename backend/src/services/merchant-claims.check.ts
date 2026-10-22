@@ -35,6 +35,7 @@ import {
   describeMerchantName,
   handleClaimDomain,
   handleClaimVerifies,
+  handleStatus,
   merchantHandle,
   refuseHandleClaim,
   toHandleIdentityView,
@@ -693,6 +694,115 @@ async function main() {
   });
   check('a forged claim over HTTP is refused', refused.statusCode, 400);
   check('with the typed code in the envelope', refused.json<Record<string, unknown>>().code, 'signature-mismatch');
+
+  // -------------------------------------------------------------------------
+  // (h) One string, one name: it cannot be claimed twice, across kinds (#141)
+  // -------------------------------------------------------------------------
+  console.log('\n(h) a name cannot be claimed twice, across kinds:');
+  const NAME_CROSS_PERSON = 'Check Claim Cross Person';
+  const NAME_CROSS_BIZ = 'Check Claim Cross Biz';
+
+  const personFirstMessage: HandleClaimMessage = {
+    name: NAME_CROSS_PERSON,
+    address: owner.address,
+    purpose: PURPOSE_FOR_KIND.person,
+    issuedAt: new Date().toISOString(),
+    nonce: nonce(),
+  };
+  const personFirst = await claimHandle({
+    userId: userA.id,
+    kind: 'person',
+    ...personFirstMessage,
+    signature: await signClaim(owner, personFirstMessage),
+  });
+  check('a person claims the string', personFirst.kind, 'person');
+
+  const bizTakesPersonName = await attemptClaim(
+    userB.id,
+    forger,
+    'business',
+    NAME_CROSS_PERSON,
+    forger.address
+  );
+  check("a business cannot take a person's name", bizTakesPersonName?.code, 'handle-taken');
+  check(
+    'and the refusal says the string is a username',
+    bizTakesPersonName?.message.includes('as a username'),
+    true
+  );
+
+  const sameAccountTwice = await attemptClaim(
+    userA.id,
+    owner,
+    'business',
+    NAME_CROSS_PERSON,
+    owner.address
+  );
+  check('nor can the account that holds it claim it twice', sameAccountTwice?.code, 'handle-taken');
+
+  const bizFirstMessage: HandleClaimMessage = {
+    name: NAME_CROSS_BIZ,
+    address: owner.address,
+    purpose: PURPOSE_FOR_KIND.business,
+    issuedAt: new Date().toISOString(),
+    nonce: nonce(),
+  };
+  const bizFirst = await claimHandle({
+    userId: userA.id,
+    kind: 'business',
+    ...bizFirstMessage,
+    signature: await signClaim(owner, bizFirstMessage),
+  });
+  check('a business claims the string', bizFirst.kind, 'business');
+
+  const personTakesBizName = await attemptClaim(
+    userB.id,
+    forger,
+    'person',
+    NAME_CROSS_BIZ,
+    forger.address
+  );
+  check("a person cannot take a business's name", personTakesBizName?.code, 'handle-taken');
+  check(
+    'and the refusal says the string is a business name',
+    personTakesBizName?.message.includes('as a business name'),
+    true
+  );
+
+  // A business name is still ONE NETWORK's: a row on the other network does not
+  // block a business claim here, which is the owner's ruling on business names.
+  const NAME_CROSS_OTHER = 'Check Claim Cross Other';
+  const otherNetwork = servedNetwork === 'mainnet' ? 'testnet' : 'mainnet';
+  await prisma.handle.create({
+    data: {
+      handle: merchantHandle(NAME_CROSS_OTHER),
+      kind: 'business',
+      name: NAME_CROSS_OTHER,
+      address: owner.address,
+      network: otherNetwork,
+    },
+  });
+
+  const herePreview = await handleStatus(NAME_CROSS_OTHER, servedNetwork, 'business');
+  const therePreview = await handleStatus(NAME_CROSS_OTHER, otherNetwork, 'business');
+  check("this network's business namespace is free", herePreview.takenBy, 'null');
+  check("the other network's is taken", therePreview.takenBy !== null, true);
+
+  // But a PERSON's name is global, so that same row blocks a person claim here.
+  const personBlockedGlobally = await attemptClaim(
+    userB.id,
+    forger,
+    'person',
+    NAME_CROSS_OTHER,
+    forger.address
+  );
+  check("a person's name is blocked by a business on any network", personBlockedGlobally?.code, 'handle-taken');
+
+  // ...and the PREVIEW asks the same question, so the form cannot offer a name
+  // the claim would then refuse. The person reads the string as taken here even
+  // though no person row exists for it.
+  const personPreviewHere = await handleStatus(NAME_CROSS_OTHER, servedNetwork, 'person');
+  check("a person's preview is taken by a business elsewhere", personPreviewHere.takenBy !== null, true);
 
   await app.close();
 
