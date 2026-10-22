@@ -13,6 +13,11 @@ export interface HomeAction {
    * alternative.
    */
   variant: Extract<ButtonVariant, 'primary' | 'secondary'>;
+  /**
+   * A short marker for a door that exists but cannot be used yet. The door stays so
+   * the signal stays with it; a removed door is a feature nobody discovers later.
+   */
+  badge?: string;
 }
 
 /**
@@ -49,5 +54,10 @@ export const HOME_ACTIONS: HomeAction[] = [
    * `Receive` and `Save` measure far inside a third of the column at 360px, so the
    * row still reads as three doors rather than as a cramped set.
    */
-  { key: 'save', label: 'Save', href: '/app/save', variant: 'secondary' },
+  /*
+   * Saving is closed (#137): deposits revert on an unverified vault with a zero rate,
+   * so the door stays and the badge says why. Hiding it would lose the signal that the
+   * feature exists; greying it out would read as broken.
+   */
+  { key: 'save', label: 'Save', href: '/app/save', variant: 'secondary', badge: 'Soon' },
 ];

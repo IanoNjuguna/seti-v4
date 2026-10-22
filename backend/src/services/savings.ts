@@ -114,6 +114,11 @@ export interface SavingsSummary {
   apy: string | null;
   canDeposit: boolean;
   canWithdraw: boolean;
+  /**
+   * Whether saving is open at all. False means the surface shows "coming soon" and the
+   * API refuses deposits; withdrawals stay available so no position can be trapped.
+   */
+  live: boolean;
 }
 
 interface EarnPosition {
@@ -218,6 +223,7 @@ export async function getSavingsSummary(input: {
     apy: null,
     canDeposit: false,
     canWithdraw: false,
+    live: SAVINGS_LIVE,
   };
 
   if (!vaultAddress || !address) return empty;
@@ -283,8 +289,11 @@ export async function getSavingsSummary(input: {
     // Tempo's vault responses carry no measurable rate for this vault today. Null
     // here is rendered as "unavailable", never as 0%.
     apy: null,
-    canDeposit: !paused && aligned,
+    // The flag and the vault's own state both have to agree. Withdrawals are not
+    // gated: closing deposits must never trap a position.
+    canDeposit: SAVINGS_LIVE && !paused && aligned,
     canWithdraw: BigInt(shares) > BigInt(0),
+    live: SAVINGS_LIVE,
   };
 }
 
@@ -367,14 +376,66 @@ export function chooseDepositAsset(
   );
 }
 
+/**
+ * Whether deposits are open.
+ *
+ * They closed on 2026-10-21, and the reason is worth keeping next to the switch:
+ * every Earn vault on Tempo reports `verified: false`, `apy.net 0.000000`, and the
+ * whole fleet holds about $152 — see #137 for the eight conditions that reopen them.
+ * The code below is not disabled, it is gated: one env var restores the flow, so the
+ * only thing between a customer and an unverified vault is a value in a config file
+ * rather than a memory.
+ *
+ * Default OFF. A missing variable must fail closed: silence is how a feature nobody
+ * meant to launch gets launched.
+ */
+export const SAVINGS_LIVE = process.env.SAVINGS_ENABLED === 'true';
+
+/** A refusal with a code, so the app can say why and not guess. */
+export class SavingsNotLiveError extends Error {
+  readonly code = 'savings-not-live';
+
+  constructor() {
+    super(
+      'Saving is not open yet. The vault does not pay a rate we can stand behind today.'
+    );
+    this.name = 'SavingsNotLiveError';
+  }
+}
+
 /** The tolerance on both legs of a deposit, in basis points. */
 export const SAVINGS_TOLERANCE_BPS = 50;
+
+/**
+ * The share floor for a deposit: what the vault will mint, less the tolerance.
+ *
+ * `amountOut` is RAW 6-decimal units, while `sharePrice` is a ratio in TOKEN units.
+ * Dividing the raw figure by the ratio and then scaling again is the bug in #134: it
+ * multiplied the floor by 1e6, so the signed minimum was ~995,000x the shares the
+ * vault mints and every deposit reverted on its own slippage guard. Converting to
+ * tokens FIRST is the whole fix.
+ *
+ * Pure, exported and asserted by `check:save`, because the failure mode is invisible:
+ * a wrong floor still produces a number, and nothing on chain complains until the
+ * customer's transaction reverts.
+ */
+export function sharesForDeposit(amountOut: bigint, sharePrice: number): bigint {
+  if (sharePrice <= 0) return BigInt(0);
+  const tokens = Number(formatUnits(amountOut, ASSET_DECIMALS));
+  const expectedShares = tokens / sharePrice;
+  return (
+    (BigInt(Math.floor(expectedShares * 1e6)) * BigInt(10_000 - SAVINGS_TOLERANCE_BPS)) /
+    BigInt(10_000)
+  );
+}
 
 export async function quoteSavingsDeposit(input: {
   userId: string;
   amountFiat: string;
   network?: Network;
 }): Promise<SavingsDepositQuote> {
+  if (!SAVINGS_LIVE) throw new SavingsNotLiveError();
+
   const network = normalizeNetwork(input.network, servedNetwork);
   const vault = SAVINGS_VAULT[network];
   if (!vault) throw new Error(`Savings are not offered on ${network}.`);
@@ -427,9 +488,7 @@ export async function quoteSavingsDeposit(input: {
   // deposit cannot reduce the position below what the customer was shown.
   const vaultRecord = await earnGet<EarnVault>(`/vaults/${vault}?chainId=${network === 'mainnet' ? 4217 : 42431}`);
   const sharePrice = Number(vaultRecord?.sharePrice?.formatted ?? '1');
-  const expectedShares = sharePrice > 0 ? Number(amountOut) / sharePrice : 0;
-  const minShares =
-    (BigInt(Math.floor(expectedShares * 1e6)) * BigInt(10_000 - SAVINGS_TOLERANCE_BPS)) / BigInt(10_000);
+  const minShares = sharesForDeposit(amountOut, sharePrice);
 
   const hasEnoughBalance = chosen.balance >= amountIn;
   const spendableTotal = funding.reduce((sum, candidate) => sum + candidate.balance, BigInt(0));

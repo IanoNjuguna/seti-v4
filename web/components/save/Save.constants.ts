@@ -45,6 +45,13 @@ export const SAVE_COPY = {
   deposited: 'Saved',
   depositedBody: 'It is earning now, and you can withdraw it any time.',
   done: 'Done',
+  /* The closed state. Shown while deposits are off (#137): no button, no date, and
+     no promise about a rate that currently reads 0.000000. */
+  soonLabel: 'Coming soon',
+  soonHeadline: 'Saving is not open yet',
+  soonBody:
+    'Put money aside and earn on it, once the vault pays a rate worth your time. We will turn it on then.',
+  soonNote: 'Nothing here can hold your money in the meantime.',
   /** The custody sentence: the thing a customer most wants to know. */
   custodyNote: 'Your money sits in a Tempo vault in your own name. Seti never holds it.',
 } as const;
