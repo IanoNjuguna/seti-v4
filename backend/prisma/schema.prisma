@@ -194,7 +194,7 @@ model Handle {
   ///
   /// ONE PERSON NAME PER ACCOUNT, structurally: a partial unique index
   /// `handles_person_user_key` on `("userId") WHERE kind = 'person' AND "userId"
-  /// IS NOT NULL` (migration `20261022090000_person_name_and_rename`) means an
+  /// IS NOT NULL` (migration `20261022200000_person_name_and_rename`) means an
   /// account holds at most one `kind = 'person'` row. Two names for one person is
   /// an impersonation surface — both resolve, each to whatever address it was
   /// bound to — and it makes an invite link ambiguous about which name is really
@@ -292,7 +292,7 @@ model HandleRelease {
   /// The address the released claim pointed at.
   address        String
   /// The EIP-712 purpose the released claim was signed for. Recorded from
-  /// migration `20261022090000_person_name_and_rename` onward, because a held
+  /// migration `20261022200000_person_name_and_rename` onward, because a held
   /// string has to re-verify from its release row and the signature covers the
   /// purpose. NULL on rows written before it (a legacy backfilled claim has no
   /// purpose either).
@@ -318,7 +318,7 @@ model HandleRelease {
   ///
   /// NULL when the string went to NOBODY: a rename (the owner moved off it and
   /// holds it), or a duplicate person name resolved by migration
-  /// `20261022090000_person_name_and_rename`. Nullable since that migration, which
+  /// `20261022200000_person_name_and_rename`. Nullable since that migration, which
   /// also seeded the existing rows' column comment.
   reassignedTo   String?
   createdAt      DateTime @default(now())

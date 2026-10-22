@@ -4,7 +4,7 @@
  * ## The product decision this implements
  *
  * An account has ONE person name (the partial unique index
- * `handles_person_user_key`, migration `20261022090000_person_name_and_rename`),
+ * `handles_person_user_key`, migration `20261022200000_person_name_and_rename`),
  * and changing it is a rename: the new string is claimed with a signature and the
  * old one moves into `handle_releases`. The obvious thing to do with the old
  * string is free it immediately, and that is the thing that must not happen:

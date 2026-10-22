@@ -5,7 +5,7 @@
  * Run with:  npm run check:rename
  * Requires:  docker compose up -d  (the `seti-postgres` container), and the
  *            migrations applied — the partial unique index this suite asserts
- *            about is created by `20261022090000_person_name_and_rename`.
+ *            about is created by `20261022200000_person_name_and_rename`.
  *
  * Why real signatures: the rename is a CLAIM. If it could be performed without a
  * signature it would be Seti moving a name on its own authority, which is the one

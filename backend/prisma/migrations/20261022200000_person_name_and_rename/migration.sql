@@ -62,7 +62,7 @@ ALTER TABLE "handle_releases" ADD COLUMN IF NOT EXISTS "purpose" TEXT;
 ALTER TABLE "handle_releases" ADD COLUMN IF NOT EXISTS "network" TEXT;
 
 COMMENT ON COLUMN "handle_releases"."reassignedTo" IS
-  'The proved address a reassigned string went to; NULL when it went to nobody — a rename, or the duplicate names resolved by 20261022090000_person_name_and_rename.';
+  'The proved address a reassigned string went to; NULL when it went to nobody — a rename, or the duplicate names resolved by 20261022200000_person_name_and_rename.';
 
 COMMENT ON COLUMN "handle_releases"."reason" IS
   'Why the claim was released: an operator''s reason, ''renamed'' (a live person name, HELD to the same account for 30 days), ''renamed-unlive'' (a name that never resolved, nothing held), or the migration''s one-name-per-account reason.';
