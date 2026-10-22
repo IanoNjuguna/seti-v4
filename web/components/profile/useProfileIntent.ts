@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react';
 import { ApiError, setAccountIntent } from '@/lib/api';
 import type { AccountIntent } from '@/lib/api';
-import { handleForIntent, useAccountIdentity } from '@/lib/account';
+import { useAccountIdentity } from '@/lib/account';
 import type { UseProfileIntentReturn } from './ProfileIntent.types';
 
 function toMessage(error: unknown): string {
@@ -15,19 +15,18 @@ function toMessage(error: unknown): string {
 /**
  * The account's mode, and how to change it.
  *
- * The mode is READ from the account (`GET /account`), never held here — the same
- * answer the gate routes on, so a switch cannot leave this card saying "business"
+ * The mode is READ from the account (`GET /account`), never held here: the same
+ * answer the gate routes on, so a switch cannot leave this row saying "business"
  * while the rest of the app disagrees.
  *
  * Switching writes the preference and ADOPTS the server's answer. It never claims
- * anything and never refuses: a mode with no name claimed yet is a normal state
- * (`ProfileHandlePanel` then offers the claim), because blocking the switch until
- * the name existed is exactly the one-way door this is meant to avoid.
+ * anything and never refuses: a mode with no name claimed yet is a normal state,
+ * because blocking the switch until the name existed is exactly the one-way door
+ * this is meant to avoid.
  *
- * `handleFor` is the shared `handleForIntent`, which crosses `HANDLE_KIND_FOR_INTENT`:
- * the mode is the account's word (`personal`), the handles carry the handle's word
- * (`person`), and that helper is where the two meet — for this card and for the
- * rail's identity card alike, so neither can answer differently.
+ * The handle behind each mode is not read here any more. The identity block at the
+ * top of the page states the name the account is acting under, from the same
+ * `handleForIntent` bridge this hook used to call.
  */
 export function useProfileIntent(): UseProfileIntentReturn {
   const account = useAccountIdentity();
@@ -35,11 +34,6 @@ export function useProfileIntent(): UseProfileIntentReturn {
   const [error, setError] = useState<string | null>(null);
 
   const intent = account.identity?.intent ?? 'personal';
-
-  const handleFor = useCallback(
-    (mode: AccountIntent) => handleForIntent(account.identity?.handles ?? [], mode),
-    [account.identity]
-  );
 
   const switchTo = useCallback(
     async (mode: AccountIntent) => {
@@ -59,5 +53,5 @@ export function useProfileIntent(): UseProfileIntentReturn {
     [account, intent]
   );
 
-  return { intent, handleFor, switching, error, switchTo };
+  return { intent, switching, error, switchTo };
 }

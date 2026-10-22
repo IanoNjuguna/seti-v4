@@ -7,13 +7,23 @@ import type { HandleKind } from '@/lib/api';
  * purpose signed — so this is a link builder, not a second route. `?kind=person` is
  * what lets a business-first account still claim a username: without it the intent
  * switch would only work one way, which is the one-way door the feature forbids.
+ *
+ * Read by `useRailIdentity` for the Receive page's name half. The Profile page no
+ * longer offers a claim: the gate already sends an account with no handle to
+ * onboarding, so a claim panel here was a second front door on a settings page.
  */
 export function claimHref(kind: HandleKind): string {
   return kind === 'person' ? '/app/merchant?kind=person' : '/app/merchant';
 }
 
 export const PROFILE_INTENT_COPY = {
-  title: 'How you use Seti',
+  /**
+   * The row's name on the settings list.
+   *
+   * `Mode` rather than "How you use Seti": the row sits among other rows now, and
+   * a row is a name and a fact, not a sentence about itself.
+   */
+  title: 'Mode',
   intro: 'Switch any time. Both can live on one account.',
   switchLabel: 'Account mode',
   emptyPersonalTitle: 'No username yet',
