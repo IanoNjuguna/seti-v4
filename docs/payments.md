@@ -11,7 +11,7 @@ happened on-chain rather than trusting what you tell it.
 ## The flow
 
 ```
-1. GET  /merchants/resolve?qr=…            → merchant + optional suggested amount
+1. GET  /handles/resolve?q=…               → the name, its address, optional suggested amount
 2. POST /transactions/preview              → fee, FX, and the GROSS to sign for
 3. sign + broadcast the transfer locally   → txHash   (your wallet, not Seti)
 4. POST /transactions/pay                  → server verifies txHash on-chain, records it
