@@ -56,6 +56,9 @@ jobs:
       # Local-only values for the throwaway service above. Not secrets.
       DATABASE_URL: postgresql://seti:seti@127.0.0.1:5433/seti?schema=public
       JWT_SECRET: ci-only-jwt-secret-not-a-real-secret
+      # `check:charge-api` signs real webhook deliveries and verifies them with the
+      # receiver's copy of this, so the suite needs a value to exist. CI-only, not a secret.
+      SETI_WEBHOOK_SECRET: ci-only-webhook-secret-not-a-real-secret
       SETI_TREASURY_ADDRESS: "0x48cb25f9d82aF721e71437feAfb295da627BA475"
       TEMPO_CHAIN_ID: "42431"
       TEMPO_TOKEN_PATHUSD: "0x20c0000000000000000000000000000000000000"
