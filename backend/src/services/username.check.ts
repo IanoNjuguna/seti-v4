@@ -293,9 +293,14 @@ async function main() {
   check('the two names share one handle', merchantHandle(COLLIDE_A), COLLIDE_HANDLE);
   check('and are genuinely different names', merchantHandle(COLLIDE_A) === merchantHandle(COLLIDE_B), true);
 
-  const first = await claim(userA.id, owner, 'person', COLLIDE_A);
+  const first = await claim(userB.id, rival, 'person', COLLIDE_A);
   check('the first username is claimed', first, 'null');
-  const colliding = await claim(userB.id, rival, 'person', COLLIDE_B);
+  // The second claim comes from the account that holds none: an account has ONE
+  // person name (#140), so asking userB for a second would be refused
+  // `rename-required` before the collision is even looked at. What this section
+  // pins is the STRING collision — one handle, two names, one winner — which is
+  // checked ahead of the one-name rule.
+  const colliding = await claim(userA.id, owner, 'person', COLLIDE_B);
   check('the colliding username is REFUSED', colliding?.code, 'handle-taken');
   check(
     'and only one handle exists for it',
