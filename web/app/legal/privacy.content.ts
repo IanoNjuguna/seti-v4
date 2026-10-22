@@ -21,9 +21,11 @@ import type { LegalSection } from "./LegalDocument";
  *    of those products in `web/` are in this document.
  *  - Browser storage: `seti-auth-token` and `seti-auth-user`
  *    (`web/lib/auth/auth.constants.ts`) and `seti-sound-muted`
- *    (`web/lib/sound.ts`). Balance visibility is deliberately NOT persisted
- *    (`web/components/home/useBalanceVisibility.ts`), so this policy says so
- *    instead of listing a preference that is not stored.
+ *    (`web/lib/sound.ts`). Amount privacy is deliberately NOT persisted: it is
+ *    held in memory by `web/lib/privacy/amount-privacy.context.tsx` for the
+ *    session, so it survives navigation between app screens and resets when the
+ *    page is reloaded. This policy says so instead of listing a preference that is
+ *    not stored.
  *  - Processors: Privy (sign-in, embedded wallet), Cloudflare (hosting, the API
  *    tunnel, R2 backups under `deploy/`), AWS Lightsail eu-west-1 (the server
  *    and its Postgres). The rate table is fetched server-side from

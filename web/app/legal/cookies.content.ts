@@ -15,9 +15,10 @@ import type { LegalSection } from "./LegalDocument";
  *  - `seti-auth-token`, `seti-auth-user` — `web/lib/auth/auth.constants.ts`,
  *    written by `auth.storage.ts`.
  *  - `seti-sound-muted` — `web/lib/sound.ts`.
- *  - Balance visibility is NOT stored: `web/components/home/useBalanceVisibility.ts`
- *    keeps it in memory on purpose, so it resets on reload. The previous version
- *    of this notice listed it as a stored preference. It is not one.
+ *  - Amount privacy is NOT stored: `web/lib/privacy/amount-privacy.context.tsx`
+ *    keeps it in memory on purpose, so it survives navigation between app screens
+ *    and resets on reload. The previous version of this notice listed it as a
+ *    stored preference. It is not one.
  *  - No third-party media: the landing backdrop is CSS
  *    (`app/components/landing/LandingBackdrop.tsx`) and `public/` holds no video.
  *  - Typefaces are served from this domain by `next/font`, not fetched from a

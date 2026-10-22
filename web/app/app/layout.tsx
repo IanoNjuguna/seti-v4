@@ -4,6 +4,7 @@ import { AppGate } from '@/components/app/AppGate';
 import { PrivyAppProvider } from '@/components/providers/PrivyAppProvider';
 import { AccountIdentityProvider } from '@/lib/account';
 import { SessionProvider } from '@/lib/auth';
+import { AmountPrivacyProvider } from '@/lib/privacy/amount-privacy.context';
 
 /**
  * The product app's layout.
@@ -34,7 +35,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <PrivyAppProvider>
       <SessionProvider>
         <AccountIdentityProvider>
-          <AppGate>{children}</AppGate>
+          {/*
+            * Inside the providers that establish WHO is here, outside the gate that
+            * decides whether the app renders: the amount privacy flag belongs to the
+            * session, survives navigation between `/app` routes, and resets on reload
+            * because nothing is stored (#135).
+            */}
+          <AmountPrivacyProvider>
+            <AppGate>{children}</AppGate>
+          </AmountPrivacyProvider>
         </AccountIdentityProvider>
       </SessionProvider>
     </PrivyAppProvider>

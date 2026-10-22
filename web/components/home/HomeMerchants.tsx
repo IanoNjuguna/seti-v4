@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { Text } from '@/components/ui';
+import { MaskedAmount } from '@/components/ui/MaskedAmount';
 import { formatFiat } from '@/lib/formatCurrency';
+import { useAmountPrivacy } from '@/lib/privacy/amount-privacy.context';
 import { HOME_PAGE_COPY } from './HomePage.constants';
 import type { HomeMerchantsProps } from './HomeMerchants.types';
 
@@ -26,6 +28,8 @@ import type { HomeMerchantsProps } from './HomeMerchants.types';
  * from one payment and from nine are different facts.
  */
 export function HomeMerchants({ merchants, currency }: HomeMerchantsProps) {
+  const { hidden } = useAmountPrivacy();
+
   return (
     <section aria-label={HOME_PAGE_COPY.merchantsTitle} className="flex flex-col gap-4">
       <div className="flex items-baseline justify-between gap-4">
@@ -55,9 +59,13 @@ export function HomeMerchants({ merchants, currency }: HomeMerchantsProps) {
                   {HOME_PAGE_COPY.paymentCount(merchant.count)}
                 </Text>
               </span>
-              <Text variant="body-medium" as="span" tabular className="shrink-0 whitespace-nowrap">
-                {formatFiat(Number(merchant.total), currency)}
-              </Text>
+              <span className="shrink-0">
+                <MaskedAmount hidden={hidden} variant="body-medium" align="end">
+                  <Text variant="body-medium" as="span" tabular className="whitespace-nowrap">
+                    {formatFiat(Number(merchant.total), currency)}
+                  </Text>
+                </MaskedAmount>
+              </span>
             </Link>
           </li>
         ))}
