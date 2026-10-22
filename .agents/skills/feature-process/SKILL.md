@@ -77,6 +77,10 @@ Green, or the PR is not opened. Do not open a PR "to see if CI passes"; run it
 locally first. If a suite fails because the database is down, start it (`docker
 start seti-postgres`), do not report the gate as failing.
 
+If the change touches a public surface — a route, a response shape, a refusal code, an
+env default — `verify` is not the whole gate: the MCP tools and the docs move in the
+same PR. See the `surface-parity` skill for what to touch and how to prove it.
+
 ## 5. The pull request carries the reasoning
 
 `gh pr create` with `.github/pull_request_template.md` as the shape. What
