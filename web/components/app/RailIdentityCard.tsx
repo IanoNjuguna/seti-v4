@@ -9,9 +9,10 @@ import { RailIdentitySignedOut } from './RailIdentitySignedOut';
  *
  * The rail used to state who was signed in here: a "Signed in as" label, the
  * active mode's `@handle` and its public link, each on a `CopyRow` with its own
- * copy control. That whole block is gone. The same identity now lives on the
- * Profile page under "How you use Seti" → Personal, so the rail restating it was
- * one fact said twice — chrome repeating what a page already owns.
+ * copy control. That whole block is gone. The same identity now opens the
+ * Profile page (`ProfileIdentity`: medallion, name, `@handle`), where the person
+ * is the first thing on the surface, so the rail restating it was one fact said
+ * twice: chrome repeating what a page already owns.
  *
  * The block's own surface went with it. When signed in this component returns
  * `null`, not an empty card: the hairline, padding and `mt-auto` only ever

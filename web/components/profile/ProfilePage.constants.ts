@@ -1,32 +1,34 @@
 /**
- * Copy the Profile PAGE owns.
+ * Copy the Profile page itself owns.
  *
- * The page carries the words and the controls stand on the canvas, so the labels
- * that belong to the surface itself — the page's title, the legal row's heading, and
- * the one control a visitor gets — live here rather than as literals in the page's
- * JSX. A hand-typed string in a page is how the text ends up in a card again: it has
- * nowhere else to live.
+ * The page has no title of its own any more: the first thing on it is the person
+ * (medallion, name, handle), so the word "Profile" no longer opens anything. What
+ * is left here is the settings group's heading, the label over the legal
+ * documents, the plain title of each settings row, and the one sentence a visitor
+ * gets.
  *
- * The ROW words are deliberately not repeated here. The network row's are
- * `PROFILE_NETWORK_COPY` and the mode row's are `PROFILE_INTENT_COPY`.
- *
- * The signed-in IDENTITY line is not here, and no second spelling of it is either:
- * the rail's identity card owns it (`RAIL_IDENTITY_COPY.signedInAs` and the
- * `@handle`), and the page deliberately does not repeat a line the rail already
- * states.
+ * Row-level words that belong to a control stay with that control:
+ * `PROFILE_INTENT_COPY` for the mode row, `PROFILE_LEGAL_LINKS` for the three
+ * documents, `PROFILE_SHORTCUTS` for the two rows above the list.
  */
-/** The row that opens the security screen, and where it points. */
-export const PROFILE_SECURITY_COPY = {
-  title: 'Security',
-  intro: 'How you sign in, and what stops someone else doing it.',
-  href: '/app/profile/security',
-} as const;
-
 export const PROFILE_PAGE_COPY = {
-  /** The page's own title, at page level — the same word the nav uses for the route. */
-  title: 'Profile',
-  /** The legal row's heading. */
-  legalTitle: 'Legal',
+  /** The heading over the dense settings list. */
+  settingsHeading: 'Settings',
+  /** The label over the three documents. */
+  legalLabel: 'Legal',
+  personalTitle: 'Personal information',
+  networkTitle: 'Network',
+  /** The accessible name of the two shortcut rows, which are a nav of their own. */
+  shortcutsLabel: 'Ways to use your account',
+  /**
+   * ONE sentence, not two.
+   *
+   * The signed-out page used to say "Sign in to see which network you are on" and
+   * "Sign in to see your name": the same instruction twice, over a shape that had
+   * nothing behind it either way. A visitor gets the sentence and the way in, in
+   * the place the identity block stands.
+   */
+  signedOutLine: 'Sign in to see your account and settings.',
   /** The one control a signed-out visitor gets: the way to the front door. */
   signedOutAction: 'Sign in',
 } as const;

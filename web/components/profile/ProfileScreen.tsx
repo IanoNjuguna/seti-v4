@@ -1,61 +1,40 @@
 'use client';
 
 import { SignOutButton } from '@/components/auth/SignOutButton';
-import { CHAIN_NAME } from '@/lib/chain';
-import { ProfileLegalSection } from './ProfileLegalSection';
-import { ProfileSecurityRow } from './ProfileSecurityRow';
-import { ProfileModeSection } from './ProfileModeSection';
-import { ProfileNetworkSection } from './ProfileNetworkSection';
-import { useProfileIntent } from './useProfileIntent';
-import { useProfileNetwork } from './useProfileNetwork';
+import { ProfileIdentity } from './ProfileIdentity';
+import { ProfileSettings } from './ProfileSettings';
+import { ProfileShortcuts } from './ProfileShortcuts';
+import { useProfileIdentity } from './useProfileIdentity';
 
 /**
- * Profile for a confirmed account — the page's shape, as rows.
+ * Profile for a confirmed account, in the order a person reads it.
  *
- * Four rows on the canvas, in the order a person deals with them: which network the
- * account is on, how it uses Seti and what it is called, the documents, and the way
- * out. Every row is `ProfileSection`, so they share one left edge and one hairline
- * rhythm and none of them is a card.
+ * THREE bands, and the order is the whole change: who you are, what you came here
+ * to do, then the settings. The page used to open on the word "Profile" and go
+ * straight into sections, so the customer was the one thing missing from their own
+ * page.
  *
- * The two account-scoped reads live here rather than in the rows: the rows are views,
- * and this is the component that is rendered only once the session has confirmed an
- * account, so a visitor never fires a request for facts they do not have.
+ * The identity is the `h1` and the first pixel; the two shortcuts sit between it and
+ * the list because they are the reasons someone opens this screen at all, and the
+ * settings come last because a settings change is what you do when the first two
+ * were not what you wanted. Sign out is the way out and closes the column.
  *
- * The identity line is deliberately NOT here. The rail's identity card already states
- * who you are signed in as (`RAIL_IDENTITY_COPY.signedInAs` and the `@handle`), so a
- * second copy at the top of this page would be one fact said twice on one screen.
- *
- * The whole signed-out shape is the page's, not this component's: `ProfileSignedOut`
- * renders the same rows with one sentence where each fact would be.
+ * The account read lives in `useProfileIdentity`, which is only mounted once the
+ * session has confirmed an account, so a visitor never fires a request for facts
+ * they do not have (`ProfileSignedOut` gets the same place at the top).
  */
 export function ProfileScreen() {
-  const network = useProfileNetwork();
-  const intent = useProfileIntent();
+  const person = useProfileIdentity();
 
   return (
-    <div className="flex flex-col gap-6">
-      <ProfileNetworkSection
-        network={network.network}
-        value={CHAIN_NAME}
-        depositAddress={network.depositAddress}
-        error={network.error}
-      />
+    <div className="flex flex-col gap-8">
+      <ProfileIdentity name={person.name} handle={person.handle} initial={person.initial} />
 
-      <ProfileModeSection
-        intent={intent.intent}
-        switching={intent.switching}
-        handle={intent.handleFor(intent.intent)}
-        error={intent.error}
-        onSwitch={(mode) => void intent.switchTo(mode)}
-      />
+      <ProfileShortcuts />
 
-      <ProfileSecurityRow />
+      <ProfileSettings name={person.name} handle={person.handle} businesses={person.businesses} />
 
-      <ProfileLegalSection />
-
-      <div className="border-t border-hairline-light pt-6">
-        <SignOutButton />
-      </div>
+      <SignOutButton />
     </div>
   );
 }
