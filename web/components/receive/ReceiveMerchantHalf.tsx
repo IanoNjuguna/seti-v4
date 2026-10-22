@@ -1,42 +1,58 @@
 'use client';
 
 import { QrPlate } from '@/components/qr/QrPlate';
+import { QrDownloadControl } from '@/components/qr/QrDownloadControl';
 import { RECEIVE_COPY } from './receive.constants';
-import { handleLink, handleLinkLabel } from '@/lib/merchant-link';
-import { ReceiveLinkPanel } from './ReceiveLinkPanel';
+import { handleLink } from '@/lib/merchant-link';
+import { ReceiveField } from './ReceiveField';
+import { ReceiveHalf } from './ReceiveHalf';
 
 /**
- * The "your merchant name" half: the code a customer scans at a counter, and the
- * two strings a customer can be handed instead.
+ * The "your business name" half: the code a customer scans at a counter, the name
+ * they are paying, and the link behind the code.
  *
- * It exists only once the account holds a business handle — the page decides that
- * and only offers the tab when it does — so this half never has to draw an empty
- * state.
+ * It exists only once the account holds a business handle, and the page decides
+ * that, so this half never draws an empty state.
  *
- * TWO strings, and they are not interchangeable: the HANDLE is the slug the link is
- * built from and the string a customer types (`javahouse`), while the NAME is how
- * the business is written to a reader (`Java House`). Passing the name into
- * `handleLink` produced `seti.live/m/Java House` — a link with a space in it, caught
- * in the render — so the code, the link and the copy controls all take the handle,
- * and only the code's accessible name takes the display name.
+ * The displayed name is the BUSINESS name (`Java House`) while the code, the link
+ * and the note all take the HANDLE (`javahouse`). Passing the name into `handleLink`
+ * once produced `seti.live/m/Java House`, so the split is stated here rather than
+ * left to each caller to remember.
  */
 export function ReceiveMerchantHalf({ name, handle }: { name: string; handle: string }) {
   const link = handleLink('business', handle);
 
   return (
-    <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center sm:justify-center sm:gap-8">
-      <QrPlate
-        value={link}
-        title={RECEIVE_COPY.merchantQrTitle(name)}
-        download={{
-          filename: RECEIVE_COPY.qrFilename(handle),
-          label: RECEIVE_COPY.download,
-          working: RECEIVE_COPY.downloading,
-          failed: RECEIVE_COPY.downloadFailed,
-        }}
-      />
-
-      <ReceiveLinkPanel handle={handle} link={link} caption={handleLinkLabel('business', handle)} />
-    </div>
+    <ReceiveHalf
+      plate={
+        <QrPlate
+          value={link}
+          title={RECEIVE_COPY.merchantQrTitle(name)}
+          align="start"
+        />
+      }
+      title={name}
+      field={
+        <ReceiveField
+          label={RECEIVE_COPY.linkLabel}
+          value={link}
+          copyLabel={RECEIVE_COPY.copyLink}
+          copyFailed={RECEIVE_COPY.copyFailed}
+          copiedText={RECEIVE_COPY.copiedAction}
+          note={RECEIVE_COPY.merchantNote(handle)}
+        />
+      }
+      share={{ title: RECEIVE_COPY.merchantQrTitle(name), url: link }}
+      download={
+        <QrDownloadControl
+          download={{
+            filename: RECEIVE_COPY.qrFilename(handle),
+            label: RECEIVE_COPY.download,
+            working: RECEIVE_COPY.downloading,
+            failed: RECEIVE_COPY.downloadFailed,
+          }}
+        />
+      }
+    />
   );
 }

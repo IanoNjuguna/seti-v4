@@ -98,17 +98,10 @@ function ReceiveScreen() {
 
       {view === 'address' ? (
         <ReceiveAddressPanel />
+      ) : view === 'merchant' && business ? (
+        <ReceiveMerchantHalf name={business.name} handle={business.handle} />
       ) : (
-        <>
-          <Text variant="body" color="secondary" as="p">
-            {view === 'merchant' ? RECEIVE_PAGE_COPY.merchantLead : RECEIVE_PAGE_COPY.nameLead}
-          </Text>
-          {view === 'merchant' && business ? (
-            <ReceiveMerchantHalf name={business.name} handle={business.handle} />
-          ) : (
-            <ReceiveNameHalf />
-          )}
-        </>
+        <ReceiveNameHalf />
       )}
     </div>
   );
