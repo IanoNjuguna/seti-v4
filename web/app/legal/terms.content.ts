@@ -25,7 +25,7 @@ import type { LegalSection } from "./LegalDocument";
  *  - Practice and Live as two networks on Tempo, mainnet 4217 and testnet
  *    42431, with a deployment serving one of them and saying so:
  *    `web/lib/chain/chain.assets.ts`, `web/lib/network/network.constants.ts`,
- *    `web/components/profile/ProfileNetworkSection.tsx`.
+ *    `web/components/app/PracticeFrame.tsx`.
  *  - The receipt check that fails closed before a payment is recorded:
  *    `recordPayment` / `recordSend`, and `backend/src/services/payout.check.ts`.
  *  - What is recorded, including the IP on an audit row: `AuditLog` in

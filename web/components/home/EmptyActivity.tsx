@@ -4,10 +4,9 @@ import { Text } from '@/components/ui';
 import { EMPTY_ACTIVITY_COPY, EMPTY_ACTIVITY_SEND_HREF } from './EmptyActivity.constants';
 
 /**
- * The action's own class list, beside the one element that uses it — the same
- * class the profile panel's empty state puts on its claim link
- * (`ProfileHandleEmpty`): a 14px semibold line in the inline-link role
- * (`text-link`), underlined on hover, in the repo's `min-touch` 44px box.
+ * The action's own class list, beside the one element that uses it. The same
+ * class an empty state's link wears (`text-link`): a 14px semibold line in the
+ * inline-link role, underlined on hover, in the repo's `min-touch` 44px box.
  *
  * A TEXT action and not a button, deliberately. On the home screen the action
  * strip directly above already carries a Send tile, so a second, filled control
