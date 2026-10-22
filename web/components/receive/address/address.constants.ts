@@ -22,6 +22,8 @@ export const ADDRESS_COPY = {
   qrTitle: (network: Network) =>
     `Your ${NETWORK_LABEL[network]} deposit address, as a QR code a wallet can scan.`,
   copyAction: 'Copy address',
+  /** The caption over the field: what the 42 characters underneath are. */
+  fieldLabel: 'Your Tempo address',
   copiedAction: 'Copied',
   copyFailed: 'Could not copy. Select the address and copy it by hand.',
   /**

@@ -23,12 +23,4 @@ export const RECEIVE_PAGE_COPY = {
   name: 'Your username',
   address: 'Your address',
   merchant: 'Your merchant name',
-  /**
-   * The username half's line. Scanning leads, because it is the one a sender can do
-   * without typing — and the only one that opens the recipient's app directly. The
-   * two typed routes follow in the order they are drawn below the code.
-   */
-  nameLead: 'Let them scan your QR code or send them your username or link.',
-  /** The merchant half's line, same shape, said to a customer instead of a friend. */
-  merchantLead: 'Let them scan your QR code or send them your business link.',
 } as const;

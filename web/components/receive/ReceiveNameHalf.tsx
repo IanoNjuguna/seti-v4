@@ -2,30 +2,32 @@
 
 import { QrPlate } from '@/components/qr/QrPlate';
 import { useRailIdentity } from '@/components/app/useRailIdentity';
+import { QrDownloadControl } from '@/components/qr/QrDownloadControl';
 import { RECEIVE_COPY } from './receive.constants';
-import { ReceiveLinkPanel } from './ReceiveLinkPanel';
+import { ReceiveField } from './ReceiveField';
+import { ReceiveHalf } from './ReceiveHalf';
 
 /**
- * The "your username" half: the code a sender scans, and the two strings they can
- * be handed instead.
+ * The "your username" half: the code a sender scans, the name it stands for, and the
+ * link a sender can be handed instead.
  *
- * Get paid BY NAME — the half for another Seti ACCOUNT: they send to the name, and
- * the person never sees or shares an address at all. The address half is for a
- * transfer from outside Seti, and the merchant half for a customer paying a
+ * Get paid BY NAME: this is the half for another Seti ACCOUNT. The address half is
+ * for a transfer from outside Seti, and the merchant half for a customer paying a
  * business.
  *
- * The link and the code are the same string, and both come from `useRailIdentity`
- * — the same hook, and the same `merchant-link.ts`, that the rail's copy control
- * already uses. A second URL built here would be a second host and a second route
- * shape to keep in step.
+ * ONE string leaves this half. It used to offer two copy rows, the bare name and the
+ * link, which gave the same weight to two different jobs and turned the half into a
+ * form. The link is the string that travels (it is what the code encodes and what a
+ * chat pastes), and the name is still handed over in words: the note under the field
+ * says a Seti account can simply type it.
+ *
+ * The link and the code are the same string and both come from `useRailIdentity`, the
+ * same hook and the same `merchant-link.ts` the rail's copy control uses. A second
+ * URL built here would be a second host and a second route shape to keep in step.
  *
  * It renders NOTHING without a handle: the account's active mode may hold no name
- * yet, and the rail's identity card already offers the claim route for exactly that
- * state. Shown here, it would either duplicate that offer or — worse — show a code
- * for a link that resolves to nobody.
- *
- * It carries the OBJECTS only. The lead sentence above it belongs to the page
- * (`ReceivePage`), the same way every other page-level line does.
+ * yet, and the rail's identity card already offers the claim route for that state.
+ * A code for a link that resolves to nobody would be worse than no code.
  */
 export function ReceiveNameHalf() {
   const { signedIn, handle } = useRailIdentity();
@@ -33,19 +35,37 @@ export function ReceiveNameHalf() {
   if (!signedIn || !handle) return null;
 
   return (
-    <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center sm:justify-center sm:gap-8">
-      <QrPlate
-        value={handle.link}
-        title={RECEIVE_COPY.qrTitle(handle.handle)}
-        download={{
-          filename: RECEIVE_COPY.qrFilename(handle.handle),
-          label: RECEIVE_COPY.download,
-          working: RECEIVE_COPY.downloading,
-          failed: RECEIVE_COPY.downloadFailed,
-        }}
-      />
-
-      <ReceiveLinkPanel handle={handle.handle} link={handle.link} caption={handle.caption} />
-    </div>
+    <ReceiveHalf
+      plate={
+        <QrPlate
+          value={handle.link}
+          title={RECEIVE_COPY.qrTitle(handle.handle)}
+          align="start"
+        />
+      }
+      title={`@${handle.handle}`}
+      monoTitle
+      field={
+        <ReceiveField
+          label={RECEIVE_COPY.linkLabel}
+          value={handle.link}
+          copyLabel={RECEIVE_COPY.copyLink}
+          copyFailed={RECEIVE_COPY.copyFailed}
+          copiedText={RECEIVE_COPY.copiedAction}
+          note={RECEIVE_COPY.nameNote(handle.handle)}
+        />
+      }
+      share={{ title: RECEIVE_COPY.qrTitle(handle.handle), url: handle.link }}
+      download={
+        <QrDownloadControl
+          download={{
+            filename: RECEIVE_COPY.qrFilename(handle.handle),
+            label: RECEIVE_COPY.download,
+            working: RECEIVE_COPY.downloading,
+            failed: RECEIVE_COPY.downloadFailed,
+          }}
+        />
+      }
+    />
   );
 }

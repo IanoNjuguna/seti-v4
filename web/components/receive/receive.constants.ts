@@ -17,10 +17,19 @@
  * on both networks, so the link works whoever sends it and whenever.
  */
 export const RECEIVE_COPY = {
-  /** The control beside the handle copies the NAME a sender types, without the `@`. */
-  copyHandle: 'Copy username',
-  /** The control beside the link copies the absolute URL. */
+  /** The caption over the one field: what the string underneath is. */
+  linkLabel: 'Your Seti link',
+  /** The control inside the field copies the absolute URL. */
   copyLink: 'Copy link',
+  /** What a sender can do INSTEAD of the link: type the name they were given. */
+  nameNote: (handle: string) => `A Seti account can also type @${handle} to pay you.`,
+  /** The same, for a business: a customer reads the name off the counter. */
+  merchantNote: (handle: string) => `A customer can also type ${handle} at the counter.`,
+  share: 'Share',
+  shared: 'Shared',
+  /** Where the OS sheet is absent and the clipboard took it instead. */
+  sharedByCopy: 'Link copied',
+  shareFailed: 'Could not share or copy. Select the link above.',
   copiedAction: 'Copied',
   copyFailed: 'Could not copy. Select the text and copy it by hand.',
   /** The code's accessible name, and the SVG's own `<title>`. */

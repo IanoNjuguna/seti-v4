@@ -22,11 +22,18 @@ export interface QrPlateProps {
    */
   title: string;
   /**
-   * Draws the control that saves the code as a PNG. Absent means no control: a
-   * printed code is what a download is for, and a code nobody prints does not need
-   * one.
+   * Which edge the plate and its controls share.
+   *
+   * `center` is the default and suits a card that draws a single code. `start` is for
+   * the receive halves, which sit on one left-aligned axis: a centred square above
+   * left-aligned text is the mixed edge that made the page read as two layouts.
    */
-  download?: QrDownload;
+  align?: 'start' | 'center';
   /** Extra classes for the plate, merged onto the shared geometry. */
   className?: string;
+}
+
+/** The control that saves a code as a PNG: the same hook, placed by the half. */
+export interface QrDownloadControlProps {
+  download: QrDownload;
 }
