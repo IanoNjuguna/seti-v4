@@ -94,3 +94,21 @@ export function handleLink(kind: HandleLinkKind, name: string): string {
 export function handleLinkLabel(kind: HandleLinkKind, handle: string): string {
   return `${HOST}/${kind === 'person' ? 'u' : 'm'}/${handle}`;
 }
+
+/**
+ * The link a person hands out to bring someone to Seti: `seti.live/i/<handle>`.
+ *
+ * A THIRD route onto the same namespace, and the same handle rule: the link names
+ * an account that exists, which is why inviting requires a username first. It is
+ * not a payment route — `/u/` is what a sender opens, `/i/` is what a friend
+ * opens — so it must never be built from `handleLink`, which answers with the pay
+ * route.
+ *
+ * The API builds the same string (`INVITE_HOST` in
+ * `backend/src/services/referral.ts`) because `GET /referrals/me` answers with the
+ * link rather than making every client assemble it, and `check:referral` imports
+ * this module at runtime to pin the two together.
+ */
+export function inviteLink(handle: string): string {
+  return `https://${HOST}/i/${merchantHandle(handle)}`;
+}

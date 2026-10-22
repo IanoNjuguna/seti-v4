@@ -14,6 +14,9 @@ import type { LegalSection } from "./LegalDocument";
  *
  *  - `seti-auth-token`, `seti-auth-user` — `web/lib/auth/auth.constants.ts`,
  *    written by `auth.storage.ts`.
+ *  - `seti-invite` — the ONE cookie, set by `web/app/i/[handle]/route.ts` and named
+ *    in `web/lib/invite/invite.constants.ts`. httpOnly, 30 days, only when an
+ *    invite link is opened, and discarded after sign-in (`web/app/api/invite`).
  *  - `seti-sound-muted` — `web/lib/sound.ts`.
  *  - Amount privacy is NOT stored: `web/lib/privacy/amount-privacy.context.tsx`
  *    keeps it in memory on purpose, so it survives navigation between app screens
@@ -29,15 +32,18 @@ import type { LegalSection } from "./LegalDocument";
 
 const intro = [
   `This notice says what Seti stores in your browser, and what it does not. It covers the website at ${SITE.domain} and the Seti app.`,
-  "The short version: we set no cookies of our own, run no analytics, and load nothing that follows you across other sites.",
+  "The short version: we set one cookie of our own, only when you open an invite link, run no analytics, and load nothing that follows you across other sites.",
 ];
 
 const sections: LegalSection[] = [
   {
     title: "1. What we set",
     paragraphs: [
-      "Nothing. Seti sets no cookies on the website and reads none. There is no analytics cookie, no advertising cookie and no social media cookie.",
-      "There is also no analytics product, no session recorder, no heat map and no advertising pixel on this site.",
+      "One cookie, and only if you open an invite link such as seti.live/i/someone. It records that you arrived from that invitation, so the person who sent it can see that you joined, by the username you choose. No script can read it, it is never sent to anyone else, and signing up discards it.",
+      "There is no analytics cookie, no advertising cookie and no social media cookie. There is also no analytics product, no session recorder, no heat map and no advertising pixel on this site.",
+    ],
+    clauses: [
+      "seti-invite: the invitation you arrived on. Strictly necessary for the one thing it does. It lasts up to 30 days, or until you sign up, whichever comes first. We set it only when the link names an account that exists.",
     ],
   },
   {

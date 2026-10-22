@@ -15,6 +15,7 @@ import { usePrivyEmailSignIn } from './privy-email-sign-in';
 import { bootstrapStoredSession } from './session-bootstrap';
 import { describeStoredSessionFailure } from './session-identity';
 import { devSignIn, privySignIn } from './session';
+import { clearInviteCode } from '@/lib/invite/invite.client';
 import type { AuthStatus, AuthUser, SessionValue, SignInStatus } from './auth.types';
 
 /**
@@ -90,7 +91,21 @@ const SessionContext = createContext<SessionValue | null>(null);
  * `restoring` is the FIRST state and it does not block: it is a real state the
  * shell can render with, so nothing waits on a wallet before drawing.
  */
-export function SessionProvider({ children }: { children: ReactNode }) {
+export function SessionProvider({
+  children,
+  inviteCode = null,
+}: {
+  children: ReactNode;
+  /**
+   * The signed invite code this browser arrived with, read from its httpOnly cookie
+   * by the SERVER that rendered the page (`/signin`, the only page that reads it).
+   *
+   * It is carried on the account-establishing call and nowhere else, because that is
+   * the moment an account exists and therefore the only moment an invite can be
+   * attributed (#145). Null is the ordinary case and sends nothing at all.
+   */
+  inviteCode?: string | null;
+}) {
   const [state, setState] = useState<SessionState>(RESTORING);
   const [signingIn, setSigningIn] = useState(false);
   const [signInStatus, setSignInStatus] = useState<SignInStatus>('idle');
@@ -315,17 +330,27 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         const { user, token: sessionToken } = await privySignIn(
           token,
           privyEmail.walletAddress(),
-          TERMS_VERSION
+          TERMS_VERSION,
+          inviteCode
         );
         persistSession({ user, token: sessionToken });
         setAuthToken(sessionToken);
         setState({ status: 'signed-in', user, token: sessionToken });
         setSignInStatus('idle');
+
+        /*
+         * The invite is spent. An account has been established from this browser, so
+         * the code has done the one thing it can do, and it is discarded rather than
+         * left to attribute a second account created here inside thirty days. Fired
+         * and not awaited: it cannot fail in a way the person needs to know about, and
+         * sign-in must not wait on it. See `lib/invite/invite.client.ts`.
+         */
+        if (inviteCode) void clearInviteCode();
       } catch (cause) {
         failPrivySignIn(describePrivySignInFailure(cause));
       }
     },
-    [source, configured, privyEmail, failPrivySignIn]
+    [source, configured, privyEmail, failPrivySignIn, inviteCode]
   );
 
   const signOut = useCallback(async () => {

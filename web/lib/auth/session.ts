@@ -32,12 +32,16 @@ interface DevResponse {
 export async function verifyPrivyToken(
   token: string,
   walletAddress?: string,
-  acceptedTermsVersion?: string
+  acceptedTermsVersion?: string,
+  referralCode?: string | null
 ): Promise<AuthUser> {
   const { user } = await post<VerifyResponse>('/auth/verify', {
     token,
     walletAddress,
     acceptedTermsVersion,
+    // Omitted rather than sent as `null` when there is none: the field means "this
+    // browser arrived on an invite", and an absent one is the ordinary case.
+    referralCode: referralCode ?? undefined,
   });
   return user;
 }
@@ -85,8 +89,14 @@ export async function devSignIn(): Promise<{ user: AuthUser; token: string }> {
 export async function privySignIn(
   privyAccessToken: string,
   walletAddress?: string,
-  acceptedTermsVersion?: string
+  acceptedTermsVersion?: string,
+  referralCode?: string | null
 ): Promise<{ user: AuthUser; token: string }> {
-  const user = await verifyPrivyToken(privyAccessToken, walletAddress, acceptedTermsVersion);
+  const user = await verifyPrivyToken(
+    privyAccessToken,
+    walletAddress,
+    acceptedTermsVersion,
+    referralCode
+  );
   return { user, token: privyAccessToken };
 }

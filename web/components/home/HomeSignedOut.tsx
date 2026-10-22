@@ -24,9 +24,18 @@ import type { HomeSignedOutProps } from './HomeSignedOut.types';
  * where the money flow is entered (`SignInPrompt` on `/app/send`). Nothing here
  * fetches: a visitor has no account to read.
  */
-export function HomeSignedOut({ view }: HomeSignedOutProps) {
+export function HomeSignedOut({ view, inviteNotLive = false }: HomeSignedOutProps) {
   return (
     <div className="flex flex-col gap-6 md:gap-8">
+      {/* The invite they followed does not name anybody, and saying nothing would
+          leave them waiting for a bonus or wondering why the link did nothing. One
+          sentence, no promise, and the app stays usable underneath. */}
+      {inviteNotLive ? (
+        <Text variant="micro" as="p" color="secondary" className="rounded-md bg-surface-soft px-4 py-3">
+          {HOME_PAGE_COPY.inviteNotLive}
+        </Text>
+      ) : null}
+
       <BalanceCard data={null} view={view} />
 
       <HomeActions />

@@ -1,7 +1,9 @@
 'use client';
 
+import { Suspense } from 'react';
 import { HomeScreen } from '@/components/home/HomeScreen';
 import { HomeSignedOut } from '@/components/home/HomeSignedOut';
+import { HomeSignedOutGate } from '@/components/home/HomeSignedOutGate';
 import { useSession } from '@/lib/auth';
 
 /**
@@ -20,12 +22,22 @@ import { useSession } from '@/lib/auth';
  * `status !== 'signed-in'` so TypeScript narrows the view to the two states
  * `HomeSignedOut` can actually render — a `signed-in` screen can never render
  * "sign in to see your balance".
+ *
+ * The visitor side goes through `HomeSignedOutGate`, which reads `?invite=` — the
+ * flag `/i/<handle>` adds when the invite names nobody (#145). That read needs a
+ * `Suspense` boundary (`useSearchParams` fails the production build without one, and
+ * the pay page carries the same boundary for the same reason); the fallback is the
+ * same signed-out home, so what is prerendered is unchanged.
  */
 export default function HomePage() {
   const session = useSession();
 
   if (session.status !== 'signed-in') {
-    return <HomeSignedOut view={session.status} />;
+    return (
+      <Suspense fallback={<HomeSignedOut view={session.status} />}>
+        <HomeSignedOutGate view={session.status} />
+      </Suspense>
+    );
   }
 
   return <HomeScreen />;

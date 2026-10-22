@@ -21,7 +21,13 @@ import type { LegalSection } from "./LegalDocument";
  *    of those products in `web/` are in this document.
  *  - Browser storage: `seti-auth-token` and `seti-auth-user`
  *    (`web/lib/auth/auth.constants.ts`) and `seti-sound-muted`
- *    (`web/lib/sound.ts`). Amount privacy is deliberately NOT persisted: it is
+ *    (`web/lib/sound.ts`).
+ *  - One cookie: `seti-invite` (`web/lib/invite/invite.constants.ts`), set by the
+ *    `/i/<handle>` route when the link is live and read by the `/signin` render.
+ *  - Invitation attribution: `Referral` in `backend/prisma/schema.prisma`, written
+ *    at `POST /auth/verify` for a NEW account only. It holds the two account ids,
+ *    the inviter's handle as a snapshot, and the time — no email, no address, no
+ *    amount. Amount privacy is deliberately NOT persisted: it is
  *    held in memory by `web/lib/privacy/amount-privacy.context.tsx` for the
  *    session, so it survives navigation between app screens and resets when the
  *    page is reloaded. This policy says so instead of listing a preference that is
@@ -70,6 +76,7 @@ const sections: LegalSection[] = [
       "The names you choose: a username, or a business name. We store the name as you typed it, the handle it reduces to, whether it is a person or a business, the address it pays to, and the signature that claimed it.",
       "What you paid. For each payment: the amount, the digital dollar used, the fee, the address paid, the KES figure shown, the exchange rate and its source and time, the transaction hash, the block, the status and the times. Nothing is written until the payment has been checked against the public record.",
       "The currency your figures are shown in. In this version that is KES. It is a setting only.",
+      "Whether an account invited you. If you open someone's invite link and then sign up, we record that the two accounts are connected: the account that invited you can see that you joined, by the username you chose, and the date. It never sees your email address, your wallet address, or what you spend. Nothing is recorded if you only open the link and do not sign up.",
       "Security records. When you sign in, or take an action that matters, we write an entry: what happened, when, and the IP address the request came from. Our servers also keep request logs, which include IP addresses. We use both to run and to secure the service.",
     ],
   },
@@ -96,7 +103,7 @@ const sections: LegalSection[] = [
   {
     title: "5. What your browser keeps",
     paragraphs: [
-      `The website keeps your sign-in in your browser's local storage, and remembers whether you muted the sound. It sets no cookies of its own. The cookie notice at ${COOKIES_URL} lists every entry, by name.`,
+      `The website keeps your sign-in in your browser's local storage, and remembers whether you muted the sound. It sets one cookie of its own: when you open an invite link, it stores a signed cookie for up to 30 days recording that you arrived from that invitation. Only our server can read it, no script can, and it is discarded once you have signed up. The cookie notice at ${COOKIES_URL} lists every entry, by name.`,
     ],
   },
   {
