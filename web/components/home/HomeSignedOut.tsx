@@ -2,7 +2,6 @@ import { Text } from '@/components/ui';
 import { NO_ACCOUNT_COPY } from '@/components/app/no-account.constants';
 import { BalanceCard } from './BalanceCard';
 import { HomeActions } from './HomeActions';
-import { HomeGreeting } from './HomeGreeting';
 import { HOME_PAGE_COPY } from './HomePage.constants';
 import type { HomeSignedOutProps } from './HomeSignedOut.types';
 
@@ -10,9 +9,9 @@ import type { HomeSignedOutProps } from './HomeSignedOut.types';
  * Home for a visitor who is not signed in — the DEMO surface.
  *
  * The product's shape stays complete and visible, because that is the point of
- * showing the app to someone who has not signed up: the greeting line, the balance
- * card where the balance lives, the two actions, and the section where the
- * merchants would be. What is missing is the DATA, and each place it would be says
+ * showing the app to someone who has not signed up: the balance card where the
+ * balance lives, the two actions, and the section where the merchants would be.
+ * What is missing is the DATA, and each place it would be says
  * one sentence instead (`NO_ACCOUNT_COPY`) — never a zero, never a placeholder
  * figure, never a skeleton implying something is arriving.
  *
@@ -28,10 +27,7 @@ import type { HomeSignedOutProps } from './HomeSignedOut.types';
 export function HomeSignedOut({ view }: HomeSignedOutProps) {
   return (
     <div className="flex flex-col gap-6 md:gap-8">
-      <div className="flex flex-col gap-4">
-        <HomeGreeting />
-        <BalanceCard data={null} view={view} />
-      </div>
+      <BalanceCard data={null} view={view} />
 
       <HomeActions />
 

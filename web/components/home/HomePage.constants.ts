@@ -2,8 +2,7 @@
  * The home page's own words.
  *
  * The PAGE carries every word on Home (the rule the surface was rebuilt for): the
- * greeting (`greeting.constants.ts`), the actions (`HomeActions.constants.ts`), and
- * the two sections under the balance here.
+ * actions (`HomeActions.constants.ts`), and the two sections under the balance here.
  *
  * The section headings live here rather than inside the components for the same
  * reason `/app/receive` splits its copy from its halves: the components carry

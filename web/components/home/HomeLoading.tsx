@@ -3,10 +3,9 @@ import { Skeleton } from '@/components/ui';
 /**
  * The loading state, shaped like the screen it stands in for.
  *
- * The shapes match `HomeScreen` exactly — the greeting line and the hero are one
- * `gap-4` unit, the two actions are full-width halves, then the period row, then a
- * heading over merchant rows on the canvas. Three rules earned this file, and each
- * one still bites:
+ * The shapes match `HomeScreen` exactly — the hero is the first element, the two
+ * actions are full-width halves, then the period row, then a heading over merchant
+ * rows on the canvas. Three rules earned this file, and each one still bites:
  *
  *  1. **The hero is `bg-canvas-dark`.** A white placeholder for a black card is not
  *     a resize on arrival — it is a surface flip across the largest element on the
@@ -25,16 +24,10 @@ import { Skeleton } from '@/components/ui';
 export function HomeLoading() {
   return (
     <div className="flex flex-col gap-6 md:gap-8" aria-busy aria-label="Loading your account">
-      <div className="flex flex-col gap-4">
-        <div className="flex h-6 items-center">
-          <Skeleton className="h-4 w-40" />
-        </div>
-
-        <section className="rounded-md bg-canvas-dark p-6 sm:p-8">
-          <span className="block h-4 w-24 rounded-sm bg-surface-elevated" />
-          <span className="mt-2 block h-8 w-48 rounded-sm bg-surface-elevated" />
-        </section>
-      </div>
+      <section className="rounded-md bg-canvas-dark p-6 sm:p-8">
+        <span className="block h-4 w-24 rounded-sm bg-surface-elevated" />
+        <span className="mt-2 block h-8 w-48 rounded-sm bg-surface-elevated" />
+      </section>
 
       <div className="flex gap-3">
         <Skeleton className="h-12 flex-1" />
