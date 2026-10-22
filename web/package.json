@@ -11,6 +11,7 @@
     "check:build-env": "node scripts/guard-production-env.check.mjs",
     "check:ink": "node scripts/check-ink-contrast.mjs",
     "check:asset-words": "node scripts/check-asset-words.mjs",
+    "check:choice-row": "node scripts/check-choice-row.mjs",
     "check:tabs": "tsx scripts/check-tabs.mjs",
     "check:pay-charge": "tsx scripts/check-pay-charge.mjs",
     "check:activity-bands": "tsx scripts/check-activity-bands.mjs",

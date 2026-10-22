@@ -19,19 +19,21 @@ import type { MfaEnrolPanelProps } from './MfaEnrolPanel.types';
  * Left-aligned, one column, no illustration: this is the moment the product asks for
  * something, and a friendly picture here reads as a detour rather than a request.
  */
-export function MfaEnrolPanel({ onEnrolled }: MfaEnrolPanelProps) {
+export function MfaEnrolPanel({ onEnrolled, embedded = false }: MfaEnrolPanelProps) {
   const enrolment = useMfaEnrolment(onEnrolled);
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <Text as="h2" variant="section">
-          {MFA_ENROL_COPY.title}
-        </Text>
-        <Text as="p" variant="body" color="secondary">
-          {MFA_ENROL_COPY.body}
-        </Text>
-      </div>
+      {embedded ? null : (
+        <div className="flex flex-col gap-2">
+          <Text as="h2" variant="section">
+            {MFA_ENROL_COPY.title}
+          </Text>
+          <Text as="p" variant="body" color="secondary">
+            {MFA_ENROL_COPY.body}
+          </Text>
+        </div>
+      )}
 
       {enrolment.step === 'totp' ? (
         <MfaEnrolTotp enrolment={enrolment} />
