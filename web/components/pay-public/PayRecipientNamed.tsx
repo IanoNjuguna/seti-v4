@@ -1,6 +1,6 @@
 import { Badge, Text } from '@/components/ui';
 import type { NamedPayee } from '@/lib/charges/charge.types';
-import { PAY_COPY } from './PayPublic.constants';
+import { PAY_COPY, PAY_LINK_CLASS, reportNameMailto } from './PayPublic.constants';
 import { shortAddress } from './pay-public.format';
 
 interface PayRecipientNamedProps {
@@ -35,9 +35,17 @@ export function PayRecipientNamed({ payee }: PayRecipientNamedProps) {
           {payee.verified ? PAY_COPY.verified : PAY_COPY.unverified}
         </Badge>
         {payee.verified ? null : (
-          <Text variant="micro" as="p">
-            {PAY_COPY.unverifiedNote}
-          </Text>
+          <>
+            <Text variant="micro" as="p">
+              {PAY_COPY.unverifiedNote}
+            </Text>
+            {/* The only recourse on this page, so it sits with the badge rather than
+                in a policy page: `#148` lets a name go live and payable the moment it
+                verifies, and a payer is the person who can see it is not right. */}
+            <a href={reportNameMailto(payee.handle)} className={PAY_LINK_CLASS}>
+              {PAY_COPY.reportName}
+            </a>
+          </>
         )}
       </div>
     </>

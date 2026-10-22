@@ -39,8 +39,24 @@ export const PAY_COPY = {
   verified: 'Name verified',
   unverified: 'Name not verified',
   noName: 'Not a Seti name',
-  unverifiedNote: 'Seti has not checked this name. The address below is where the money goes.',
+  /**
+   * The note under the badge. It says "above" because that is where the address is
+   * drawn: the name, the `@handle` and the address all sit over the badge, and the
+   * only thing under it is the way out below. "Below" sent a payer looking at the
+   * report link for an address that was never there.
+   */
+  unverifiedNote: 'Seti has not checked this name. The address above is where the money goes.',
   noNameNote: 'This address has no Seti name. Check it with the person who sent the link.',
+  /**
+   * The way out of an unverified name, on the page where money is at stake.
+   *
+   * `#148` removed the held-brand queue, so a name goes live and payable the moment
+   * it verifies. That makes this link the only recourse a payer has, and it is why it
+   * sits under the badge rather than in a policy page nobody opens. The subject
+   * carries the handle, so a report arrives already naming what it is about, and the
+   * address is the published channel in `docs/brand-policy.md`.
+   */
+  reportName: 'Report this name',
   /** The refusal. Never softened, and never a payment prompt. */
   refusedTitle: 'This request is not valid',
   refusedBody:
@@ -77,3 +93,20 @@ export const PAY_LINK_CLASS =
 
 /** One hairline between sections inside the card. Never a filled band. */
 export const PAY_DIVIDER_CLASS = 'border-t border-hairline-light';
+
+/**
+ * The address a name report goes to, published once so the page and the policy
+ * cannot disagree about where a report lands (`docs/brand-policy.md`, §4).
+ */
+export const TAKEDOWN_EMAIL = 'hey@seti.live';
+
+/**
+ * The mailto a payer opens from the unverified state.
+ *
+ * The handle goes in the SUBJECT, not the body: a report has to name its subject
+ * before it is read, and a body would be discarded by whoever forwards it. Nothing
+ * else is pre-filled, because a payer reporting a name knows why and Seti does not.
+ */
+export function reportNameMailto(handle: string): string {
+  return `mailto:${TAKEDOWN_EMAIL}?subject=${encodeURIComponent(`Report the Seti name @${handle}`)}`;
+}
