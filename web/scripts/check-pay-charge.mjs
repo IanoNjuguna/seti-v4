@@ -20,6 +20,7 @@
 import { execFileSync } from 'node:child_process';
 import { chargeAmounts } from '../lib/charges/charge-fee.ts';
 import { buildChargeUri, readChargeId } from '../lib/charges/charge-uri.ts';
+import { FIXTURE_PAYEE_DIRECTORY, fixtureChargeSource } from '../lib/charges/charge.fixture.ts';
 import { loadCharge } from '../lib/charges/load-charge.ts';
 import { formatFiat } from '../lib/formatCurrency.ts';
 
@@ -38,8 +39,21 @@ function check(name, ok, detail = '') {
   console.log(`FAIL  ${name}${detail ? `  (${detail})` : ''}`);
 }
 
-async function load(id) {
-  return loadCharge(id, { now: NOW });
+/**
+ * A charge loaded from the TEST DOUBLE.
+ *
+ * Since #131 the page's default source is the backend (`charge-source.ts`), so every
+ * assertion about a STATE (pending, paid, expired, a forged signature) injects the
+ * fixture instead. The loader is unchanged by that: it parses whatever it is given, so
+ * what is pinned here is still the page, not a mock.
+ */
+async function load(id, extra = {}) {
+  return loadCharge(id, {
+    now: NOW,
+    source: fixtureChargeSource,
+    directory: FIXTURE_PAYEE_DIRECTORY,
+    ...extra,
+  });
 }
 
 console.log('the six states, resolved from the money and the clock:');
@@ -81,7 +95,7 @@ check(
 check(
   'a paid request past its deadline is still paid',
   await (async () => {
-    const result = await loadCharge('ch_4c9a0e2f6b71', { now: new Date('2030-01-01T00:00:00Z') });
+    const result = await load('ch_4c9a0e2f6b71', { now: new Date('2030-01-01T00:00:00Z') });
     return result.kind === 'charge' && result.status === 'paid';
   })()
 );
@@ -115,13 +129,19 @@ check(
 check(
   'a payload whose shape is wrong is refused, not rendered',
   await (async () => {
-    const { fixtureChargeSource } = await import('../lib/charges/charge.fixture.ts');
     const broken = {
       async read() {
-        return { ...(await fixtureChargeSource.read('ch_8f2c1a4e7b9d')), amount: '1250' };
+        return {
+          kind: 'found',
+          payload: { ...(await fixtureChargeSource.read('ch_8f2c1a4e7b9d')).payload, amount: '1250' },
+        };
       },
     };
-    return (await loadCharge('ch_8f2c1a4e7b9d', { now: NOW, source: broken })).kind === 'invalid';
+    return (await loadCharge('ch_8f2c1a4e7b9d', {
+      now: NOW,
+      source: broken,
+      directory: FIXTURE_PAYEE_DIRECTORY,
+    })).kind === 'invalid';
   })()
 );
 
@@ -139,7 +159,11 @@ check(
         };
       },
     };
-    const result = await loadCharge('ch_8f2c1a4e7b9d', { now: NOW, directory: misdirected });
+    const result = await loadCharge('ch_8f2c1a4e7b9d', {
+      now: NOW,
+      source: fixtureChargeSource,
+      directory: misdirected,
+    });
     return result.kind === 'charge' && result.payee.kind === 'address';
   })()
 );
@@ -217,17 +241,69 @@ check(
 );
 
 /*
- * 5. The fixture never answers in a deployed build (#161).
+ * 5. The fixture is not in the page's path at all (#161, restated by #131).
  *
- * A fixture charge names an amount and an address nobody controls, so a production
- * build must refuse every fixture id, with the same `not-found` an unknown id gets.
- * Proved in a child process, because the flag is read at module load and this process
- * is already in development mode.
+ * A fixture charge names an amount and an address nobody controls, so nothing a
+ * deployed build can reach may answer one. Before #131 that guarantee depended on a
+ * `NODE_ENV` flag read at module load; now it is structural — the loader's default
+ * source is the BACKEND, and the fixture is reachable only through `deps.source`.
+ *
+ * Three things are proved here:
+ *
+ *   a. the default source asks the public charge API, for `/public/charges/<id>` — the
+ *      path this PR added — and neither reads nor knows about the fixture;
+ *   b. with the API answering `404` for every fixture id (the answer a backend that
+ *      has never heard of them gives), a PRODUCTION build renders none of them;
+ *   c. a `422` from the API — the backend's "this does not verify" — is the page's
+ *      REFUSAL, not its 404, so a forged link never reads as a dead link.
  */
 {
+  const originalFetch = globalThis.fetch;
+  const asked = [];
+
+  /** Stub the API: record the URL, answer `status` with an empty body. */
+  const stubApi = (status) => {
+    globalThis.fetch = async (url) => {
+      asked.push(String(url));
+      return new Response('{}', { status });
+    };
+  };
+
+  stubApi(404);
+  const fixtureAnswer = await loadCharge('ch_8f2c1a4e7b9d', { now: NOW });
+  globalThis.fetch = originalFetch;
+
+  check(
+    'the default source asks the public charge API',
+    asked.some((url) => url.endsWith('/public/charges/ch_8f2c1a4e7b9d')),
+    asked.join(',')
+  );
+  check(
+    'and a 404 from it renders not-found, never a fixture',
+    fixtureAnswer.kind === 'not-found',
+    fixtureAnswer.kind
+  );
+
+  stubApi(422);
+  const refusedByApi = await loadCharge('ch_8f2c1a4e7b9d', { now: NOW });
+  globalThis.fetch = originalFetch;
+
+  check(
+    "the backend's refusal is the page's refusal, not its 404",
+    refusedByApi.kind === 'invalid',
+    refusedByApi.kind
+  );
+  check(
+    'and a refusal draws no amount, no payee and no id',
+    Object.keys(refusedByApi).join(',') === 'kind',
+    Object.keys(refusedByApi).join(',')
+  );
+
+  // (b) in a child process, where NODE_ENV=production is what a deployed build sees.
   const loaderUrl = new URL('../lib/charges/load-charge.ts', import.meta.url).href;
   const fixtureUrl = new URL('../lib/charges/charge.fixture.ts', import.meta.url).href;
   const probe = `
+    globalThis.fetch = async () => new Response('{}', { status: 404 });
     const { loadCharge } = await import(${JSON.stringify(loaderUrl)});
     const { FIXTURE_CHARGE_IDS } = await import(${JSON.stringify(fixtureUrl)});
     const leaked = [];
@@ -251,14 +327,6 @@ check(
     check('a deployed build refuses every fixture id', false, said.slice(0, 140));
   }
   if (refused) check('a deployed build refuses every fixture id', true);
-
-  const { FIXTURE_CHARGE_IDS } = await import('../lib/charges/charge.fixture.ts');
-  const refusedInDev = [];
-  for (const id of FIXTURE_CHARGE_IDS) {
-    const result = await loadCharge(id, { now: NOW });
-    if (result.kind === 'not-found') refusedInDev.push(id);
-  }
-  check('a development build still renders the fixture', refusedInDev.length === 0, refusedInDev.join(','));
 }
 
 console.log(`${passed} passed, ${failed} failed`);

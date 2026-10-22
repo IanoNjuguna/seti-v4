@@ -10,6 +10,14 @@ import {
   type SupportedAsset,
   assetDecimals,
 } from './chain.js';
+import {
+  memoFromBytes32,
+  matchChargeTransfers,
+  sweepExpiredCharges,
+  type ChargeTransferCandidate,
+} from './charge-match.js';
+import { distinctPendingRecipients, unitsToAmount } from './charge-store.js';
+import { deliverDueWebhooks } from './charge-webhook.js';
 import { cursorKeyFor, type Network } from '../lib/network.js';
 import { logAuditEvent } from './audit.js';
 import { getFxQuote, resolveUserFiat } from './payments.js';
@@ -32,6 +40,31 @@ import { STABLECOIN_DEX_ADDRESS } from './chain.js';
 const TRANSFER_EVENT = parseAbiItem([
   'event Transfer(address indexed from, address indexed to, uint256 value)',
 ]);
+
+/**
+ * A TIP-20 transfer that carries a memo — the ONLY way a payment can be matched to a
+ * charge.
+ *
+ * Tempo's TIP-20 extends ERC-20 with a 32-byte memo (`transferWithMemo`), emitted
+ * beside the plain `Transfer`. A charge's id travels in that memo, so a charge
+ * payment is a memo transfer and an ordinary transfer can never settle one. Param
+ * name differs too (`amount` here, `value` above) because the two events are written
+ * differently on chain — reading the wrong field yields `undefined`, not zero.
+ */
+const TRANSFER_WITH_MEMO_EVENT = parseAbiItem([
+  'event TransferWithMemo(address indexed from, address indexed to, uint256 amount, bytes32 indexed memo)',
+]);
+
+/**
+ * How many pending charge recipients one window's log query may carry.
+ *
+ * The per-contract query filters on `to` at the RPC, which is what keeps this from
+ * reading every transfer on the network, and an address list is finite. Beyond the
+ * cap the extra recipients are logged and left to the next pass: a deployment with
+ * more than this many live charges inside one 2,000-block window has a different
+ * problem, and silently issuing an enormous query is not the fix.
+ */
+const CHARGE_MATCH_ADDRESS_LIMIT = 500;
 
 /**
  * Every token contract this chain lists, in display order.
@@ -169,15 +202,32 @@ async function scanWindow(window: BlockWindow): Promise<void> {
   const walletMap = await getWalletsByAddress();
   const addresses = Array.from(walletMap.keys());
 
-  if (addresses.length === 0) return;
+  // Charges have no Seti wallet: a recipient is any address a stranger signed for.
+  // Their recipients are read ONCE per window and passed to the RPC as a `to` filter,
+  // so this adds one narrow query per asset and never a scan of the whole network.
+  const chargeRecipients = await distinctPendingRecipients(SERVED_NETWORK, CHARGE_MATCH_ADDRESS_LIMIT);
+  if (chargeRecipients.length === CHARGE_MATCH_ADDRESS_LIMIT) {
+    console.warn(
+      `[indexer] ${CHARGE_MATCH_ADDRESS_LIMIT} pending charge recipients is the scan cap; ` +
+        'charges beyond it are only matched in a later window.'
+    );
+  }
+
+  if (addresses.length === 0 && chargeRecipients.length === 0) return;
+
+  /** Transfers the charge matcher will consider, with their asset label. */
+  const chargeTransfers: ChargeTransferCandidate[] = [];
 
   for (const [asset, contractAddress] of ASSET_ADDRESSES) {
-    const logs = await publicClient.getLogs({
-      address: contractAddress,
-      event: TRANSFER_EVENT,
-      fromBlock: window.fromBlock,
-      toBlock: window.toBlock,
-    });
+    const logs =
+      addresses.length > 0
+        ? await publicClient.getLogs({
+            address: contractAddress,
+            event: TRANSFER_EVENT,
+            fromBlock: window.fromBlock,
+            toBlock: window.toBlock,
+          })
+        : [];
 
     for (const log of logs) {
       const from = String(log.args.from).toLowerCase();
@@ -251,6 +301,53 @@ async function scanWindow(window: BlockWindow): Promise<void> {
             metadata: { type: 'top_up', amount },
           });
         }
+      }
+    }
+
+    // The charge match, from the SAME window and the SAME contracts. Only memo
+    // transfers: a charge id travels in the 32-byte memo, and an ordinary transfer
+    // has none, so it cannot settle a charge (the classifier refuses it by code).
+    if (chargeRecipients.length > 0) {
+      const memoLogs = await publicClient.getLogs({
+        address: contractAddress,
+        event: TRANSFER_WITH_MEMO_EVENT,
+        args: { to: chargeRecipients as `0x${string}`[] },
+        fromBlock: window.fromBlock,
+        toBlock: window.toBlock,
+      });
+
+      for (const log of memoLogs) {
+        chargeTransfers.push({
+          txHash: log.transactionHash,
+          recipient: String(log.args.to).toLowerCase(),
+          asset,
+          // Fixed 6-decimal text, the shape a charge stores: `formatUnits` would write
+          // "100" where every other charge amount reads "100.000000".
+          amount: unitsToAmount(log.args.amount ?? 0n),
+          memo: memoFromBytes32(log.args.memo),
+          // A log only exists in a mined block, so the receipt exists and succeeded.
+          confirmed: true,
+        });
+      }
+    }
+  }
+
+  // Whatever the pass saw, the classifier decides — once, in one place. Nothing here
+  // knows what "paid" means.
+  if (chargeTransfers.length > 0) {
+    const decided = await matchChargeTransfers({
+      transfers: chargeTransfers,
+      network: SERVED_NETWORK,
+      chainId: network.chainId,
+    });
+
+    for (const result of decided) {
+      if (result.status) {
+        console.log(
+          `[charges] ${result.chargeId} → ${result.status} (${result.txHash})`
+        );
+      } else if (result.code) {
+        console.log(`[charges] ${result.chargeId} unchanged: ${result.code} (${result.txHash})`);
       }
     }
   }
@@ -359,7 +456,7 @@ export async function indexOnce(chainKey: string = CHAIN_KEY): Promise<IndexPass
  * which is where a cap like "up to a 10 block range" appears). Everything else
  * keeps its stack, because a stack is how it gets diagnosed.
  */
-function logIndexerError(scope: 'indexer' | 'sweep', error: unknown): void {
+function logIndexerError(scope: 'indexer' | 'sweep' | 'charges' | 'webhooks', error: unknown): void {
   const transport = error as {
     url?: string;
     shortMessage?: string;
@@ -416,6 +513,32 @@ export function startIndexer(intervalMs = 15000) {
       }
     } catch (error) {
       logIndexerError('sweep', error);
+    }
+
+    // Charge deadlines and webhook retries, for the same reason: both are periodic
+    // states that no request drives. A charge nobody reads still has to expire (its
+    // `charge.expired` webhook is owed), and a delivery that failed has to be retried
+    // on its backoff even if the merchant never asks again.
+    try {
+      const expired = await sweepExpiredCharges();
+
+      if (expired.expired.length > 0) {
+        console.log(`[charges] expired ${expired.expired.length} of ${expired.checked} due`);
+      }
+    } catch (error) {
+      logIndexerError('charges', error);
+    }
+
+    try {
+      const deliveries = await deliverDueWebhooks();
+
+      if (deliveries.attempted > 0) {
+        console.log(
+          `[webhooks] ${deliveries.delivered}/${deliveries.attempted} delivered this tick`
+        );
+      }
+    } catch (error) {
+      logIndexerError('webhooks', error);
     }
   };
 

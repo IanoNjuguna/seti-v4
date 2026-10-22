@@ -111,6 +111,33 @@ export const REFUSAL_BY_CODE: Record<string, string> = {
   'inside-transfer':
     'Sending to a person is paused while this server collects fees inside the transfer. Try again later.',
 
+  // --- the charge path (#131) ---------------------------------------------
+  // A charge is a request to be PAID, so these are read by the person who created
+  // it (a merchant, in the app or through the API), not by the payer: each one names
+  // what to fix. `charge-object.md` listed them as missing copy until #131; that is
+  // closed here rather than left to whichever surface rendered them first.
+  'charge-signature-invalid':
+    'That charge was signed by a different wallet, so it cannot be used. Create it again with the wallet that should receive the money.',
+  'charge-signature-contract-wallet':
+    'That wallet is a contract account, and charges signed by one cannot be checked yet. Sign the charge from a wallet key instead.',
+  'charge-id-invalid':
+    'That charge id is not one Seti can issue. Use 6–64 lower-case letters, digits, "-" or "_".',
+  'charge-id-taken':
+    'That charge id is already in use for this wallet. Create the charge with a new id.',
+  'charge-invalid':
+    'That charge is incomplete. Check the amount and the expiry, then create it again.',
+  'charge-expired': 'That charge has expired, so nothing can be paid on it. Create a new one.',
+  'charge-not-pending':
+    'That charge is already decided, and nothing leaves a finished charge. Create a new one for another payment.',
+  'charge-admin-stale':
+    'That signature is too old to use. Sign again and retry.',
+  'idempotency-key-reused':
+    'That request key was already used for a different charge. Send a new key for a new charge.',
+  'webhook-url-invalid':
+    'That webhook address cannot be used. It must be an https URL.',
+  'rate-limited':
+    'Too many requests just now. Wait a moment and try again.',
+
   // --- the server's own two fault codes -----------------------------------
   // Mapped so they can never be mistaken for "an unknown failure": the generic
   // sentence is reserved for a code this build does not know, and these two ARE

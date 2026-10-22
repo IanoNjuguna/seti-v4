@@ -85,7 +85,21 @@ export type AuditAction =
    * written on the live network as a `reserved` hold, giving the account FIRST
    * REFUSAL on it so a practice name is not stealable in the gap.
    */
-  | 'handle.first-refusal';
+  | 'handle.first-refusal'
+  /**
+   * The charge path (`services/charge-store.ts`, `charge-match.ts`).
+   *
+   * A charge has no user: it is created by a wallet signature and settled by a
+   * transfer. `charge.settled` carries the transfer that decided it (so `txHash` is
+   * the column support searches), and the other three say what happened to the
+   * charge itself — created, lapsed, or cancelled by its recipient.
+   */
+  | 'charge.created'
+  | 'charge.settled'
+  | 'charge.expired'
+  | 'charge.cancelled'
+  /** One webhook delivery decided: the delivery log, mirrored into the audit trail. */
+  | 'charge.webhook.delivered';
 
 export interface AuditLogInput {
   userId?: string;

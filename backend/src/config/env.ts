@@ -332,6 +332,39 @@ const envSchema = z.object({
    * transactions during development.
    */
   ALLOW_MAINNET: z.enum(['true', 'false']).default('false'),
+
+  /**
+   * The key charge webhooks are signed with.
+   *
+   * ONE deployment-wide secret, and that is a stated seam rather than a design goal:
+   * per-merchant webhook secrets belong with merchant app records and scoped signing
+   * keys (#156), and a charge has no account to attach one to. Every receiver
+   * verifies with this same key, which is exactly why it must be strong and shared by
+   * every instance (`services/charge-webhook.ts` `webhookSecret()` is the one reader).
+   *
+   * OPTIONAL, and deliberately NOT in the production boot refusal: unset does not
+   * make the API unsafe, it makes delivery impossible, and a deploy that refused to
+   * start would take the whole receive path down for a notification it does not owe.
+   * What happens instead is loud and visible: nothing is sent, each delivery row is
+   * written `failed` with `lastError: "webhook-signing-secret-unset"`, the recipient's
+   * own delivery log says so, and the process logs one warning.
+   */
+  SETI_WEBHOOK_SECRET: z.string().optional(),
+
+  /**
+   * The origin a charge's `pageUrl` points at — the site a human opens.
+   *
+   * Config rather than the request's `Host`, for the reason every absolute link in
+   * this product comes from config: a charge created by `curl` on a laptop must come
+   * back with a URL that opens on the real site, and a client-supplied header cannot
+   * decide how another machine will reach us.
+   *
+   * OPTIONAL and blank-tolerant: unset (or an empty value, which is what
+   * `.env.example` ships) resolves to {@link DEFAULT_CHARGE_PAGE_ORIGIN} in
+   * `services/charge-store.ts`. A bare `''` must never produce a relative URL, so the
+   * fallback lives where the URL is built rather than in a schema default.
+   */
+  SETI_PAGE_ORIGIN: z.string().optional(),
 });
 
 /**

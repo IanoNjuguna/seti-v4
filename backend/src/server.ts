@@ -18,6 +18,7 @@ import { savingsRoutes } from './routes/savings.js';
 import { publicHandleRoutes } from './routes/public-handles.js';
 import { transactionRoutes } from './routes/transactions.js';
 import { receiptRoutes } from './routes/receipts.js';
+import { publicChargeRoutes } from './routes/public-charges.js';
 import { networkScopeHook } from './middleware/network-scope.js';
 
 /**
@@ -224,6 +225,11 @@ export async function buildServer(options: BuildServerOptions = {}) {
   // for someone who has no Seti account.
   await app.register(receiptRoutes, { prefix: '/receipts' });
   await app.register(transactionRoutes, { prefix: '/transactions' });
+  // The charge API: create, read, cancel and read the delivery log. Registered with
+  // no auth hook because a charge has no account — the recipient's SIGNATURE is the
+  // credential, and a file with no session hook cannot leak one by accident (the same
+  // rule `public-handles.ts` follows).
+  await app.register(publicChargeRoutes, { prefix: '/public/charges' });
 
   return app;
 }

@@ -1,8 +1,10 @@
 # The charge object — spec v1
 
-**Status:** frozen contract, no surface yet. The type, the canonical signing payload
-and the classifier live in `backend/src/services/charge.ts`; the boundary fixtures are
-`backend/src/services/charge.check.ts` (`npm run check:charge`).
+**Status:** frozen contract, and now SERVED. The type, the canonical signing payload and the
+classifier live in `backend/src/services/charge.ts`; the boundary fixtures are
+`backend/src/services/charge.check.ts` (`npm run check:charge`). The surfaces that render it
+— the public API, persistence, the webhook and the paid side — are #131, documented in
+`docs/internal/charge-api.md` and gated by `npm run check:charge-api`.
 
 **This document is versioned.** `v1` here, `CHARGE_SPEC_VERSION = '1'` in the module.
 The version moves when the signed field set, the status enum or a classification rule
@@ -153,9 +155,9 @@ underpaid — plus the same boundary at a 1.000000 charge, to prove it scales.
 
 ## Not in this document
 
-- **#131** — the hosted page, the public API and the MCP tool, persistence, the webhook.
-  Persistence is not required for the classifier to work; the module is pure TypeScript
-  plus fixtures by design.
+- **#131** — the public API, persistence, the webhook and the paid side. They render what
+  this decides and are documented in `docs/internal/charge-api.md`.
+- **#132** — the MCP tool, which renders this API.
 - **#151** — the fee-collection flag. A charge does not carry or collect a fee in v1.
 
 ## Open questions for a human
@@ -169,12 +171,12 @@ underpaid — plus the same boundary at a 1.000000 charge, to prove it scales.
    the pure classifier into its caller — scope it when a merchant asks. EIP-6492
    (counterfactual, not-yet-deployed accounts) additionally needs the universal validator
    on Tempo; do not build it before someone shows up with such a wallet.
-2. **Refusal copy for the six new codes** is not in `web/lib/api/refusal.constants.ts`
-   yet. Nothing can emit them (no route exists), and that file's fallback is calm and
-   safe, so the copy lands with #131 where the codes can first be rendered.
+2. **Refusal copy for the charge codes** landed with #131 in
+   `web/lib/api/refusal.constants.ts`, where the codes can first be rendered.
 3. **`memo` matching is a case-sensitive substring** of the transfer's memo. That is
-   deliberate (widening it to case-insensitive weakens matchability), but it presumes ids
-   are emitted lower-case — worth stating wherever ids are minted in #131.
+   deliberate (widening it to case-insensitive weakens matchability), and #131 enforces
+   the consequence: an id must be lower-case, checked at create against the same pattern
+   the page uses.
 
 ## Risk and rollback
 

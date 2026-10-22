@@ -367,6 +367,157 @@ model Transaction {
   @@map("transactions")
 }
 
+/// A CHARGE: a signed request for money, made by someone with no Seti account.
+///
+/// The recipient's wallet signs `{recipient, asset, amount, memo, id, expiresAt,
+/// nonce}` and that signature IS the account — there is no user id here on
+/// purpose, and no foreign key to one. `services/charge.ts` owns the object, the
+/// canonical payload and the classifier; this table is only where a charge is
+/// KEPT between the request that created it and the transfer that settles it.
+///
+/// Two ids, and the difference matters:
+///
+///  - `publicId` is the MINTED id — chosen by the recipient, signed by them, the
+///    string in the URL, the QR and the transfer's 32-byte memo. It is what a
+///    payer holds, so it must be unique per recipient (the same string for two
+///    different payees is two charges, and a link names one payee).
+///  - `id` is this table's own cuid, used by the delivery log's foreign key.
+///    Nothing outside the database ever sees it.
+///
+/// `amount`, `received` and `memo` are decimal/base strings, never numbers: the
+/// ledger stores decimal strings and a float is how an amount becomes a cent
+/// wrong (see `docs/internal/charge-object.md`).
+model Charge {
+  id              String        @id @default(cuid())
+  /// The recipient-signed id: `^[a-z0-9][a-z0-9_-]{5,63}$`, lower-case by rule
+  /// (`services/charge-store.ts` `CHARGE_ID_PATTERN`; the web mirrors it).
+  publicId        String
+  /// The payee. Lower-cased at write time so a match never depends on casing.
+  recipient       String
+  /// The Seti ledger label (`ousd`), not a token address — the chain is `chainId`.
+  asset           String
+  /// What is owed, decimal token units (`"250.000000"`). Signed.
+  amount          String
+  /// Payer-visible text, and the field that CARRIES `publicId` for matching. Signed.
+  memo            String
+  /// `expiresAt` EXACTLY as signed, kept as the raw string: a stored DateTime
+  /// re-rendered as ISO can differ by precision or offset, and the signature
+  /// would then never verify again. The same rule `Handle.claimIssuedAt` follows.
+  expiresAtRaw    String
+  /// The same instant, as a timestamp — so an expiry sweep is one index scan
+  /// rather than a string comparison over every pending row.
+  expiresAt       DateTime
+  nonce           String
+  /// Reserved and UNSIGNED in v1 (see `docs/internal/charge-object.md`).
+  scope           String?
+  /// EIP-712 signature by `recipient`, stored verbatim and re-verified from the
+  /// stored bytes on every read. There is no stored `verified` flag: a
+  /// compromised database can at worst hide a charge, it cannot invent one.
+  signature       String
+  status          ChargeStatus  @default(pending)
+  /// The network the signature was made under. A charge is signed with the chain
+  /// id in its domain, so it is a PRACTICE charge or a LIVE one and can never be
+  /// replayed across the two.
+  network         String        @default("testnet")
+  chainId         Int
+  /// The transfer that decided this charge, once one has. Never signed, never
+  /// authority — the on-chain receipt is.
+  txHash          String?
+  /// How much actually arrived, decimal token units (`"0.000000"` until one does).
+  /// Stored rather than recomputed: the transfer is the fact.
+  received        String        @default("0.000000")
+  /// When the status last moved to a terminal state (paid/underpaid/overpaid/expired).
+  settledAt       DateTime?
+  /// When the RECIPIENT cancelled it. Cancelling moves the charge to `expired`
+  /// (the frozen v1 enum has no `cancelled` state) and this column is what tells
+  /// the two expiries apart — a deliberate end versus a lapsed deadline.
+  cancelledAt     DateTime?
+  /// Where to deliver webhooks for this charge. Declared at create time and never
+  /// updated, because there is no update route. NOT part of the signature in v1
+  /// (the signed set is frozen); see the open question in `docs/internal/charge-api.md`.
+  webhookUrl      String?
+  /// Idempotency: the key's HASH, never the key, plus the exact response body that
+  /// was returned for it. A replay returns `responseBody` byte for byte rather
+  /// than re-deriving it, so "the same key returns the original" is true even
+  /// after the charge has since moved status.
+  idempotencyKey  String?
+  idempotencyAt   DateTime?
+  /// The exact JSON body a create returned, as TEXT.
+  ///
+  /// Text rather than `Json` on purpose: Postgres `jsonb` does not preserve key order,
+  /// so a replay from a `Json` column would answer the same VALUES in a different
+  /// order. "The same `Idempotency-Key` returns the original body" is a promise about
+  /// bytes a client may hash or diff, so the bytes are kept as they were sent.
+  responseBody    String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  deliveries ChargeWebhookDelivery[]
+
+  /// One charge per id PER RECIPIENT — the same string for a different payee is a
+  /// different charge, because a link names one payee and the id is signed.
+  @@unique([recipient, publicId])
+  /// One charge per idempotency key per recipient. Postgres treats NULLs as
+  /// distinct, so charges created without the header do not collide here.
+  @@unique([recipient, idempotencyKey])
+  /// A read by id does not know the recipient, so this is the lookup index.
+  @@index([publicId])
+  /// The matcher's query: pending charges for one recipient on one asset.
+  @@index([status, recipient, asset])
+  /// The expiry sweep's query.
+  @@index([status, expiresAt])
+  /// The per-address create rate limit, and a merchant's own recent charges.
+  @@index([recipient, createdAt])
+  @@map("charges")
+}
+
+/// One webhook delivery, one row per STATUS CHANGE — never one per attempt.
+///
+/// The unique key `(chargeId, status)` is the exactly-once guarantee, expressed
+/// where it cannot be bypassed: a transition that runs twice (a replayed transfer,
+/// two indexer replicas, a retried request) collides on INSERT and the second
+/// attempt reads the existing row instead of counting a second delivery. Attempts
+/// and their backoff live as COLUMNS on this row, so the delivery log a recipient
+/// reads says "delivered after 3 attempts" rather than growing three rows.
+model ChargeWebhookDelivery {
+  id             String   @id @default(cuid())
+  chargeId       String
+  /// The event name a receiver switches on: `charge.paid`, `charge.underpaid`,
+  /// `charge.expired`. `overpaid` is delivered as `charge.paid` — money arrived at
+  /// or above the ask — with `status: "overpaid"` in the body.
+  event          String
+  /// The status this delivery announces. HALF the dedupe key; the other half is
+  /// the charge.
+  status         ChargeStatus
+  /// The URL as it was at delivery time: a charge's endpoint never changes, but a
+  /// log row should say where the bytes were sent, not where they would go now.
+  url            String
+  /// `pending` (awaiting a retry), `delivered` (2xx), `failed` (no secret, or
+  /// attempts exhausted).
+  state          String   @default("pending")
+  attempts       Int      @default(0)
+  lastStatusCode Int?
+  /// The last transport failure or non-2xx reason, in one line. Never a stack.
+  lastError      String?
+  /// When the next attempt is due. NULL for a delivered or failed row.
+  nextAttemptAt  DateTime?
+  deliveredAt    DateTime?
+  /// The exact JSON body that was (or would be) sent, so a delivery can be
+  /// verified byte for byte after the fact — the signature covers these bytes.
+  payload        Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  charge Charge @relation(fields: [chargeId], references: [id], onDelete: Cascade)
+
+  /// EXACTLY ONE delivery per status change. The whole "a replay must not
+  /// double-count" rule is this line.
+  @@unique([chargeId, status])
+  /// The retry sweep: due rows, oldest first.
+  @@index([state, nextAttemptAt])
+  @@map("charge_webhook_deliveries")
+}
+
 model AuditLog {
   id        String   @id @default(cuid())
   userId    String?
@@ -421,6 +572,21 @@ enum WalletStatus {
   active
   frozen
   deprecated
+}
+
+/// Where a charge is. Mirrors `CHARGE_STATUSES` in `services/charge.ts` — the enum
+/// exists so the database refuses a status the classifier could not produce, and
+/// the module is still the single definition every surface renders.
+///
+/// No `cancelled`: a recipient's cancel moves the charge to `expired` (v1's enum is
+/// frozen and a page already renders `expired`), and `Charge.cancelledAt` is what
+/// distinguishes a deliberate end from a lapsed deadline.
+enum ChargeStatus {
+  pending
+  paid
+  underpaid
+  overpaid
+  expired
 }
 
 enum KycStatus {

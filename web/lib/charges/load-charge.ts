@@ -1,21 +1,28 @@
 import { CHARGE_ID_PATTERN } from './charge.constants';
 import { resolveChargeStatus } from './charge-status';
-import { FIXTURE_PAYEE_DIRECTORY, fixtureChargeSource, fixtureSignatureFor } from './charge.fixture';
+import { addressPayeeDirectory, chargeSource } from './charge-source';
 import { parseStoredCharge } from './charge.validate';
 import { resolvePayee } from './resolve-payee';
-import type { ChargeLoadResult, ChargeSource, PayeeDirectory, PayCharge, StoredCharge } from './charge.types';
+import type {
+  ChargeLoadResult,
+  ChargeSource,
+  PayeeDirectory,
+  PayCharge,
+  StoredCharge,
+} from './charge.types';
 
 /**
  * ============================================================================
- * THE SEAM. #131 replaces this file with the real charge source.
+ * THE SEAM, NOW WIRED TO REAL CHARGES (#131).
  * ============================================================================
  *
- * Charges do not exist in the backend yet (#129 builds them, #131 serves them), so
- * this is the one place a charge enters the web app, and it is deliberately the ONLY
- * place: no route, component or hook imports the fixture, and no endpoint or database
- * model is invented here to stand in for one. When #131 lands it supplies a
- * `ChargeSource` that reads the real charge, and the only edit in this file is which
- * `source` the defaults point at.
+ * This is the one place a charge enters the web app, and it is deliberately the ONLY
+ * place: no route, component or hook reaches for the API itself. Until #131 the
+ * defaults here pointed at a fixture (`charge.fixture.ts`); they now point at
+ * `charge-source.ts`, which reads `GET /public/charges/:id`. The fixture is still
+ * imported by the CHECK SUITE (`web/scripts/check-pay-charge.mjs`), as a test double
+ * injected through `deps.source` — never by anything a deployed build can reach, which
+ * is what #161 asked for and what this wiring makes STRUCTURAL rather than a flag.
  *
  * What the page is promised, whatever the source:
  *
@@ -27,17 +34,16 @@ import type { ChargeLoadResult, ChargeSource, PayeeDirectory, PayCharge, StoredC
  *     and no code for it, because a forged amount shown carefully is still a forged
  *     amount.
  *
- * THE SIGNATURE, HONESTLY. The genuine check is an HMAC over the charge's fields,
- * verified where the signing secret lives — the backend (`lib/signed-token.ts`), the
- * same primitive the receipt links use. A Next app must not hold that secret, so the
- * real source will answer "this does not verify" rather than have the page recompute
- * it. The comparison below is therefore a STAND-IN: it asks the fixture whether the
- * signature matches the id it claims, which is enough to keep the refusal path real
- * and exercised (see `/pay/ch_1a7f4e9c2d60`) and is not cryptography.
+ * THE SIGNATURE, HONESTLY. The page does not verify it. The real source is the
+ * backend, which re-verifies the recipient's EIP-712 signature from the stored bytes
+ * on every read and answers `422 charge-signature-invalid` when it fails; that answer
+ * arrives here as `{ kind: 'refused' }` and becomes `invalid`. A source that cannot
+ * make the check says so rather than letting this app keep a second copy of it to
+ * drift from the backend's — the charge module exists to prevent exactly that.
  *
- * Unchanged by #131, and load-bearing: the id shape is checked before any lookup, the
- * payload is parsed rather than trusted, and a status is derived from the money and
- * the clock (never read off a stored flag).
+ * Unchanged and load-bearing: the id shape is checked before any lookup, the payload is
+ * parsed rather than trusted, and a status is derived from the money and the clock
+ * (never read off a stored flag).
  */
 
 /** Everything `loadCharge` depends on. Injected so the check suite can pin each path. */
@@ -47,21 +53,6 @@ export interface ChargeLoadDeps {
   /** The instant "expired" is decided at. Injected because `new Date()` inside render is a hydration bug. */
   now: Date;
 }
-
-/**
- * Whether the fixture source may answer a request.
- *
- * The fixture exists so this page could be built before charges existed (#131). In a
- * deployed build it must answer nothing: a fixture charge names an amount and an
- * address nobody controls, and the page then invites a real payment to that address,
- * which Seti cannot take back. So in production every fixture id reads as `not-found`,
- * the same refusal an unknown id gets — the page leaks nothing about what is
- * unimplemented, and there is no second "fixtures are off" state for anyone to notice.
- *
- * `NODE_ENV` is `production` in the deployed build, so this needs no workflow or env
- * change, and `check:pay-charge` proves the production path in a child process.
- */
-const FIXTURE_SOURCE_ENABLED = process.env.NODE_ENV !== 'production';
 
 /**
  * Load one charge by id.
@@ -74,36 +65,28 @@ export async function loadCharge(
 ): Promise<ChargeLoadResult> {
   if (!CHARGE_ID_PATTERN.test(id)) return { kind: 'not-found' };
 
-  const source = deps.source ?? (FIXTURE_SOURCE_ENABLED ? fixtureChargeSource : null);
-  if (!source) return { kind: 'not-found' };
-  const directory = deps.directory ?? FIXTURE_PAYEE_DIRECTORY;
+  const source = deps.source ?? chargeSource;
+  const directory = deps.directory ?? addressPayeeDirectory;
   const now = deps.now ?? new Date();
 
-  const raw = await source.read(id);
-  if (raw === null || raw === undefined) return { kind: 'not-found' };
+  const answer = await source.read(id);
 
-  const stored = parseStoredCharge(raw);
+  // The source looked and found nothing: there is no charge with this id.
+  if (answer === null) return { kind: 'not-found' };
+
+  // The source CHECKED and the charge must not be paid. Refuse, drawing nothing.
+  if (answer.kind === 'refused') return { kind: 'invalid' };
+
+  const stored = parseStoredCharge(answer.payload);
 
   // A payload that will not parse is refused with the same words as a forged one.
   // Distinguishing them on a public page would tell an attacker which half to fix.
   if (!stored || stored.id !== id) return { kind: 'invalid' };
-  if (!signatureHolds(stored)) return { kind: 'invalid' };
 
   const payee = await resolvePayee(directory, stored.recipientAddress);
   const status = resolveChargeStatus(stored, now);
 
   return { kind: 'charge', charge: toPayCharge(stored), payee, status };
-}
-
-/**
- * Whether the source's signature holds.
- *
- * The stand-in described in the seam note above: it compares what the source minted
- * for this charge with what it would mint for the id the charge claims, so a payload
- * borrowed from another charge fails. Replaced wholesale by #131.
- */
-function signatureHolds(stored: StoredCharge): boolean {
-  return stored.signature === fixtureSignatureFor(stored.id);
 }
 
 /** The stored charge without its signature — the only version a component may see. */
