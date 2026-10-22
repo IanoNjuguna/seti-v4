@@ -46,10 +46,16 @@ export const INVITE_COPY = {
   noNameBody: 'Your invite link has to name you, so a link works only once you have a username.',
   noNameAction: 'Create your username',
 
-  /** A username that exists but resolves to nobody yet (parked for review). */
+  /**
+   * A username exists but does not resolve, so a link to it opens nobody.
+   *
+   * The sentence names no cause on purpose: what withholds a name above the signature
+   * is the backend's business (and has changed once already), while the fact the person
+   * experiences is that the link does not open yet.
+   */
   notLiveTitle: 'Your invite link is not live',
   notLiveBody:
-    'Your username is being reviewed, so a link to it does not open yet. This switches on when the name does.',
+    'Your username does not resolve yet, so a link to it would open nobody. This switches on when the name does.',
 
   errorTitle: 'Could not load your invite',
   loading: 'Loading your invite',
