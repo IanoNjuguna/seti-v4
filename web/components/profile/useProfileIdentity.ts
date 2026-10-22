@@ -4,12 +4,6 @@ import { handleForIntent, useAccountIdentity } from '@/lib/account';
 import { useSession } from '@/lib/auth';
 import type { UseProfileIdentityReturn } from './ProfileIdentity.types';
 
-/** The medallion's one character: the first glyph of the name, uppercased. */
-function firstGlyph(name: string): string {
-  const [first] = Array.from(name.trim());
-  return first ? first.toUpperCase() : '·';
-}
-
 /** The name a person goes by when the account carries one, split and joined. */
 function sessionName(user: { firstName: string | null; lastName: string | null } | null): string {
   if (!user) return '';
@@ -44,7 +38,6 @@ export function useProfileIdentity(): UseProfileIdentityReturn {
   return {
     name,
     handle: held?.handle ?? null,
-    initial: firstGlyph(name),
     businesses: identity?.handles.filter((candidate) => candidate.kind === 'business') ?? [],
   };
 }

@@ -6,8 +6,6 @@ export interface ProfileIdentityProps {
   name: string;
   /** The stored handle without its `@`, or null when the account holds none. */
   handle: string | null;
-  /** The one character the medallion carries. */
-  initial: string;
 }
 
 /**
