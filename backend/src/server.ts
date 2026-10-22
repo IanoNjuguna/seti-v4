@@ -19,6 +19,7 @@ import { publicHandleRoutes } from './routes/public-handles.js';
 import { transactionRoutes } from './routes/transactions.js';
 import { receiptRoutes } from './routes/receipts.js';
 import { publicChargeRoutes } from './routes/public-charges.js';
+import { referralRoutes } from './routes/referrals.js';
 import { networkScopeHook } from './middleware/network-scope.js';
 
 /**
@@ -230,6 +231,12 @@ export async function buildServer(options: BuildServerOptions = {}) {
   // credential, and a file with no session hook cannot leak one by accident (the same
   // rule `public-handles.ts` follows).
   await app.register(publicChargeRoutes, { prefix: '/public/charges' });
+
+  // Invites. One public route (the code a `seti.live/i/<handle>` link hands out,
+  // which a signed-out visitor must be able to get) and one behind the session
+  // (who joined). The mix is why this is its own registration rather than a
+  // route inside a plugin whose hook is decided once.
+  await app.register(referralRoutes, { prefix: '/referrals' });
 
   return app;
 }

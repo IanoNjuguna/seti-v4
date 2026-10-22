@@ -7,6 +7,7 @@ import type { VerifiedUser } from '../services/auth.js';
 import { registerWallet, resolveWalletAddress } from '../services/wallet-registry.js';
 import { bindSessionIdentity } from '../services/session-identity.js';
 import { createAccount } from '../services/signup.js';
+import { attributeSignupInvite } from '../services/referral.js';
 import { logAuditEvent } from '../services/audit.js';
 import { PRIMARY_ASSET, servedNetwork } from '../services/chain.js';
 
@@ -34,6 +35,24 @@ const verifySchema = z.object({
    * make an older client unable to sign in at all.
    */
   acceptedTermsVersion: z.string().min(1).optional(),
+  /**
+   * The signed invite code the browser carried, when it arrived on a
+   * `seti.live/i/<handle>` link.
+   *
+   * Deliberately a body field rather than something this server reads out of a
+   * cookie. The cookie is set by the WEB app, on the web app's own host, and read
+   * by its own server render: the API is a different origin (`api.seti.live`), so
+   * a cookie set on `seti.live` reaches this process only if every deployment
+   * happens to keep both on one registrable domain and every fetch opts into
+   * credentials. A field survives a subdomain change, a tunnel, and a preview
+   * deployment, and the value is signed (see `services/referral.ts`), so a client
+   * that sets it can only ever name a referrer this server signed for.
+   *
+   * Optional, and ignored silently when it is absent, malformed, forged, expired
+   * or names the signing-up account itself: an invite must never be able to make
+   * sign-in fail.
+   */
+  referralCode: z.string().min(1).max(512).optional(),
 });
 
 export async function authRoutes(app: FastifyInstance) {
@@ -104,6 +123,9 @@ export async function authRoutes(app: FastifyInstance) {
       where: { privyDid: verified.privyDid },
     });
 
+    /** Whether THIS call created the account — the one thing attribution asks. */
+    let created = false;
+
     if (user) {
       // A returning account is stamped with the network this deployment SERVES, on
       // every sign-in. That field decides which rows the app reads and writes, and
@@ -143,6 +165,36 @@ export async function authRoutes(app: FastifyInstance) {
       if (!bound.ok) {
         return reply.status(409).send({ error: bound.reason });
       }
+
+      created = account.created;
+    }
+
+    // The invite that brought this account here (#145), attributed at the moment
+    // an account exists and never when a link was opened.
+    //
+    // AFTER the account is established and its session identity bound, so a
+    // sign-up that was refused outright counts nobody. The `created` flag is what
+    // makes it sign-up-only: a returning customer who once opened someone's link
+    // is not a new arrival, and the service re-checks that flag itself rather than
+    // trusting this call site to remember.
+    //
+    // The `catch` is load-bearing. An invite is a nice-to-have and an account is
+    // not: a database fault while writing the row must not be the reason a person
+    // cannot get into their account, so it is logged against this request and the
+    // sign-in continues. Every REFUSAL is silent by design and arrives as an
+    // outcome value, not an error (see `services/referral.ts`).
+    try {
+      const attribution = await attributeSignupInvite({
+        userId: user.id,
+        created,
+        code: parsed.referralCode,
+      });
+
+      if (attribution === 'attributed') {
+        request.log.info({ userId: user.id }, 'invite attributed');
+      }
+    } catch (error) {
+      request.log.warn({ err: error, userId: user.id }, 'invite not attributed: the write failed');
     }
 
     // Which wallet this account moves money from. Verified, never minted — see

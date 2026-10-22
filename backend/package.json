@@ -41,6 +41,7 @@
     "check:rename": "DEV_BYPASS_AUTH=true tsx src/services/handle-rename.check.ts",
     "check:handle": "DEV_BYPASS_AUTH=true tsx src/services/merchant-handle.check.ts",
     "check:username": "DEV_BYPASS_AUTH=true tsx src/services/username.check.ts",
+    "check:referral": "DEV_BYPASS_AUTH=true tsx src/services/referral.check.ts",
     "check:consent": "tsx src/services/consent.check.ts",
     "check:network": "DEV_BYPASS_AUTH=true tsx src/services/network-scope.check.ts",
     "check:statement": "tsx src/services/statement.check.ts",
