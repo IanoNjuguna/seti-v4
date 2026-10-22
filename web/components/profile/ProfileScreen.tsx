@@ -35,7 +35,7 @@ export function ProfileScreen() {
 
   return (
     <div className="flex flex-col gap-8">
-      <ProfileIdentity name={person.name} handle={person.handle} initial={person.initial} />
+      <ProfileIdentity name={person.name} handle={person.handle} />
 
       <ProfileShortcuts>
         <ProfileInviteRow />
