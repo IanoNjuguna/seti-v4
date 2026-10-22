@@ -650,19 +650,63 @@ export async function claimHandle(input: ClaimHandleInput) {
   const { name, handle, kind, purpose, address: claimedAddress, network: claimedNetwork } =
     await verifyClaim(input);
 
-  // First-come, in the person's ONE global namespace or in the network's business
-  // namespace. A person's name is looked up WITHOUT the network filter: there is
-  // one row for it, wherever it was claimed, and it is honoured on both networks.
-  const existing =
-    kind === 'person'
-      ? await prisma.handle.findFirst({ where: { handle } })
-      : await prisma.handle.findFirst({ where: { handle, network: claimedNetwork } });
+  /**
+   * ONE string, ONE name, whichever kind is claiming it (#141).
+   *
+   * A person's username is global: one row for it, wherever it was claimed, honoured
+   * on both networks. A business name is that network's. So the row holding a string
+   * is either the person row on any network, or THIS network's business row, and a
+   * claim has to look at both namespaces.
+   *
+   * Looking only for the claiming kind is what let `kfc` be a person handle AND a
+   * live business handle at once: one string, two payees, and which one a customer
+   * reached depended on the surface asking. Person and business are two namespaces
+   * over one string, and a string belongs to one name.
+   *
+   * Enforced here rather than by an index: the unique indexes are per kind (the
+   * person one is global, the business one per network), and a single index over the
+   * string would forbid the per-network business duplicate the owner's ruling keeps
+   * (a practice `kfc` and a live `kfc` are both allowed). A race between a person and
+   * a business claim of one string in the same instant is therefore only caught by
+   * this read, which is a gap the takedown path covers.
+   */
+  const personHold = await prisma.handle.findFirst({ where: { handle, kind: 'person' } });
+  const businessHold = await prisma.handle.findFirst({
+    where:
+      kind === 'business'
+        ? { handle, kind: 'business', network: claimedNetwork }
+        : // A person's name is GLOBAL, so a business row holding the string on EITHER
+          // network is in its way: the name would otherwise be one person here and a
+          // business there, which is exactly the split this rule closes.
+          { handle, kind: 'business' },
+  });
+  const existing = personHold ?? businessHold;
 
   const heldBy = existing?.address ? getAddress(existing.address) : null;
 
+  /**
+   * A string held by the OTHER kind is refused outright, with no exemption.
+   *
+   * Neither escape hatch below applies: the same ACCOUNT re-claiming is first refusal
+   * for the same name, not a second name for one string, and the same WALLET is the
+   * same person or the same business holding one string twice. One string, one name.
+   */
+  if (existing && existing.kind !== kind) {
+    const heldOn = normalizeNetwork(existing.network, claimedNetwork);
+    const heldWord = existing.kind === 'person' ? 'username' : 'business name';
+    throw new HandleClaimError(
+      'handle-taken',
+      409,
+      `"${existing.name}" already holds ${handle} as a ${heldWord} on ${NETWORK_LABEL[heldOn]} (${heldBy ?? 'with no address'}). ` +
+        (existing.kind === 'person'
+          ? 'A username is one name for one account across Practice and Live, so it cannot also be a business name. Choose another name.'
+          : 'A business name holds this string, so it cannot also be a username. Choose another name.')
+    );
+  }
+
   // The string is held by ANOTHER account (and, for a genuine prior claim, by a
-  // different address): refuse. The SAME account may re-claim its own handle —
-  // that is what first refusal is.
+  // different address): refuse. The SAME account may re-claim its own handle — that
+  // is what first refusal is.
   if (existing && existing.userId !== input.userId && heldBy !== claimedAddress) {
     const heldOn = normalizeNetwork(existing.network, claimedNetwork);
     throw new HandleClaimError(
@@ -670,7 +714,7 @@ export async function claimHandle(input: ClaimHandleInput) {
       409,
       `"${existing.name}" already holds the handle ${handle} on ${NETWORK_LABEL[heldOn]} (${heldBy ?? 'with no address'}). ` +
         (kind === 'person'
-          ? 'A username is one name for one account on both Practice and Live, so it cannot be claimed again here — choose another name.'
+          ? 'A username is one name for one account on both Practice and Live, so it cannot be claimed again here. Choose another name.'
           : 'Handles are first-come: choose another, or claim with the wallet that already holds it.')
     );
   }
@@ -1143,12 +1187,17 @@ export async function handleStatus(
   // only ever set alongside a usable handle.
   if (problem) return { name, handle, problem, takenBy: null };
 
+  /**
+   * The preview asks the SAME question the claim does (#141): the string is held if a
+   * person row exists on any network or this network has a business row. Asking by
+   * `kind` told a person that a business name on the other network was taken, and told
+   * a business that a person's name on the other network was free.
+   */
   const scope =
     kind === 'business'
-      ? { network }
-      : kind === 'person'
-        ? {}
-        : { OR: [{ network }, { kind: 'person' }] };
+      ? { OR: [{ kind: 'person' as const }, { kind: 'business' as const, network }] }
+      : {};
+
 
   const holder = await prisma.handle.findFirst({
     where: { handle, ...scope },
