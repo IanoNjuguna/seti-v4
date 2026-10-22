@@ -41,7 +41,6 @@ export const BUSINESS_CLAIM_COPY: ClaimCopy = {
   again: 'Claim another name',
   verified: 'Verified',
   unverified: 'Not verified',
-  underReview: 'Under review',
   errorTitle: 'Name not claimed',
   /** The label above the shareable link a merchant hands to a customer. */
   linkLabel: 'Your link',
@@ -50,7 +49,6 @@ export const BUSINESS_CLAIM_COPY: ClaimCopy = {
     'You choose whether this is a personal username (seti.live/u/) or a business name (seti.live/m/) next.',
   handleChecking: 'Checking whether this link is free…',
   handleFree: 'Free',
-  heldNote: 'This name matches a known brand, so your claim will be reviewed before the name goes live.',
   handleTaken: (link: string, holder: string): string =>
     `${link} is already taken by ${holder}. Names that reduce to the same link cannot both be claimed. Choose another name.`,
   /** The sticker QR. */
@@ -74,7 +72,6 @@ export const PERSON_CLAIM_COPY: ClaimCopy = {
   again: 'Claim another username',
   verified: 'Verified',
   unverified: 'Not verified',
-  underReview: 'Under review',
   errorTitle: 'Username not claimed',
   linkLabel: 'Your link',
   handleLabel: 'Your handle',
@@ -82,7 +79,6 @@ export const PERSON_CLAIM_COPY: ClaimCopy = {
     'You choose whether this is a personal username (seti.live/u/) or a business name (seti.live/m/) next.',
   handleChecking: 'Checking whether this link is free…',
   handleFree: 'Free',
-  heldNote: 'This name matches a known brand, so your claim will be reviewed before the name goes live.',
   handleTaken: (link: string, holder: string): string =>
     `${link} is already taken by ${holder}. Names that reduce to the same link cannot both be claimed. Choose another name.`,
   qrLabel: 'Your code',
@@ -133,7 +129,6 @@ export const ONBOARDING_NAME_COPY: ClaimCopy = {
   again: 'Claim another name',
   verified: 'Verified',
   unverified: 'Not verified',
-  underReview: 'Under review',
   errorTitle: 'Name not claimed',
   linkLabel: 'Your handle',
   handleLabel: 'Your handle',
@@ -141,7 +136,6 @@ export const ONBOARDING_NAME_COPY: ClaimCopy = {
     'You choose whether this is a personal username (seti.live/u/) or a business name (seti.live/m/) next.',
   handleChecking: 'Checking whether this handle is free…',
   handleFree: 'Free',
-  heldNote: 'This name matches a known brand, so your claim will be reviewed before the name goes live.',
   handleTaken: (link: string, holder: string): string =>
     `${link} is already taken by ${holder}. Names that reduce to the same handle cannot both be claimed. Choose another name.`,
   qrLabel: 'Your code',

@@ -39,7 +39,6 @@ export type { AccountIdentity, AccountIntent, DepositTarget } from './account.ty
 export type {
   HandleIdentity,
   HandleKind,
-  HandleReview,
   ResolveHandleResult,
   ClaimHandleRequest,
   ClaimHandleResult,

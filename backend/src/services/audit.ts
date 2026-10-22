@@ -42,18 +42,21 @@ export type AuditAction =
   | 'offramp.complete'
   | 'settings.update'
   /**
-   * A claim that matched a held brand was parked, then approved. The binding is
-   * the claimant's own signature; approval only makes it live. See held-brands.ts.
+   * A claim that matched a held brand was parked, then approved — the held-brand
+   * list was removed (#139), so nothing writes this any more. Kept in the union so
+   * the rows written before that removal still parse and still say what happened.
    */
   | 'handle.brand.approved'
   /**
-   * A parked claim was refused: the string was FREED (the row deleted) and the
-   * reason recorded here, which is the only record once the row is gone.
+   * A name was TAKEN DOWN: the row deleted so the string is free again, with the
+   * reason recorded here — the only record once the row is gone. Works on any
+   * handle row, whatever state it is in (`refuseHandleClaim`).
    */
   | 'handle.brand.refused'
   /**
-   * A parked claim was not decided within PARK_EXPIRY_DAYS, so it released
-   * itself: the string freed and the reason recorded here.
+   * A parked claim was not decided within 30 days, so it released itself — the
+   * held-brand list was removed (#139), so nothing writes this any more. Kept in
+   * the union for the rows written before that removal.
    */
   | 'handle.brand.expired'
   /**

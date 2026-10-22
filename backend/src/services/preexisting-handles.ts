@@ -10,8 +10,8 @@ import type { Network } from '../lib/network.js';
  *
  * WHY THIS EXISTS
  *
- * Five suites (`check:claim`, `check:handle`, `check:username`, `check:brand`,
- * `check:network`) each carried their own copy of "the six merchants" —
+ * Four suites (`check:claim`, `check:handle`, `check:username`, `check:network`)
+ * each carried their own copy of "the six merchants" —
  * `ianllc`, `burgerking`, `kfc`, `seti`, `javahouse`, `safaricomshop` — hardcoded
  * with their addresses and their verified flags. Those rows lived in one
  * developer's database and nowhere else. CI builds its database from migrations,
@@ -38,12 +38,13 @@ export interface PreexistingHandle {
   kind: string;
   claimSignature: string | null;
   /**
-   * `null` for a live handle, a status for one parked for review.
+   * `null` for a live handle, a status for one that holds its string without
+   * resolving.
    *
    * It is snapshotted because it changes what "unchanged" means for the row: the
-   * resolver filters parked handles out, so for one of them resolving to nothing is
-   * the correct behaviour and asserting otherwise is asserting the opposite of the
-   * design.
+   * resolver filters every non-null status out, so for one of those resolving to
+   * nothing is the correct behaviour and asserting otherwise is asserting the
+   * opposite of the design.
    */
   reviewStatus: string | null;
 }
@@ -85,21 +86,24 @@ export async function checkPreexistingUnchanged(
     check(`${row.handle}: profile kind unchanged`, after?.kind, row.kind);
 
     /*
-     * A handle parked for review is deliberately unresolvable: `findHandleByHandle`
-     * filters `reviewStatus: null`, so a held brand resolves to nothing on purpose.
-     * This assertion used to demand that it resolve anyway, which turned a correctly
-     * parked row into a red gate on any machine holding one — while CI, which seeds
-     * nothing, stayed green. That is the shape of failure the gate exists to prevent:
-     * a red `verify` that means "your database", not "your diff" (#11).
+     * A handle whose `reviewStatus` is set is deliberately unresolvable:
+     * `findHandleByHandle` filters `reviewStatus: null`, so a `reserved`
+     * first-refusal hold resolves to nothing on purpose — and so does a `pending`
+     * row left in a database from before the held-brand list was removed (#139).
+     * This assertion used to demand that such a row resolve anyway, which turned a
+     * correctly held row into a red gate on any machine holding one — while CI,
+     * which seeds nothing, stayed green. That is the shape of failure the gate
+     * exists to prevent: a red `verify` that means "your database", not "your
+     * diff" (#11).
      *
-     * Every identity assertion above still runs for a parked row, so parking cannot
+     * Every identity assertion above still runs for such a row, so the hold cannot
      * hide a deletion or an edit. The exemption is one line of output rather than a
      * silent `continue`, because a skip nobody can see is indistinguishable from a
      * check that was never written.
      */
     if (row.reviewStatus !== null) {
       check(
-        `${row.handle}: parked for review (${row.reviewStatus}), so it is expected NOT to resolve`,
+        `${row.handle}: held (${row.reviewStatus}), so it is expected NOT to resolve`,
         row.reviewStatus,
         row.reviewStatus
       );

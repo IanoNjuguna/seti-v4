@@ -24,9 +24,9 @@ import type { ClaimResultProps } from './ClaimForm.types';
  */
 export function ClaimResult({ claimed, onAgain }: ClaimResultProps) {
   const words = claimCopy(claimed.kind);
-  const review = claimed.review;
-  // A parked claim is NOT live — no link, no QR — whatever its signature.
-  const live = claimed.verified && review === null;
+  // A claim is live whenever it verifies: there is no state above the signature
+  // that withholds a name any more, so the link and the QR follow `verified`.
+  const live = claimed.verified;
   const link = claimed.handle ? handleLink(claimed.kind, claimed.name) : null;
 
   return (
@@ -45,18 +45,9 @@ export function ClaimResult({ claimed, onAgain }: ClaimResultProps) {
         ) : null}
       </div>
 
-      {review ? (
-        <div className="space-y-2">
-          <Badge variant="neutral">{words.underReview}</Badge>
-          <Text variant="body" color="secondary" as="p">
-            {review.message}
-          </Text>
-        </div>
-      ) : (
-        <Badge variant={claimed.verified ? 'success' : 'warning'}>
-          {claimed.verified ? words.verified : words.unverified}
-        </Badge>
-      )}
+      <Badge variant={claimed.verified ? 'success' : 'warning'}>
+        {claimed.verified ? words.verified : words.unverified}
+      </Badge>
 
       {live && link ? (
         <div className="space-y-3">

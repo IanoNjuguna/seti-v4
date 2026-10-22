@@ -85,10 +85,10 @@ export const HANDLE_PROFILE_SELECT = {
  * lowercases), so a caller's mixed case is lowered to match rather than searched
  * case-insensitively, which would not use the index.
  *
- * `reviewStatus: null` is the whole of the brand-review protection on the read
- * side: a PARKED claim still holds its unique string but is invisible here, so a
- * payer who resolves it gets exactly what they get for a name that does not
- * exist — a 404, never an unverified name.
+ * `reviewStatus: null` is the whole of the protection on the read side: a
+ * `reserved` first-refusal hold keeps its unique string but is invisible here, so
+ * a payer who resolves it gets exactly what they get for a name that does not
+ * exist — a 404, never a name that is held back without saying so.
  *
  * TWO lookups, in order, because a person's username is GLOBAL while a business
  * name is PER NETWORK:
@@ -119,9 +119,9 @@ export async function findHandleByHandle(handle: string, network: Network = serv
 /**
  * A handle by the name a customer typed. Last resort, after id and handle.
  *
- * Filtered the same way, for the same reason: an under-review name must not be
- * reachable by typing it. And resolved the same two-step way, for the same reason:
- * a person's username is global, a business's name is this network's.
+ * Filtered the same way, for the same reason: a name held for first refusal must
+ * not be reachable by typing it. And resolved the same two-step way, for the same
+ * reason: a person's username is global, a business's name is this network's.
  */
 export async function findHandleByName(name: string, network: Network = servedNetwork) {
   const scoped = await prisma.handle.findFirst({
@@ -142,8 +142,9 @@ export async function findHandleByName(name: string, network: Network = servedNe
  *
  * The id path exists because a QR minted before claims carries `merchant:<id>`
  * rather than a handle. The handle is linked by `merchantId`, so this is a
- * `findFirst` on one indexed column. Filtered like the others: a parked claim
- * carries no merchant profile at all, and this is belt and braces if one ever did.
+ * `findFirst` on one indexed column. Filtered like the others: a row held for
+ * first refusal carries no merchant profile at all, and this is belt and braces
+ * if one ever did.
  *
  * Scoped by network: a `seti.live/u/<handle>` link resolves on the network the
  * deployment serves, so a practice name and a live name are never confused.

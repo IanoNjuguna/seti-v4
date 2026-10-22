@@ -20,7 +20,7 @@ export interface ProfileHandleEmptyProps {
   intent: AccountIntent;
 }
 
-/** What a claimed handle's state renders — verified, waiting, or under review. */
+/** What a claimed handle's state renders — verified, or not verified. */
 export interface ProfileHandleStatusProps {
   /** The kind it was claimed as, which decides the words. */
   kind: HandleKind;

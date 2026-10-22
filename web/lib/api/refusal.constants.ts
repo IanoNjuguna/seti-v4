@@ -53,10 +53,9 @@ export const REFUSAL_BY_CODE: Record<string, string> = {
   'purpose-mismatch': 'Your wallet signed for a different action. Try again.',
   'invalid-issued-at': 'Your wallet’s signature timestamp was rejected. Try signing again.',
 
-  // A brand review acts on a NAME, not on money: these are the reviewer script's
-  // refusals, and they read as such.
-  'review-not-found': 'No name is under review by that handle. Nothing was changed.',
-  'review-not-pending': 'That name is not under review, so there is nothing to decide.',
+  // A takedown acts on a NAME, not on money: these are the operator's refusals,
+  // and they read as such.
+  'handle-not-found': 'No name matches that handle. Nothing was changed.',
   'evidence-required':
     'Reassigning a name needs the evidence that proves the brand. Nothing was changed.',
   'reason-required':

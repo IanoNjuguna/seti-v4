@@ -57,14 +57,8 @@ export function MerchantHandlePreview({
           {copy.handleTaken(link, takenBy)}
         </Text>
       ) : (
-        <div className="mt-2 space-y-2">
+        <div className="mt-2">
           <Badge variant="success">{copy.handleFree}</Badge>
-          {/* A free string that matches a held brand is still claimable — but parked. */}
-          {preview?.held ? (
-            <Text variant="micro" as="p" color="secondary">
-              {copy.heldNote}
-            </Text>
-          ) : null}
         </div>
       )}
     </div>

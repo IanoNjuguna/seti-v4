@@ -40,8 +40,12 @@ export function ProfileHandlePanel({ intent, handle }: ProfileHandlePanelProps) 
     return <ProfileHandleEmpty intent={intent} />;
   }
 
-  /* A parked handle has no page yet, so its link is not shown and not offered. */
-  const link = handle.review ? null : handleLink(kind, handle.name);
+  /*
+   * A claim is either live or not, and nothing above the signature withholds a name
+   * any more (#139). A row held for first refusal never reaches this panel: it does
+   * not resolve, so the account's identity read does not return it.
+   */
+  const link = handleLink(kind, handle.name);
 
   return (
     <div className="space-y-3">
@@ -55,16 +59,14 @@ export function ProfileHandlePanel({ intent, handle }: ProfileHandlePanelProps) 
           emphasis
         />
 
-        {link ? (
-          <CopyRow
-            display={link}
-            value={link}
-            label={RECEIVE_COPY.copyLink}
-            failureText={RECEIVE_COPY.copyFailed}
-            copiedText={RECEIVE_COPY.copiedAction}
-            wrap
-          />
-        ) : null}
+        <CopyRow
+          display={link}
+          value={link}
+          label={RECEIVE_COPY.copyLink}
+          failureText={RECEIVE_COPY.copyFailed}
+          copiedText={RECEIVE_COPY.copiedAction}
+          wrap
+        />
       </div>
 
       {/*
@@ -87,9 +89,7 @@ export function ProfileHandlePanel({ intent, handle }: ProfileHandlePanelProps) 
 
       <ProfileHandleStatus kind={kind} handle={handle} />
 
-      {kind === 'business' && handle.review === null ? (
-        <MerchantQr name={handle.name} kind="business" />
-      ) : null}
+      {kind === 'business' ? <MerchantQr name={handle.name} kind="business" /> : null}
     </div>
   );
 }
