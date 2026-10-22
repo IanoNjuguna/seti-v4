@@ -38,6 +38,7 @@
     "check:receipt-link": "tsx src/services/receipt-link.check.ts",
     "check:wallets": "tsx src/services/wallet-registry.check.ts",
     "check:claim": "DEV_BYPASS_AUTH=true tsx src/services/merchant-claims.check.ts",
+    "check:rename": "DEV_BYPASS_AUTH=true tsx src/services/handle-rename.check.ts",
     "check:handle": "DEV_BYPASS_AUTH=true tsx src/services/merchant-handle.check.ts",
     "check:username": "DEV_BYPASS_AUTH=true tsx src/services/username.check.ts",
     "check:consent": "tsx src/services/consent.check.ts",

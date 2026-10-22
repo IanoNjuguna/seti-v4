@@ -61,6 +61,13 @@ import {
   merchantHandle,
   normalizeMerchantName,
 } from '../lib/merchant-name.js';
+import {
+  RENAME_HOLD_DAYS,
+  RENAME_RELEASE_REASON,
+  RENAME_UNLIVE_RELEASE_REASON,
+  findActiveRenameHold,
+  renameHoldExpiresAt,
+} from './handle-rename.js';
 import { servedNetwork } from '../config/networks.js';
 import { getWalletsByUser } from './wallet-registry.js';
 import { logAuditEvent } from './audit.js';
@@ -406,7 +413,18 @@ export type HandleClaimErrorCode =
   /** A brand reassignment was attempted without the evidence that authorises it. */
   | 'evidence-required'
   /** A brand reassignment was attempted without a reason for releasing the holder. */
-  | 'reason-required';
+  | 'reason-required'
+  /**
+   * A second PERSON name was claimed on an account that already has one, without
+   * asking for the rename (see `renamePersonHandle`).
+   *
+   * An account has ONE username. Adding a second one is not something Seti does
+   * silently and not something it does on request either — the only way to have a
+   * different name is to RENAME, which drops a public name and holds the old
+   * string for 30 days. So the refusal names that path rather than performing it:
+   * a payload that did not say "rename" must not rename.
+   */
+  | 'rename-required';
 
 /** A refusal with a machine-readable code, in the envelope the app already reads. */
 export class HandleClaimError extends Error {
@@ -440,6 +458,18 @@ export interface ClaimHandleInput {
    * before — an omitted network is the practice default.
    */
   network?: Network;
+  /**
+   * Whether a person claiming a DIFFERENT name from the one their account already
+   * holds means to RENAME to it.
+   *
+   * Required for that act and for nothing else: without it the claim is refused
+   * `rename-required` instead of being read as one. A rename is not an inference
+   * the server makes from a payload — it drops a public name, holds the old string
+   * to the account for `RENAME_HOLD_DAYS` and cannot be undone by the person
+   * afterwards, so the client has to say it means it. Ignored for a business (a
+   * merchant may hold more than one name) and for an account's FIRST person name.
+   */
+  rename?: boolean;
 }
 
 function isUniqueViolation(error: unknown): boolean {
@@ -623,6 +653,158 @@ async function verifyClaim(input: ClaimHandleInput): Promise<VerifiedClaim> {
   return { name, handle, kind: input.kind, purpose, address: claimedAddress, network: targetNetwork };
 }
 
+/** The row a claim writes — the shape `handle.create` takes, named once. */
+interface ClaimWrite {
+  handle: string;
+  network: Network;
+  kind: HandleKind;
+  name: string;
+  purpose: ClaimPurpose;
+  address: `0x${string}`;
+  claimSignature: string;
+  claimIssuedAt: string;
+  claimNonce: string;
+  claimedAt: Date;
+  userId: string;
+  merchantId: string | null;
+  reviewStatus?: string | null;
+  reviewBrand?: string | null;
+}
+
+/**
+ * RENAME a person's one name: write the new string, and hold the old one.
+ *
+ * ## Why this is one transaction and three statements in this order
+ *
+ * `handles_person_user_key` (a partial unique index on `userId` where
+ * `kind = 'person'`) means an account may hold exactly one person row AT EVERY
+ * INSTANT, not merely at every commit — Postgres checks a unique index per
+ * statement, not at the end of a transaction. So the old row must go BEFORE the
+ * new one is written, and the record of what was released must exist before the
+ * row that explains it does. Hence: release record → delete old → create new, all
+ * inside one `$transaction`, so a failure anywhere leaves the account with exactly
+ * the name it had.
+ *
+ * ## Why the old string is HELD, not freed
+ *
+ * Freeing it is the obvious implementation and the wrong product: every link
+ * already shared (`seti.live/u/<old>`), every printed QR and every payer's saved
+ * name would break the moment a person renamed — and the string would be free for
+ * whoever asked next, which is the squatter the global person index exists to keep
+ * out of a trust surface. Instead the old string moves into `handle_releases`,
+ * whole — address, signature, purpose, network — with `reason = 'renamed'` and NO
+ * recipient, and `findActiveRenameHold` resolves it back to this same account for
+ * `RENAME_HOLD_DAYS`. During that window nobody else can claim it (see
+ * `claimHandle`) and this account can switch back.
+ *
+ * ## Why a name that never resolved is NOT held
+ *
+ * A row with no signature — a `reserved` first-refusal hold, or a half-written
+ * claim — was never handed to anybody as a name to pay, and a `'renamed'` hold
+ * would make the string RESOLVABLE for the first time, under the pretence of a
+ * rename. Those release with the other reason instead
+ * (`RENAME_UNLIVE_RELEASE_REASON`), and nothing is held.
+ */
+async function renamePersonHandle(input: {
+  userId: string;
+  current: {
+    id: string;
+    handle: string;
+    name: string;
+    kind: string;
+    address: string;
+    purpose: string | null;
+    network: string;
+    claimSignature: string | null;
+    claimIssuedAt: string | null;
+    claimNonce: string | null;
+    merchantId: string | null;
+    reviewStatus: string | null;
+    userId: string | null;
+  };
+  claim: ClaimWrite;
+  /**
+   * A row already sitting on the NEW string that belongs to nobody (or to the same
+   * address — the only case that gets past the collision check). Claiming the same
+   * string today TAKES OVER such a row instead of creating one, so a rename has to
+   * clear it too: leaving it in place would collide with the new row and refuse the
+   * rename for a reason that has nothing to do with the person.
+   */
+  stale: { id: string } | null;
+}) {
+  const { current, claim } = input;
+
+  // What was released only deserves a HOLD if it was LIVE: a row with no signature
+  // (a `reserved` first-refusal hold, a half-written claim) never resolved and was
+  // never payable, so holding it would publish it for the first time.
+  const oldWasLive = current.reviewStatus === null && current.claimSignature !== null;
+  const reason = oldWasLive ? RENAME_RELEASE_REASON : RENAME_UNLIVE_RELEASE_REASON;
+
+  let saved;
+  try {
+    saved = await prisma.$transaction(async (tx) => {
+      await tx.handleRelease.create({
+        data: {
+          handle: current.handle,
+          name: current.name,
+          kind: current.kind,
+          address: current.address,
+          // Copied because a release row is a FULL copy of the claim and these
+          // three are what let a held string re-verify rather than merely resolve.
+          purpose: current.purpose,
+          network: current.network,
+          claimSignature: current.claimSignature,
+          claimIssuedAt: current.claimIssuedAt,
+          claimNonce: current.claimNonce,
+          userId: current.userId,
+          merchantId: current.merchantId,
+          reason,
+          // A rename releases a name to NOBODY. Not "to the same address": the
+          // column means where the string went, and it did not go anywhere — the
+          // account moved off it and holds it.
+          reassignedTo: null,
+        },
+      });
+
+      await tx.handle.delete({ where: { id: current.id } });
+
+      // A leftover row on the NEW string, taken over rather than duplicated — the
+      // same thing the ordinary claim path does with it (`existing ? update : create`).
+      if (input.stale) await tx.handle.delete({ where: { id: input.stale.id } });
+
+      return tx.handle.create({ data: claim });
+    });
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      throw new HandleClaimError(
+        'handle-taken',
+        409,
+        `The handle ${claim.handle} was taken while this rename was in flight. Nothing was changed — ` +
+          `${current.handle} is still your username. Try again or choose another name.`
+      );
+    }
+    throw error;
+  }
+
+  await logAuditEvent({
+    action: 'handle.person.renamed',
+    userId: input.userId,
+    metadata: {
+      from: current.handle,
+      to: claim.handle,
+      reason,
+      // Recorded so support can answer "when does the old one stop working?"
+      // without re-deriving it from the row's timestamp.
+      oldHandleHeldUntil: oldWasLive
+        ? renameHoldExpiresAt(new Date()).toISOString()
+        : null,
+      address: claim.address,
+    },
+  });
+
+  return saved;
+}
+
 /**
  * Claim a handle for an address, or refuse with a reason.
  *
@@ -720,6 +902,41 @@ export async function claimHandle(input: ClaimHandleInput) {
   }
 
   /**
+   * A string RELEASED BY A RENAME is not free, and this is where that is enforced.
+   *
+   * The old name has no `handles` row — the person moved off it — so the collision
+   * check above says nothing about it. For `RENAME_HOLD_DAYS` it still RESOLVES to
+   * the account that renamed (that is the promise the hold exists for), which means
+   * claiming it here would be handing one person's link, QR and payment address to
+   * somebody else the day after they renamed. So it is `handle-taken` for everyone
+   * else, and for the account that renamed it is not a collision at all: switching
+   * BACK inside the window is their own name, and it goes through the rename below.
+   *
+   * Both kinds, not just a person: one string is one name (#141). A business
+   * claiming a string somebody renamed away from would put a second payee on a
+   * string that is still resolving to the person who left it, and `findHandleByHandle`
+   * reads this network's row before the hold — so on the network the business
+   * claimed, the person's shared link would pay the business. The hold protects
+   * the STRING, so every claim of it asks.
+   */
+  if (!existing) {
+    const hold = await findActiveRenameHold(handle);
+
+    if (hold && hold.userId !== input.userId) {
+      throw new HandleClaimError(
+        'handle-taken',
+        409,
+        `${handle} was renamed away from recently and stays with its owner until ` +
+          `${renameHoldExpiresAt(hold.createdAt).toISOString().slice(0, 10)} — ` +
+          `a username is held for ${RENAME_HOLD_DAYS} days after a rename so links already shared keep working. ` +
+          (kind === 'person'
+            ? 'Choose another name.'
+            : 'A business name cannot take it either while it is held. Choose another name.')
+      );
+    }
+  }
+
+  /**
    * A person's name the account ALREADY holds, already signed, for the same
    * address, is done — not re-claimed.
    *
@@ -777,6 +994,58 @@ export async function claimHandle(input: ClaimHandleInput) {
     // what makes it real. Everything else keeps its stored state.
     ...(existing?.reviewStatus === 'reserved' ? { reviewStatus: null, reviewBrand: null } : {}),
   };
+
+  /**
+   * ONE PERSON NAME PER ACCOUNT — the rename, or the refusal that names it.
+   *
+   * An account has at most one `kind = 'person'` row (`handles_person_user_key`),
+   * so a person claim for a DIFFERENT name cannot be an addition. There are then
+   * exactly two outcomes, and which one applies is decided by the payload rather
+   * than guessed from it:
+   *
+   *  - `rename: true` — a RENAME: the new signed claim is written and the old
+   *    string is released and HELD to this account for 30 days (see
+   *    `renamePersonHandle`), all in one transaction.
+   *  - otherwise — `rename-required`. A rename drops a public name that other
+   *    people are already using and cannot be undone by the person themselves
+   *    afterwards, so it is not performed on a request that did not ask for it: a
+   *    stale screen, a retried request or an older client must be told what would
+   *    have happened, not have it happen to them.
+   *
+   * Business names are untouched by this: a merchant may legitimately hold more
+   * than one, and `userHandles` has no per-kind cap for them.
+   */
+  if (kind === 'person') {
+    const currentName = await prisma.handle.findFirst({
+      where: { userId: input.userId, kind: 'person' },
+      // `claimedAt` ascending keeps the OLDEST row as "the name they hold", which
+      // is the one to release. Only reachable with more than one row on a database
+      // that has not had the migration's data step applied.
+      orderBy: [{ claimedAt: 'asc' }, { createdAt: 'asc' }],
+    });
+
+    if (currentName && currentName.handle !== handle) {
+      if (!input.rename) {
+        throw new HandleClaimError(
+          'rename-required',
+          409,
+          `Your account already has the username ${currentName.handle}, and one account has one username. ` +
+            `Renaming to ${handle} will write it fresh and keep ${currentName.handle} resolving to you for ` +
+            `${RENAME_HOLD_DAYS} days before it frees — nobody else can claim it in that time. ` +
+            'Nothing was changed. Confirm the rename to go ahead.'
+        );
+      }
+
+      return renamePersonHandle({
+        userId: input.userId,
+        current: currentName,
+        claim,
+        // `existing` can only be non-null here when it holds the same address or no
+        // owner — anything else was refused as `handle-taken` above.
+        stale: existing ? { id: existing.id } : null,
+      });
+    }
+  }
 
   try {
     return existing
@@ -953,6 +1222,10 @@ export async function reassignHandleClaim(input: ReassignHandleInput): Promise<H
         name: existing.name,
         kind: existing.kind,
         address: existing.address,
+        // Part of the claim, not decoration: without them the released row could
+        // not be re-verified against the network and purpose it was signed for.
+        purpose: existing.purpose,
+        network: existing.network,
         claimSignature: existing.claimSignature,
         claimIssuedAt: existing.claimIssuedAt,
         claimNonce: existing.claimNonce,
@@ -1204,10 +1477,17 @@ export async function handleStatus(
     select: { name: true },
   });
 
+  // A string released by a RENAME is held to its owner for `RENAME_HOLD_DAYS`, so
+  // it is NOT free even though no `handles` row holds it. Reported here for the
+  // same reason the holder above is: this preview must never call a handle free
+  // that the claim would then refuse. Both kinds ask, because the hold is on the
+  // STRING: a business claim of a held username is refused too (#141).
+  const heldByRename = !holder ? await findActiveRenameHold(handle) : null;
+
   return {
     name,
     handle,
     problem: null,
-    takenBy: holder?.name ?? null,
+    takenBy: holder?.name ?? heldByRename?.name ?? null,
   };
 }

@@ -99,7 +99,15 @@ export type AuditAction =
   | 'charge.expired'
   | 'charge.cancelled'
   /** One webhook delivery decided: the delivery log, mirrored into the audit trail. */
-  | 'charge.webhook.delivered';
+  | 'charge.webhook.delivered'
+  /**
+   * A person RENAMED: their one username was replaced by a new signed claim, and
+   * the old string was released into `handle_releases` — held to the same account
+   * for 30 days when it was live. `metadata` carries `from`, `to`, `reason` and
+   * `oldHandleHeldUntil`, so "when does my old name stop working?" is a log read,
+   * not a re-derivation.
+   */
+  | 'handle.person.renamed';
 
 export interface AuditLogInput {
   userId?: string;

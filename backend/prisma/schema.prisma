@@ -191,6 +191,24 @@ model Handle {
   claimedAt      DateTime?
   /// The account the handle belongs to. Informational, not a trust anchor: what
   /// makes a claim true is the signature, never who posted it.
+  ///
+  /// ONE PERSON NAME PER ACCOUNT, structurally: a partial unique index
+  /// `handles_person_user_key` on `("userId") WHERE kind = 'person' AND "userId"
+  /// IS NOT NULL` (migration `20261022200000_person_name_and_rename`) means an
+  /// account holds at most one `kind = 'person'` row. Two names for one person is
+  /// an impersonation surface — both resolve, each to whatever address it was
+  /// bound to — and it makes an invite link ambiguous about which name is really
+  /// that person. Business handles are deliberately NOT capped: a merchant may
+  /// legitimately run more than one name, and a business's uniqueness is its
+  /// network's namespace, not its account.
+  ///
+  /// The managed way to change that one name is a RENAME (`claimHandle` with
+  /// `rename: true`): the new string is written and the old one moves to
+  /// `HandleRelease` with `reason = 'renamed'`, where it keeps resolving to this
+  /// account for 30 days before it frees. A second person claim WITHOUT the
+  /// rename is refused (`rename-required`); it never silently becomes a rename,
+  /// because a rename drops a public name and that is not something to infer from
+  /// a payload.
   userId         String?
   /// The business profile, when `kind = 'business'`. A person has none.
   merchantId     String?   @unique
@@ -233,7 +251,8 @@ model Handle {
   @@map("handles")
 }
 
-/// A claim that was RELEASED so a proved brand could take the name.
+/// A claim that was RELEASED — because a proved brand took the name, or because
+/// its owner RENAMED away from it.
 ///
 /// A brand proving ownership must be able to take a name whatever state it is in
 /// — including one already claimed by someone else. The handle string is unique,
@@ -241,6 +260,23 @@ model Handle {
 /// where it goes. It is a full copy of the released claim (the signature and all)
 /// plus WHY it was released, so a reassignment is never a silent overwrite and the
 /// previous holder's record survives.
+///
+/// It is ALSO where a renamed string's 30-day hold lives. A rename moves the old
+/// string here with `reason = 'renamed'` and no recipient, and for those 30 days
+/// the release row is what `findHandleByHandle` resolves the old string FROM — so
+/// `seti.live/u/<old>`, a printed QR and every shared link keep pointing at the
+/// account that renamed, instead of 404ing on the day of the rename. Holding the
+/// string rather than freeing it is the whole point: freeing it either breaks
+/// every link that was shared or hands the name to whoever asks next.
+///
+/// The vocabulary of `reason` is load-bearing, not prose:
+///  - `'renamed'` — a live name the owner moved off; the string is HELD to that
+///    account for 30 days (`RENAME_HOLD_DAYS`) and nobody else can claim it.
+///  - `'renamed-unlive'` — a name that never resolved (a row with no signature,
+///    such as a `reserved` first-refusal hold). Nothing was in use, so nothing is
+///    held: a hold would make an unpublished name resolvable.
+///  - anything else — a brand reassignment or a migration, with
+///    `reassignedTo` set or not. No hold is ever read from these.
 ///
 /// Deliberately NOT related by foreign key to `User`/`Merchant`: this is a
 /// historical record that must outlive any account or profile deletion, so it
@@ -255,17 +291,36 @@ model HandleRelease {
   kind           String
   /// The address the released claim pointed at.
   address        String
+  /// The EIP-712 purpose the released claim was signed for. Recorded from
+  /// migration `20261022200000_person_name_and_rename` onward, because a held
+  /// string has to re-verify from its release row and the signature covers the
+  /// purpose. NULL on rows written before it (a legacy backfilled claim has no
+  /// purpose either).
+  purpose        String?
+  /// The network the released claim was BOUND on (`testnet` | `mainnet`) — the
+  /// EIP-712 domain its signature was made against. Without it a held string
+  /// could not be re-verified on the chain id it was signed for. NULL on rows
+  /// written before the migration above; verification then falls back to the
+  /// served network.
+  network        String?
   claimSignature String?
   claimIssuedAt  String?
   claimNonce     String?
-  /// The account that held the released claim, if any.
+  /// The account that held the released claim, if any. For a `'renamed'` row this
+  /// is the account the old string still resolves TO during the hold, and the only
+  /// account allowed to claim it back inside the window.
   userId         String?
   /// The business profile the released claim turned on, if any.
   merchantId     String?
-  /// Why it was released — the reason the reviewer recorded.
+  /// Why it was released — a reviewer's reason, `'renamed'`, or a migration's.
   reason         String
   /// The address it was reassigned TO (the brand's, proved by signature).
-  reassignedTo   String
+  ///
+  /// NULL when the string went to NOBODY: a rename (the owner moved off it and
+  /// holds it), or a duplicate person name resolved by migration
+  /// `20261022200000_person_name_and_rename`. Nullable since that migration, which
+  /// also seeded the existing rows' column comment.
+  reassignedTo   String?
   createdAt      DateTime @default(now())
 
   @@index([handle])

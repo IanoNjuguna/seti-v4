@@ -42,6 +42,12 @@ const claimSchema = z.object({
   issuedAt: z.string(),
   nonce: z.string().min(1),
   signature: z.string().min(1),
+  /**
+   * "Replace my one username with this one", for a person claim of a DIFFERENT
+   * name than the account already holds. Omitted, that claim is refused
+   * `rename-required` and nothing is written — see `claimHandle`.
+   */
+  rename: z.boolean().optional(),
 });
 
 export async function handleRoutes(app: FastifyInstance) {
