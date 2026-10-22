@@ -912,10 +912,14 @@ export async function claimHandle(input: ClaimHandleInput) {
    * else, and for the account that renamed it is not a collision at all: switching
    * BACK inside the window is their own name, and it goes through the rename below.
    *
-   * Person only. A hold is only ever written for a person name (`handle-rename.ts`),
-   * and a business claim must not be refused on evidence that cannot exist.
+   * Both kinds, not just a person: one string is one name (#141). A business
+   * claiming a string somebody renamed away from would put a second payee on a
+   * string that is still resolving to the person who left it, and `findHandleByHandle`
+   * reads this network's row before the hold — so on the network the business
+   * claimed, the person's shared link would pay the business. The hold protects
+   * the STRING, so every claim of it asks.
    */
-  if (!existing && kind === 'person') {
+  if (!existing) {
     const hold = await findActiveRenameHold(handle);
 
     if (hold && hold.userId !== input.userId) {
@@ -925,7 +929,9 @@ export async function claimHandle(input: ClaimHandleInput) {
         `${handle} was renamed away from recently and stays with its owner until ` +
           `${renameHoldExpiresAt(hold.createdAt).toISOString().slice(0, 10)} — ` +
           `a username is held for ${RENAME_HOLD_DAYS} days after a rename so links already shared keep working. ` +
-          'Choose another name.'
+          (kind === 'person'
+            ? 'Choose another name.'
+            : 'A business name cannot take it either while it is held. Choose another name.')
       );
     }
   }
@@ -1474,10 +1480,9 @@ export async function handleStatus(
   // A string released by a RENAME is held to its owner for `RENAME_HOLD_DAYS`, so
   // it is NOT free even though no `handles` row holds it. Reported here for the
   // same reason the holder above is: this preview must never call a handle free
-  // that the claim would then refuse. Business only needs one lookup — a hold is
-  // never written for a business name.
-  const heldByRename =
-    !holder && kind !== 'business' ? await findActiveRenameHold(handle) : null;
+  // that the claim would then refuse. Both kinds ask, because the hold is on the
+  // STRING: a business claim of a held username is refused too (#141).
+  const heldByRename = !holder ? await findActiveRenameHold(handle) : null;
 
   return {
     name,

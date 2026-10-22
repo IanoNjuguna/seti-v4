@@ -394,6 +394,25 @@ async function main() {
   const preview = await handleStatus(NAME_FIRST, servedNetwork, 'person');
   check('the claim preview does not call the held name free', preview.takenBy, NAME_FIRST);
 
+  // One string is one name (#141), so the hold protects the STRING and not just the
+  // person namespace: a business claim of a held username is refused too. Otherwise
+  // the business's own row would win `findHandleByHandle` on the network it claimed
+  // and the renamed account's shared link would pay the business.
+  check(
+    'a business cannot claim the held username either',
+    await attempt(userB.id, rival, 'business', NAME_FIRST),
+    'handle-taken'
+  );
+  check(
+    'no business row was written for the held string',
+    await prisma.handle.count({
+      where: { handle: merchantHandle(NAME_FIRST), kind: 'business' },
+    }),
+    0
+  );
+  const businessPreview = await handleStatus(NAME_FIRST, servedNetwork, 'business');
+  check('and the business claim form agrees it is taken', businessPreview.takenBy, NAME_FIRST);
+
   // -------------------------------------------------------------------------
   // (e) The renaming account may switch back inside the window
   // -------------------------------------------------------------------------
