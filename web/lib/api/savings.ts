@@ -33,6 +33,8 @@ export interface SavingsSummary {
   apy: string | null;
   canDeposit: boolean;
   canWithdraw: boolean;
+  /** False means saving is closed on purpose: show "coming soon", offer no deposit. */
+  live: boolean;
 }
 
 export interface SavingsDepositQuote {

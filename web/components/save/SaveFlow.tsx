@@ -31,6 +31,38 @@ export function SaveFlow() {
       : null
     : null;
 
+  /*
+   * Closed beats everything: while saving is off there is no figure to read, no amount
+   * to type and no button to press, because every one of those would imply a deposit
+   * the API now refuses with 503. The page still renders, so a shared link lands
+   * somewhere honest instead of a 404.
+   */
+  if (save.summary !== null && save.summary.live === false) {
+    return (
+      <div className="flex flex-col gap-4">
+        <PageBack />
+        <Text variant="section" as="h1">
+          {SAVE_COPY.title}
+        </Text>
+
+        <div className="rounded-md border border-hairline-light bg-surface-soft px-5 py-6">
+          <Text variant="micro" color="secondary" as="p">
+            {SAVE_COPY.soonLabel}
+          </Text>
+          <Text variant="card-title" as="h2" className="mt-1">
+            {SAVE_COPY.soonHeadline}
+          </Text>
+          <Text variant="body" color="secondary" as="p" className="mt-2">
+            {SAVE_COPY.soonBody}
+          </Text>
+          <Text variant="micro" color="secondary" as="p" className="mt-3">
+            {SAVE_COPY.soonNote}
+          </Text>
+        </div>
+      </div>
+    );
+  }
+
   if (save.done) {
     return (
       <div className="flex flex-col gap-4">

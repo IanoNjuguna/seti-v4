@@ -1,7 +1,12 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { authMiddleware } from '../middleware/auth.js';
-import { getSavingsSummary, quoteSavingsDeposit, quoteSavingsWithdraw } from '../services/savings.js';
+import {
+  getSavingsSummary,
+  quoteSavingsDeposit,
+  quoteSavingsWithdraw,
+  SavingsNotLiveError,
+} from '../services/savings.js';
 import { recordSavingsDeposit, recordSavingsWithdrawal } from '../services/transactions.js';
 import { PaymentRefusalError } from '../services/payment-refusal.js';
 import { refusalResponse } from './refusal-response.js';
@@ -83,6 +88,11 @@ export async function savingsRoutes(app: FastifyInstance) {
       });
       return reply.send({ quote });
     } catch (error) {
+      // Closed on purpose, not broken: 503 so no client mistakes it for a bad request
+      // and retries, and a code so the app can say "not open yet" instead of guessing.
+      if (error instanceof SavingsNotLiveError) {
+        return reply.status(503).send({ error: error.message, code: error.code });
+      }
       // A refusal the customer can act on (no market, bad amount) is a 422 with a
       // sentence; anything else is ours to fix.
       return reply.status(422).send({
@@ -110,6 +120,9 @@ export async function savingsRoutes(app: FastifyInstance) {
       });
       return reply.status(201).send({ transaction });
     } catch (error) {
+      if (error instanceof SavingsNotLiveError) {
+        return reply.status(503).send({ error: error.message, code: error.code });
+      }
       if (error instanceof PaymentRefusalError) return refusalResponse(reply, error);
       throw error;
     }

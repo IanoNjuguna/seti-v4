@@ -23,6 +23,16 @@ export function HomeAction({ action }: HomeActionProps) {
       <Text as="span" variant={TEXT_VARIANT[action.variant]} color={TEXT_COLOR[action.variant]}>
         {action.label}
       </Text>
+      {/*
+        The badge rides inside the same link rather than replacing it: the door still
+        opens, and the page behind it explains why it is closed. A disabled link here
+        would be a dead end with no sentence, and hiding it would lose the signal.
+      */}
+      {action.badge ? (
+        <Text as="span" variant="micro" color="secondary" className="ml-1.5">
+          {action.badge}
+        </Text>
+      ) : null}
     </Link>
   );
 }

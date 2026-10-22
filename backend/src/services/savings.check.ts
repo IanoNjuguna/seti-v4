@@ -8,7 +8,8 @@
  *
  *   node --experimental-strip-types? no: run with `npx tsx src/services/savings.check.ts`
  */
-import { chooseDepositAsset } from './savings.js';
+import { chooseDepositAsset, SAVINGS_LIVE, SavingsNotLiveError, sharesForDeposit } from './savings.js';
+import { quoteSavingsDeposit } from './savings.js';
 import type { SupportedAsset } from '../config/assets.js';
 
 const U = (value: number) => BigInt(Math.round(value * 1_000_000));
@@ -121,5 +122,74 @@ check(
   spendable === balances.pathusd + balances.ousd + balances['usdc.e'] + balances.usdt0
 );
 
-console.log(`\n${run - failed}/${run} checks passed\n`);
-if (failed > 0) process.exit(1);
+// The tally is printed by the async probe when the gate is closed, so that its
+// assertion is counted; otherwise print here.
+if (SAVINGS_LIVE) {
+  console.log(`\n${run - failed}/${run} checks passed\n`);
+  if (failed > 0) process.exit(1);
+}
+
+// ---------------------------------------------------------------------------
+// The share floor (#134). This is the assertion that would have caught a bug that
+// made every deposit revert: the floor is invisible until a customer's money is on
+// the line, so it has to be checked against the number it is derived from.
+// ---------------------------------------------------------------------------
+console.log('\nthe share floor\n');
+
+const PRICE = 1.000004;
+
+for (const units of [231_112n, 1_155_562n, 38_518_748n]) {
+  const floor = sharesForDeposit(units, PRICE);
+  const expected = Number(floor) / 1_000_000;          // floor in share units
+  const minted = Number(units) / 1e6 / PRICE;          // shares the vault mints
+  const ratio = expected / minted;
+
+  check(
+    `a ${Number(units) / 1e6} pathUSD deposit floors at ~99.5% of what it mints`,
+    ratio > 0.994 && ratio < 0.996,
+    `floor ${expected.toFixed(6)} vs minted ${minted.toFixed(6)} = ${(ratio * 100).toFixed(2)}%`
+  );
+
+  check(
+    `the floor for ${Number(units) / 1e6} pathUSD is below the minted amount`,
+    floor < BigInt(Math.floor(minted * 1e6)),
+    `floor ${floor} vs minted ${Math.floor(minted * 1e6)}`
+  );
+}
+
+// The regression itself: a floor scaled by 1e6 is exactly what #134 shipped, and it
+// must be impossible to reintroduce without this failing.
+check(
+  'the floor is NOT scaled twice (the #134 regression)',
+  sharesForDeposit(231_112n, PRICE) < BigInt(1_000_000),
+  `got ${sharesForDeposit(231_112n, PRICE)}`
+);
+
+check('a zero share price floors at zero rather than dividing', sharesForDeposit(231_112n, 0) === BigInt(0));
+
+// ---------------------------------------------------------------------------
+// The gate (#137). Deposits are closed; the only way this check passes is if the
+// refusal fires before anything is priced.
+// ---------------------------------------------------------------------------
+console.log('\nthe deposit gate\n');
+
+check('saving is closed unless SAVINGS_ENABLED=true', SAVINGS_LIVE === (process.env.SAVINGS_ENABLED === 'true'));
+
+if (!SAVINGS_LIVE) {
+  // CommonJS at this level, so the async probe is wrapped rather than dropped.
+  void (async () => {
+    let refused: unknown = null;
+    try {
+      await quoteSavingsDeposit({ userId: 'check-user', amountFiat: '30', network: 'mainnet' });
+    } catch (error) {
+      refused = error;
+    }
+    check(
+      'a closed deposit refuses with savings-not-live before pricing anything',
+      refused instanceof SavingsNotLiveError,
+      refused instanceof Error ? refused.name : 'no error thrown'
+    );
+    console.log(`\n${run - failed}/${run} checks passed\n`);
+    if (failed > 0) process.exit(1);
+  })();
+}
