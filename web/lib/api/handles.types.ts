@@ -13,21 +13,6 @@
 /** Whether a handle belongs to a person or a business — a mode, not an identity. */
 export type HandleKind = 'person' | 'business';
 
-/**
- * A claim PARKED for brand review — mirrored from the backend, which owns it.
- *
- * A parked handle is not live: it does not resolve, is not public, has no page
- * and no QR, and never reads as verified. It is shown only on the claim's own
- * response, so the claimer knows to wait and what to send.
- */
-export interface HandleReview {
-  status: 'pending';
-  /** The held brand the claimed name matched. */
-  brand: string;
-  /** A plain sentence naming what to send to finish review. */
-  message: string;
-}
-
 /** What a client may be told about a handle. */
 export interface HandleIdentity {
   id: string;
@@ -44,8 +29,8 @@ export interface HandleIdentity {
   category: string | null;
   /**
    * True only when the backend re-derived a valid signature over THIS name, THIS
-   * purpose and THIS address AND the handle is not parked for review. A parked
-   * claim is never verified, however genuine its signature.
+   * purpose and THIS address. It says the claimer's key controls the address, and
+   * nothing more: Seti has not checked who the business is.
    */
   verified: boolean;
   /** The purpose the binding was signed for; null for a pre-purpose backfill. */
@@ -56,8 +41,6 @@ export interface HandleIdentity {
    */
   merchantId: string | null;
   claimedAt: string | null;
-  /** The brand-review state, or null when the handle is not under review. */
-  review: HandleReview | null;
 }
 
 export interface ResolveHandleResult {
@@ -88,11 +71,6 @@ export interface HandleStatusPreview {
   handle: string;
   problem: string | null;
   takenBy: string | null;
-  /**
-   * The held brand this name matches, or null. Not a problem — the claim is
-   * accepted, then parked for review — so a free handle can still carry this note.
-   */
-  held: string | null;
 }
 
 export interface HandleStatusResult {

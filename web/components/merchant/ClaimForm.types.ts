@@ -21,8 +21,6 @@ export interface ClaimCopy {
   again: string;
   verified: string;
   unverified: string;
-  /** The badge shown while a claim is parked for brand review. */
-  underReview: string;
   errorTitle: string;
   /** The label above the shareable link. */
   linkLabel: string;
@@ -32,11 +30,6 @@ export interface ClaimCopy {
   handleKindHint: string;
   handleChecking: string;
   handleFree: string;
-  /**
-   * The note shown for a FREE handle that matches a held brand: the claim is
-   * accepted, but the name is parked for review before it goes live.
-   */
-  heldNote: string;
   /** The collision message; `link` is the already-built label for the kind. */
   handleTaken: (link: string, holder: string) => string;
   qrLabel: string;

@@ -24,7 +24,7 @@ import Fastify from 'fastify';
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
 import { prisma } from '../lib/prisma.js';
 import { servedNetwork } from './chain.js';
-import { findHandleByMerchantId } from './handles.js';
+import { findHandleByHandle, findHandleByMerchantId } from './handles.js';
 import { registerWallet } from './wallet-registry.js';
 import {
   HandleClaimError,
@@ -36,6 +36,7 @@ import {
   handleClaimDomain,
   handleClaimVerifies,
   merchantHandle,
+  refuseHandleClaim,
   toHandleIdentityView,
   type HandleKind,
 } from './handle-claims.js';
@@ -60,6 +61,27 @@ const NAME_TAMPERED = 'Check Claim Tampered';
  * with the other fixtures.
  */
 const NAME_HELD = 'Check Claim Held';
+
+/**
+ * A name that the removed held-brand list would have PARKED.
+ *
+ * `Check Claim KFC` carries the brand as its own token, which is exactly what the
+ * old matcher keyed on (a contiguous token run on `kfc`), so under the parking
+ * state this claim would have been stored `pending`, given no business profile
+ * and 404'd on every resolver. It must now claim and resolve like any other
+ * business name — that is the guard that the parking state is gone rather than
+ * merely unreferenced (#139).
+ *
+ * The brand is carried inside a FIXTURE name rather than claimed as a bare `kfc`
+ * on purpose: `kfc` is one of the six seeded rows in a developer's database, so a
+ * literal claim would be `handle-taken` there for a reason that has nothing to do
+ * with this code — the "your database, not your diff" failure `preexisting-handles.ts`
+ * exists to prevent.
+ */
+const NAME_FORMER_BRAND = 'Check Claim KFC';
+
+/** A live name this suite takes down, to pin the takedown path. */
+const NAME_TAKEDOWN = 'Check Claim Takedown';
 
 /** Every handle the fixture names derive, so cleanup can be scoped by string. */
 const FIXTURE_NAME_PREFIX = 'Check Claim';
@@ -133,9 +155,27 @@ async function attemptClaim(
   return refusalOf(() => claimHandle({ userId, kind, ...message, signature }));
 }
 
+/** Audit rows this run wrote, deleted on the way out so the suite leaves none. */
+const createdAuditIds: string[] = [];
+
+/** Remember the newest audit row for an action, so cleanup can remove it. */
+async function noteAudit(action: string): Promise<void> {
+  const row = await prisma.auditLog.findFirst({
+    where: { action },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true },
+  });
+  if (row) createdAuditIds.push(row.id);
+}
+
 async function cleanup() {
   await prisma.handle.deleteMany({ where: HANDLE_WHERE });
   await prisma.merchant.deleteMany({ where: MERCHANT_WHERE });
+
+  if (createdAuditIds.length > 0) {
+    await prisma.auditLog.deleteMany({ where: { id: { in: createdAuditIds } } });
+    createdAuditIds.length = 0;
+  }
 
   const users = await prisma.user.findMany({
     where: { email: { in: [FIXTURE_EMAIL_A, FIXTURE_EMAIL_B] } },
@@ -530,6 +570,79 @@ async function main() {
 
   const unknown = await resolve('!!! not a handle !!!');
   check('an unparseable payload is refused', unknown.status, 400);
+
+  // -------------------------------------------------------------------------
+  // (h) a name the held-brand list used to PARK claims and resolves
+  // -------------------------------------------------------------------------
+  console.log('\n(h) a formerly parked name claims and resolves:');
+  const formerMessage: HandleClaimMessage = {
+    name: NAME_FORMER_BRAND,
+    address: owner.address,
+    purpose: PURPOSE_FOR_KIND.business,
+    issuedAt: new Date().toISOString(),
+    nonce: nonce(),
+  };
+  const former = await claimHandle({
+    userId: userA.id,
+    kind: 'business',
+    ...formerMessage,
+    signature: await signClaim(owner, formerMessage),
+  });
+  check('it is not parked: the row is live', former.reviewStatus, 'null');
+  check('and payable at claim time (a profile was minted)', former.merchantId !== null, true);
+
+  const formerRow = await findHandleByHandle(merchantHandle(NAME_FORMER_BRAND), servedNetwork);
+  check('the resolver finds it', formerRow !== null, true);
+  check(
+    'and reports it verified',
+    formerRow ? (await toHandleIdentityView(formerRow)).verified : false,
+    true
+  );
+  const formerResolved = await resolve(NAME_FORMER_BRAND);
+  check('resolve by name returns it', formerResolved.status, 200);
+  check(
+    'to the address it was claimed for',
+    resolvedHandle(formerResolved.body).address,
+    owner.address
+  );
+
+  // -------------------------------------------------------------------------
+  // (i) the takedown path — a live name removed, the string freed, why recorded
+  // -------------------------------------------------------------------------
+  console.log('\n(i) a takedown frees the string:');
+  const takedownMessage: HandleClaimMessage = {
+    name: NAME_TAKEDOWN,
+    address: owner.address,
+    purpose: PURPOSE_FOR_KIND.business,
+    issuedAt: new Date().toISOString(),
+    nonce: nonce(),
+  };
+  const takedownClaim = await claimHandle({
+    userId: userA.id,
+    kind: 'business',
+    ...takedownMessage,
+    signature: await signClaim(owner, takedownMessage),
+  });
+  check('the name to take down claims live', takedownClaim.reviewStatus, 'null');
+
+  const TAKEDOWN_REASON = 'the name belongs to another business; reported and removed';
+  const taken = await refuseHandleClaim(takedownClaim.handle, TAKEDOWN_REASON);
+  await noteAudit('handle.brand.refused');
+  check('the takedown reports the handle it removed', taken.handle, takedownClaim.handle);
+  check(
+    'the row is gone, so the string is free again',
+    await prisma.handle.count({ where: { handle: takedownClaim.handle } }),
+    0
+  );
+  check('and it no longer resolves', (await resolve(NAME_TAKEDOWN)).status, 404);
+
+  const takedownAudit = await prisma.auditLog.findFirst({
+    where: { action: 'handle.brand.refused' },
+    orderBy: { createdAt: 'desc' },
+  });
+  const takedownMeta = (takedownAudit?.metadata ?? {}) as { handle?: string; reason?: string };
+  check('the audit records the handle it removed', takedownMeta.handle, takedownClaim.handle);
+  check('and the reason, the only record once the row is gone', takedownMeta.reason, TAKEDOWN_REASON);
 
   // The POST route, end to end through the auth middleware. The dev auth bypass
   // is on for this suite (see the npm script), which makes the caller
