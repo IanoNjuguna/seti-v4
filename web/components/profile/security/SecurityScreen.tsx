@@ -52,7 +52,7 @@ export function SecurityScreen() {
             </Text>
           </div>
         ) : (
-          <MfaEnrolPanel onEnrolled={() => undefined} />
+          <MfaEnrolPanel onEnrolled={() => undefined} embedded />
         )}
       </ProfileSection>
 

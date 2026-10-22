@@ -1,5 +1,6 @@
 export { Text } from './Text';
 export { Button } from './Button';
+export { ChoiceRow } from './ChoiceRow';
 export { ButtonLink } from './ButtonLink';
 export { Card } from './Card';
 export { Badge } from './Badge';
@@ -13,6 +14,7 @@ export { Tabs, TabPanel } from './Tabs';
 
 export type { TextProps, TextVariant, TextColor } from './Text.types';
 export type { ButtonProps } from './Button.types';
+export type { ChoiceRowProps } from './ChoiceRow.types';
 export type { ButtonLinkProps } from './ButtonLink.types';
 export type { CardProps, CardPadding } from './Card';
 export type { BadgeProps } from './Badge.types';
