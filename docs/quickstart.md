@@ -49,7 +49,7 @@ and make a call:
 TOKEN=$(curl -s -X POST http://localhost:4000/auth/dev | jq -r .token)
 
 curl -s -H "Authorization: Bearer $TOKEN" \
-  'http://localhost:4000/merchants/resolve?qr=merchant:merchant_java_house'
+  'http://localhost:4000/handles/resolve?q=merchant:merchant_java_house'
 ```
 
 ## The payment flow in one paragraph

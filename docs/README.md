@@ -51,7 +51,7 @@ be shown to a merchant, a partner or a brand, not read as integration guides:
 | Page | For |
 | --- | --- |
 | [Verification](./verification.md) | What the identity mark checks, who performs it, what it promises and does not, and what happens when it fails |
-| [Brand policy](./brand-policy.md) | Reserved words, held brands and parked claims, and how a real brand owner reclaims a name |
+| [Brand policy](./brand-policy.md) | Reserved words, why nothing is pre-screened, and how to report a name that is not yours (hey@seti.live, first response within 72 hours) |
 
 Both carry the same starting point: **a claimed name proves control of an address,
 never identity**, and because settlement is non-custodial neither document implies
