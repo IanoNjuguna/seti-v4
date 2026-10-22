@@ -68,6 +68,12 @@ model User {
   transactions Transaction[]
   auditLogs    AuditLog[]
   handles      Handle[]
+  /// Invites this account handed out (see `Referral`): ONE row per attributed
+  /// invitee, written at sign-up.
+  referralsMade     Referral[] @relation("ReferralsMade")
+  /// The invite this account ARRIVED on, if any. At most one, because
+  /// `Referral.invitedUserId` is unique.
+  referralReceived  Referral?  @relation("ReferralsReceived")
 
   @@map("users")
 }
@@ -681,4 +687,41 @@ model IndexerCursor {
   updatedAt  DateTime @updatedAt
 
   @@map("indexer_cursors")
+}
+
+/// Who invited whom — one row per attributed invitee, written once.
+///
+/// The row is written at `POST /auth/verify` when an account is ESTABLISHED, never
+/// when a link is opened: an open is a visit, and a visit is not a person. It is
+/// only written for a NEW account (`services/signup.ts` returns `created`), so a
+/// returning customer who once opened someone's link is never counted.
+///
+/// `invitedUserId` is UNIQUE, which is the whole of the "one attribution per
+/// person" rule: a second invite link, a replayed code, or a second sign-up on the
+/// same account all collide on this index instead of writing a second row. The
+/// database enforces it rather than a read-then-write in the service, because two
+/// concurrent sign-ups would both have read "no row yet".
+///
+/// `referrerId` is the AUTHORITY and `referrerHandle` is a SNAPSHOT taken when the
+/// row was written. The cookie carries the id and never the handle, because a
+/// handle can be parked or later released and given to a brand: re-resolving it at
+/// attribution time would credit whoever holds the string then. The snapshot keeps
+/// the words the invitee actually saw ("ian invited you") even after a rename, and
+/// nothing reads it to route money or to re-resolve anything.
+model Referral {
+  id             String   @id @default(cuid())
+  /// The account credited with the invite. Never a handle, never an email.
+  referrerId     String
+  /// The account that arrived. UNIQUE: one attribution per person, enforced here.
+  invitedUserId  String   @unique
+  /// The referrer's handle as the link named it, frozen at write time.
+  referrerHandle String
+  createdAt      DateTime @default(now())
+
+  referrer User @relation("ReferralsMade", fields: [referrerId], references: [id], onDelete: Cascade)
+  invited  User @relation("ReferralsReceived", fields: [invitedUserId], references: [id], onDelete: Cascade)
+
+  /// The invite screen's one read: this account's invitees, newest first.
+  @@index([referrerId, createdAt])
+  @@map("referrals")
 }
