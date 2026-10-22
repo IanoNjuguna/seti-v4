@@ -158,7 +158,38 @@ export type PaymentRefusalCode =
    * other identifier, so without it a reused link cannot be told apart from an
    * unrelated transfer.
    */
-  | 'memo-missing-charge-id';
+  | 'memo-missing-charge-id'
+  /**
+   * The charge API's OWN refusals (`routes/public-charges.ts`) — the ways a request
+   * to create or manage a charge fails before a classifier is ever asked.
+   *
+   * These are named separately from the classifier's codes because the fix is
+   * different in each case and the client acts on them differently: `charge-expired`
+   * is a fact about a charge, `charges-rate-limited` is a fact about the caller.
+   */
+  /** The id is not a usable charge id (an id is lower-case `[a-z0-9_-]`, 6–64 chars). */
+  | 'charge-id-invalid'
+  /** This recipient already has a charge with this id, and it is not this signature. */
+  | 'charge-id-taken'
+  /** The same `Idempotency-Key` was used for a different charge. */
+  | 'idempotency-key-reused'
+  /** The create body's amounts, expiry or asset cannot describe a charge at all. */
+  | 'charge-invalid'
+  /** `webhookUrl` is not an https URL (http is allowed only for localhost in development). */
+  | 'webhook-url-invalid'
+  /**
+   * A managing call's signature was issued outside its window — a captured header
+   * that has expired. Distinct from `charge-signature-invalid` so a caller is told
+   * "your clock, or a stale header" rather than "wrong key".
+   */
+  | 'charge-admin-stale'
+  /**
+   * The per-address or per-source budget for a charge route is spent.
+   *
+   * Not charge-specific: any unauthenticated write that creates rows needs it, and the
+   * code says what to do (wait) rather than what went wrong.
+   */
+  | 'rate-limited';
 
 /** Why an on-chain receipt could not be used to verify a leg. */
 export type ReceiptFailureCode =

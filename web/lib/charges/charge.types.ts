@@ -93,14 +93,32 @@ export interface PayeeDirectory {
 }
 
 /**
+ * What a source answers for one id.
+ *
+ *  - `null` — there is no charge with that id (the page's `not-found`).
+ *  - `{ kind: 'found', payload }` — a charge, still `unknown`: the loader parses it.
+ *  - `{ kind: 'refused' }` — the source CHECKED and the charge must not be paid (its
+ *    signature does not hold). This is a refusal, not a miss, and the two are
+ *    different statements to a payer.
+ *
+ * `refused` exists because the real source is the backend, which re-verifies the
+ * EIP-712 signature from the stored bytes (`backend/src/services/charge-store.ts`).
+ * A Next app cannot repeat that check without the chain and the key material, so the
+ * source that CAN make it reports the verdict instead.
+ */
+export type ChargeSourceResult =
+  | { kind: 'found'; payload: unknown }
+  | { kind: 'refused' }
+  | null;
+
+/**
  * Where a charge comes from.
  *
- * `read` returns the stored payload as `unknown` ON PURPOSE: the loader parses it,
- * so no source can widen the page's types by returning something that merely looks
- * right. It returns `null` for an id it has no charge for.
+ * `read` returns the payload as `unknown` ON PURPOSE: the loader parses it, so no
+ * source can widen the page's types by returning something that merely looks right.
  */
 export interface ChargeSource {
-  read(id: string): Promise<unknown>;
+  read(id: string): Promise<ChargeSourceResult>;
 }
 
 /** What `loadCharge` answers. Three outcomes, and none of them is a blank page. */

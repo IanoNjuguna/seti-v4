@@ -7,8 +7,9 @@ sidebar_position: 4
 **Unversioned.** There is no `/v1` prefix; paths below are the ones that exist.
 Everything requires a bearer token — see [Authentication](./authentication.md) —
 except the routes that exist to be opened signed out: `/health`, `/auth/*`,
-`GET /receipts/:id`, and `GET /public/merchants/:handle`. Each of those is marked
-**unauthenticated on purpose** in its own section below.
+`GET /receipts/:id`, `/public/merchants/:handle`, and the charge routes below
+(`/public/charges*`), where a wallet signature is the credential instead of an
+account. Each of those is marked **unauthenticated on purpose** in its own section.
 
 Base URL in local development: `http://localhost:4000`.
 
@@ -465,6 +466,152 @@ Creates a non-payment transaction record (`p2p_send`, `p2p_receive`, `top_up`,
 `withdrawal`, `fee`). Requires `userId` to equal the authenticated user, else
 `403`. Payment recording does not go through this route.
 
+## Charges (receive, no account)
+
+**Unauthenticated on purpose, and this is the point of the feature:** anyone with a
+wallet can be paid without a Seti account. The credential is the recipient's EIP-712
+signature over the charge — there is no API key, deliberately, because a key would
+make Seti the custodian of the identifier.
+
+The object is specified in `docs/internal/charge-object.md`; this section is how to
+call it. Amounts are **decimal token units**, 6 decimals (`"250.000000"`), never a
+number: a float is how an amount becomes a cent wrong.
+
+### Signing a charge
+
+EIP-712, domain `{ name: "Seti", version: "1", chainId }`, primary type `Charge`,
+with exactly these seven fields (and nothing else — not `scope`, not `status`):
+
+```
+Charge { recipient, asset, amount, memo, id, expiresAt, nonce }
+```
+
+`id` is minted by the SIGNER (lower-case `[a-z0-9_-]`, 6–64 chars) and must appear
+inside `memo`, because the id in the memo is what matches a transfer to the charge.
+`expiresAt` is ISO-8601 and must be in the future. `scope` is reserved and unsigned.
+
+### `POST /public/charges`
+
+Body is the signed charge, plus an optional `webhookUrl` (not covered by the
+signature in v1 — see `docs/internal/charge-api.md`).
+
+```json
+{
+  "id": "ch_8f2c1a4e7b9d",
+  "recipient": "0x8fad55b7c481bd76889fbf1eb719789f87db5113",
+  "asset": "ousd",
+  "amount": "250.000000",
+  "memo": "October rent ch_8f2c1a4e7b9d",
+  "expiresAt": "2026-10-23T12:00:00.000Z",
+  "nonce": "9c1f…",
+  "scope": null,
+  "signature": "0x…",
+  "webhookUrl": "https://shop.example/hooks/seti"
+}
+```
+
+**`201`** with the charge, its `uri` (`seti://pay/<id>`, for a QR) and its `pageUrl`
+(`https://seti.live/pay/<id>`, for a human):
+
+```json
+{
+  "charge": {
+    "id": "ch_8f2c1a4e7b9d",
+    "status": "pending",
+    "received": "0.000000",
+    "txHash": null,
+    "uri": "seti://pay/ch_8f2c1a4e7b9d",
+    "pageUrl": "https://seti.live/pay/ch_8f2c1a4e7b9d",
+    "statusCopy": { "label": "Awaiting payment", "headline": "…", "detail": "…" },
+    "createdAt": "…", "updatedAt": "…", "settledAt": null, "cancelledAt": null,
+    "network": "testnet", "chainId": 42431, "specVersion": "1"
+  }
+}
+```
+
+`Idempotency-Key: <opaque>` on create is honoured for **24 hours**. Sending the same
+key twice returns **`200`** with the ORIGINAL body byte for byte (header
+`idempotent-replay: true`); the same key with a different charge is `409
+idempotency-key-reused`; after 24 hours the key may be reused.
+
+Rate limits: **120 creates an hour per recipient address** (a merchant's hour) and
+**20 a minute per source address** (a script's minute). Over either → `429` with
+`code: "rate-limited"`.
+
+### `GET /public/charges/:id`
+
+The same `charge` object, one of `pending`, `paid`, `underpaid`, `overpaid`,
+`expired`. Reading a charge past its deadline expires it on the spot, so the answer
+does not depend on an indexer running. `404` for an unknown id; `422
+charge-signature-invalid` when the STORED charge no longer verifies (a tampered link
+is a refusal, not a dead link).
+
+### `POST /public/charges/:id/cancel`
+
+Only from `pending`, and only by the recipient. The THREE headers carry a second
+signature over a different message, so it cannot be replayed from a create
+signature:
+
+```
+ChargeAdmin { chargeId, action: "cancel", issuedAt, nonce }
+```
+
+```
+x-seti-signature: 0x…        # EIP-712 over ChargeAdmin, same domain
+x-seti-issued-at: 2026-10-22T12:00:00.000Z
+x-seti-nonce:     6b2d…
+```
+
+`issuedAt` must be within **5 minutes** of now (`403 charge-admin-stale` otherwise);
+the signer must be the charge's `recipient` (`403 charge-signature-invalid`). A
+cancel moves the charge to `expired` and sets `cancelledAt`; a second attempt is
+`409 charge-not-pending`.
+
+### `GET /public/charges/:id/deliveries`
+
+The recipient's delivery log, read with the same three headers and `action:
+"deliveries"`. One row per status change — attempts and backoff are columns, not
+rows:
+
+```json
+{ "deliveries": [ { "event": "charge.paid", "state": "delivered", "attempts": 1,
+                    "lastStatusCode": 200, "deliveredAt": "…" } ] }
+```
+
+### Webhooks
+
+Sent to the charge's `webhookUrl`, at most once per status change, for
+`charge.paid`, `charge.underpaid` and `charge.expired`. `overpaid` is delivered as
+`charge.paid` — money arrived at or above the ask — with `charge.status` saying
+which.
+
+```
+POST https://shop.example/hooks/seti
+X-Seti-Signature: t=1761130000,v1=<hex HMAC-SHA256>
+X-Seti-Event: charge.paid
+X-Seti-Delivery: <delivery id, stable across retries>
+X-Seti-Charge: ch_8f2c1a4e7b9d
+Content-Type: application/json
+```
+
+The signature is `HMAC-SHA256(SETI_WEBHOOK_SECRET, "<t>.<raw body>")`. Verify it
+against the bytes you received, reject a `t` older than five minutes, and treat
+`X-Seti-Delivery` as your dedupe key. Retries back off over roughly eight hours
+(1m, 5m, 15m, 1h, 6h) and stop after six attempts; the row then says `failed` and
+the reason is visible in the delivery log. **`SETI_WEBHOOK_SECRET` is one
+deployment-wide key** until per-app secrets land (#156).
+
+### Refusals
+
+Every refusal is `{ "error": "<one sentence>", "code": "<machine code>" }` and the
+codes come from the shared taxonomy in `backend/src/services/payment-refusal.ts`.
+Charge-specific ones: `charge-id-invalid`, `charge-id-taken`,
+`idempotency-key-reused`, `charge-invalid`, `webhook-url-invalid`,
+`charge-admin-stale`, `rate-limited`, plus the classifier's
+`charge-signature-invalid`, `charge-expired`, `charge-not-pending`,
+`recipient-mismatch`, `asset-mismatch`, `memo-missing-charge-id`,
+`receipt-unavailable`, `amount-invalid`. Switch on `code`; `error` is for humans.
+
 ## Users
 
 ### `GET /users/:id`
@@ -505,7 +652,8 @@ client will refuse to build a transfer to it.
 
 ## What is not here
 
-No merchant CRUD, no webhooks, no refunds, no payouts, no fiat off-ramp, no
-idempotency keys, no pagination cursors, no rate limiting, and no OpenAPI
-document. This reference is maintained by hand against
+No merchant CRUD, no refunds, no payouts, no fiat off-ramp, no pagination cursors,
+and no OpenAPI document. Webhooks, idempotency keys and rate limiting exist on the
+CHARGE path only (above) — merchant webhooks, per-app secrets and scoped keys are
+#156, the MCP tools are #132. This reference is maintained by hand against
 `backend/src/routes/` — if it disagrees with the code, **the code is right**.

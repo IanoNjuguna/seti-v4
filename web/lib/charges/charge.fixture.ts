@@ -1,15 +1,16 @@
-import type { ChargeSource, NamedPayee, PayeeDirectory } from './charge.types';
+import type { ChargeSource, ChargeSourceResult, NamedPayee, PayeeDirectory } from './charge.types';
 
 /**
- * FIXTURE DATA — placeholder for charges that the backend does not have yet.
+ * FIXTURE DATA — a TEST DOUBLE for charges, and only that.
  *
- * #129 and #131 build charges and the API that serves them. Until they land there is
- * nothing to read, so this file supplies eight charges, one per state the pay page
- * must be able to render, and a directory with three named payees. It is imported by
- * `load-charge.ts` ONLY, and that file is the single seam #131 replaces — nothing
- * under `components/` or `app/` knows these exist.
+ * It is imported by `web/scripts/check-pay-charge.mjs` (the gate) and by nothing else:
+ * since #131 the pay page reads real charges through `charge-source.ts`, so no route,
+ * component or hook, and no deployed build, can reach this file. That is stronger than
+ * the previous arrangement, where a `NODE_ENV` flag decided at module load whether the
+ * fixture could answer (#161).
  *
- * The ids are the eight URLs a human can open today:
+ * It exists to pin the page's STATE MACHINE — one charge per state — with values that
+ * no real wallet holds. The ids are:
  *
  *   /pay/ch_8f2c1a4e7b9d   pending, a verified Seti name, a memo
  *   /pay/ch_7a1e3d5b9c22   pending, a Seti name that is NOT verified
@@ -160,13 +161,17 @@ export const FIXTURE_CHARGE_IDS: readonly string[] = Object.keys(CHARGES);
 
 /** The stored payload for `id`, signed — or null when there is no such charge. */
 export const fixtureChargeSource: ChargeSource = {
-  async read(id: string): Promise<unknown> {
+  async read(id: string): Promise<ChargeSourceResult> {
     const charge = CHARGES[id];
     if (!charge) return null;
 
-    // The forged one carries a signature minted for a different charge.
-    const signingId = id === FORGED_ID ? 'ch_4c9a0e2f6b71' : id;
-    return { ...charge, signature: fixtureSignatureFor(signingId) };
+    // The forged one is a REFUSAL, not a miss: a charge exists here and must not be
+    // paid. The real source answers this from the backend's own re-verification (see
+    // `charge-source.ts`), which is why the verdict is a case of the seam rather than
+    // a comparison the page makes for itself.
+    if (id === FORGED_ID) return { kind: 'refused' };
+
+    return { kind: 'found', payload: { ...charge, signature: fixtureSignatureFor(id) } };
   },
 };
 
