@@ -79,6 +79,9 @@ jobs:
       # The gate signs real webhook deliveries and verifies them with the receiver's
       # copy of this, so `check:charge-api` needs a value to exist. CI-only, not a secret.
       SETI_WEBHOOK_SECRET: ci-only-webhook-secret-not-a-real-secret
+      # Receipt ids and quote tokens are HMACs over this; unset, the key is
+      # `randomBytes(32)` per process and every run mints different ids (#204).
+      QUOTE_SIGNING_SECRET: ci-only-quote-signing-secret-not-a-real-secret
       SETI_TREASURY_ADDRESS: "0x48cb25f9d82aF721e71437feAfb295da627BA475"
       TEMPO_CHAIN_ID: "42431"
       TEMPO_TOKEN_PATHUSD: "0x20c0000000000000000000000000000000000000"

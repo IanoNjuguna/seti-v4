@@ -59,6 +59,12 @@ jobs:
       # `check:charge-api` signs real webhook deliveries and verifies them with the
       # receiver's copy of this, so the suite needs a value to exist. CI-only, not a secret.
       SETI_WEBHOOK_SECRET: ci-only-webhook-secret-not-a-real-secret
+      # Receipt ids and quote tokens are HMACs over this. Unset, `signingSecret()`
+      # falls back to `randomBytes(32)` PER PROCESS, so every run mints different
+      # ids — which is how `check:statement` came to fail at random on one run in
+      # fourteen thousand (#204). Pinned so the gate is deterministic. CI-only, not a
+      # secret; production refuses to boot without a real one.
+      QUOTE_SIGNING_SECRET: ci-only-quote-signing-secret-not-a-real-secret
       SETI_TREASURY_ADDRESS: "0x48cb25f9d82aF721e71437feAfb295da627BA475"
       TEMPO_CHAIN_ID: "42431"
       TEMPO_TOKEN_PATHUSD: "0x20c0000000000000000000000000000000000000"
