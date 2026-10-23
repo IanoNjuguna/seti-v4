@@ -306,6 +306,14 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
         // The ACCOUNT's network, not the deployment's: this is the chain the
         // signature is for and the chain the token contract is read from.
         network,
+        /**
+         * An amount-step payment answers the preview, not a charge: there is no
+         * `ch_...` id in this flow to put in the memo, and `recordPayment`
+         * reconciles the receipt against the quote instead. Said out loud rather
+         * than omitted, because a payment that answers a charge MUST carry its id
+         * in the memo and the builder refuses to guess which case it is (#184).
+         */
+        reference: { kind: 'direct' },
       });
 
       setPartial({ step: 'recording', txHash });

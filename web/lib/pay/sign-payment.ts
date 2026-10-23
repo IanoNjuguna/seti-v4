@@ -2,7 +2,7 @@ import type { Address, EIP1193Provider } from 'viem';
 import type { Network } from '@/lib/network';
 import type { HandleIdentity, PaymentPreview, SupportedAsset } from '@/lib/api';
 import { buildBatchTransfer, buildTempoTransaction, buildTransfer } from './build-transfer';
-import type { SendTempoTransaction } from './build-transfer.types';
+import type { PaymentReference, SendTempoTransaction } from './build-transfer.types';
 
 /**
  * The merchant payment seam — where the browser talks to a wallet for a Pay.
@@ -63,6 +63,14 @@ export interface SignPaymentInput {
    * only correct answer — see `chainConfigFor`.
    */
   network: Network;
+  /**
+   * What this payment answers, and therefore whether it carries a memo.
+   *
+   * Required, and never defaulted to "no charge": a payment that answers a charge
+   * without the id in its memo moves the money and settles nothing (#184), so the
+   * caller has to state which case it is. See {@link PaymentReference}.
+   */
+  reference: PaymentReference;
 }
 
 export interface SignPaymentResult {
@@ -91,7 +99,7 @@ export class BatchSignerUnavailableError extends Error {
 }
 
 export async function signPayment(input: SignPaymentInput): Promise<SignPaymentResult> {
-  const { preview, merchant, asset, provider, from, network } = input;
+  const { preview, merchant, asset, provider, from, network, reference } = input;
 
   if (!merchant.address) {
     throw new Error('This merchant has no payout address, so there is nowhere to send.');
@@ -112,6 +120,9 @@ export async function signPayment(input: SignPaymentInput): Promise<SignPaymentR
       feeAmount: preview.feeInAsset,
       treasuryAddress: preview.treasuryAddress as Address,
       network,
+      // Carried, never reconstructed: a charge payment's memo comes from here and
+      // from nowhere else (#184).
+      reference,
     });
 
     return { txHash: await sendTempoTransaction(buildTempoTransaction({ asset, calls, network })) };
@@ -124,6 +135,7 @@ export async function signPayment(input: SignPaymentInput): Promise<SignPaymentR
     // to the chain — sending it to the merchant would overpay them by it.
     grossAmount: preview.grossAsset,
     network,
+    reference,
   });
 
   // No `value` leg: TIP-20 has no native transfer, so the call carries calldata

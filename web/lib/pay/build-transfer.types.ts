@@ -52,6 +52,35 @@ export interface TempoTransactionRequest {
 }
 
 /**
+ * What a payment is FOR, and therefore whether it carries a memo (#184).
+ *
+ * A discriminated union rather than an optional `chargeId`, because an optional
+ * field is exactly how the memo gets dropped silently: a call site that forgot it
+ * and a call site that deliberately has no charge would be indistinguishable, and
+ * the transaction would look perfectly fine right up to the moment the money
+ * arrived unattributable. Here "no memo" can only be produced by saying `direct`
+ * out loud, and anything else refuses to build.
+ */
+export type PaymentReference =
+  | {
+      /**
+       * The payment answers a charge. The id travels in the memo as `bytes32`, and
+       * that memo is the only thing on chain that says which request it settles
+       * (`backend/src/services/charge.ts`, `memo-missing-charge-id`).
+       */
+      readonly kind: 'charge';
+      readonly chargeId: string;
+    }
+  | {
+      /**
+       * No charge is being answered: a send to a person, or a plain merchant
+       * payment from an amount step where the server's preview is the whole intent
+       * and `recordPayment` reconciles the receipt afterwards.
+       */
+      readonly kind: 'direct';
+    };
+
+/**
  * The wallet's batch mechanism, injected by a hook.
  *
  * `lib/pay` decides WHICH calls and WHICH amounts; the wallet decides how to
