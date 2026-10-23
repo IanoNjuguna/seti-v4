@@ -95,8 +95,14 @@ export const chargeSource: ChargeSource = backendChargeSource();
  * the address with a label saying it has no Seti name. Inventing a name here (or
  * lifting one out of the query) is the exact anti-pattern the page was built against.
  *
- * When a lookups-by-address read exists, this object is replaced and the interface
- * does not change.
+ * WHAT A REAL READ MUST ANSWER (#154). When a lookups-by-address read exists, this
+ * object is replaced and the interface does not change — but the replacement has to
+ * report BOTH halves of a name: `verified` (the claim signature holds, recomputed by
+ * the backend) and `merchantVerifiedAt` (when a person approved the merchant record,
+ * `merchants."verifiedAt"`, null when nobody has). The pay page's verified tier needs
+ * both, so a read that omits the review date leaves every page in the unverified tier.
+ * Until that read exists, every live page IS the unverified tier: the rollback state,
+ * with the address, our facilitated-by line and the charge id on it.
  */
 export const addressPayeeDirectory: PayeeDirectory = {
   // No parameter: this directory answers "no name" for every address, and an unused

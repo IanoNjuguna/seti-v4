@@ -341,6 +341,27 @@ model Merchant {
   id            String   @id @default(cuid())
   name          String
   category      String?
+  /// When a person at Seti reviewed this merchant, or NULL — the stored attribute the
+  /// public pay page's verified tier requires (#154).
+  ///
+  /// STORED, never derived: not from volume, age, a category, a memo or the amount,
+  /// because a payer reads it as "Seti looked at this business". NULL means nobody has,
+  /// which is every merchant today, so the pay page's unverified tier is also the
+  /// rollback state.
+  ///
+  /// A DIFFERENT FACT from a handle's `verified`, which is recomputed from the claim
+  /// signature on every read. That one proves an address controls a name; this one proves
+  /// a person looked at the business. The pay page needs both: a name with no reviewed
+  /// merchant behind it is a name, not a verified merchant, and a reviewed merchant whose
+  /// claim no longer verifies is not bound to the address the money would go to.
+  verifiedAt    DateTime?
+  /// What earned it: the case, reference or document the reviewer worked from.
+  ///
+  /// Required whenever `verifiedAt` is set, enforced by the CHECK in migration
+  /// `20261023120000_merchant_verification` — Prisma cannot express a CHECK, so it is not
+  /// declared here. Never rendered: it is the audit trail behind a badge, not a claim a
+  /// payer reads.
+  verifiedEvidence String?
   bankAccount   String? // encrypted settlement account
   bankName      String?
   bankCurrency  String? // "KES"
