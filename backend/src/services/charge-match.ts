@@ -27,7 +27,7 @@
  * not this charge's money, and the classifier refuses it by code
  * (`memo-missing-charge-id`).
  */
-import { decodeEventLog, erc20Abi, hexToString, type Hex, type TransactionReceipt } from 'viem';
+import { decodeEventLog, erc20Abi, type TransactionReceipt } from 'viem';
 import type { Network } from '../lib/network.js';
 import { env } from '../config/env.js';
 import { treasuryAddressFor } from '../config/networks.js';
@@ -140,29 +140,24 @@ export type ChargeFeeLookup = (input: {
 /**
  * The text of a TIP-20 32-byte memo.
  *
+ * MOVED, not changed (#184). The implementation lives in `lib/tip20-memo.ts`,
+ * which has no imports at all, and is re-exported here so the matcher, the
+ * indexer and every existing caller keep the same import path. It was moved for
+ * ONE reason: `check:memo-always` in `web/` proves the pay page's builder writes a
+ * memo this function can read back, and it has to call this function rather than a
+ * copy of it. Loading the matcher's whole module graph to reach a pure string
+ * function would drag in the database client and every required environment
+ * variable, so the function sits in a file that can be loaded on its own.
+ *
  * `bytes32` is right-padded with zeroes, so the decoded string carries NULs after the
- * id. Those are stripped here rather than at the comparison, because the classifier
+ * id. Those are stripped there rather than at the comparison, because the classifier
  * asserts `memo.includes(id)` on a TEXT memo — that is the frozen contract, and
  * teaching it about padding would change what a stored signature means.
  *
  * An unreadable memo yields `''`, which can never carry an id: the fail-closed
  * direction, since an unreadable memo is not evidence of a match.
  */
-export function memoFromBytes32(memo: string | null | undefined): string {
-  if (typeof memo !== 'string' || memo.length < 2) return '';
-  try {
-    return stripTrailingNul(hexToString(memo as Hex, { size: 32 }));
-  } catch {
-    return '';
-  }
-}
-
-/** Drop the zero padding a `bytes32` memo carries after its text, without a regex. */
-function stripTrailingNul(text: string): string {
-  let end = text.length;
-  while (end > 0 && text.charCodeAt(end - 1) === 0) end -= 1;
-  return text.slice(0, end);
-}
+export { memoFromBytes32 } from '../lib/tip20-memo.js';
 
 /**
  * Match a pass of observed transfers against pending charges.
