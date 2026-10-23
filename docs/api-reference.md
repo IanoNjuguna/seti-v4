@@ -7,7 +7,8 @@ sidebar_position: 4
 **Unversioned.** There is no `/v1` prefix; paths below are the ones that exist.
 Everything requires a bearer token — see [Authentication](./authentication.md) —
 except the routes that exist to be opened signed out: `/health`, `/auth/*`,
-`GET /receipts/:id`, `/public/handles/:handle`, `GET /referrals/invite/:handle`, and the
+`GET /receipts/:id`, `/public/handles/:handle`, `GET /public/payees/:address`,
+`GET /referrals/invite/:handle`, and the
 charge routes below
 (`/public/charges*`), where a wallet signature is the credential instead of an
 account. Each of those is marked **unauthenticated on purpose** in its own section.
@@ -338,6 +339,41 @@ name is not reachable by typing it. It is a lookup by the unique handle: **read-
 writable), and it reaches **nothing about any customer** — no email, no user id, no
 balance, no other rows. It lives in its own file with no auth hook at all, so this
 unauthenticated route cannot leak an authenticated neighbour by accident.
+
+### `GET /public/payees/:address`
+
+**Unauthenticated on purpose.** The route behind the verified tier of the public pay
+page (#197): a charge names an address, and the payer opened a link rather than a
+session, so the read has to answer before anyone has signed in. There is **no bearer
+token; none is expected and none is needed.**
+
+It answers a question, so a miss is a `200` with `payee: null` rather than a `404`: an
+address with no Seti name is the common case, and the page draws its unverified tier for
+it. A string that is not a 20-byte hex address gets the same answer.
+
+```json
+{ "payee": { "handle": "javahouse", "name": "Java House", "address": "0x…", "verified": true, "merchantVerifiedAt": "2026-10-02T09:00:00.000Z" } }
+{ "payee": { "handle": "javahouse", "name": null, "address": "0x…", "verified": true, "merchantVerifiedAt": null } }
+{ "payee": null }
+```
+
+`name` and `merchantVerifiedAt` are set **together or not at all**, and only when all
+three of these hold:
+
+1. a live claim (`reviewStatus = null`) is bound to this exact address, compared
+   case-insensitively because a claim stores the EIP-55 checksummed form while a charge
+   stores its recipient lowercased;
+2. that claim's stored signature still recovers to the address, recomputed on this read
+   (`verified`), never read from a flag;
+3. the merchant record carries `verifiedAt` **and** `verifiedEvidence`.
+
+Anything less returns the handle with `name: null`, which is a name, not a verified
+merchant. `verifiedEvidence` (the case or reference a reviewer worked from) is **never
+in this payload**: it is Seti's audit trail behind the badge. The response carries the
+fact that a review exists and nothing about any account — no user, no wallet, no balance,
+no other rows. Read-only: nothing here is writable, and the read is uncached, so a
+withdrawn review (`verifiedAt` and `verifiedEvidence` cleared together) drops the name on
+the next request.
 
 ## Referrals
 
