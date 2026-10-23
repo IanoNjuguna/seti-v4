@@ -200,12 +200,14 @@ export const fixtureChargeSource: ChargeSource = {
 };
 
 /**
- * The address-to-name lookup the backend does not offer yet.
+ * The address-to-name lookup, kept as a TEST DOUBLE.
  *
- * `payee.ts` says it plainly: an address cannot be resolved back to a name. When the
- * real charge record carries the handle that was bound when the request was made
- * (or a lookups-by-address read appears), this object is replaced — the interface
- * does not change.
+ * The real one is `backendPayeeDirectory` (`charge-source.ts`), which reads
+ * `GET /public/payees/:address` (#197). This stands in for it in two places where a
+ * database would be the wrong dependency: `check-pay-charge.mjs` (the page's state
+ * machine, one charge per state) and the tier renderings in `check-pay-tiers.mjs`. The
+ * database-backed tier cases live beside them in the same check and go through the real
+ * read, so the fixture never stands in for the rule that decides a tier.
  */
 export const FIXTURE_PAYEE_DIRECTORY: PayeeDirectory = {
   async findNamedPayee(address: string): Promise<NamedPayee | null> {

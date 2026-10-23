@@ -87,27 +87,84 @@ export function backendChargeSource(baseUrl: string = API_BASE_URL): ChargeSourc
 export const chargeSource: ChargeSource = backendChargeSource();
 
 /**
- * The address-to-name lookup, for real charges.
+ * The address-to-name read, for real charges (#197).
  *
- * It answers "no name", and that is the honest answer rather than a stub to be
- * ashamed of: `backend/src/lib/payee.ts` states that an address cannot be resolved
- * back to a name — a handle is looked up BY its string, which is why the page shows
- * the address with a label saying it has no Seti name. Inventing a name here (or
- * lifting one out of the query) is the exact anti-pattern the page was built against.
+ * A charge names an ADDRESS, so the page cannot look a payee up by handle. It asks the
+ * public payee API whether that address is a name a merchant signed for AND a merchant a
+ * person at Seti reviewed, and it gets a name back only when BOTH hold plus the claim
+ * signature still verifies. Anything less comes back as `name: null` with the handle, and
+ * `pay-public.tier.ts` draws the unverified tier. The gate is the backend's, in
+ * `backend/src/services/payee-directory.ts`; this file only carries the answer.
  *
- * WHAT A REAL READ MUST ANSWER (#154). When a lookups-by-address read exists, this
- * object is replaced and the interface does not change — but the replacement has to
- * report BOTH halves of a name: `verified` (the claim signature holds, recomputed by
- * the backend) and `merchantVerifiedAt` (when a person approved the merchant record,
- * `merchants."verifiedAt"`, null when nobody has). The pay page's verified tier needs
- * both, so a read that omits the review date leaves every page in the unverified tier.
- * Until that read exists, every live page IS the unverified tier: the rollback state,
- * with the address, our facilitated-by line and the charge id on it.
+ * TWO PROPERTIES ARE THIS FILE'S OWN, and both are anti-forgery rather than transport:
+ *
+ *  - `name` is the handle when the read has no name to give. `resolvePayee` needs a
+ *    non-empty name to keep the handle at all, and `@handle` is what the unverified tier
+ *    draws anyway, so nothing is invented: `payeeIdentity` never reads `name` outside the
+ *    verified tier. What must NOT happen is a claimed name travelling for an unreviewed
+ *    merchant, and the read does not send one.
+ *  - no cache. A withdrawn review (`verifiedAt` and `verifiedEvidence` cleared together)
+ *    must drop the name on the NEXT render, not at a cache expiry, so this is
+ *    `cache: 'no-store'`. A cached name would outlive the review that justified it.
+ *
+ * An unreachable backend THROWS rather than answering "no name": `resolvePayee` may draw
+ * the address tier for an address with no Seti name, never for a backend that is down. A
+ * `404` is the one response read as "no name", so a revision that answers that way
+ * degrades to the unverified tier instead of a 500.
  */
-export const addressPayeeDirectory: PayeeDirectory = {
-  // No parameter: this directory answers "no name" for every address, and an unused
-  // argument would read as a lookup that might sometimes succeed.
-  async findNamedPayee(): Promise<NamedPayee | null> {
-    return null;
-  },
-};
+export function backendPayeeDirectory(baseUrl: string = API_BASE_URL): PayeeDirectory {
+  return {
+    async findNamedPayee(address: string): Promise<NamedPayee | null> {
+      const response = await fetch(`${baseUrl}/public/payees/${encodeURIComponent(address)}`, {
+        headers: { accept: 'application/json' },
+        cache: 'no-store',
+      });
+
+      if (response.status === 404) return null;
+      if (!response.ok) {
+        throw new Error(`payee read failed: ${response.status} ${response.statusText}`);
+      }
+
+      const body = (await response.json()) as { payee?: unknown } | null;
+      return toNamedPayee(body?.payee);
+    },
+  };
+}
+
+/** The default directory the pay page resolves its recipient through. */
+export const addressPayeeDirectory: PayeeDirectory = backendPayeeDirectory();
+
+/**
+ * A payee read's answer, narrowed into the shape the page draws.
+ *
+ * `null` is an answer (no name for this address). An answer that is not a payee is an
+ * ERROR: a name is a trust signal, so a payload this app cannot read must not quietly
+ * become the unverified tier, which would hide a broken backend behind a true-looking
+ * page.
+ */
+function toNamedPayee(view: unknown): NamedPayee | null {
+  if (view === null || view === undefined) return null;
+  if (typeof view !== 'object' || Array.isArray(view)) {
+    throw new Error('payee read answered something that is not a payee');
+  }
+
+  const { handle, name, address, verified, merchantVerifiedAt } = view as Record<string, unknown>;
+
+  if (typeof handle !== 'string' || typeof address !== 'string' || typeof verified !== 'boolean') {
+    throw new Error('payee read answered a payee without a handle, an address or a verdict');
+  }
+  if (name !== null && typeof name !== 'string') {
+    throw new Error('payee read answered a name that is neither a string nor null');
+  }
+  if (merchantVerifiedAt !== null && typeof merchantVerifiedAt !== 'string') {
+    throw new Error('payee read answered a review date that is neither a string nor null');
+  }
+
+  return {
+    handle,
+    name: name ?? handle,
+    address,
+    verified,
+    merchantVerifiedAt,
+  };
+}

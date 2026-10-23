@@ -26,10 +26,29 @@
  *  6. **The stored attribute exists.** The merchant record carries the review date and
  *     the evidence that earned it, with a CHECK that refuses one without the other, so
  *     the badge is never fed by a field nobody can audit.
+ *  7. **The read that makes the tier reachable (#197), against real rows.** Sections 1 to
+ *     6 render what a STUB directory answers, which is how #154 shipped 63 assertions
+ *     about a tier no live page could reach. The last section seeds a merchant, a claim
+ *     signed by a throwaway key, and the review, then renders the SAME page through the
+ *     REAL read: web directory, over HTTP, to the public route, to Postgres. A reviewed
+ *     address reaches the verified tier there; a repointed claim, an unreviewed merchant
+ *     and an address with no name all land in the unverified tier; and clearing the
+ *     review (the pair a CHECK clears together) drops the page back on the next read,
+ *     which is what "no cached value outlives a cleared verification" means.
  *
  * Run from `web/`: npm run check:pay-tiers (part of the root `verify` gate).
+ *
+ * Requires: the `seti-postgres` container (`docker start seti-postgres`, then
+ * `npx prisma migrate deploy` in `backend/`) with a `DATABASE_URL` that reaches it —
+ * exported, or in `backend/.env`, which `load-backend-env.mjs` reads for this suite
+ * because it runs from `web/`. Every row this file writes is prefixed `chk197` and
+ * deleted at the end; no seeded data is needed or touched.
  */
+// First, so the connection string exists before any backend module opens a client.
+import './load-backend-env.mjs';
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { PayPageFrame } from '../components/pay-public/PayPageFrame.tsx';
@@ -37,7 +56,32 @@ import { PayPublicView } from '../components/pay-public/PayPublicView.tsx';
 import { PAY_COPY, PAYER_COPY } from '../components/pay-public/PayPublic.constants.ts';
 import { payeeIdentity, payeeTier } from '../components/pay-public/pay-public.tier.ts';
 import { FIXTURE_PAYEE_DIRECTORY, fixtureChargeSource } from '../lib/charges/charge.fixture.ts';
+import { backendPayeeDirectory } from '../lib/charges/charge-source.ts';
 import { loadCharge } from '../lib/charges/load-charge.ts';
+import { prisma } from '../../backend/src/lib/prisma.ts';
+import { findPayeeByAddress, reviewedMerchantAt } from '../../backend/src/services/payee-directory.ts';
+import { publicPayeeRoutes } from '../../backend/src/routes/public-payees.ts';
+import {
+  HANDLE_CLAIM_PRIMARY_TYPE,
+  HANDLE_CLAIM_TYPES,
+  handleClaimDomain,
+} from '../../backend/src/services/handle-claims.ts';
+import { servedNetwork } from '../../backend/src/config/networks.ts';
+
+/**
+ * The backend's OWN copies of viem and Fastify.
+ *
+ * Resolved from `backend/package.json` so the signature this check mints is verified by
+ * the same implementation the read verifies with, and the route plugin is registered on
+ * the same Fastify the backend registers it on. A `tsc` include of `backend/` from this
+ * package would be wrong for both.
+ */
+const requireFromBackend = createRequire(new URL('../../backend/package.json', import.meta.url));
+const viem = await import(requireFromBackend.resolve('viem'));
+const { generatePrivateKey, privateKeyToAccount } = await import(
+  requireFromBackend.resolve('viem/accounts')
+);
+const Fastify = (await import(requireFromBackend.resolve('fastify'))).default;
 
 const NOW = new Date('2026-10-22T09:00:00.000Z');
 
@@ -395,6 +439,327 @@ console.log('the route draws the frame, so the mark is part of the page in both 
     const view = readFileSync(new URL('../components/pay-public/PayPublicView.tsx', import.meta.url), 'utf8');
     return view.includes('<PayRecipient payee={payee} chargeId={charge.id} />');
   })());
+}
+
+console.log('the by-address read (#197), through the real route, against real rows:');
+{
+  const RUN = randomUUID().replace(/-/g, '').slice(0, 10);
+  const PREFIX = `chk197${RUN}`;
+  const EVIDENCE = `check-197-${RUN}-case-file`;
+  const REVIEWED_AT = new Date('2026-10-02T09:00:00.000Z');
+  const otherNetwork = servedNetwork === 'mainnet' ? 'testnet' : 'mainnet';
+
+  const reviewedName = `Check Reviewed ${RUN}`;
+  const unreviewedName = `Check Unreviewed ${RUN}`;
+  const lapsedName = `Check Lapsed ${RUN}`;
+
+  const merchantIds = [];
+  let api = null;
+
+  /**
+   * A merchant profile and the claim that binds its name to a key generated here.
+   *
+   * Real signature, real row: the read recomputes `handleClaimVerifies` from these bytes,
+   * so a fixture that inserted `claimSignature: 'ok'` would prove nothing about the gate
+   * that decides the tier.
+   */
+  async function merchantWithClaim({ name, handle, review, network = servedNetwork }) {
+    const account = privateKeyToAccount(generatePrivateKey());
+    const merchant = await prisma.merchant.create({
+      data: {
+        name,
+        category: 'Check',
+        payoutAddress: account.address.toLowerCase(),
+        verifiedAt: review ? REVIEWED_AT : null,
+        verifiedEvidence: review ? EVIDENCE : null,
+      },
+    });
+    merchantIds.push(merchant.id);
+
+    const issuedAt = new Date().toISOString();
+    const nonce = randomUUID();
+    const signature = await account.signTypedData({
+      domain: handleClaimDomain(network),
+      types: HANDLE_CLAIM_TYPES,
+      primaryType: HANDLE_CLAIM_PRIMARY_TYPE,
+      message: { name, address: account.address, purpose: 'merchant-name', issuedAt, nonce },
+    });
+
+    const row = await prisma.handle.create({
+      data: {
+        handle,
+        network,
+        kind: 'business',
+        name,
+        purpose: 'merchant-name',
+        address: account.address,
+        claimSignature: signature,
+        claimIssuedAt: issuedAt,
+        claimNonce: nonce,
+        claimedAt: new Date(),
+        merchantId: merchant.id,
+      },
+    });
+
+    return { account, merchant, row };
+  }
+
+  try {
+    const reviewed = await merchantWithClaim({
+      name: reviewedName,
+      handle: `${PREFIX}reviewed`,
+      review: true,
+    });
+    const unreviewed = await merchantWithClaim({
+      name: unreviewedName,
+      handle: `${PREFIX}unreviewed`,
+      review: false,
+    });
+    const lapsed = await merchantWithClaim({
+      name: lapsedName,
+      handle: `${PREFIX}lapsed`,
+      review: false,
+    });
+
+    // A claim that LAPSED: signed for one address, then repointed to another. The stored
+    // shape of "this name no longer belongs to the wallet the money would go to".
+    const repointedTo = privateKeyToAccount(generatePrivateKey()).address;
+    await prisma.handle.update({
+      where: { id: lapsed.row.id },
+      data: { address: repointedTo },
+    });
+
+    // A reviewed merchant whose name was claimed on the OTHER network only.
+    const elsewhere = await merchantWithClaim({
+      name: `Check Elsewhere ${RUN}`,
+      handle: `${PREFIX}elsewhere`,
+      review: true,
+      network: otherNetwork,
+    });
+
+    // An address that has never had a name at all: the common case in production.
+    const neverNamed = privateKeyToAccount(generatePrivateKey()).address;
+
+    // The public route on a bare Fastify instance: the real handler, the real service,
+    // the real database, with no other service able to answer for it.
+    api = Fastify();
+    await api.register(publicPayeeRoutes, { prefix: '/public/payees' });
+    await api.listen({ port: 0, host: '127.0.0.1' });
+    const origin = `http://127.0.0.1:${api.server.address().port}`;
+
+    // THE PRODUCTION DIRECTORY, over the wire: the object `load-charge.ts` resolves every
+    // real payee through, so the page below is drawn from what a live page would answer.
+    const directory = backendPayeeDirectory(origin);
+
+    async function payeeFor(address) {
+      const response = await fetch(`${origin}/public/payees/${encodeURIComponent(address)}`, {
+        headers: { accept: 'application/json' },
+      });
+      return { status: response.status, payee: (await response.json()).payee };
+    }
+
+    /** A charge to `address`, otherwise the fixture's reviewed-merchant request. */
+    function chargeTo(address) {
+      return {
+        async read(id) {
+          const answer = await fixtureChargeSource.read(id);
+          if (!answer || answer.kind !== 'found') return null;
+          return {
+            kind: 'found',
+            payload: { ...answer.payload, recipientAddress: address.toLowerCase() },
+          };
+        },
+      };
+    }
+
+    /** The page for a charge to `address`, loaded and rendered as the server renders it. */
+    async function pageFor(address) {
+      const result = await loadCharge(MERCHANT_ID, {
+        now: NOW,
+        source: chargeTo(address),
+        directory,
+      });
+      return { result, html: result.kind === 'charge' ? render(result) : null };
+    }
+
+    const reviewedRead = await payeeFor(reviewed.account.address);
+    const unreviewedRead = await payeeFor(unreviewed.account.address);
+    const lapsedRead = await payeeFor(repointedTo);
+
+    check(
+      'a reviewed address answers with the name and the date a person reviewed it',
+      reviewedRead.status === 200 &&
+        reviewedRead.payee?.name === reviewedName &&
+        reviewedRead.payee?.merchantVerifiedAt === REVIEWED_AT.toISOString()
+    );
+    check(
+      'the comparison is lowercased: the checksummed form and an upper-cased form answer the same name',
+      (await payeeFor(reviewed.account.address.toUpperCase())).payee?.name === reviewedName
+    );
+    check(
+      'the read is keyed on the ADDRESS: the handle is not a lookup that answers here',
+      (await payeeFor(`${PREFIX}reviewed`)).payee === null
+    );
+    check(
+      'a name whose claim still holds but whose merchant nobody reviewed answers with NO name',
+      unreviewedRead.payee?.name === null &&
+        unreviewedRead.payee?.verified === true &&
+        unreviewedRead.payee?.merchantVerifiedAt === null
+    );
+    check(
+      'a claim repointed after it was signed answers with NO name and no review date',
+      lapsedRead.payee?.name === null &&
+        lapsedRead.payee?.verified === false &&
+        lapsedRead.payee?.merchantVerifiedAt === null
+    );
+    check(
+      'and the address it was signed for does not inherit the name',
+      (await payeeFor(lapsed.account.address)).payee === null
+    );
+    check(
+      'an address that never had a name is an answer, not an error',
+      (await payeeFor(neverNamed)).status === 200 && (await payeeFor(neverNamed)).payee === null
+    );
+    check(
+      'a string that is not an address gets the same answer, so a charge cannot make one into a query',
+      (await payeeFor('not-an-address')).status === 200 &&
+        (await payeeFor('not-an-address')).payee === null
+    );
+    check(
+      'a business name claimed on the other network is not a name for this one',
+      (await payeeFor(elsewhere.account.address)).payee === null
+    );
+    check(
+      'the name and the review date travel together or not at all, on every answer',
+      [reviewedRead, unreviewedRead, lapsedRead].every(
+        (read) => (read.payee?.name === null) === (read.payee?.merchantVerifiedAt === null)
+      )
+    );
+    check(
+      'the payload never carries the evidence a reviewer worked from',
+      [reviewedRead, unreviewedRead, lapsedRead].every(
+        (read) => read.payee !== null && !('verifiedEvidence' in read.payee)
+      )
+    );
+    check(
+      'the evidence is a gate: a date without it, or a blank one, is not a review',
+      reviewedMerchantAt({ verifiedAt: REVIEWED_AT, verifiedEvidence: null }) === null &&
+        reviewedMerchantAt({ verifiedAt: REVIEWED_AT, verifiedEvidence: '   ' }) === null &&
+        reviewedMerchantAt({ verifiedAt: null, verifiedEvidence: EVIDENCE }) === null &&
+        reviewedMerchantAt({ verifiedAt: REVIEWED_AT, verifiedEvidence: EVIDENCE }) ===
+          REVIEWED_AT.toISOString()
+    );
+
+    const reviewedPage = await pageFor(reviewed.account.address);
+    const unreviewedPage = await pageFor(unreviewed.account.address);
+    const lapsedPage = await pageFor(repointedTo);
+    const neverNamedPage = await pageFor(neverNamed);
+
+    check(
+      'a charge to the reviewed merchant lands in the verified tier from the database',
+      reviewedPage.result.kind === 'charge' && payeeTier(reviewedPage.result.payee) === 'verified'
+    );
+    check(
+      'and the page draws the name, the mark and the sentence behind it',
+      reviewedPage.html.includes(`>${reviewedName}<`) &&
+        reviewedPage.html.includes(PAY_COPY.verifiedBadge) &&
+        reviewedPage.html.includes(PAY_COPY.verifiedNote)
+    );
+    check(
+      'the tier adds the recipient block and moves nothing else: same head, same tail as the fixture page',
+      (() => {
+        const live = splitAtTier(reviewedPage.html);
+        const fixture = splitAtTier(page.verified);
+        return live.head === fixture.head && live.tail === fixture.tail;
+      })()
+    );
+    check(
+      'a never-reviewed merchant draws the handle and the unverified tier, and never its name',
+      unreviewedPage.result.kind === 'charge' &&
+        payeeTier(unreviewedPage.result.payee) === 'unverified' &&
+        unreviewedPage.html.includes(`@${PREFIX}unreviewed`) &&
+        !unreviewedPage.html.includes(unreviewedName) &&
+        unreviewedPage.html.includes(PAY_COPY.unverifiedNote)
+    );
+    check(
+      'a repointed claim draws the handle and the unverified tier, and never its name',
+      lapsedPage.result.kind === 'charge' &&
+        payeeTier(lapsedPage.result.payee) === 'unverified' &&
+        lapsedPage.html.includes(`@${PREFIX}lapsed`) &&
+        !lapsedPage.html.includes(lapsedName)
+    );
+    check(
+      'an address with no name draws the address, with no error and no name-shaped heading',
+      neverNamedPage.result.kind === 'charge' &&
+        neverNamedPage.result.payee.kind === 'address' &&
+        payeeTier(neverNamedPage.result.payee) === 'unverified' &&
+        neverNamedPage.html.includes(PAY_COPY.unverifiedNote) &&
+        !neverNamedPage.html.includes(reviewedName)
+    );
+
+    // The withdrawal: `verifiedAt` and `verifiedEvidence` are cleared TOGETHER, which is
+    // the only shape the CHECK allows. The next read, in this same process, must already
+    // know. No caching layer is allowed to make this pass by luck.
+    await prisma.merchant.update({
+      where: { id: reviewed.merchant.id },
+      data: { verifiedAt: null, verifiedEvidence: null },
+    });
+
+    const clearedRead = await payeeFor(reviewed.account.address);
+    const clearedPage = await pageFor(reviewed.account.address);
+
+    check(
+      'clearing the review drops the name on the very next read, in the same process',
+      clearedRead.payee?.name === null && clearedRead.payee?.verified === true
+    );
+    check(
+      'and the page falls back to the unverified tier with the handle, not the name',
+      clearedPage.result.kind === 'charge' &&
+        payeeTier(clearedPage.result.payee) === 'unverified' &&
+        clearedPage.html.includes(`@${PREFIX}reviewed`) &&
+        !clearedPage.html.includes(reviewedName)
+    );
+
+    let halfReviewRefused = false;
+    try {
+      await prisma.$executeRaw`UPDATE "merchants" SET "verifiedAt" = NOW() WHERE "id" = ${reviewed.merchant.id}`;
+    } catch {
+      halfReviewRefused = true;
+    }
+    check(
+      'and the database itself refuses half a review, which is why the pair is one gate',
+      halfReviewRefused
+    );
+  } catch (error) {
+    failed += 1;
+    console.log(`FAIL  the by-address read could not run: ${error.message}`);
+    console.log('      start the database first: docker start seti-postgres, then');
+    console.log('      npx prisma migrate deploy in backend/ and export DATABASE_URL.');
+  } finally {
+    try {
+      if (api) await api.close();
+    } catch {
+      // A server that never started needs no closing.
+    }
+
+    try {
+      await prisma.handle.deleteMany({ where: { handle: { startsWith: PREFIX } } });
+      const removed = merchantIds.length
+        ? await prisma.merchant.deleteMany({ where: { id: { in: merchantIds } } })
+        : { count: 0 };
+      const left = await prisma.handle.count({ where: { handle: { startsWith: PREFIX } } });
+
+      check(
+        'the check left no row of its own behind',
+        left === 0 && removed.count === merchantIds.length
+      );
+    } catch (error) {
+      failed += 1;
+      console.log(`FAIL  cleanup: ${error.message}`);
+    } finally {
+      await prisma.$disconnect().catch(() => {});
+    }
+  }
 }
 
 console.log(`${passed} passed, ${failed} failed`);

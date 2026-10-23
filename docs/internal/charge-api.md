@@ -168,6 +168,15 @@ The page does not verify the signature: the backend does, and answers `422
 charge-signature-invalid`, which the loader maps to its refusal state (`invalid`), NOT to a
 404. "There is nothing here" is an untrue statement about a request that exists.
 
+**Who the recipient IS comes from a second read (#197).** A charge names an address, so the
+page resolves the payee through `GET /public/payees/:address`
+(`backend/src/services/payee-directory.ts`), not through a handle. It returns a name only when
+a live claim is bound to that exact address, the claim's signature still verifies, and the
+merchant record carries `verifiedAt` together with `verifiedEvidence`; otherwise the page draws
+`@handle` or the address in its unverified tier. `verifiedEvidence` never leaves the server.
+Before this read existed the directory answered `null` for every address, so the verified tier
+shipped in #154 was unreachable in production and the unverified tier was the only state.
+
 **Amounts on the page are in `USD` (the token's unit), not KES.** The charge carries no fiat
 figure and the signature covers token units; converting in the web app would price a payment
 with a rate nobody signed. When a charge is denominated in KES the figure has to arrive ON

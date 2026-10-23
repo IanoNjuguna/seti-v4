@@ -4,8 +4,11 @@
  * These wrap the backend as it exists. Two honesty constraints are baked in:
  *
  * - **Authentication is a prerequisite, not a detail.** The Seti API has no
- *   public keys; every route needs a Privy-issued bearer token. A missing token
- *   produces an error that says so plainly rather than a confusing 401 later.
+ *   public keys; every route needs a Privy-issued bearer token, EXCEPT the public
+ *   reads that exist to be opened signed out (a payee looked up by address, which
+ *   is what a payer with no account uses). A missing token produces an error that
+ *   says so plainly rather than a confusing 401 later, and the one credential-free
+ *   Seti tool is marked as such here and in `docs/mcp.md`.
  * - **There is no endpoint for everything.** No standalone FX quote, no
  *   merchant list, no webhook management. Those tools do not exist here either,
  *   rather than being faked out of a neighbouring call.
@@ -15,7 +18,7 @@ import { z } from 'zod';
 
 import { allowWrites } from '../config.js';
 import { ToolError, toolError, toolJson } from '../errors.js';
-import { setiRequest } from '../http.js';
+import { setiPublicGet, setiRequest } from '../http.js';
 
 const assetArg = z
   .enum(['ousd', 'pathusd'])
@@ -24,6 +27,57 @@ const assetArg = z
 
 export function registerSetiTools(server: McpServer): string[] {
   const registered: string[] = [];
+
+  /**
+   * The ONE Seti API tool that takes no token (#197).
+   *
+   * Every other tool here drives an account, so a token is the prerequisite. This one
+   * answers a question a payer with no account has already asked by opening a payment
+   * link: is the address this money goes to a merchant Seti reviewed, and when. The
+   * route is deliberately public for that reason, so the tool sends no Authorization
+   * header — claiming a credential the surface does not require would send an
+   * integrator looking for an account they do not need.
+   *
+   * It reports the backend's answer verbatim rather than deciding: `name` and
+   * `merchantVerifiedAt` arrive together only when a live claim is bound to the exact
+   * address, its signature still verifies, AND a person reviewed the merchant. Anything
+   * less is the handle with `name: null` (a name, not a verified merchant), and an
+   * address with no Seti name is `payee: null`. An agent is told this in the description
+   * because an agent that sees `name: null` and infers "untrusted" would be right, but
+   * one that saw a handle and inferred "verified merchant" would not be.
+   */
+  server.registerTool(
+    'seti_lookup_payee_address',
+    {
+      title: 'Look up a payee by address (no token)',
+      description:
+        'Ask what is known about the address a payment goes to. Returns the Seti handle bound to ' +
+        'that exact address, plus `name` and `merchantVerifiedAt` — which are set TOGETHER, or not ' +
+        'at all, and only when a live claim is bound to the address, its claim signature still ' +
+        'verifies, AND a person at Seti reviewed the merchant record. Anything less answers the ' +
+        'handle with `name: null`; an address with no Seti name answers `payee: null`. Read-only. ' +
+        'Needs SETI_API_BASE_URL but NOT SETI_API_TOKEN: this is the read the public pay page uses.',
+      inputSchema: {
+        address: z
+          .string()
+          .describe(
+            'The recipient address a charge names: 0x followed by 40 hex characters. Not a handle — ' +
+              'use seti_resolve_merchant for a handle, a business name or a QR payload.'
+          ),
+      },
+    },
+    async ({ address }) => {
+      try {
+        const result = await setiPublicGet<{ payee: unknown }>('seti_lookup_payee_address', {
+          path: `/public/payees/${encodeURIComponent(address)}`,
+        });
+        return toolJson(result);
+      } catch (error) {
+        return toolError(error);
+      }
+    }
+  );
+  registered.push('seti_lookup_payee_address');
 
   server.registerTool(
     'seti_resolve_merchant',
