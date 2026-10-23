@@ -4,6 +4,15 @@ export type TextVariant =
   | 'balance'
   | 'balance-compact'
   | 'balance-tight'
+  /**
+   * The one size for a non-money hero string: a username on Receive, standing
+   * where a balance stands on Home. It exists because nothing else could reach it
+   * — `balance` is the figure variant (mono, and named for a number), `heading-md`
+   * is 24px and does not grow, and two size classes in one `className` resolve by
+   * Tailwind's emission order rather than by intent. 32px on a phone, 40px from
+   * `sm` up, brand face, negative tracking from the token.
+   */
+  | 'display'
   | 'heading-md'
   | 'section'
   | 'card-title'
