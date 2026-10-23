@@ -101,6 +101,17 @@ export type AuditAction =
   /** One webhook delivery decided: the delivery log, mirrored into the audit trail. */
   | 'charge.webhook.delivered'
   /**
+   * The arrival path (`services/arrival-store.ts`).
+   *
+   * Money reached an address Seti can prove belongs to a merchant, and NO charge
+   * accounts for it: no charge was satisfied, so no fee was computed. The `txHash`
+   * is the transfer, and the metadata says `chargeId: null` and `feeCollected:
+   * false` explicitly, so a reconciliation can COUNT the leak rather than infer it
+   * from an absence. Nothing writes an arrival for a transaction a charge already
+   * settled, which is what keeps one payment from being counted twice.
+   */
+  | 'arrival.recorded'
+  /**
    * A person RENAMED: their one username was replaced by a new signed claim, and
    * the old string was released into `handle_releases` — held to the same account
    * for 30 days when it was live. `metadata` carries `from`, `to`, `reason` and
