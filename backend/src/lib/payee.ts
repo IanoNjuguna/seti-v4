@@ -1,12 +1,18 @@
 /**
  * The payee's NAME, as it rides on a ledger row.
  *
- * A transfer's `counterparty` is an address, and an address cannot be resolved
- * back to a name: the ONE resolver (`GET /handles/resolve`) takes a QR payload, a
- * handle or a name — never a `0x` string. So the customer's own resolution (the
- * handle they typed, or the one a `seti.live/u/<handle>` link carried) is written
- * beside the row, and a failed payment can then offer to pay the same person again
- * instead of opening an empty send flow.
+ * A transfer's `counterparty` is an address, and the SEND resolver
+ * (`GET /handles/resolve`) takes a QR payload, a handle or a name — never a `0x`
+ * string. So the customer's own resolution (the handle they typed, or the one a
+ * `seti.live/u/<handle>` link carried) is written beside the row, and a failed
+ * payment can then offer to pay the same person again instead of opening an empty
+ * send flow.
+ *
+ * A by-address read does exist now (`services/payee-directory.ts`, #197), and this
+ * module is deliberately not replaced by it: that read answers "is the address a
+ * charge names a merchant a person reviewed" for a pay page, and it never resolves a
+ * destination for a new payment. Sending still starts from a string the customer
+ * chose, because a name found by address is a label on someone else's wallet.
  *
  * It is a LABEL, never a decision. Nothing here is trusted to say who was paid —
  * the receipt is, and `recordSend` re-reads both legs before this row exists. The

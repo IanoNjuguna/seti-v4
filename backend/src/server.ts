@@ -16,6 +16,7 @@ import { handleRoutes } from './routes/handles.js';
 import { accountRoutes } from './routes/account.js';
 import { savingsRoutes } from './routes/savings.js';
 import { publicHandleRoutes } from './routes/public-handles.js';
+import { publicPayeeRoutes } from './routes/public-payees.js';
 import { transactionRoutes } from './routes/transactions.js';
 import { receiptRoutes } from './routes/receipts.js';
 import { publicChargeRoutes } from './routes/public-charges.js';
@@ -221,6 +222,12 @@ export async function buildServer(options: BuildServerOptions = {}) {
   // `seti.live/u/<handle>` pages read this signed out, which is why it is its own
   // registration with no auth hook rather than a route inside `handleRoutes`.
   await app.register(publicHandleRoutes, { prefix: '/public/handles' });
+  // The pay page's by-address read (#197): whether the address a charge names is a
+  // merchant a person reviewed, and when. Public for the same reason a charge is (the
+  // payer has no account), in its own file with no auth hook for the same reason as the
+  // two public registrations above. Read-only and display-only: its worst failure is
+  // showing the unverified tier, which is what every page showed before it existed.
+  await app.register(publicPayeeRoutes, { prefix: '/public/payees' });
   // The shared receipt read: no auth hook, gated only by the signed capability
   // token in the query. Registered without a session for the same reason as the
   // public merchant read above — a link the owner hands to a merchant must open
