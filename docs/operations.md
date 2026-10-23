@@ -400,3 +400,37 @@ Nightly backups go **off-provider** (rclone → Cloudflare R2), driven by
 `deploy/backup/pg-backup.sh` and `seti-backup.timer`, with the restore commands in
 `deploy-oracle.md` §9.
 
+
+---
+
+## 9. The convert book is a measurement, not a constant
+
+Settlement and the convert preview price every swap against Tempo's stablecoin book
+(`quoteSwapExactAmountIn`). A book is market liquidity, so it can fill a million units
+one month and nothing the next, and the two networks are not in the same state.
+
+**What was true on 2026-10-23**, read through the server's own pricing path
+(`quoteDexConvert`, the call `classifySettle` uses), pathUSD to OUSD:
+
+| Network | Result |
+| --- | --- |
+| mainnet (4217) | Quotes at every size tried, from 10 units to 1,000,000. At 1,000,000 in, 999,922.37 out: about 0.008% impact. |
+| practice (42431) | Quotes nothing, down to 10 units. `quoteSwapExactAmountIn` reverts with selector `0xbb55fd27`. |
+
+**What follows for an operator.**
+
+- On practice, every pathUSD holding is skipped by settlement as `no-market`, so the
+  settlement happy path cannot be run there at all: exercise it on mainnet, or seed the
+  practice book first.
+- A balance trimmed to fit a book is not evidence that the book is still there.
+  Re-quote before a run rather than trusting a number from an earlier session.
+- **Do not derive a limit from a snapshot.** The "~2,388 units" that appeared in a
+  scratch script was practice's fillable size on the day it ran. It is not a rule, not a
+  mainnet property, and mainnet has since quoted a million.
+
+**The limit of this probe.** It reads the quoter, so it reports what the book will fill
+and nothing more. It cannot tell an empty book from a pair whose tokens are not
+registered the way the DEX expects, because both arrive as a revert. If practice needs
+to quote and does not, check the token addresses in
+`backend/src/config/networks.ts` against the DEX's own listing before assuming the book
+is empty.
