@@ -30,7 +30,7 @@ export const SEND_FLOW_COPY = {
 } as const;
 
 /**
- * The people this account has paid before — the send screen's repeat entry (#99).
+ * The people this account has paid before: the send screen's repeat entry (#99).
  *
  * Three words and the list: a label, then one row per person, each row the whole
  * tap target (`ChoiceRow`). The rows are drawn ONLY when there is somebody to draw

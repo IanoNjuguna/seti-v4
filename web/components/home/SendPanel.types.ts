@@ -12,7 +12,7 @@ export interface SendPanelProps {
   /**
    * Whether the amount field should take focus as the step mounts (#99).
    *
-   * True when the payee arrived known — a link that named them, or a tap on someone
+   * True when the payee arrived known: a link that named them, or a tap on someone
    * this account has paid before. The payee is the answered question, so the cursor
    * belongs in the amount field. It says nothing about the amount's VALUE: the field
    * is empty until the customer types, on every route into this step.

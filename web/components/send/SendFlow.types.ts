@@ -22,7 +22,7 @@ export interface UseSendFlowReturn {
   kind: RecipientKind;
   /** What has been typed into the recipient field. */
   typed: string;
-  /** The field's own error — never a wallet or server message. */
+  /** The field's own error: never a wallet or server message. */
   error: string | null;
   /** The chosen recipient, or null while step one is still being asked. */
   recipient: string | null;
@@ -32,7 +32,7 @@ export interface UseSendFlowReturn {
   /**
    * Whether the amount field should take focus when it mounts.
    *
-   * True when the payee arrived ALREADY KNOWN — a link that named them, or a tap on
+   * True when the payee arrived ALREADY KNOWN: a link that named them, or a tap on
    * someone this account has paid before (#99). The payee is the answered question
    * in both cases, so the amount is the only thing left to type and the cursor is
    * put where the typing goes.

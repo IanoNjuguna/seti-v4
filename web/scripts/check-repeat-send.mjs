@@ -1,5 +1,5 @@
 /**
- * `npm run check:repeat-send` — the second payment to somebody is one tap (#99).
+ * `npm run check:repeat-send`: the second payment to somebody is one tap (#99).
  *
  * Three claims, and all three are about what does NOT exist unless a condition
  * holds, which is exactly what a screenshot cannot show:
@@ -9,10 +9,10 @@
  * 2. The confirmation still carries the platform fee (the leg that reaches the
  *    treasury) and the total, on a repeat as on a first send. The rows come from
  *    `quoteRows`, which is what `FeeQuote` draws, so this fails when the fee row is
- *    removed from the screen — proved by deleting it and re-running.
+ *    removed from the screen, proved by deleting it and re-running.
  * 3. The amount is empty until the person types it. A repeat fills the payee and
  *    nothing else, and the send route's own seed refuses `?amount=`, so there is no
- *    channel — tap, link, retry link or hand-edited URL — through which a figure
+ *    channel (tap, link, retry link or hand-edited URL) through which a figure
  *    the customer did not choose can reach the field.
  */
 import { quoteRows, QUOTE_LABELS } from '../components/money/quoteRows.ts';

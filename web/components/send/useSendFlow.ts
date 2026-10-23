@@ -9,7 +9,7 @@ import { useResolvedRecipient } from './useResolvedRecipient';
 import type { SendFlowInput, UseSendFlowReturn } from './SendFlow.types';
 
 /**
- * The flow's state, and every decision it makes — in a hook rather than in the
+ * The flow's state, and every decision it makes, in a hook rather than in the
  * component, so the component is the shape of the flow and nothing else.
  *
  * The flow asks ONE question and mounts one of two amount steps from the answer.
@@ -18,8 +18,8 @@ import type { SendFlowInput, UseSendFlowReturn } from './SendFlow.types';
  * is confirmed: the hooks never exist for a visitor.
  *
  * `focusAmount` starts true when the link already named the payee, and is turned on
- * by a tap on someone paid before (#99). Both are the same fact — the payee is
- * known, so the amount is the only thing left — and both leave the amount EMPTY:
+ * by a tap on someone paid before (#99). Both are the same fact: the payee is
+ * known, so the amount is the only thing left, and both leave the amount EMPTY:
  * nothing in this hook ever writes a figure the customer did not type.
  */
 export function useSendFlow({ linked }: SendFlowInput): UseSendFlowReturn {
@@ -62,8 +62,8 @@ export function useSendFlow({ linked }: SendFlowInput): UseSendFlowReturn {
 
   /**
    * A repeat: the payee is filled and the amount step is entered, with the cursor
-   * in the amount field. The target is a name or an address — the same string a
-   * typed one would be — so it goes through the SAME resolution and the SAME
+   * in the amount field. The target is a name or an address, the same string a
+   * typed one would be, so it goes through the SAME resolution and the SAME
    * preview, fee and signature path as any other send. No amount is carried.
    */
   const onPickRecent = useCallback((target: string) => {

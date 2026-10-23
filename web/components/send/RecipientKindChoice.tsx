@@ -14,7 +14,7 @@ export interface RecipientKindChoiceProps {
  *
  * Never colour alone: `aria-pressed` says which is chosen, so the dark fill is the
  * second signal rather than the only one. The press is answered on pointer-DOWN with
- * the system's own pressed step (`Button.constants.ts`) — an instant 2% scale, the
+ * the system's own pressed step (`Button.constants.ts`): an instant 2% scale, the
  * same one every other control in the app answers with. Without it the choice was
  * hover-only, so a touch user got nothing back until the step changed under them.
  *

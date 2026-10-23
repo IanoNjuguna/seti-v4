@@ -9,13 +9,13 @@ import type { RecentRecipient } from '../types/index.js';
  * Derived from the SAME ledger rows Activity reads, not from a second store: an
  * address book that could disagree with history is a book that will, and the
  * customer would be told they paid somebody they never paid. There is no table, no
- * write path, no cache — one read over rows that already exist.
+ * write path, no cache: one read over rows that already exist.
  *
  * ## What counts as history
  *
  * A person is here because money LEFT the account to them: the two outbound
  * counterparty types only, and only the two statuses that say the send was an
- * attempt the customer made. `pending` and `processing` are excluded on purpose —
+ * attempt the customer made. `pending` and `processing` are excluded on purpose:
  * those may still settle, and a menu that offers to pay again beside a transfer
  * that is still landing invites a double send. `reversed` means the money came
  * back, so the payment did not stand. A `failed` row is included: the person the
@@ -27,7 +27,7 @@ import type { RecentRecipient } from '../types/index.js';
  * The name the transfer was made AS, and nothing invented: a merchant's own
  * signed business name, or the handle the customer resolved before signing
  * (`metadata.payee.handle`, #119). With neither, the row's address is the only
- * truth there is, so the label is that address shortened for prose — never a
+ * truth there is, so the label is that address shortened for prose, never a
  * guessed display name, for the same reason Activity never guesses one.
  *
  * ## What the tap targets
@@ -62,7 +62,7 @@ const ATTEMPTED_STATUSES: readonly TransactionStatus[] = ['completed', 'failed']
  * The database filter, in one place.
  *
  * Scoped by `userId` and `network` because the list is the CALLER's own history on
- * the network the caller is acting on — a practice payment must not offer a live
+ * the network the caller is acting on: a practice payment must not offer a live
  * recipient, the same rule Activity and the statement follow. Returning the filter
  * rather than writing it inside the route is what lets the check assert that
  * scoping rather than trusting it.
@@ -99,7 +99,7 @@ export interface RecipientRow {
  * The people behind a page of the account's outbound rows, most recent first.
  *
  * Order is the query's (newest first), and the first row for a person is the one
- * kept — so "recent" means when they were last paid, not when they were first. A
+ * kept, so "recent" means when they were last paid, not when they were first. A
  * row with no address at all is dropped rather than offered: the send flow cannot
  * be pointed at nothing.
  *
@@ -129,7 +129,7 @@ export function recentRecipients(
     /**
      * A merchant's handle is the business's own signed name; a person's handle is
      * the one the customer resolved. Both are handles, and the first one present
-     * wins — a merchant payment carries no `payee` metadata. `payeeHandleOf` already
+     * wins, because a merchant payment carries no `payee` metadata. `payeeHandleOf` already
      * refuses anything that is not the handle shape (an address included), so the
      * column's contents cannot be smuggled into a name.
      */

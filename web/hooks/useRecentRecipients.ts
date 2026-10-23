@@ -19,7 +19,7 @@ import type { RecentRecipientsState } from './useRecentRecipients.types';
  * must not become a message about the customer's history.
  *
  * `read` exists because the list is only asked for while the recipient field is
- * empty and nobody has typed a name — the amount step and a typed handle both
+ * empty and nobody has typed a name: the amount step and a typed handle both
  * render without it, and an account-scoped request nobody is looking at is a
  * request not worth making.
  */

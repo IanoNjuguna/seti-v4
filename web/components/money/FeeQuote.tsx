@@ -82,8 +82,8 @@ function Total({
  * What the customer is about to spend, itemised — the ONE quote table.
  *
  * The rows themselves are `quoteRows`, a pure function, and that is deliberate: the
- * four figures are asserted by `check:repeat-send` — the platform fee (the leg that
- * reaches the treasury) and the total especially — and a check can only assert what
+ * four figures are asserted by `check:repeat-send`: the platform fee (the leg that
+ * reaches the treasury) and the total especially, and a check can only assert what
  * the screen actually draws if the screen draws from the thing the check reads. This
  * component owns the drawing: the well, the row grammar, and the two warnings.
  *

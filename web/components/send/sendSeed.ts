@@ -6,7 +6,7 @@
  *
  * The AMOUNT is deliberately not here, and this function is why that is structural
  * rather than a convention: `?amount=` on a send link is dropped by this whitelist,
- * so no URL — a retry link, a repeat link, a shared link somebody edited — can put
+ * so no URL (a retry link, a repeat link, a shared link somebody edited) can put
  * a figure into the amount field that the customer did not choose. The issue's rule
  * is "never prefill an amount the user did not choose", and a field the URL cannot
  * reach is a field that cannot be prefilled by one.

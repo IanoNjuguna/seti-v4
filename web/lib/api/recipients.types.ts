@@ -1,5 +1,5 @@
 /**
- * Somebody this account has already paid — the send screen's repeat entry (#99).
+ * Somebody this account has already paid: the send screen's repeat entry (#99).
  *
  * Mirrors `RecentRecipient` in `backend/src/types/index.ts`. Kept as a copy rather
  * than imported (the web package must not reach into the backend's source); the
@@ -11,7 +11,7 @@ export interface RecentRecipient {
   /**
    * The name the transfer was made as: a merchant's own signed business name, the
    * handle the customer resolved, or the address shortened for prose. There is no
-   * fourth option — a display name is never invented for an address.
+   * fourth option: a display name is never invented for an address.
    */
   name: string;
   /** The handle to re-resolve, or null when this person was only ever an address. */

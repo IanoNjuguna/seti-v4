@@ -36,7 +36,7 @@ export interface RecipientStepProps {
  *
  * No card: the question, the answers, the field and Continue sit on the page, so the
  * flow's prose is page text rather than the contents of a box. The dark fill is kept
- * only where it MEANS something — the chosen answer, the same selected state
+ * only where it MEANS something: the chosen answer, the same selected state
  * `ReceiveSwitch` draws.
  *
  * The repeat block (#99) sits between the field and Continue, and only while the

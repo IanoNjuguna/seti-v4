@@ -1,5 +1,5 @@
 /**
- * `npm run check:recent-recipients` — who the send screen may offer to pay again (#99).
+ * `npm run check:recent-recipients`: who the send screen may offer to pay again (#99).
  *
  * Two pure things and the filter between them: the derivation, which turns a page of
  * the account's own outbound rows into at most five people, and the WHERE clause,

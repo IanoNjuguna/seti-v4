@@ -7,14 +7,14 @@ import type { FeeQuotePreview } from './FeeQuote.types';
  * `FeeQuote` draws these and nothing else, so the four figures a customer decides
  * on have ONE source: the component cannot grow a row the check does not see, and
  * the check cannot pass on a row the screen does not draw. That is the point of the
- * extraction — `check:repeat-send` asserts that the confirmation still carries the
+ * extraction: `check:repeat-send` asserts that the confirmation still carries the
  * platform fee (the leg that goes to the treasury) and the total, on a repeat just
  * as on a first send, and an assertion about a component's JSX is not an assertion
  * about what it renders.
  *
  * The order is the argument: what the person gets, what Seti takes, what the chain
  * takes, what leaves the wallet. The fee is charged on the PRINCIPAL, so the rate is
- * of the principal and never of the total — quoting it against the total would
+ * of the principal and never of the total, because quoting it against the total would
  * overstate it, and a customer checking the arithmetic is entitled to find it exact.
  *
  * Gas wears a `≈` only when the server called it an estimate: as a conservative

@@ -6,7 +6,7 @@ import type { RecentRecipientsAnswer } from './recipients.types';
  *
  * Derived by the SERVER from the same ledger rows Activity reads, so the list
  * cannot disagree with the history beside it, and it is scoped to the calling
- * account by the session token — there is no user id in the request to get wrong.
+ * account by the session token, so there is no user id in the request to get wrong.
  *
  * Read fresh each time the flow opens rather than cached in the browser: a name
  * that has since changed hands must not be offered as a destination from a copy,

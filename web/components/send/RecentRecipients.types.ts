@@ -1,7 +1,7 @@
 /** What the recent-people block needs from the step that mounts it. */
 export interface RecentRecipientsProps {
   /**
-   * Whether the block should be drawn at all — true while the recipient field is
+   * Whether the block should be drawn at all: true while the recipient field is
    * empty. The step owns that question; this component owns everything after it.
    */
   visible: boolean;

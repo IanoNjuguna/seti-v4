@@ -3,7 +3,7 @@ import type { RecentRecipient } from '@/lib/api';
 /**
  * The send screen's repeat entry point, as pure functions (#99).
  *
- * Two rules, and both decide whether a control exists at all — which is exactly the
+ * Two rules, and both decide whether a control exists at all, which is exactly the
  * kind of thing a screenshot cannot prove: a list with no history must draw
  * NOTHING rather than an empty shell, and a tap must name a target the send flow
  * can actually resolve.

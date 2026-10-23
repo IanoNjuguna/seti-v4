@@ -290,12 +290,12 @@ export async function transactionRoutes(app: FastifyInstance) {
    * (`recentRecipients`), so the list can never name somebody the history does not
    * name. Nothing is written and no new store exists.
    *
-   * LITERAL BEFORE PARAM — declared here, above every `/:id…` route below, for the
+   * LITERAL BEFORE PARAM: declared here, above every `/:id…` route below, for the
    * reason the statement route states: a literal registered after a parametric
    * sibling can be read as `/:id` with the id "recipients".
    *
    * AUTH: the whole file carries `authMiddleware`, and the filter is the CALLER's
-   * id and network from the SESSION — never from the request. There is no id in the
+   * id and network from the SESSION, never from the request. There is no id in the
    * path, so there is no way to ask for somebody else's history, and a practice
    * record cannot offer a live recipient.
    */
