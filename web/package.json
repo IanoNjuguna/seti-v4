@@ -11,6 +11,7 @@
     "check:build-env": "node scripts/guard-production-env.check.mjs",
     "check:ink": "node scripts/check-ink-contrast.mjs",
     "check:asset-words": "node scripts/check-asset-words.mjs",
+    "check:refusals": "tsx scripts/check-refusals.mjs",
     "check:choice-row": "node scripts/check-choice-row.mjs",
     "check:qr-plate": "tsx scripts/check-qr-plate.mjs",
     "check:profile-mark": "tsx scripts/check-profile-mark.mjs",

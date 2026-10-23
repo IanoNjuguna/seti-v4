@@ -1,22 +1,51 @@
 # Seti developer docs
 
 Seti is a **non-custodial payments API on [Tempo](https://tempo.xyz)**. A customer
-holds a stablecoin balance — **OUSD** or **pathUSD** — in a wallet they control,
-and pays a merchant's own wallet directly. Seti never takes possession of the
-funds, and in v1 there is no fiat off-ramp.
+holds a stablecoin balance in a wallet they control, and pays a merchant's own
+wallet directly. Seti never takes possession of the funds, and in v1 there is no
+fiat off-ramp. The supported assets are **OUSD**, **pathUSD**, **USDT0** and
+**USDC.e**; USDT0 is mainnet only.
+
+## The three things Seti will not do
+
+These are the limits the product is built around, not a roadmap. Each one is
+checkable by using the API, and each one is what an integration rests on:
+
+1. **Seti never holds your money.** There is no Seti balance, no escrow and no
+   "Seti holds it until" state. A payment goes from the payer's wallet to the
+   recipient's own wallet, and the balance the API reports is read from the
+   chain at that wallet. The backend holds no key that can sign a transfer for a
+   customer: settlement and conversion are priced and planned server-side, then
+   signed by the customer's own wallet while they have the app open.
+2. **You do not need an account to get paid.** The [charge API](./api-reference.md)
+   asks for no session: the payee's wallet signs the charge and that signature is
+   the credential, so a wallet address and a signature are enough. There is no API
+   key to request and no account to open first.
+3. **No cards, no bank rails in v1.** Stablecoins in, stablecoins out. There is
+   no card acceptance, no card top-up, and no payout to a bank account. Two of
+   the four marks on our site are captioned "Not in use yet" for exactly this
+   reason: `STRIPE_SECRET_KEY` and `BRIDGE_API_KEY` are declared in the
+   environment schema with no call site.
+
+If any of those three stops being true, the docs and the marketing page are wrong
+the same day. `npm run check:refusals --workspace web` tests each of them against
+the backend source, so a rail or an account requirement landing without this
+section being revisited fails the build rather than surprising a customer.
 
 ## Status: read before you plan
 
 | | Today |
 | --- | --- |
-| Public API authentication | **Not available.** Every route needs a Privy-issued bearer token, so integrating requires a Seti account. No API keys, no OAuth. |
+| Public API authentication | **Not available for the product API.** Every product route needs a Privy-issued bearer token, so integrating requires a Seti account. Three routes need none: the charge API (`/public/charges*`), where the payee's wallet signature is the credential; the public handle read (`/public/handles*`); and a shared receipt link (`/receipts/:id`), gated only by the token in the link. No API keys, no OAuth. |
 | API versioning | **None.** No `/v1` prefix; treat fields as subject to change. |
 | OpenAPI spec | **None.** The reference here is maintained by hand against `backend/src/routes/`. |
-| Rate limits, webhooks | **None.** Poll `GET /transactions/:id/status`. |
+| Rate limits, webhooks | **Per route.** The charge API has per-address and per-source budgets and signed webhook deliveries. Elsewhere, poll `GET /transactions/:id/status`. |
 | Credential-free tooling | **Yes** — the [MCP server](./mcp.md) has four tools that need no account: DEX quotes, TIP-20 balances, address inspection, and building unsigned payment calldata. |
 
-If you want to build something today without a Seti account, start with the MCP
-server. Everything else needs the auth story to move first.
+If you want to build something today without a Seti account, the [charge
+API](./api-reference.md) is how you get paid (a wallet signature, no key) and the
+[MCP server](./mcp.md) is how you read and quote (no credential at all). The rest
+of the product API still needs the auth story to move first.
 
 ## The payment flow
 
