@@ -827,6 +827,12 @@ records these from a plain `Transfer` to an address Seti can prove belongs to a
 merchant (a charge recipient, or a signed handle claim); a transaction a charge
 already settled is refused as an arrival, so one payment is never counted twice.
 
+This route is also the backstop for a charge payment whose wallet dropped the memo
+argument. Seti's own transfer builder builds a charge payment as `transferWithMemo`
+carrying the charge id and refuses to build one without it, but a wallet in someone
+else's control can still leave the money here: visible to the merchant, attributed
+to no charge, and never marked `paid`.
+
 ## Users
 
 ### `GET /users/:id`
