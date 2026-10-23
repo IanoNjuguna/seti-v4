@@ -100,10 +100,11 @@ export type PayeeDisplay =
 /**
  * The reverse lookup: an address in, the name bound to it out.
  *
- * An address-to-name resolution does not exist in the backend today — `payee.ts`
- * says so in its own words ("an address cannot be resolved back to a name"). The
- * fixture supplies one so the three display states are real and renderable; #131
- * replaces the implementation, not this interface.
+ * The real implementation is `backendPayeeDirectory` in `charge-source.ts`, reading
+ * `GET /public/payees/:address` (#197). The interface is unchanged from #131 on purpose:
+ * the read that answers by address replaced a stub, not a shape. The fixture keeps an
+ * implementation of its own so the tier's display states stay renderable without a
+ * database (`charge.fixture.ts`), and nothing a deployed build reaches imports it.
  */
 export interface PayeeDirectory {
   findNamedPayee(address: string): Promise<NamedPayee | null>;
