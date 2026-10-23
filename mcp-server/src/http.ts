@@ -5,6 +5,12 @@
  * exists, not to invent a nicer one on top. Where the API has no endpoint (an
  * FX quote on its own, for example) there is no tool — rather than one that
  * guesses by calling something else.
+ *
+ * TWO KINDS OF REQUEST, and the difference is the credential. Almost every route
+ * needs a Privy-issued bearer token (`setiRequest`). The public reads that exist to
+ * be opened signed out — a payee looked up by address, for one — must NOT send a
+ * token: a tool that demanded one would claim a requirement the route does not have
+ * (`setiPublicGet`).
  */
 import { setiApiConfig, type SetiApiConfig } from './config.js';
 import { ToolError, scrub } from './errors.js';
@@ -23,6 +29,25 @@ export function requireApiConfig(toolName: string): SetiApiConfig {
   return config;
 }
 
+/**
+ * The base URL for a route that needs no token, or an error naming what is missing.
+ *
+ * Deliberately does not read SETI_API_TOKEN: a credential requirement invented here
+ * would be one the route does not have, and a host that configured only the base URL
+ * could not use a read that exists for people with no account at all.
+ */
+function requirePublicBaseUrl(toolName: string): string {
+  const baseUrl = process.env.SETI_API_BASE_URL;
+  if (!baseUrl) {
+    throw new ToolError(
+      `${toolName} needs the Seti API base URL. Set SETI_API_BASE_URL in the server ` +
+        'environment. It does NOT need SETI_API_TOKEN: this route is one of the public reads ' +
+        'that exist to be opened without an account.'
+    );
+  }
+  return baseUrl.replace(/\/+$/, '');
+}
+
 interface RequestOptions {
   method: 'GET' | 'POST';
   path: string;
@@ -31,14 +56,16 @@ interface RequestOptions {
 }
 
 /**
- * Performs one request against the Seti API.
+ * One request, and the one place its failures are shaped.
  *
- * The Authorization header is set here and never logged; `scrub()` covers text
- * that comes back from the server.
+ * The headers are the CALLER'S, because authentication is the caller's question: the
+ * status handling is identical whether or not a token rode along.
  */
-export async function setiRequest<T>(options: RequestOptions): Promise<T> {
-  const { baseUrl, token } = requireApiConfig('This tool');
-
+async function perform<T>(
+  baseUrl: string,
+  options: RequestOptions,
+  headers: Record<string, string>
+): Promise<T> {
   const url = new URL(`${baseUrl}${options.path}`);
   for (const [key, value] of Object.entries(options.query ?? {})) {
     if (value !== undefined) url.searchParams.set(key, String(value));
@@ -49,7 +76,7 @@ export async function setiRequest<T>(options: RequestOptions): Promise<T> {
     response = await fetch(url, {
       method: options.method,
       headers: {
-        Authorization: `Bearer ${token}`,
+        ...headers,
         ...(options.body === undefined ? {} : { 'Content-Type': 'application/json' }),
       },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
@@ -80,4 +107,32 @@ export async function setiRequest<T>(options: RequestOptions): Promise<T> {
   }
 
   return payload as T;
+}
+
+/**
+ * Performs one request against the Seti API as an authenticated caller.
+ *
+ * The Authorization header is set in this one place and never logged; `scrub()` covers
+ * text that comes back from the server.
+ */
+export async function setiRequest<T>(options: RequestOptions): Promise<T> {
+  const { baseUrl, token } = requireApiConfig('This tool');
+
+  return perform<T>(baseUrl, options, { Authorization: `Bearer ${token}` });
+}
+
+/**
+ * Performs one request against a route that exists to be opened signed out.
+ *
+ * No Authorization header at all — not an empty one, and not one that is only set when a
+ * token happens to exist: `docs/mcp.md` reports each tool's token requirement, so a tool
+ * that quietly authenticated would teach an integrator that this read needs an account.
+ */
+export async function setiPublicGet<T>(
+  toolName: string,
+  options: Omit<RequestOptions, 'method' | 'body'>
+): Promise<T> {
+  const baseUrl = requirePublicBaseUrl(toolName);
+
+  return perform<T>(baseUrl, { ...options, method: 'GET' }, { accept: 'application/json' });
 }
