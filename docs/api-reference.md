@@ -719,6 +719,55 @@ Charge-specific ones: `charge-id-invalid`, `charge-id-taken`,
 `recipient-mismatch`, `asset-mismatch`, `memo-missing-charge-id`,
 `receipt-unavailable`, `amount-invalid`. Switch on `code`; `error` is for humans.
 
+## Arrivals (money with no charge)
+
+### `GET /arrivals`
+
+Money that reached the caller's own addresses with **no Seti charge behind it**.
+Non-custody means a payer can always send straight to the address on the QR and
+never open the charge page; the money is real, no charge was satisfied, and Seti
+recorded no fee on it. This route is how the merchant sees that money instead of a
+charge sitting `pending` forever with nothing said.
+
+Scoped by the session, never by a query parameter: the addresses are resolved from
+the account's own wallets and its live handle claims on the network the session is
+served under.
+
+```json
+{
+  "arrivals": [
+    {
+      "txHash": "0x…",
+      "recipient": "0x8fad55b7c481bd76889fbf1eb719789f87db5113",
+      "from": "0x2b1…",
+      "asset": "ousd",
+      "amount": "250.000000",
+      "blockNumber": "4182231",
+      "seenAt": "2026-10-23T09:14:02.000Z"
+    }
+  ],
+  "hasMore": false,
+  "summary": [{ "asset": "ousd", "count": 1, "amount": "250.000000" }],
+  "copy": {
+    "label": "No charge",
+    "headline": "Money arrived with no Seti charge behind it",
+    "detail": "A transfer reached your address that no Seti charge accounts for, so Seti recorded no fee on it. What the transfer was for is not something Seti can see."
+  }
+}
+```
+
+What a row deliberately does **not** have: a status, a charge id, or a fee verdict.
+A transfer with no charge id in its memo cannot be told apart from an unrelated
+transfer of the same amount to the same merchant, so attaching it to a charge would
+be a guess — and a merchant told "paid" on that guess ships goods for somebody
+else's money. A charge is `paid` only against a receipt the classifier accepted.
+
+`limit` (1–50, default 20) and `offset` page the list; `summary` counts and values
+the leak per asset, because one total across two tokens means nothing. The indexer
+records these from a plain `Transfer` to an address Seti can prove belongs to a
+merchant (a charge recipient, or a signed handle claim); a transaction a charge
+already settled is refused as an arrival, so one payment is never counted twice.
+
 ## Users
 
 ### `GET /users/:id`

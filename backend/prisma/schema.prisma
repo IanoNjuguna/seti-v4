@@ -589,6 +589,58 @@ model ChargeWebhookDelivery {
   @@map("charge_webhook_deliveries")
 }
 
+/// A transfer that arrived at a merchant's address with NO charge behind it.
+///
+/// The non-custody price: a payer can send straight to the address on a QR and
+/// never open our page. The money is real and the merchant has been paid, but no
+/// charge was satisfied, Seti recorded no fee, and before this table the event
+/// simply was not recorded anywhere. A merchant's order stayed open on a payment
+/// that actually happened.
+///
+/// What makes this honest rather than a guess:
+///
+///  - It records WHAT THE CHAIN SAID (sender, asset, amount, transaction, block)
+///    and nothing about WHY. What the transfer was for is not derivable from a
+///    transfer, and the honest answer to "was this charge 123" is that only the
+///    payer knows.
+///  - There is NO charge column, nullable or otherwise. An arrival is money with no
+///    charge behind it, so the schema has nowhere to quietly put one; attributing
+///    an arrival to a charge would be a separate, signed, deliberate feature.
+///  - `amount` is a decimal STRING, like `Charge.amount` and `Charge.received`: the
+///    ledger keeps money as text and a float is how an amount becomes a cent wrong.
+///
+/// The row is written by the indexer (`services/arrival-store.ts`) and read by the
+/// merchant's own account, so the leak is measured instead of assumed.
+model AddressArrival {
+  id          String   @id @default(cuid())
+  /// `testnet` | `mainnet` — the network the transfer happened on. Scoped like
+  /// every other money row: practice money never appears beside live money.
+  network     String   @default("testnet")
+  /// The Seti ledger label of the token that moved (`ousd`).
+  asset       String
+  /// The address that received the money, lower-cased. NOT a user id: an arrival
+  /// belongs to the address, and a handle can be renamed, moved or released.
+  recipient   String
+  /// The sender the chain recorded. The one handle a merchant has on asking
+  /// "what was this for".
+  fromAddress String
+  /// Decimal token units, exactly as the chain moved them (`"250.000000"`).
+  amount      String
+  txHash      String
+  /// NULL when the log carried no block number. A reference nobody observed is
+  /// left empty rather than filled with a plausible number.
+  blockNumber BigInt?
+  createdAt   DateTime @default(now())
+
+  /// ONE row per transfer per receiving address. A re-scanned window, a restart,
+  /// a replayed log or a second indexer replica collides here instead of telling
+  /// the merchant the same payment arrived twice.
+  @@unique([txHash, recipient, asset, network])
+  /// The merchant's read: arrivals at their addresses, newest first.
+  @@index([network, recipient, createdAt])
+  @@map("address_arrivals")
+}
+
 model AuditLog {
   id        String   @id @default(cuid())
   userId    String?

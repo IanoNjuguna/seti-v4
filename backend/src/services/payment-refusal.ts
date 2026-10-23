@@ -189,7 +189,17 @@ export type PaymentRefusalCode =
    * Not charge-specific: any unauthenticated write that creates rows needs it, and the
    * code says what to do (wait) rather than what went wrong.
    */
-  | 'rate-limited';
+  | 'rate-limited'
+  /**
+   * The arrival path's own refusal (`services/arrival.ts`).
+   *
+   * A transfer reached a merchant's address, and a charge at that address already
+   * records this exact transaction as the one that settled it. The money is that
+   * charge's and the charge path has recorded it, so the same transaction must not
+   * also be filed as an unattributed arrival: that would count one transfer twice
+   * and tell the merchant their money is both a charge payment and a stray.
+   */
+  | 'arrival-is-charge-settlement';
 
 /** Why an on-chain receipt could not be used to verify a leg. */
 export type ReceiptFailureCode =
