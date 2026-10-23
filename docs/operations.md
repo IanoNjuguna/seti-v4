@@ -66,6 +66,38 @@ asserts the process refuses — and that the dev behaviour above still boots.
   deployed or tunnelled front end. Set it explicitly to your app's origin(s).
 - **`QUOTE_TTL_SECONDS`, `STUCK_TX_*`, `PORT`/`HOST`** — no security default;
   the only wrong value is a functionally wrong one.
+- **`SETI_SECRET_BOX_KEY`** — *optional, and reported rather than refused.* It is the
+  AES-256-GCM key that seals merchant webhook secrets (#156), so a dump of
+  `merchant_apps` without it is a column of ciphertext. It is **not** a boot refusal for
+  the same reason `SETI_WEBHOOK_SECRET` is not: the variable gates one feature, and a
+  refusal would take the whole API down for it. What happens instead is bounded and
+  named — `POST /merchant-apps` and rotation are refused with `secret-box-unset` (503)
+  **before any row is written**, so a secret is never stored unopenable. Outside
+  production a key is derived from `JWT_SECRET`, with one warning. Set the same value
+  on every instance: any box may deliver any merchant's webhook.
+
+### 1.1 Rotating `SETI_SECRET_BOX_KEY`
+
+The box format is `v1.<iv>.<tag>.<ciphertext>`, and `v1` names the key generation, so
+the key itself can be rotated without a flag day:
+
+1. Keep the current value as `SETI_SECRET_BOX_KEY_PREVIOUS`; set the new value as
+   `SETI_SECRET_BOX_KEY`. Deploy. Every box can now OPEN old boxes and SEAL new ones;
+   nothing is sealed with the previous key.
+2. Re-seal each app: either rotate each app's own secret (one signed call, and the
+   merchant is shown the new one) or accept that an app keeps its old box until its
+   next rotation. Opening still works in both cases, because the previous key is still
+   configured.
+3. Clear `SETI_SECRET_BOX_KEY_PREVIOUS` once no `merchant_apps.secretBox` starts with a
+   box this deployment cannot open — i.e. once every app has been re-sealed. Clearing it
+   early is visible, not silent: cannot-open is a fail-closed `null`, so such a delivery
+   is NOT signed rather than signed with something else, and the delivery row says the
+   signing secret was unset.
+
+Setting it to a value that is present but not 32 bytes of base64 is a hard error from
+`lib/secret-box.ts` rather than a silent fall back to the derived development key,
+because that fallback is how a production database ends up sealed with a key nobody
+intended.
 
 ---
 

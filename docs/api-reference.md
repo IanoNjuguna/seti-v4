@@ -746,10 +746,11 @@ rows:
 
 ### Webhooks
 
-Sent to the charge's `webhookUrl`, at most once per status change, for
-`charge.paid`, `charge.underpaid` and `charge.expired`. `overpaid` is delivered as
-`charge.paid` — money arrived at or above the ask — with `charge.status` saying
-which.
+Sent to the charge's `webhookUrl` — or, when the charge declared none, to the
+`webhookUrl` of the **merchant app** bound to its recipient — at most once per status
+change, for `charge.paid`, `charge.underpaid` and `charge.expired`. `overpaid` is
+delivered as `charge.paid` — money arrived at or above the ask — with `charge.status`
+saying which.
 
 ```
 POST https://shop.example/hooks/seti
@@ -757,15 +758,108 @@ X-Seti-Signature: t=1761130000,v1=<hex HMAC-SHA256>
 X-Seti-Event: charge.paid
 X-Seti-Delivery: <delivery id, stable across retries>
 X-Seti-Charge: ch_8f2c1a4e7b9d
+X-Seti-App: app_9f2c1a4e7b9d0e13
 Content-Type: application/json
 ```
 
-The signature is `HMAC-SHA256(SETI_WEBHOOK_SECRET, "<t>.<raw body>")`. Verify it
-against the bytes you received, reject a `t` older than five minutes, and treat
-`X-Seti-Delivery` as your dedupe key. Retries back off over roughly eight hours
-(1m, 5m, 15m, 1h, 6h) and stop after six attempts; the row then says `failed` and
-the reason is visible in the delivery log. **`SETI_WEBHOOK_SECRET` is one
-deployment-wide key** until per-app secrets land (#156).
+The signature is `HMAC-SHA256(<secret>, "<t>.<raw body>")`. Verify it against the
+bytes you received, reject a `t` older than five minutes, and treat `X-Seti-Delivery`
+as your dedupe key. Retries back off over roughly eight hours (1m, 5m, 15m, 1h, 6h)
+and stop after six attempts; the row then says `failed` and the reason is visible in
+the delivery log. `X-Seti-App` is present only when a merchant app signed the
+delivery, and it is a label, not a credential.
+
+**Which secret signs a delivery** (since #156):
+
+| The charge's recipient... | Signed with |
+| --- | --- |
+| is the payout address of a live merchant app | that app's own secret, issued once when the app was created |
+| is anything else — a bare address, a withdrawal, a charge older than the app | the deployment-wide `SETI_WEBHOOK_SECRET` |
+
+So an app's secret verifies that app's events and nothing else, and a receiver on the
+deployment key keeps working unchanged. Full guide, with the verification snippet:
+`docs/receive.md`.
+
+### Merchant apps (since #156)
+
+An app record is a name, a website and a webhook URL, bound to the payout **address**
+its charges are paid at, plus one secret Seti issues for it. Every route here needs
+the caller's Privy **session**; the payout address also signs, with EIP-712 over
+domain `{ name: "Seti", version: "1", chainId }`.
+
+A merchant app is **not** an API credential. The app id is public and the secret
+proves our webhooks are ours; neither can create a charge (that needs the recipient's
+signature) and neither can move money.
+
+#### `POST /merchant-apps`
+
+Body: `{ name, payoutAddress, webhookUrl, website?, logoUrl?, issuedAt, nonce,
+signature }`, where `signature` is over
+
+```
+MerchantApp { name, payoutAddress, webhookUrl, website, issuedAt, nonce }
+```
+
+Responds `201 { app, secret }`. **`secret` is returned here and nowhere else** — it is
+`whsec_` plus 43 base64url characters, and every other response carries only
+`secretHint` (its last four characters). `Cache-Control: no-store`.
+
+Refusals: `merchant-app-signature-invalid`, `merchant-app-mismatch` (the signed and
+submitted fields disagree, or the name is empty or over 64 characters),
+`merchant-app-stale` (issuedAt more than five minutes from now, either direction),
+`merchant-app-address-not-owned` (the payout address is not a wallet on the caller's
+account), `merchant-app-webhook-invalid` (not https; `http://localhost` outside
+production), `merchant-app-name-taken` (one name per account), `secret-box-unset`
+(503 — the deployment has no `SETI_SECRET_BOX_KEY`, refused before any row is written).
+
+```json
+{
+  "app": { "publicId": "app_9f2c1a4e7b9d0e13", "name": "…", "webhookUrl": "…",
+           "payoutAddress": "0x…", "network": "testnet", "secretHint": "kQ7w",
+           "secretIssuedAt": "2026-10-23T12:00:00.000Z", "secretRotations": 0,
+           "bindingVerifies": true, "revokedAt": null, "createdAt": "…" },
+  "secret": "whsec_…"
+}
+```
+
+`bindingVerifies` is computed on every read: the stored signature is re-recovered
+against the stored message, so a row edited by hand reports `false` and its secret
+stops signing deliveries.
+
+#### `GET /merchant-apps`, `GET /merchant-apps/:publicId`
+
+The caller's apps on the network the session is served under, and one of them. No
+secret in either; `404 merchant-app-not-found` for an id that does not exist **or is
+not the caller's**, uniformly, so the answer never confirms another account's ids.
+
+#### `POST /merchant-apps/:publicId/secret/rotate`
+
+Body `{ issuedAt, nonce, signature }` over `MerchantAppAdmin { appId, action:
+"rotate", issuedAt, nonce }`, signed by the app's payout address. Responds
+`200 { app, secret }` with the NEW secret, shown once. The old one is dead the instant
+this commits — one column write, so there is never a window with two live secrets —
+and a **delivery attempted after the rotation verifies only against the new secret**.
+`409 merchant-app-revoked` on a revoked app, `403 merchant-app-signature-invalid` from
+any other address.
+
+`POST /merchant-apps/:publicId/deliveries/:deliveryId/replay` re-sends one delivery
+with a fresh timestamp and therefore a fresh signature; the body, delivery id and
+event are the stored ones. `404 delivery-not-found` (not this app's),
+`409 delivery-not-replayable` (already delivered, or its secret cannot be opened).
+
+#### `POST /merchant-apps/:publicId/revoke`
+
+Same body shape, `action: "revoke"`. The app signs nothing afterwards, its secret
+cannot be read, and its delivery history stays. Charges are unaffected: a charge paid
+to that address settles and is signed with the deployment-wide key again. This is the
+rollback for a leaked secret that rotation alone does not satisfy.
+
+#### `GET /merchant-apps/:publicId/deliveries`
+
+`{ deliveries: [ { event, state, attempts, lastStatusCode, lastError,
+nextAttemptAt, lastAttemptAt, deliveredAt, createdAt, updatedAt } ] }`, newest first,
+scoped by the app whose secret signed each row — a merchant reads their own deliveries
+and nobody else's.
 
 ### Refusals
 
@@ -777,6 +871,12 @@ Charge-specific ones: `charge-id-invalid`, `charge-id-taken`,
 `charge-signature-invalid`, `charge-expired`, `charge-not-pending`,
 `recipient-mismatch`, `asset-mismatch`, `memo-missing-charge-id`,
 `receipt-unavailable`, `amount-invalid`. Switch on `code`; `error` is for humans.
+
+Merchant app ones (all listed beside the route above): `merchant-app-signature-invalid`,
+`merchant-app-stale`, `merchant-app-mismatch`, `merchant-app-address-not-owned`,
+`merchant-app-name-taken`, `merchant-app-webhook-invalid`, `merchant-app-not-found`,
+`merchant-app-revoked`, `delivery-not-found`, `delivery-not-replayable`,
+`secret-box-unset`.
 
 ## Arrivals (money with no charge)
 
@@ -873,8 +973,11 @@ client will refuse to build a transfer to it.
 
 ## What is not here
 
-No merchant CRUD, no refunds, no payouts, no fiat off-ramp, no pagination cursors,
-and no OpenAPI document. Webhooks, idempotency keys and rate limiting exist on the
-CHARGE path only (above) — merchant webhooks, per-app secrets and scoped keys are
-#156, the MCP tools are #132. This reference is maintained by hand against
+No refunds, no payouts, no fiat off-ramp, no pagination cursors, and no OpenAPI
+document. Webhooks, idempotency keys and rate limiting exist on the CHARGE path (above);
+merchant apps and their webhook secrets are #156, and are documented here. There is no
+**scoped charge-signing key** — a key that could create charges without a wallet in the
+loop needs its own design — and no OAuth, because with no custody there is nothing for
+an authorization server to grant. The MCP tools are #132. This reference is maintained
+by hand against
 `backend/src/routes/` — if it disagrees with the code, **the code is right**.

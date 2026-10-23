@@ -9,8 +9,9 @@ sidebar_position: 2
 | Mechanism | Available? | Notes |
 | --- | --- | --- |
 | Privy-issued bearer token | **Yes** | What the mobile app uses. Requires a Privy account that maps to a Seti user. |
-| API keys | **No** | Not implemented. |
-| OAuth / client credentials | **No** | Not implemented. |
+| Merchant app webhook secret | **Yes** | Issued once when a merchant app is created (`POST /merchant-apps`). HMAC-SHA256 over the delivery, rotatable by one signed call. It is **not** an API credential: it cannot create, read or move anything. |
+| API keys | **No** | Not implemented, and nothing needs one: there is no resource a key would unlock that a session or a signature does not. |
+| OAuth / client credentials | **No** | Not implemented, and there is nothing for an authorization server to grant — Seti holds no funds, so no credential here can move money. |
 | Development bypass | Yes, locally only | `DEV_BYPASS_AUTH=true` **and** `NODE_ENV=development`. Returns a fixed dev user. |
 
 Every route except `/health` and the public `/auth/*` entry points (`/auth/verify`,
@@ -18,6 +19,19 @@ Every route except `/health` and the public `/auth/*` entry points (`/auth/verif
 one way in: a token that the backend can verify with Privy. `/auth/me` is an
 `/auth/*` route that sits *behind* that middleware rather than in front of it — see
 below.
+
+Two things look like credentials and are not, which is worth stating plainly because
+both are pasted into other people's code:
+
+- **A merchant app's webhook secret** proves that a delivery Seti sends is Seti's. It
+  is an HMAC key, so it is stored sealed rather than hashed (`lib/secret-box.ts`) and
+  it is shown once, in the response that creates it. It authenticates **nothing** on
+  this API: the app id it is paired with cannot create a charge or read one, and the
+  secret cannot create, read or move a shilling. Losing it costs a merchant their
+  trust in their own fulfilment logic; rotation is the fix and it is one signed call.
+- **A charge's recipient signature** is how the charge API authenticates: an EIP-712
+  signature by the wallet being paid, checked before a row is written. See
+  `docs/api-reference.md`.
 
 ## Using a bearer token
 
@@ -107,9 +121,13 @@ cached identity visible. See `web/lib/auth/session-bootstrap.ts`.
 
 Recorded here so it is not discovered mid-build:
 
-1. **An API-key or OAuth mechanism**, plus scoping so a key cannot act as an
-   arbitrary user. Today a token *is* a user identity.
+1. **A scoped charge-signing key**, for a server-side integration that creates charges
+   without a wallet in the loop. Today the recipient's wallet signs each charge, which
+   is the honest model while Seti holds no funds. A key that could sign charges needs
+   its own design: scope, revocation, and what it can never do (it must never move
+   money, which is why the webhook secret issued today is deliberately not one).
 2. **Versioning** before any of this is depended on.
-3. **Rate limiting** — there is none.
-4. **Webhooks or a polling contract** for settlement confirmation, rather than
-   asking integrators to poll `GET /transactions/:id/status`.
+3. **Rate limiting** — the charge API and the merchant app routes have their own
+   buckets; nothing is metered per key yet, because there are no keys.
+4. **Webhooks** exist for charges (`docs/receive.md`). A polling contract for anything
+   else does not.

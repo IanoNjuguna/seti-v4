@@ -20,6 +20,7 @@ const sidebars: SidebarsConfig = {
     'quickstart',
     'authentication',
     'payments',
+    'receive',
     'mcp',
     'api-reference',
   ],
