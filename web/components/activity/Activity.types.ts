@@ -1,5 +1,6 @@
 import type { Transaction } from '@/lib/types';
 import type { NoIdentityView } from '@/components/app/no-account.types';
+import type { ActivitySearchState } from './ActivitySearch.types';
 
 /** A day's rows, in the order the server returned them (newest first). */
 export interface ActivityDayGroup {
@@ -92,13 +93,24 @@ export interface ActivityPagesValue {
 }
 
 export interface UseActivityReturn {
-  /** `null` until the first page lands — the difference between "loading" and "empty". */
+  /**
+   * The banded view, already narrowed by the query. `null` until the first page
+   * lands, which is the difference between "loading" and "empty" — an empty array
+   * means a page arrived and had nothing in it.
+   */
   bands: ActivityBand[] | null;
+  /** The query field and the list's filter, as one value. */
+  search: ActivitySearchState;
   loading: boolean;
   loadingMore: boolean;
   hasMore: boolean;
   error: string | null;
   empty: boolean;
+  /**
+   * A query was typed and nothing matched it. Distinguished from `empty`, which is
+   * the account having no history at all: the two need different words.
+   */
+  noMatches: boolean;
   loadMore: () => void;
   retry: () => void;
 }

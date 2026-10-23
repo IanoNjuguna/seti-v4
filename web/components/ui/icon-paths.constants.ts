@@ -27,6 +27,11 @@ export const ICON_PATHS = {
   verified: ['M12 3.5 14 6l3-.4.9 3 2.6 1.5-1.2 2.8 1.2 2.8-2.6 1.5-.9 3-3-.4-2 2.5-2-2.5-3 .4-.9-3-2.6-1.5L5.5 13 4 12l1.5-2.8-.9-3 3-.4Z', 'm9 12 2 2 4-4.5'],
   arrowRight: ['M4 12h15', 'm13 6 6 6-6 6'],
   close: ['m6 6 12 12', 'm18 6-12 12'],
+  /* The magnifier: a ring and a 45-degree handle. The set had every other glyph a
+     header needs (close, chevron, alert) but no search mark, so the field beside
+     the ledger's own heading had to reach outside the hand-authored set or draw a
+     ring by hand at the call site. */
+  search: ['M18 11a7 7 0 0 1-14 0a7 7 0 0 1 14 0', 'm16 16 4 4'],
   /* A percent mark: a slash and two rings. The Save tile's glyph — "this money
      earns" — where `add` and `send` describe moving money, and a coin or a
      piggy-bank would invent object vocabulary the rest of this set does not use. */
