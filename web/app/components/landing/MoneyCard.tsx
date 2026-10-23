@@ -19,15 +19,20 @@ import type { MoneyCardProps } from './MoneyCard.types';
  * The edge is `hairline-dark`, the system's edge for that canvas, and there is no
  * shadow: the luminance step and the hairline ARE the depth here.
  *
- * ON A PHONE THE SQUARE IS DROPPED (aspect ratio only from `sm`). Four squares in
- * one column at 360px would be four 340px tiles, a screenful and a half of nothing
- * but tiles; two across at `sm` and four across at `lg` is the reference's own
- * progression, and a natural-height card on a phone keeps the words where the
- * reader is.
+ * THE TILE IS A SQUARE ON THE REFERENCE AND A 4:3 CARD HERE, and the difference is
+ * content rather than taste. cash.app's squares hold a photograph, a big figure and
+ * a floating UI chip, so 331px of tile is 331px of object. These hold a heading and
+ * one sentence: at `sm:aspect-square` the 265px tile the 4-up grid gives at 1440 put
+ * ~140px of nothing between the label at the top and the sentence at the foot, and
+ * four potholes in one row read as a missing image rather than as whitespace. So the
+ * tile takes a height instead of a side (`min-h-[13rem]`), which keeps the grid, the
+ * gutter and the edge-to-edge row the reference has while letting the words sit
+ * closer together. The radius stays this system's 12px and the SIZE still does the
+ * "tile" work.
  */
 export function MoneyCard({ tile }: MoneyCardProps) {
   return (
-    <li className="flex flex-col justify-between gap-6 rounded-md border border-hairline-dark bg-surface-elevated p-5 sm:aspect-square sm:p-6">
+    <li className="flex flex-col justify-between gap-6 rounded-md border border-hairline-dark bg-surface-elevated p-5 sm:min-h-[13rem] sm:p-6">
       <h3 className="font-brand text-heading-sm font-medium text-on-dark sm:text-heading-md">
         {tile.label}
       </h3>

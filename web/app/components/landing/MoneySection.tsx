@@ -12,7 +12,8 @@ import type { AudienceProps } from './Audience.types';
  * rows on the right; it is four objects on a 4-up grid now, which is cash.app's
  * card-grid band and the one section shape this page did not carry. The grid is
  * `grid-cols-1` / `sm:grid-cols-2` / `lg:grid-cols-4` with 20px between columns,
- * which is the reference's own gap, and the tiles are squares from `sm` up.
+ * which is the reference's own gap, and every tile carries the same height from `sm`
+ * up (see `MoneyCard` for why a square would be mostly empty here).
  *
  * NO PROSE COLUMN AND NO LEDE. The owner deleted this band's intro paragraph
  * ("Your money is digital dollars. Each one is worth a US dollar.") and then the

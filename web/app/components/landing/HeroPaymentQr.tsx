@@ -45,14 +45,26 @@ import { HERO_QR_COPY } from './HeroPaymentQr.copy';
  * (`LandingBackdrop`), so the black behind this line is the only surface it ever
  * meets. No `Disclaimer:` label: the sentence already says what it is.
  *
- * THE PLATE, at three-quarters. A QR is read as dark modules on a light field, so
- * it sits on a real `canvas-light` surface at the ONE control/surface radius,
- * `rounded-md` (12px), with `p-8` of padding doing two jobs: the slot's internal
- * padding, and the code's quiet zone. The spec wants FOUR modules of clean field,
- * and the shipped payload is a 25-module (version 2) code, so 32px around a 198px
- * code is exactly 16% of its width. The plate carries the slot's slow float
- * (`--duration-float`), which moves it ±3px about its own place; the QR's own
- * modules stay square, because a rounded module is a broken module.
+ * THE PLATE, at four-fifths of the column. A QR is read as dark modules on a light
+ * field, so it sits on a real `canvas-light` surface at the ONE control/surface
+ * radius, `rounded-md` (12px), with `p-10` of padding doing two jobs: the plate's
+ * internal padding, and the code's quiet zone. The spec wants FOUR modules of clean
+ * field, and the shipped payload is a 25-module (version 2) code: 40px of padding
+ * around a 240px code is 4.17 modules, which is the padding this size requires —
+ * the earlier 32px was four modules around a 198px code, and scaling the plate up
+ * without scaling the padding would have quietly spent the quiet zone (the same
+ * trap `components/qr/qr.constants.ts` records for the receive plate). The plate
+ * carries the slot's slow float (`--duration-float`), which moves it ±3px about
+ * its own place; the QR's own modules stay square, because a rounded module is a
+ * broken module.
+ *
+ * THE PLATE GREW because the caption under it was breaking mid-sentence: at 262px
+ * the figure wrapped "to ianllc" onto a line of its own and put the URL and the
+ * warning in the same narrow gutter, so the centre column read as three columns of
+ * small print. At 320px each of the three blocks is a line or two at its natural
+ * width, and the code is closer to the share of the band the reference's object
+ * takes (437px of a 1344px band; this is 320 of 1152, and the code inside it is
+ * 240px — bigger than the 198 it was).
  *
  * `'use client'` because `react-qr-code` is a CLASS component and RSC renders only
  * functions. It still server-renders into the static HTML, so the code, and the
@@ -61,8 +73,8 @@ import { HERO_QR_COPY } from './HeroPaymentQr.copy';
  */
 export function HeroPaymentQr() {
   return (
-    <figure className="mx-auto flex w-[min(16.375rem,100%)] flex-col gap-6">
-      <div className="hero-float rounded-md bg-canvas-light p-8">
+    <figure className="mx-auto flex w-[min(20rem,100%)] flex-col gap-6">
+      <div className="hero-float rounded-md bg-canvas-light p-10">
         <div role="img" aria-label={HERO_QR_COPY.title}>
           <QRCode
             value={HERO_PAYMENT_URL}

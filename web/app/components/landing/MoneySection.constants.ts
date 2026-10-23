@@ -5,12 +5,12 @@ import type { MoneySectionCopy } from './MoneySection.types';
  * What the dollars are for, as four squares per reader.
  *
  * THE BAND'S SHAPE IS THE REFERENCE'S card grid, which is the one section shape
- * this page did not have: four square objects on the band, 20px apart, each
- * carrying one thing, with the band's heading above them. On cash.app the four
- * squares are a big figure, a photograph and a floating UI chip; here they are
- * four things you can do with a balance, because that is what this product
- * actually has and a picture of a card would be a picture of something Seti does
- * not issue.
+ * this page did not have: four tiles on the band, 20px apart, each carrying one
+ * thing, with the band's heading above them. On cash.app those four are a big
+ * figure, a photograph and a floating UI chip inside square frames; here they are
+ * four things you can do with a balance, in frames that are wider than they are tall
+ * because words are not a photograph, because that is what this product actually
+ * has and a picture of a card would be a picture of something Seti does not issue.
  *
  * THE LABEL SITS INSIDE THE SQUARE AND THE SENTENCE AT ITS FOOT, where the
  * reference puts the sentence OUTSIDE the card and under it. It moved inside
