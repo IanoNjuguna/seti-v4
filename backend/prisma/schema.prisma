@@ -74,6 +74,9 @@ model User {
   /// The invite this account ARRIVED on, if any. At most one, because
   /// `Referral.invitedUserId` is unique.
   referralReceived  Referral?  @relation("ReferralsReceived")
+  /// Merchant apps this account owns (#156). OWNERSHIP is the session's; the
+  /// payout address and every signature are the wallet's.
+  merchantApps      MerchantApp[]
 
   @@map("users")
 }
@@ -372,8 +375,98 @@ model Merchant {
 
   transactions Transaction[]
   handleEntry  Handle?
+  /// Merchant apps bound to this business: an app's `payoutAddress` is where its
+  /// charges are paid, and this is the merchant record that names the same address.
+  merchantApps MerchantApp[]
 
   @@map("merchants")
+}
+
+/// A merchant's own app record and the webhook secret Seti ISSUES for it (#156).
+///
+/// ## The credential model, in one paragraph
+///
+/// A merchant signs in with the same Privy session a person uses, then creates an
+/// app bound to a payout ADDRESS it controls — the binding is an EIP-712
+/// signature by that address, verified before any row is written, and the
+/// signature is stored so the binding can be re-checked later. The app gets a
+/// public id (support, logs, rate limits) and ONE secret. Seti holds no funds, so
+/// the secret is the only credential a merchant needs: it proves our webhooks are
+/// ours and cannot move a shilling. There is no API key, no client credential and
+/// no OAuth registry, because there is nothing here for them to authorise.
+///
+/// ## Why the secret is ENCRYPTED and not hashed
+///
+/// A password is hashed because the server only ever needs to compare it. A
+/// webhook secret is an HMAC KEY: signing `t.body` needs the key itself, so a
+/// one-way hash would make every delivery unsignable. It is therefore stored with
+/// AES-256-GCM under a key from the environment (`lib/secret-box.ts`), which is
+/// recoverable by the service and by nobody else: a database dump alone does not
+/// yield it, and the plaintext is NEVER written, logged, returned in a list, or
+/// put in an audit body. It leaves the server exactly twice in its life — in the
+/// `201` that created it and in the `200` that rotated it.
+model MerchantApp {
+  id            String   @id @default(cuid())
+  /// The PUBLIC id: safe to print, to log, to quote in a support ticket. Rate
+  /// limits and audit rows use it instead of the cuid.
+  publicId      String   @unique
+  /// The account that OWNS the row. A session owns it; the payout address signs
+  /// for it. Both are required, and neither substitutes for the other.
+  ownerUserId   String
+  /// The display name the merchant gave the app, as signed.
+  name          String
+  /// The business's site, when it has one. Unsigned (it is a label, not an asset).
+  website       String?
+  /// Where webhooks are POSTed. Validated https (loopback http outside
+  /// production, as charges do) before the row exists.
+  webhookUrl    String
+  /// Optional logo URL. A label like `website`, never an authority.
+  logoUrl       String?
+  /// The address this app is paid at, lower-cased, recovered from the signature.
+  /// A charge whose `recipient` matches it is signed with THIS app's secret.
+  payoutAddress String
+  /// The EIP-712 binding signature by `payoutAddress`, stored verbatim and
+  /// RE-VERIFIED on every read — there is no stored `verified` flag, for the same
+  /// reason `Handle` has none: a compromised database can at worst hide an app, it
+  /// cannot invent a binding, because a binding is a signature.
+  bindingSignature String
+  /// The signed instant, kept as the raw ISO string the wallet signed. Re-rendering a
+  /// DateTime can differ by precision and the signature would never verify again.
+  bindingIssuedAtRaw String
+  /// The signed one-time value, so two apps by one wallet are never one signature.
+  bindingNonce  String
+  /// The network the binding signature was made under. A practice app cannot
+  /// sign for a live charge, and the reverse: the domain carries the chain id.
+  network       String   @default("testnet")
+  /// The sealed secret, `v1.<iv>.<tag>.<ciphertext>`, base64url parts. NEVER the
+  /// plaintext, never a hash (see the model comment).
+  secretBox     String
+  /// The last four characters of the CURRENT secret, so a merchant can tell two
+  /// apps apart in a list without being shown either. Not derivable back.
+  secretHint    String
+  /// When the live secret was issued. Rotation replaces both this and `secretBox`
+  /// in ONE write, so there is never a moment with two live secrets.
+  secretIssuedAt DateTime @default(now())
+  /// How many times the secret has been rotated. Shown in the list, and the audit
+  /// trail for "did we rotate after that leak?".
+  secretRotations Int @default(0)
+  /// Revocation. A revoked app signs nothing: its deliveries fall back to the
+  /// deployment key (they are the merchant's own charges) but its secret can no
+  /// longer be read. That is the rollback, and it costs no data.
+  revokedAt     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  owner        User                   @relation(fields: [ownerUserId], references: [id])
+  merchant     Merchant?              @relation(fields: [merchantId], references: [id])
+  merchantId   String?
+  deliveries   ChargeWebhookDelivery[]
+
+  /// One name per owner: two apps called "Storefront" is a support ticket.
+  @@unique([ownerUserId, name])
+  /// Finding the app that owns an address: the delivery path's one hot lookup.
+  @@index([payoutAddress, network])
+  @@map("merchant_apps")
 }
 
 model Transaction {
@@ -594,19 +687,29 @@ model ChargeWebhookDelivery {
   /// When the next attempt is due. NULL for a delivered or failed row.
   nextAttemptAt  DateTime?
   deliveredAt    DateTime?
+  /// When the last attempt actually left the building (#156) — the delivery log's
+  /// "last attempt" column. `updatedAt` also moves when a replay resets the row,
+  /// so it cannot answer "when did we last POST?".
+  lastAttemptAt  DateTime?
   /// The exact JSON body that was (or would be) sent, so a delivery can be
   /// verified byte for byte after the fact — the signature covers these bytes.
   payload        Json?
+  /// The merchant app whose secret signed this delivery, when one matched the
+  /// charge's recipient (#156). NULL means the deployment-wide key signed it.
+  merchantAppId  String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  charge Charge @relation(fields: [chargeId], references: [id], onDelete: Cascade)
+  charge      Charge       @relation(fields: [chargeId], references: [id], onDelete: Cascade)
+  merchantApp MerchantApp? @relation(fields: [merchantAppId], references: [id], onDelete: SetNull)
 
   /// EXACTLY ONE delivery per status change. The whole "a replay must not
   /// double-count" rule is this line.
   @@unique([chargeId, status])
   /// The retry sweep: due rows, oldest first.
   @@index([state, nextAttemptAt])
+  /// One app's delivery log, newest first.
+  @@index([merchantAppId, createdAt])
   @@map("charge_webhook_deliveries")
 }
 

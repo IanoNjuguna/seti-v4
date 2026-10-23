@@ -352,6 +352,36 @@ const envSchema = z.object({
   SETI_WEBHOOK_SECRET: z.string().optional(),
 
   /**
+   * The key that seals merchant webhook secrets at rest (#156).
+   *
+   * 32 bytes, base64 (`openssl rand -base64 32`). A merchant app's webhook secret is
+   * an HMAC key — signing a delivery needs the key itself — so it cannot be hashed
+   * and is stored with AES-256-GCM under this key instead (`lib/secret-box.ts`).
+   * A database dump without this value is a column of ciphertext; a rotation of this
+   * value is a rolling operation, not a flag day (see
+   * `SETI_SECRET_BOX_KEY_PREVIOUS` and `docs/operations.md`).
+   *
+   * OPTIONAL in the schema, and NOT a production boot refusal, for the reason
+   * `SETI_WEBHOOK_SECRET` is not one: this credential store gates ONE feature, and a
+   * deploy that refused to start would take the whole API down for it. What happens
+   * instead is bounded and named: creating or rotating a merchant app is refused with
+   * `secret-box-unset` before any row is written, so nothing is ever stored
+   * unopenable. Outside production a key is derived from `JWT_SECRET` (with one
+   * warning) so a laptop works without extra setup, and never in production.
+   */
+  SETI_SECRET_BOX_KEY: z.string().optional(),
+
+  /**
+   * The PREVIOUS secret-box key, during a rotation of the key itself.
+   *
+   * Read-only, and only for opening boxes sealed with the old key: nothing is ever
+   * sealed with it. Set it to the outgoing value, deploy, let every merchant app be
+   * re-sealed (a rotation of the app's own secret does that for one app; a sweep does
+   * the rest), then clear it. The ordering is in `docs/operations.md`.
+   */
+  SETI_SECRET_BOX_KEY_PREVIOUS: z.string().optional(),
+
+  /**
    * The origin a charge's `pageUrl` points at — the site a human opens.
    *
    * Config rather than the request's `Host`, for the reason every absolute link in
