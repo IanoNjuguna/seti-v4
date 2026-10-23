@@ -5,7 +5,7 @@ import type { NavMenuPanelProps } from './NavMenuPanel.types';
 
 /**
  * The menu the bar opens below `lg`: the Personal | Business selector, then the
- * four section destinations, and nothing else.
+ * five section destinations, and nothing else.
  *
  * THE SELECTOR IS HERE BECAUSE THIS IS WHERE IT LIVES ON A PHONE. The bar carries
  * it from `md` up; below that the row is brand, Search, Menu and Sign in, and two

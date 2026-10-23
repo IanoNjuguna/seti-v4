@@ -4,13 +4,14 @@ import { LandingNav } from './components/landing/LandingNav';
 import { HeroSection } from './components/landing/HeroSection';
 import { HowSection } from './components/landing/HowSection';
 import { MoneySection } from './components/landing/MoneySection';
+import { RefusalsSection } from './components/landing/RefusalsSection';
 import { FeesSection } from './components/landing/FeesSection';
 import { PartnersSection } from './components/landing/PartnersSection';
 import { ClosingSection } from './components/landing/ClosingSection';
 import { LandingFooter } from './components/landing/LandingFooter';
 
 /**
- * The landing page: six bands, each its own component under
+ * The landing page: seven bands, each its own component under
  * `components/landing/`, plus the fixed layer the ambient spec asks for.
  *
  * IT NOW HAS TWO READERS, AND THE URL SAYS WHICH. `?for=business` renders the page
@@ -45,7 +46,12 @@ import { LandingFooter } from './components/landing/LandingFooter';
  * browser with `useSyncExternalStore`, at the price of one frame of the wrong
  * variant on exactly the visits that asked for business.
  *
- * The command palette's sections (`SEARCH_SECTIONS`) are the same six ids in both
+ * The refusals band (`#refusals`) is the newest, between the integrations row and
+ * the close: it says what Seti will not do, which is the one part of the trust
+ * argument a screenshot of the product working cannot show (#133). It takes no
+ * audience, because none of the three refusals changes with who is reading.
+ *
+ * The command palette's sections (`SEARCH_SECTIONS`) are the same seven ids in both
  * variants, so a jump works whichever reader is on the page.
  */
 interface HomePageProps {
@@ -68,6 +74,7 @@ export default async function Home({ searchParams }: HomePageProps) {
         <MoneySection audience={audience} />
         <FeesSection audience={audience} />
         <PartnersSection />
+        <RefusalsSection />
         <ClosingSection audience={audience} />
       </main>
 
