@@ -33,6 +33,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
+import { parseUnits } from 'viem';
 import { prisma } from '../lib/prisma.js';
 import { env } from '../config/env.js';
 import { publicChargeRoutes } from '../routes/public-charges.js';
@@ -45,7 +46,9 @@ import {
   type ChargeAdminMessage,
 } from './charge-admin.js';
 import { matchChargeTransfers, type ChargeTransferCandidate } from './charge-match.js';
-import { CHARGE_ID_PATTERN, chargePageOrigin } from './charge-store.js';
+import { CHARGE_ID_PATTERN, chargePageOrigin, unitsToAmount } from './charge-store.js';
+import { merchantFeeUnits } from './fees.js';
+import { treasuryAddressFor } from '../config/networks.js';
 import { WEBHOOK_SIGNATURE_HEADER, deliverDueWebhooks } from './charge-webhook.js';
 
 /** Every charge this run writes starts with this, so cleanup is one predicate. */
@@ -512,6 +515,22 @@ async function main(): Promise<void> {
   checkEq('with what actually arrived', paidRow?.received, '100.000000');
   check('and the transfer that settled it', typeof paidRow?.txHash === 'string');
 
+  // The fee leg, on the row, as its own fact. This transfer was matched with NO
+  // fee lookup, so nobody looked at the receipt for a treasury leg and the row says
+  // exactly that. What it must NOT say is `paid` with the fee assumed collected —
+  // the defect #151 exists to close.
+  check(
+    'a paid charge with no fee leg read records feeCollected false',
+    paidRow?.feeCollected === false,
+    String(paidRow?.feeCollected)
+  );
+  checkEq(
+    'and names why, rather than leaving it blank',
+    paidRow?.feeUncollectedReason,
+    'fee-not-observed'
+  );
+  checkEq('while the status is still paid: the money moved', paidRow?.status, 'paid');
+
   const paidDeliveries = deliveriesFor(payable.id);
   checkEq('exactly one webhook was delivered', paidDeliveries.length, 1);
   checkEq('it is the paid event', paidDeliveries[0]?.event, 'charge.paid');
@@ -545,6 +564,89 @@ async function main(): Promise<void> {
   const paidReadBody = paidRead.json<{ charge: Record<string, unknown> }>();
   checkEq('a paid charge reads back paid', paidReadBody.charge.status, 'paid');
   checkEq('with the received amount', paidReadBody.charge.received, '100.000000');
+  checkEq(
+    'and the fee fact is readable beside it, not folded into the status',
+    paidReadBody.charge.feeCollected,
+    false
+  );
+  checkEq(
+    'with the reason a support tool can search',
+    paidReadBody.charge.feeUncollectedReason,
+    'fee-not-observed'
+  );
+
+  // -------------------------------------------------------------------------
+  // 6b. The fee leg, collected — the same reconcile, with a receipt that has it
+  // -------------------------------------------------------------------------
+  console.log('\nfee leg: the same reconcile, held to the transfer to the treasury');
+
+  const feeCharge = await signedCharge();
+  await post('/public/charges', { ...feeCharge });
+
+  // The expectation comes from `fees.ts`, not from a number typed into this suite:
+  // 2% of 100.000000 is 2.000000, and if the schedule ever changes this follows it.
+  const feeUnits = merchantFeeUnits(parseUnits(feeCharge.amount, 6));
+  const feeAmount = feeUnits.ok ? unitsToAmount(feeUnits.units) : '0.000000';
+  const treasury = treasuryAddressFor(NETWORK);
+
+  /** The receipt a batch for this charge really carries: the 2% to the treasury. */
+  const feeLegs = (amount: string) => async () => [
+    { recipient: treasury, asset: PRIMARY_ASSET, amount },
+  ];
+
+  const feePass = await matchChargeTransfers({
+    transfers: [transferFor({ charge: feeCharge, amount: '100.000000' })],
+    network: NETWORK,
+    chainId: CHAIN_ID,
+    feeLookup: feeLegs(feeAmount),
+  });
+  checkEq('principal plus a treasury leg is paid', feePass[0]?.status ?? null, 'paid');
+  check(
+    'and the decision reports the fee collected',
+    feePass[0]?.fee?.collected === true,
+    String(feePass[0]?.fee?.collected)
+  );
+
+  const feeRow = await prisma.charge.findFirst({ where: { publicId: feeCharge.id } });
+  checkEq('the row records the fee as collected', feeRow?.feeCollected, true);
+  checkEq('with no reason left to give', feeRow?.feeUncollectedReason, null);
+  checkEq('and the same status a fee-less payment gets', feeRow?.status, 'paid');
+  checkEq('held to the schedule\'s figure (2% of 100.000000)', feeAmount, '2.000000');
+
+  // The boundary that matters, at the row: ONE base unit short of the same ask is
+  // uncollected, and the charge is still paid. This is the assertion that would
+  // have failed before #151, and it fails by one unit rather than by a percent.
+  const shortFeeCharge = await signedCharge();
+  await post('/public/charges', { ...shortFeeCharge });
+
+  const oneUnitShort = unitsToAmount((feeUnits.ok ? feeUnits.units : 2_000_000n) - 1n);
+  await matchChargeTransfers({
+    transfers: [transferFor({ charge: shortFeeCharge, amount: '100.000000' })],
+    network: NETWORK,
+    chainId: CHAIN_ID,
+    feeLookup: feeLegs(oneUnitShort),
+  });
+
+  const shortFeeRow = await prisma.charge.findFirst({ where: { publicId: shortFeeCharge.id } });
+  checkEq('a fee one base unit short is recorded uncollected', shortFeeRow?.feeCollected, false);
+  checkEq('and says the leg was short', shortFeeRow?.feeUncollectedReason, 'fee-short');
+  checkEq('while the charge is paid anyway', shortFeeRow?.status, 'paid');
+
+  // In a mode where the fee rides inside the transfer to the RECIPIENT, Seti
+  // collects nothing and nothing may say otherwise — proven through the same path.
+  const insideCharge = await signedCharge();
+  await post('/public/charges', { ...insideCharge });
+  await matchChargeTransfers({
+    transfers: [transferFor({ charge: insideCharge, amount: '100.000000' })],
+    network: NETWORK,
+    chainId: CHAIN_ID,
+    feeRouting: 'inside-transfer',
+    feeLookup: feeLegs(feeAmount),
+  });
+  const insideRow = await prisma.charge.findFirst({ where: { publicId: insideCharge.id } });
+  checkEq('inside-transfer mode is never recorded as collected', insideRow?.feeCollected, false);
+  checkEq('and names where the fee went', insideRow?.feeUncollectedReason, 'fee-inside-transfer');
+  checkEq('with the charge still paid', insideRow?.status, 'paid');
 
   // -------------------------------------------------------------------------
   // 7. Underpaid — 2% short is never announced as paid

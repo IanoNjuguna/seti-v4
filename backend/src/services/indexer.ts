@@ -1,19 +1,23 @@
-import { parseAbiItem, type Hex } from 'viem';
+import { parseAbiItem, type Hex, type TransactionReceipt } from 'viem';
 import { prisma } from '../lib/prisma.js';
 import { env } from '../config/env.js';
+import { treasuryAddressFor } from '../config/networks.js';
 import {
   publicClient,
   network,
   servedNetwork,
   contractsFor,
+  getTokenContract,
   PRIMARY_ASSET,
   type SupportedAsset,
   assetDecimals,
 } from './chain.js';
 import {
+  feeLegsFromReceipt,
   memoFromBytes32,
   matchChargeTransfers,
   sweepExpiredCharges,
+  type ChargeFeeLookup,
   type ChargeTransferCandidate,
 } from './charge-match.js';
 import { distinctPendingRecipients, unitsToAmount } from './charge-store.js';
@@ -335,10 +339,45 @@ async function scanWindow(window: BlockWindow): Promise<void> {
   // Whatever the pass saw, the classifier decides — once, in one place. Nothing here
   // knows what "paid" means.
   if (chargeTransfers.length > 0) {
+    /**
+     * The fee leg, read from the SAME receipt the principal was in.
+     *
+     * A batch is one transaction with two transfers, so the treasury leg is not a
+     * separate thing to index — it is a log in a receipt this pass already knows the
+     * hash of. One read per transaction, cached for the pass, and a failed read is
+     * an empty list rather than an exception: the fee fact fails CLOSED (uncollected)
+     * and the payment is still recorded, which is the direction this whole change
+     * insists on.
+     *
+     * `getTokenContract` is per asset because a charge names one token and a batch
+     * moves that token; a Transfer log is only a transfer if it came from the
+     * contract the charge names.
+     */
+    const receipts = new Map<string, Promise<TransactionReceipt>>();
+    const feeLookup: ChargeFeeLookup = ({ txHash, asset }) => {
+      const key = txHash.toLowerCase();
+      let receipt = receipts.get(key);
+      if (!receipt) {
+        receipt = publicClient.getTransactionReceipt({ hash: txHash as `0x${string}` });
+        receipts.set(key, receipt);
+      }
+
+      return receipt
+        .then((found) =>
+          feeLegsFromReceipt(found, {
+            token: getTokenContract(asset as SupportedAsset, SERVED_NETWORK),
+            treasury: treasuryAddressFor(SERVED_NETWORK),
+            asset,
+          })
+        )
+        .catch(() => []);
+    };
+
     const decided = await matchChargeTransfers({
       transfers: chargeTransfers,
       network: SERVED_NETWORK,
       chainId: network.chainId,
+      feeLookup,
     });
 
     for (const result of decided) {

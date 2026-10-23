@@ -27,20 +27,27 @@
  * not this charge's money, and the classifier refuses it by code
  * (`memo-missing-charge-id`).
  */
-import { hexToString, type Hex } from 'viem';
+import { decodeEventLog, erc20Abi, hexToString, type Hex, type TransactionReceipt } from 'viem';
 import type { Network } from '../lib/network.js';
+import { env } from '../config/env.js';
+import { treasuryAddressFor } from '../config/networks.js';
 import { logAuditEvent } from './audit.js';
 import {
   classifyCharge,
   nextChargeStatus,
+  type ChargeFeeInput,
+  type ChargeFeeOutcome,
   type ChargeStatus,
+  type ObservedFeeLeg,
   type ObservedTransfer,
 } from './charge.js';
+import { getMerchantFeeSchedule, type FeeRoutingMode, type MerchantFeeSchedule } from './fees.js';
 import {
   applyChargeTransition,
   findDueExpiries,
   findPendingCharges,
   toSignedCharge,
+  unitsToAmount,
 } from './charge-store.js';
 
 /** A transfer the indexer saw, with the asset label of the contract it came from. */
@@ -57,7 +64,78 @@ export interface ChargeMatchResult {
   status: ChargeStatus | null;
   /** The refusal code, when the classifier refused. For logs only. */
   code?: string;
+  /**
+   * The fee fact for a decided charge, when a decision was made.
+   *
+   * Reported beside the status rather than folded into it: a result can read
+   * `status: 'paid'` with `fee.collected: false`, and that pair is the whole point
+   * of the split. Omitted on a refusal, where nothing was decided.
+   */
+  fee?: ChargeFeeOutcome;
 }
+
+/**
+ * The fee legs a receipt carries: every Transfer to the treasury in `asset`.
+ *
+ * A batch is ONE transaction carrying the principal to the recipient and the fee to
+ * the treasury, so the receipt is the only place the fee can be observed — and the
+ * transfer to the treasury has no memo, no id and nothing else to match on, which
+ * is why it has to be read as a transfer rather than looked up as a payment.
+ *
+ * Decoding, not judging: whether these legs add up to the schedule's fee is
+ * `classifyFeeLeg`'s answer. This function's whole job is to make sure the sum
+ * cannot be fooled — hence the token contract filter (a Transfer log is emitted by
+ * the token contract, so a look-alike event from another contract is not a
+ * transfer), the case-insensitive `to` comparison, and the fixed 6-decimal text
+ * that every other charge amount uses.
+ *
+ * The TIP-20 memo variant emits an ordinary `Transfer` beside `TransferWithMemo`,
+ * so a fee sent with a memo is found here too. An undecodable log is skipped: it is
+ * not evidence of payment, and it must not crash a pass.
+ */
+export function feeLegsFromReceipt(
+  receipt: Pick<TransactionReceipt, 'logs'>,
+  input: { token: string; treasury: string; asset: string }
+): ObservedFeeLeg[] {
+  const token = input.token.toLowerCase();
+  const treasury = input.treasury.toLowerCase();
+
+  const legs: ObservedFeeLeg[] = [];
+
+  for (const log of receipt.logs) {
+    if (log.address.toLowerCase() !== token) continue;
+    try {
+      const decoded = decodeEventLog({ abi: erc20Abi, data: log.data, topics: log.topics });
+      if (decoded.eventName !== 'Transfer') continue;
+      if (String(decoded.args.to).toLowerCase() !== treasury) continue;
+
+      legs.push({
+        recipient: treasury,
+        asset: input.asset,
+        // Fixed 6-decimal text, the shape every charge amount uses (and the shape
+        // the classifier parses), rather than `formatUnits`'s `"2"`.
+        amount: unitsToAmount(decoded.args.value),
+      });
+    } catch {
+      // Not a Transfer we can read: not evidence of a fee, and never a crash.
+    }
+  }
+
+  return legs;
+}
+
+/**
+ * Reads the treasury legs of the transaction that carried a principal.
+ *
+ * Injected into {@link matchChargeTransfers} rather than implemented there, for the
+ * same reason `recipientHasCode` is injected into the classifier: the decision stays
+ * testable without a node, and the caller that HAS an RPC client is the one that
+ * pays for the read. The indexer reads the receipt once per transaction.
+ */
+export type ChargeFeeLookup = (input: {
+  txHash: string;
+  asset: string;
+}) => Promise<ObservedFeeLeg[]>;
 
 /**
  * The text of a TIP-20 32-byte memo.
@@ -98,10 +176,53 @@ export async function matchChargeTransfers(input: {
   network: Network;
   chainId: number;
   now?: Date;
+  /**
+   * Reads the treasury legs of the transaction that carried a principal.
+   *
+   * Omitted means "this caller cannot see the receipt", and the fee fact is then
+   * `fee-not-observed` — uncollected, on the fail-closed side. The indexer always
+   * passes one; a unit fixture that is about something else need not.
+   */
+  feeLookup?: ChargeFeeLookup;
+  /**
+   * How this deployment routes the 2%. Defaults to the live config, and a fixture
+   * can override it to prove the inside-transfer branch without changing process
+   * env.
+   */
+  feeRouting?: FeeRoutingMode;
+  /** The schedule the expectation is measured against. Defaults to the live one. */
+  feeSchedule?: MerchantFeeSchedule;
 }): Promise<ChargeMatchResult[]> {
   if (input.transfers.length === 0) return [];
 
   const now = input.now ?? new Date();
+
+  /**
+   * The fee leg's three constants, read once per pass rather than once per charge.
+   *
+   * `routing !== 'batch'` is normalised to `inside-transfer` deliberately: any value
+   * that is not the mode where the treasury receives the fee must not be treated as
+   * fee-collected, and defaulting an unknown value to `batch` would claim money the
+   * deployment is not collecting.
+   */
+  const feeRouting: FeeRoutingMode =
+    input.feeRouting ?? (env.FEE_ROUTING_MODE === 'batch' ? 'batch' : 'inside-transfer');
+  const feeTreasury = treasuryAddressFor(input.network);
+  const feeSchedule = input.feeSchedule ?? getMerchantFeeSchedule();
+
+  /** One receipt read per transaction, however many charges point at it. */
+  const feeLegsByTx = new Map<string, Promise<ObservedFeeLeg[]>>();
+  const feeLegsFor = (txHash: string, asset: string): Promise<ObservedFeeLeg[]> => {
+    if (!input.feeLookup) return Promise.resolve([]);
+    const key = txHash.toLowerCase();
+    const cached = feeLegsByTx.get(key);
+    if (cached) return cached;
+    // A failed read is an empty list, not a thrown pass: the fee fact must fail
+    // CLOSED (uncollected), and the payment must still be recorded.
+    const pending = input.feeLookup({ txHash, asset }).catch(() => []);
+    feeLegsByTx.set(key, pending);
+    return pending;
+  };
 
   const byAsset = new Map<string, Set<string>>();
   for (const transfer of input.transfers) {
@@ -144,11 +265,29 @@ export async function matchChargeTransfers(input: {
       // contract and is pinned by `check:charge`.
       if (!transfer.memo.includes(row.publicId)) continue;
 
+      /**
+       * The fee observation for THIS transaction.
+       *
+       * Built even when the caller passed no lookup, so the difference between
+       * "looked and found nothing" and "did not look" is carried by the classifier
+       * rather than guessed here. The treasury address and the routing mode are the
+       * deployment's, not the transfer's.
+       */
+      const fee: ChargeFeeInput | undefined = input.feeLookup
+        ? {
+            routing: feeRouting,
+            treasury: feeTreasury,
+            legs: await feeLegsFor(transfer.txHash, transfer.asset),
+            schedule: feeSchedule,
+          }
+        : undefined;
+
       const decision = await classifyCharge({
         charge: toSignedCharge(row),
         transfer,
         chainId: input.chainId,
         now,
+        fee,
       });
 
       if (!decision.ok) {
@@ -177,6 +316,7 @@ export async function matchChargeTransfers(input: {
         to: next,
         txHash: transfer.txHash,
         received: transfer.amount,
+        fee: { collected: decision.fee.collected, reason: decision.fee.reason },
         now,
       });
 
@@ -185,7 +325,25 @@ export async function matchChargeTransfers(input: {
       // webhooked; the winner already did both.
       if (!applied) continue;
 
-      results.push({ chargeId: row.publicId, txHash: transfer.txHash, status: next });
+      results.push({ chargeId: row.publicId, txHash: transfer.txHash, status: next, fee: decision.fee });
+
+      // A paid charge whose fee did not arrive is the exact thing this pass exists
+      // to SURFACE. It is not an error — the payment is real — so it is a warning
+      // with the reason code, never a refusal and never silence.
+      if (!decision.fee.collected) {
+        const expected =
+          decision.fee.expectedUnits === null
+            ? 'not measured'
+            : `${decision.fee.expectedUnits} units`;
+        const observed =
+          decision.fee.observedUnits === null
+            ? 'nothing at the treasury'
+            : `${decision.fee.observedUnits} units`;
+        console.warn(
+          `[charges] ${row.publicId} is ${next} with the fee uncollected ` +
+            `(${decision.fee.reason}): expected ${expected}, saw ${observed} (${transfer.txHash})`
+        );
+      }
 
       await logAuditEvent({
         action: 'charge.settled',
@@ -199,6 +357,13 @@ export async function matchChargeTransfers(input: {
           recipient: row.recipient,
           deltaUnits: decision.deltaUnits.toString(),
           toleranceUnits: decision.toleranceUnits.toString(),
+          // The fee leg as its own audit fact, with the arithmetic that decided it,
+          // so a ledger question can be answered after the fact without a fresh
+          // chain read.
+          feeCollected: decision.fee.collected,
+          feeUncollectedReason: decision.fee.reason,
+          feeExpectedUnits: decision.fee.expectedUnits?.toString() ?? null,
+          feeObservedUnits: decision.fee.observedUnits?.toString() ?? null,
         },
       });
     }
