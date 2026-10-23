@@ -455,6 +455,11 @@ with `NEXT_PUBLIC_TEMPO_CHAIN_ID` and the API reads `TEMPO_CHAIN_ID` from
 other fails every payment's verification. Compare `chainId` here against the
 client's build value; they must be equal. See `docs/internal/ci.md` §2.
 
+The pipeline checks this for you: the `backend` job compares the `chainId` from the
+container it just started with `NEXT_PUBLIC_TEMPO_CHAIN_ID` for the same commit and
+fails the deploy on a disagreement (#201). A box edited by hand outside a deploy is
+the case that is still nobody's automatic job.
+
 ```bash
 curl http://127.0.0.1:4000/health
 # {"status":"ok","service":"seti-api","version":"0.1.0","network":"mainnet","chainId":4217,"networkLabel":"Live"}

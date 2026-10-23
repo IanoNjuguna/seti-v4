@@ -227,6 +227,10 @@ jobs:
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           IMAGE_TAG: ${{ steps.image.outputs.tag }}
+          # The chain the Worker for THIS commit is built with. The deploy compares
+          # it with the chain the API on the box reports, and fails on a mismatch
+          # (#201): two settings in two places, and nothing else compares them.
+          EXPECTED_CHAIN_ID: ${{ vars.NEXT_PUBLIC_TEMPO_CHAIN_ID }}
         run: |
           set -euo pipefail
 
@@ -236,7 +240,10 @@ jobs:
           # ghcr.io/<owner>/seti-api:<commit-sha>.
           set -euo pipefail
 
-          IMAGE_REF="${1:?usage: deploy-api.sh <image-ref>}"
+          IMAGE_REF="${1:?usage: deploy-api.sh <image-ref> <expected-chain-id>}"
+          # The chain the client for this commit was built for, passed as an
+          # argument because a workflow env var does not travel over ssh.
+          EXPECTED_CHAIN_ID="${2:-}"
           CONTAINER=seti-api
           NETWORK=seti-net
           ENV_FILE=/home/ubuntu/seti/.env.production
@@ -340,25 +347,47 @@ jobs:
           fi
 
           # ---------------------------------------------------------------------
-          # 5. Liveness. /health touches nothing (it answers even with the
-          #    database down), so this proves the process booted and is listening,
-          #    not that payments work. /health/sweep is the readiness probe.
+          # 5. Liveness, then CHAIN COHERENCE. /health touches nothing (it answers
+          #    even with the database down), so this proves the process booted and
+          #    is listening, not that payments work. /health/sweep is the readiness
+          #    probe.
+          #
+          #    The second half is the one this pipeline was missing: the API's chain
+          #    and the client's build-time chain are two settings in two places, and
+          #    a mismatch fails the verification of every payment while both deploys
+          #    report success. It reads the RUNNING container, so it reports what is
+          #    actually serving (#201).
           # ---------------------------------------------------------------------
+          HEALTH_BODY=""
           for attempt in $(seq 1 "$HEALTH_TRIES"); do
-            if curl -fsS --max-time 3 "$HEALTH_URL" >/dev/null 2>&1; then
-              echo "==> healthy after ${attempt} attempt(s): $(curl -fsS --max-time 3 "$HEALTH_URL")"
-              exit 0
+            if HEALTH_BODY="$(curl -fsS --max-time 3 "$HEALTH_URL" 2>/dev/null)"; then
+              echo "==> healthy after ${attempt} attempt(s): $HEALTH_BODY"
+              break
             fi
             echo "    waiting for $HEALTH_URL (${attempt}/${HEALTH_TRIES})"
             sleep "$HEALTH_SLEEP"
           done
 
-          echo "::error::$CONTAINER did not answer $HEALTH_URL within $((HEALTH_TRIES * HEALTH_SLEEP))s. The NEW container is left running for inspection; the previous version is gone. See the last 100 log lines above."
-          docker logs --tail 100 "$CONTAINER" || true
-          exit 1
+          if [ -z "$HEALTH_BODY" ]; then
+            echo "::error::$CONTAINER did not answer $HEALTH_URL within $((HEALTH_TRIES * HEALTH_SLEEP))s. The NEW container is left running for inspection; the previous version is gone. See the last 100 log lines above."
+            docker logs --tail 100 "$CONTAINER" || true
+            exit 1
+          fi
+
+          # A deployment that cannot take a payment is not a successful deploy, so this
+          # fails here rather than on the first customer. `set -e` turns the refusal
+          # into the job's failure; the function has already said why.
+          assert_chain_coherence "$HEALTH_URL" "$EXPECTED_CHAIN_ID"
           REMOTE
 
           chmod +x "$RUNNER_TEMP/deploy-api.sh"
+
+          # The chain gate is CONCATENATED onto the remote script rather than
+          # reimplemented inside it, so the box runs one file and the logic has
+          # exactly one copy in the repo — the copy `check:deploy-chain` proves.
+          cat "${GITHUB_WORKSPACE}/scripts/deploy-chain-gate.sh" "$RUNNER_TEMP/deploy-api.sh" \
+            > "$RUNNER_TEMP/deploy-api-with-gate.sh"
+          chmod +x "$RUNNER_TEMP/deploy-api-with-gate.sh"
 
           ssh -i "$HOME/.ssh/deploy_key" \
             -o IdentitiesOnly=yes \
@@ -367,7 +396,7 @@ jobs:
             -o ConnectTimeout=15 \
             -o ServerAliveInterval=15 \
             "ubuntu@${DEPLOY_HOST}" \
-            'bash -s' -- "$IMAGE_TAG" < "$RUNNER_TEMP/deploy-api.sh"
+            'bash -s' -- "$IMAGE_TAG" "$EXPECTED_CHAIN_ID" < "$RUNNER_TEMP/deploy-api-with-gate.sh"
 
       - name: What is running now
         if: always()
