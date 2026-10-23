@@ -1,116 +1,69 @@
-import { HeroCopy } from './HeroCopy';
+import { HeroActions } from './HeroActions';
+import { HeroHeadline } from './HeroHeadline';
 import { HeroPaymentQr } from './HeroPaymentQr';
+import type { AudienceProps } from './Audience.types';
 
 /**
- * The hero: the page's identity, and the owner's own half.
+ * The hero: three columns on one bottom line, the page's own object in the middle.
  *
- * TWO HALVES, SEVEN/FIVE — the split the other bands use and the one the owner
- * asked to keep. (It was briefly narrowed to put the copy on a grid third; he
- * corrected that, and the correction is worth keeping: the horizontal proportions
- * were never the problem.)
+ * THE COMPOSITION IS THE REFERENCE'S, measured rather than guessed. cash.app's
+ * hero at 1440x900 is a promise in the left third (448px), a product object dead
+ * centre (437px) that is TALLER than the copy and so rises past it, and the
+ * sentence plus its one pill in the right third (331px). Their bottom edges land
+ * within 30px of each other, which is what makes the band read as one object
+ * instead of three blocks at three heights. That is `md:items-end` here: the grid
+ * aligns every column to the same bottom edge, the QR column is the tallest, and
+ * the two text columns sit at its foot.
  *
- * EACH HALF IS A GROUP CENTRED ON ITS COLUMN'S MIDDLE, not content distributed
- * across it. `md:content-center` is the whole of the distribution change: the
- * grid's rows stay at their own content and the column's slack is split above and
- * below the group. The half used to carry `md:content-between`, which fills a
- * column by pushing the headline to its top, the lede to its middle and the
- * buttons to its bottom and leaves the leftover height sitting in the two gaps —
- * measured at 1280x720 that was 128.7px of nothing under the headline and the same
- * again under the lede, where the two steps now measure 24px and 32px. That is the
- * "spread out" the owner saw. Distribution spends the column; a centred group
- * keeps it.
+ * THE GROUP IS CENTRED IN THE BAND, NOT PINNED TO ITS BOTTOM, and that is measured
+ * rather than chosen. The reference's hero content sits in the middle two thirds of
+ * its 900px band (promise from y 484, block from 174 to 770) rather than resting on
+ * the fold. A group pinned to the bottom of a full-height band leaves an empty top
+ * third here, because this page's object is a 380px QR plate and not a 720px phone
+ * that bleeds off both edges of the band. So `justify-center` splits the leftover
+ * height above and below the group; bottom alignment spent all of it at the top.
  *
- * THE MIDDLE THIRD IS AN ANCHOR, NOT A CAGE. The owner's constraint is explicit:
- * the group may reach up into the first third and down into the last. Nothing here
- * caps its height to fit the middle band — at 1280x720 the group's ink is 243.6px
- * inside a 396.6px column, so it begins 76.3px down and ends 76.7px short, its
- * headline crossing into the upper third while its buttons sit into the lower one.
- * That overlap is the composition; a group squeezed into the middle third would
- * read cramped.
+ * WHAT THIS REPLACED. The band was two halves, seven/five, copy left and the code
+ * right, with the copy centred on its column's middle and the code centred on its
+ * own. Both halves carried long arguments in this file's history about optical
+ * centres agreeing to 0.2px, and the result was still a document: a headline and a
+ * picture facing each other across a gutter. Putting the object in the middle is
+ * what gives the band a focal point and makes the hero show the product instead of
+ * describing it.
  *
- * THE STEPS INSIDE THE GROUP ARE THE PAGE'S OWN, and there are two of them:
- * `mt-6` (24px, `{spacing.xl}`) under the headline and `mt-8` (32px,
- * `{spacing.xxl}`) above the buttons — the margins this stack already carried on
- * mobile, with their `md:mt-0` overrides removed so the ladder, and not the column,
- * decides the gaps. Headline and lede are one thought on the closer step; the
- * actions are a different object and take the wider one. Taken from the scale, a
- * step is the same number at every viewport, which is the point: a gap taken from
- * leftover height is a different gap on every screen. (The group's third number is
- * the h1's own leading trim, `-mt-[0.132em]` — measured rather than chosen; see
- * `HeroCopy`.)
+ * ORDER ON A PHONE IS NOT THE DESKTOP ORDER. In the DOM the promise is first, the
+ * sentence and its action second, and the code last, so a phone reader gets the
+ * words, then something to do, then the thing itself. `md:order-*` puts the code
+ * back in the middle on a wide screen, where there is room for three columns.
  *
- * BOTH HALVES SIT ON ONE HORIZONTAL AXIS. The right half — plate, caption, and the
- * link with its warning — is the taller of the two and sets the band's height
- * (396.6px measured at both widths); the left group is the shorter one and is
- * centred inside that height, and the right half is centred on the same line rather
- * than spread. Measured, the left group's optical centre — the headline's cap down
- * to the buttons' lower edge — lands at 375.8 against a column middle of 376.0 at
- * 1280x720, and at 381.0 against 381.0 at 1360x730, while the right half's centre
- * sits at 376.0 and 381.0. The two centres therefore agree to 0.2px, and the halves
- * read as one composition instead of one tall side and one short side.
+ * `grid-cols-1` on the phone is load-bearing rather than tidy: without it the
+ * single implicit column is `auto`, which sizes to an item's MIN-CONTENT, and the
+ * printed URL under the code (one unbreakable string) would push the page past the
+ * viewport at 360px. An explicit `minmax(0, 1fr)` track caps it.
  *
- * The h1's trim is what puts the OPTICAL centre on that line instead of 8.5px
- * above it. It takes the line box's leading off the top of the group — 16.9px at
- * the 128px headline, where the measured ink offset is 16.5px — and the em keeps it
- * proportional at every width the `clamp()` picks. The group's own box (leading
- * included) centres at 367.5 at both widths, and the 8.5px between the two readings
- * is exactly the trim's half: the cap marks the group's top visually, so the cap is
- * what belongs on the line. (It is also why the plate's ±2.7px float moves the
- * right half's box centre by only ±1.4px: the float is on the plate.)
- *
- * THE BAND IS SHORTER THAN IT WAS, and that is the right half's doing rather than
- * the centring's: the caption under the plate lost a line (`HeroPaymentQr`), so the
- * taller half needs 396.6px where it needed 444.6px, and the taller half is what
- * the band's height is. Centring decides only where the shorter half sits inside
- * it, and it never inflates a column to fill space — the left group is still
- * exactly its own content.
- *
- * THE ROWS ARE `auto`, WITH `align-content` DOING THE ANCHORING. This is
- * load-bearing and was measured, not guessed. A `1fr` track under an indefinite
- * container height — which is what any of these columns is, since its height comes
- * from its content — resolves every track to the LARGEST track's content:
- * `repeat(3, minmax(min-content, 1fr))` over a 262px plate made all three bands
- * 262px, so the right half stood 834px tall and the hero 1058px, a screen and a half
- * of clipped hero. `auto` rows stay at their content, so nothing inflates and
- * nothing floats: the column's height is still exactly what its content needs.
- * `md:items-stretch` is what makes the two halves one height, so the shorter half's
- * slack is real slack to centre inside rather than a column that simply ends early.
- *
- * Measured in the browser at 1280x720 and 1360x730, motion frozen: each half is
- * 396.6px tall, and the hero's own box is the viewport's height (720 / 730) because
- * the band is a viewport-tall box with its content centred in it. The last line —
- * the warning under the link — ends at 574.3px at 720 and 579.3px at 730: 81.7px
- * and 86.7px above the 656px and 666px folds under the 64px nav, so centring moved
- * the content away from the fold rather than past it. The same two lines were
- * 598.3px and 603.3px (57.7px and 62.7px above those folds) before.
- *
- * `grid-cols-1` is load-bearing, not tidiness: without it the single implicit
- * column is `auto`, which sizes to an item's MIN-CONTENT and lets a wide row (a
- * payment row with a name and a figure that neither may truncate) push the page
- * past the viewport at 360px. An explicit `minmax(0, 1fr)` track caps it. The same
- * applies to the band below, which carries the same fix.
- *
- * The hero used to have an owner-supplied image in the right half. It became a QR
- * of the treasury address, and then — the owner's final call — a QR of a merchant's
- * payment page: the code should open something real, and a treasury code invites
- * strangers to push funds at Seti's fee wallet, while this one opens the thing the
- * product actually does. (The treasury surface that code belonged to has since been
- * deleted from the page entirely, and the owner's original banner image has gone
- * with it: nothing on the page renders an image any more, so it was removed from
- * `public/` rather than left there looking like part of the page.)
- *
- * No size was touched to fill space: the type, the copy, the code and the
- * seven/five split are what they were.
+ * The three columns are 5/4/3 of twelve, not thirds. The promise and the sentence
+ * are not the same object and should not be the same width; the code gets the
+ * middle four, which at `max-w-6xl` is 347px, 85px more than the 262px plate it
+ * holds, so the plate has air on both sides and the caption's ragged right does
+ * not touch it.
  */
-export function HeroSection() {
+export function HeroSection({ audience }: AudienceProps) {
   return (
     <section id="hero" className="relative z-10">
-      <div className="mx-auto flex min-h-svh max-w-6xl flex-col justify-center px-6 pb-20 pt-28 md:min-h-screen md:pb-24 md:pt-32">
-        <div className="grid grid-cols-1 gap-12 md:grid-cols-12 md:items-stretch md:gap-8">
-          <div className="md:col-span-7 md:grid md:content-center">
-            <HeroCopy />
-          </div>
+      <div className="mx-auto flex min-h-svh max-w-6xl flex-col justify-center px-6 pb-16 pt-28 md:pb-20 md:pt-32">
+        <div className="grid grid-cols-1 gap-12 md:grid-cols-12 md:items-end md:gap-8">
           <div className="md:col-span-5">
+            <HeroHeadline audience={audience} />
+          </div>
+
+          {/* The actions come SECOND in the DOM, so a phone reads the promise and
+              then something to do; `md:order-3` puts them back on the right of the
+              three columns on a wide screen, where the code takes the middle. */}
+          <div className="md:order-3 md:col-span-3">
+            <HeroActions audience={audience} />
+          </div>
+
+          <div className="md:order-2 md:col-span-4">
             <HeroPaymentQr />
           </div>
         </div>
