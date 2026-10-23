@@ -32,6 +32,23 @@ export function getMerchantFeeSchedule(): MerchantFeeSchedule {
   };
 }
 
+/**
+ * How the 2% is COLLECTED — and the reason the difference matters to a receipt.
+ *
+ * - `batch` (the default): one atomic Tempo transaction carries two transfers,
+ *   the principal to the recipient and the fee to `SETI_TREASURY_ADDRESS`. Seti
+ *   receives the fee, so "was it collected" is a question the receipt can answer.
+ * - `inside-transfer`: the fee rides INSIDE the single transfer to the recipient.
+ *   The money is real and the recipient receives it — but it is paid TO THE
+ *   RECIPIENT, so Seti collects nothing. Nothing in that mode may ever be
+ *   reported as a collected fee, which is also why a send to a person is refused
+ *   while the server is in it (`payments.ts`).
+ *
+ * Declared here, beside the schedule, because "2%" and "how it is collected" are
+ * the same commercial fact. `env.FEE_ROUTING_MODE` is validated against it.
+ */
+export type FeeRoutingMode = 'batch' | 'inside-transfer';
+
 export interface MerchantFeeResult {
   /** Fee actually charged, in KES. */
   feeFiat: number;
@@ -186,6 +203,61 @@ function solveWithFloorOrCap(
     principalFiat,
     feeFiat: Math.round((total - principalFiat) * 100) / 100,
   };
+}
+
+/**
+ * The merchant fee expressed in TOKEN base units — the figure a payer actually
+ * signs, and therefore the only one a receipt can be held to.
+ *
+ * `calculateMerchantFee` answers in fiat, which is the label the customer reads.
+ * The charge path knows nothing but a token amount: a charge is
+ * `100.000000 ousd` with a signature over token units, no rate and no KES figure
+ * on it. So the expectation for the fee LEG of a batch has to be derivable from
+ * the token amount and the schedule alone, and it is:
+ *
+ *     feeUnits = amountUnits * percent / 100
+ *
+ * Integer arithmetic, floored, never a float. Two reasons for each:
+ *
+ *  - **Integers**, because the comparison this feeds is
+ *    `observedFeeUnits >= expectedFeeUnits` and a float fee of
+ *    `1.9999999999999998` would turn a correctly paid fee into an accusation.
+ *  - **Floored**, because a fraction of a base unit cannot be transferred. A
+ *    payer's client truncating the same way produces the SAME number, so an exact
+ *    payment matches exactly; and flooring keeps the expectation from ever
+ *    exceeding what an exactly-computed fee could deliver, so Seti never reports
+ *    a shortfall it invented.
+ *
+ * The percentage is taken to two decimal places (basis points) so
+ * `MERCHANT_FEE_PERCENT=2.5` stays exact. A percentage finer than that is rounded
+ * to the nearest basis point once, here, rather than differently in two places.
+ *
+ * A schedule with a FLOOR or a CAP cannot be answered in token units at all: both
+ * are fiat figures (`minKes`, and a cap as a share of the fiat amount), and
+ * converting them needs a rate this module does not have and must not invent.
+ * That is a refusal (`fee-schedule-not-units`), never a guess — with the shipped
+ * defaults both are 0, so the flat percentage is the whole schedule.
+ */
+export type MerchantFeeUnitsResult =
+  | { ok: true; units: bigint }
+  | { ok: false; reason: 'fee-schedule-not-units' };
+
+export function merchantFeeUnits(
+  amountUnits: bigint,
+  schedule: MerchantFeeSchedule = getMerchantFeeSchedule()
+): MerchantFeeUnitsResult {
+  if (amountUnits <= 0n) return { ok: true, units: 0n };
+
+  // A floor or a cap is denominated in fiat. Refuse rather than understate the
+  // fee a deployment thinks it collects.
+  if (schedule.minKes > 0 || schedule.maxPercent > 0) {
+    return { ok: false, reason: 'fee-schedule-not-units' };
+  }
+
+  if (!Number.isFinite(schedule.percent) || schedule.percent <= 0) return { ok: true, units: 0n };
+
+  const basisPoints = BigInt(Math.round(schedule.percent * 100));
+  return { ok: true, units: (amountUnits * basisPoints) / 10_000n };
 }
 
 /**

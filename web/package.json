@@ -15,6 +15,7 @@
     "check:profile-mark": "tsx scripts/check-profile-mark.mjs",
     "check:tabs": "tsx scripts/check-tabs.mjs",
     "check:pay-charge": "tsx scripts/check-pay-charge.mjs",
+    "check:pay-states": "tsx scripts/check-pay-states.mjs",
     "check:activity-bands": "tsx scripts/check-activity-bands.mjs",
     "check:activity-retry": "tsx scripts/check-activity-retry.mjs",
     "check:home-summary": "tsx scripts/check-home-summary.mjs",

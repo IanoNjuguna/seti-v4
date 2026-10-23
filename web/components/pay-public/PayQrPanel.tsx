@@ -1,6 +1,7 @@
 import { Text } from '@/components/ui';
 import { QrPlate } from '@/components/qr/QrPlate';
-import { PAY_COPY } from './PayPublic.constants';
+import { cn } from '@/lib/cn';
+import { PAY_COPY, PAY_LINK_CLASS } from './PayPublic.constants';
 import type { PayQrPanelProps } from './PayPublic.types';
 
 /**
@@ -16,8 +17,11 @@ import type { PayQrPanelProps } from './PayPublic.types';
  * JS-disabled browser receives, which is what makes the claim "the code carries the
  * charge" checkable from the served HTML instead of from a live browser.
  *
- * The URI is repeated as text: a payer on a laptop reading a code on the same screen
- * cannot scan it, and "open this in Seti" is instruction they can follow by hand.
+ * The payload is also an ANCHOR (#153). A phone that has a wallet understands
+ * `seti://pay/<id>` and hands it straight over; a laptop cannot scan a code on its own
+ * screen, and a link is instruction it can follow. The same string stays visible as
+ * text for anyone who has to type it, and it works with JavaScript off because it is
+ * an anchor, not a button.
  */
 export function PayQrPanel({ uri, title }: PayQrPanelProps) {
   return (
@@ -28,9 +32,14 @@ export function PayQrPanel({ uri, title }: PayQrPanelProps) {
 
       <QrPlate value={uri} title={title} className="mx-auto border border-hairline-light" />
 
-      <Text variant="micro" as="p" className="break-all font-mono">
-        {PAY_COPY.uriCaption}: {uri}
-      </Text>
+      <div className="space-y-1">
+        <Text variant="micro" as="p">
+          {PAY_COPY.uriCaption}
+        </Text>
+        <a href={uri} className={cn(PAY_LINK_CLASS, 'break-all font-mono')}>
+          {uri}
+        </a>
+      </div>
     </div>
   );
 }
