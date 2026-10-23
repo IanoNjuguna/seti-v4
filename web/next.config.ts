@@ -10,24 +10,27 @@ const nextConfig: NextConfig = {
      usable from both. */
   allowedDevOrigins: ["127.0.0.1", "192.168.0.101"],
 
-  /* `/app/deposit` → the by-address half of Receive.
+  /* `/app/deposit` → Receive.
    *
    * A config redirect rather than `redirect()` inside a page, and that is the
    * measured difference: a page-level `redirect()` in a route Next prerenders is
    * carried in the payload for the CLIENT to perform, so the request answers 200
    * with the app's loading shell and the navigation happens once JavaScript
    * arrives — a scanner following a sticker, a crawler or a link unfurler gets a
-   * 200 and no address. This answers 307 from the server, before any render.
+   * 200 and nothing else. This answers 307 from the server, before any render.
    *
    * The path is not free to disappear: it is on stickers, in bookmarks and in the
-   * app's own older links, and a 404 for a receive address is a person who cannot
-   * be paid. It lands on the ADDRESS half rather than the top of the page, because
-   * that is what the path always meant. */
+   * app's own older links, and a 404 where a person was trying to be paid is a
+   * customer with nowhere to go. It used to land on `?view=address`, the half that
+   * IS gone; landing on the page itself is now the only honest destination. The
+   * query is deliberately absent rather than `?view=address`: a dead value would
+   * resolve to the default view anyway, and a redirect that names a view the page
+   * no longer has is a redirect that lies about where it goes. */
   async redirects() {
     return [
       {
         source: "/app/deposit",
-        destination: "/app/receive?view=address",
+        destination: "/app/receive",
         permanent: false,
       },
     ];

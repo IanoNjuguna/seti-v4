@@ -1,63 +1,101 @@
 'use client';
 
-import { Button, Text } from '@/components/ui';
+import { Button, IconButton, Text } from '@/components/ui';
+import { useCopyLink } from '@/components/app/useCopyLink';
 import { RECEIVE_COPY } from './receive.constants';
 import { useShareLink } from './useShareLink';
+import type { ShareState } from './useShareLink.types';
 import type { ReceiveHalfProps } from './ReceiveHalf.types';
 
+/** What the share control is telling the reader, after it was pressed. */
+function shareLabel(state: ShareState): string {
+  if (state === 'shared') return RECEIVE_COPY.shared;
+  if (state === 'copied') return RECEIVE_COPY.sharedByCopy;
+  return RECEIVE_COPY.share;
+}
+
 /**
- * One receive half, top to bottom, on ONE axis: the code, the name, the field, then the
- * actions.
+ * One receive half, top to bottom, on ONE axis: the code, the name it stands for, then
+ * the controls that hand it out.
  *
- * Everything is left-aligned, the plate included. That is the change of shape: the old
- * halves centred a plate and then left-aligned the text beside it, so at 360px the eye
- * had no edge to follow and two strings read as a wall next to a square. A document
- * reads down one edge; so does this.
+ * THE AXIS IS THE CENTRE, and that is a reversal with a reason. This half used to be
+ * left-aligned on the argument that "a centred plate above left-aligned text is two
+ * edges". That was true of what it held then: a bordered field wrapping 42 characters
+ * of address was paragraph-shaped with a real left edge, and a note under it was a
+ * second line of prose, so centring the plate above them did leave the eye without an
+ * edge to follow.
  *
- * The order is the order a person needs it in: scan it, say who it is, hand over the
- * string, send it onward or save the code. The note under the field belongs to the
- * FIELD (it says what else a sender can do with that account), which is why it arrives
- * already assembled rather than being drawn here.
+ * The field and the note are gone. What is left is three stacked things of comparable
+ * width — a 288px code, one line of display type, one row of controls — and no prose.
+ * A centred stack has exactly one edge (the centre) and reads as one object to show
+ * someone, which is what this page is for. A left-aligned 288px square inside the app's
+ * 768px desktop column leaves half the column empty to its right and reads as an
+ * unfinished form. Both readings were checked in a render at 390x844 and at 1440x900.
+ *
+ * The order is the order a person needs it in: scan it, say who it is, hand it over or
+ * save it. The copy control sits AT the name it copies rather than in a column of its
+ * own, so the two read as one thing; share and save sit under both, because they act on
+ * the half rather than on the string.
+ *
+ * Share and save are `ghost` buttons rather than filled pills because of what they pair
+ * with (see `QrDownloadControl`): matching one control's recipe is worth more than two
+ * mismatched ones, and the code stays the only object on the page.
  */
-export function ReceiveHalf({ plate, title, monoTitle = false, field, share, download }: ReceiveHalfProps) {
-  const { state, share: shareNow } = useShareLink(share?.title ?? '', share?.url ?? '');
+export function ReceiveHalf({ plate, headline, copy, share, download }: ReceiveHalfProps) {
+  const copyState = useCopyLink(copy?.value ?? '');
+  const shareLink = useShareLink(share?.title ?? '', share?.url ?? '');
+  const copied = copyState.state === 'copied';
 
   return (
-    <div className="flex w-full flex-col items-start gap-4">
+    <div className="flex w-full flex-col items-center gap-4">
       {plate}
 
-      {title ? (
-        <Text
-          variant="card-title"
-          as="p"
-          className={monoTitle ? 'break-all font-mono' : 'break-words'}
-        >
-          {title}
+      <div className="flex max-w-full items-center justify-center gap-1">
+        <Text variant="display" as="p" className="min-w-0 break-words">
+          {headline}
         </Text>
-      ) : null}
-
-      {field}
+        {copy ? (
+          <IconButton
+            name={copied ? 'check' : 'copy'}
+            tone={copied ? 'confirmed' : 'default'}
+            label={copy.label}
+            onClick={copyState.copy}
+          />
+        ) : null}
+      </div>
 
       {share || download ? (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
           {share ? (
-            <Button variant="ghost" onClick={shareNow}>
-              {state === 'shared'
-                ? RECEIVE_COPY.shared
-                : state === 'copied'
-                  ? RECEIVE_COPY.sharedByCopy
-                  : RECEIVE_COPY.share}
+            <Button variant="ghost" onClick={shareLink.share}>
+              {shareLabel(shareLink.state)}
             </Button>
           ) : null}
           {download}
         </div>
       ) : null}
 
-      {state === 'failed' ? (
+      {copyState.state === 'failed' ? (
+        <Text variant="micro" as="p" color="alert">
+          {RECEIVE_COPY.copyFailed}
+        </Text>
+      ) : null}
+
+      {shareLink.state === 'failed' ? (
         <Text variant="micro" as="p" color="alert">
           {RECEIVE_COPY.shareFailed}
         </Text>
       ) : null}
+
+      <Text
+        variant="micro"
+        as="p"
+        color="success"
+        role="status"
+        className={copied ? undefined : 'sr-only'}
+      >
+        {copied ? copy?.confirmed ?? '' : ''}
+      </Text>
     </div>
   );
 }

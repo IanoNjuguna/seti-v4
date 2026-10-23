@@ -1,43 +1,52 @@
 /**
  * Every word the receive halves render.
  *
- * Three receive affordances sit under one switch on `/app/receive`, and that is a
- * real hazard: a username link and an address code look alike and mean different
- * things. The PAGE carries the framing now — its title, the switch's labels
- * (`ReceivePage.constants.ts`) and the lead sentence above whichever half is
- * showing — while the halves carry only the objects: the code, the name, the link.
- * Nothing here explains the surface, because the surface explains itself one level
- * up.
+ * The page carried three codes under one switch, and that was a real hazard: a
+ * username link and an address code look alike and mean different things. The link
+ * row is gone now, and with it the two sentences that only existed to explain it —
+ * "A Seti account can also type @handle" had no work to do once the handle was the
+ * thing on screen. What is left is one string per half and the four controls around
+ * it: copy, share, save, and the failure line each of them owes.
  *
- * The controls' words are the customers': "Copy username" copies the bare name a
- * sender types (no `@`), "Copy link" copies the absolute URL.
+ * The PAGE still carries the framing (its title, the lead sentence, the switch's
+ * labels, all in `ReceivePage.constants.ts`). Nothing here explains the surface,
+ * because the surface explains itself one level up.
+ *
+ * The control's word is the customer's: "Copy your username" copies the bare name a
+ * sender types, with no `@` — the `@` is how the name is drawn, not part of it.
  *
  * Never "testnet"/"mainnet" (the database's words) and never a token name (which
- * asset a sender picks is theirs to choose): a person's username is the same name
- * on both networks, so the link works whoever sends it and whenever.
+ * asset a sender picks is theirs to choose): a person's username is the same name on
+ * both networks, so it works whoever sends it and whenever.
  */
 export const RECEIVE_COPY = {
-  /** The caption over the one field: what the string underneath is. */
-  linkLabel: 'Your Seti link',
-  /** The control inside the field copies the absolute URL. */
-  copyLink: 'Copy link',
-  /** What a sender can do INSTEAD of the link: type the name they were given. */
-  nameNote: (handle: string) => `A Seti account can also type @${handle} to pay you.`,
-  /** The same, for a business: a customer reads the name off the counter. */
-  merchantNote: (handle: string) => `A customer can also type ${handle} at the counter.`,
+  /** The round control's accessible name. The glyph alone announces nothing. */
+  copyLabel: 'Copy your username',
+  /** The announcement once the handle is on the clipboard. */
+  copyConfirmed: 'Username copied.',
+  copyFailed: 'Could not copy. Select your username above and copy it.',
   share: 'Share',
   shared: 'Shared',
-  /** Where the OS sheet is absent and the clipboard took it instead. */
-  sharedByCopy: 'Link copied',
-  shareFailed: 'Could not share or copy. Select the link above.',
-  copiedAction: 'Copied',
-  copyFailed: 'Could not copy. Select the text and copy it by hand.',
-  /** The code's accessible name, and the SVG's own `<title>`. */
+  /**
+   * Where the OS sheet is absent and the clipboard took the shareable string
+   * instead. It said "Link copied", which named the thing this page no longer
+   * shows; what the person needs to know is that it is on the clipboard now.
+   */
+  sharedByCopy: 'Copied',
+  shareFailed: 'Could not share or copy. Select your username above and copy it.',
+  /**
+   * The code's accessible name, and the SVG's own `<title>`.
+   *
+   * It must say what scanning the code does, and it is not a description of the
+   * payload: the code encodes the resolvable link (`seti.live/u/<handle>`) so any
+   * phone camera opens the pay page, while the page itself shows the username. The
+   * payload is not the presentation, and naming the link here would put back the
+   * one string this change removed.
+   */
   qrTitle: (handle: string) =>
-    `Your Seti link for @${handle}, as a QR code another Seti account can scan.`,
-  /** The business half's code: same link shape, different reader — a customer. */
-  merchantQrTitle: (name: string) =>
-    `Your Seti business link for ${name}, as a QR code a customer can scan.`,
+    `Your username @${handle}, as a QR code another Seti account can scan.`,
+  /** The business half's code: same payload shape, a different reader — a customer. */
+  merchantQrTitle: (name: string) => `${name} at your counter, as a QR code a customer can scan.`,
   /**
    * Saving the code. The label says CODE rather than "image", because what the
    * customer does with it is print it onto something — a counter card, a menu, a
