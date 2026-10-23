@@ -31,7 +31,7 @@ import type { SendPanelProps } from './SendPanel.types';
  * now, and the only surfaces left are the field wells and the quote table's own
  * inset, which is what the customer came here to read.
  */
-export function SendPanelForm({ initialRecipient }: SendPanelProps) {
+export function SendPanelForm({ initialRecipient, focusAmount }: SendPanelProps) {
   const panel = useSendPanel(initialRecipient);
   const currency = useUserCurrency(true);
 
@@ -55,6 +55,7 @@ export function SendPanelForm({ initialRecipient }: SendPanelProps) {
           previewLoading={panel.previewLoading}
           step={panel.step}
           busy={panel.isBusy}
+          focusAmount={focusAmount === true}
           onRecipientChange={panel.setRecipient}
           onAmountChange={panel.setAmountKes}
           onSubmit={panel.submit}

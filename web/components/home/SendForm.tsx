@@ -36,6 +36,7 @@ export function SendForm({
   previewLoading,
   step,
   busy,
+  focusAmount,
   onRecipientChange,
   onAmountChange,
   onSubmit,
@@ -67,6 +68,7 @@ export function SendForm({
         onChange={onAmountChange}
         inputMode="decimal"
         disabled={busy}
+        autoFocus={focusAmount}
       />
 
       <FeeQuote preview={preview} loading={previewLoading} tone="dark" subject="send" />

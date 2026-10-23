@@ -1,13 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { usePayMerchant } from '@/hooks/usePayMerchant';
-import { useSession } from '@/lib/auth';
-import { looksLikeAddress, validateRecipient } from '@/lib/pay/validate-transfer';
-import { type RecipientKind } from './RecipientStep';
 import { SendFrame } from './SendFrame';
 import { SendSteps } from './SendSteps';
-import { useResolvedRecipient } from './useResolvedRecipient';
+import { useSendFlow } from './useSendFlow';
 import type { SendFlowProps } from './SendFlow.types';
 
 /**
@@ -15,62 +10,33 @@ import type { SendFlowProps } from './SendFlow.types';
  * machinery behind them.
  *
  * It owns the flow's state and nothing about the session — `SendScreen` mounts it
- * only once the session is confirmed, so every hook below exists only for a
+ * only once the session is confirmed, so every hook behind it exists only for a
  * customer who has an account. That is what makes "a visitor fires no
  * account-scoped request" structural rather than a set of guards: the hooks are
  * never rendered at all.
+ *
+ * The state lives in `useSendFlow`, so this file is only the shape of the flow: two
+ * steps, and the progress bar that says which one is lit.
  */
 export function SendFlow({ linked }: SendFlowProps) {
-  // A deep link already names the recipient; nothing is asked twice.
-  const [kind, setKind] = useState<RecipientKind>('name');
-  const [typed, setTyped] = useState('');
-  const [recipient, setRecipient] = useState<string | null>(linked);
-  const [error, setError] = useState<string | null>(null);
-
-  const session = useSession();
-  const isAddress = recipient !== null && looksLikeAddress(recipient);
-  // Only a NAME is looked up: an address is signed as it stands, and a name is
-  // resolved once, by the server, into the person or the merchant it belongs to.
-  const resolved = useResolvedRecipient(!isAddress ? recipient : null);
-  const merchant = resolved.status === 'business' ? recipient ?? undefined : undefined;
-  const payment = usePayMerchant(session.user?.id ?? '', merchant);
-
-  const submitRecipient = () => {
-    const value = typed.trim();
-    if (!value) return;
-
-    if (kind === 'address') {
-      const check = validateRecipient(value);
-      if (!check.ok) {
-        setError(check.error);
-        return;
-      }
-    }
-
-    setError(null);
-    setRecipient(value);
-  };
-
-  const backToWho = () => {
-    setRecipient(null);
-    setTyped('');
-    setError(null);
-  };
+  const flow = useSendFlow({ linked });
 
   return (
-    <SendFrame current={recipient !== null ? 1 : 0}>
+    <SendFrame current={flow.recipient !== null ? 1 : 0}>
       <SendSteps
-        kind={kind}
-        typed={typed}
-        error={error}
-        recipient={recipient}
-        isAddress={isAddress}
-        resolved={resolved}
-        payment={payment}
-        onChangeKind={setKind}
-        onChangeTyped={setTyped}
-        onSubmitRecipient={submitRecipient}
-        onBackToWho={backToWho}
+        kind={flow.kind}
+        typed={flow.typed}
+        error={flow.error}
+        recipient={flow.recipient}
+        isAddress={flow.isAddress}
+        resolved={flow.resolved}
+        payment={flow.payment}
+        focusAmount={flow.focusAmount}
+        onChangeKind={flow.onChangeKind}
+        onChangeTyped={flow.onChangeTyped}
+        onSubmitRecipient={flow.onSubmitRecipient}
+        onBackToWho={flow.onBackToWho}
+        onPickRecent={flow.onPickRecent}
       />
     </SendFrame>
   );

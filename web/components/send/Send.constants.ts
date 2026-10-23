@@ -30,6 +30,30 @@ export const SEND_FLOW_COPY = {
 } as const;
 
 /**
+ * The people this account has paid before: the send screen's repeat entry (#99).
+ *
+ * Three words and the list: a label, then one row per person, each row the whole
+ * tap target (`ChoiceRow`). The rows are drawn ONLY when there is somebody to draw
+ * (acceptance 3): an account with no history gets no heading and no empty box, so
+ * the field underneath is the only thing on the step and nothing has to be
+ * explained away.
+ *
+ * Nothing shows an amount. A repeat fills the payee and the customer types the
+ * figure, which is why these rows are deliberately not a "send again" button.
+ */
+export const RECENT_RECIPIENT_COPY = {
+  label: 'Paid before',
+  loading: 'Loading people you paid before',
+  /**
+   * A failed read says so in one quiet line, in this block's own voice. It is not a
+   * state card and it does not touch the field: typing a name still works, and an
+   * error panel over a screen whose main control is intact would claim more broke
+   * than did.
+   */
+  unavailable: 'Could not load people you paid before. Type their name instead.',
+} as const;
+
+/**
  * What the flow says to someone with no account.
  *
  * The ACTION is what needs an account, so this is where the ask belongs — the

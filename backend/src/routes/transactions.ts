@@ -22,6 +22,11 @@ import { previewPayment, previewSend, SendRequiresBatchError } from '../services
 import { previewConvert, ConvertRefusalError } from '../services/convert.js';
 import { planSettlement } from '../services/settlement.js';
 import { toRecentTransaction } from '../services/transaction-view.js';
+import {
+  RECENT_RECIPIENT_WINDOW,
+  recentRecipientWhere,
+  recentRecipients,
+} from '../services/recent-recipients.js';
 import { buildReceipt } from '../services/receipt.js';
 import { mintReceiptLink } from '../services/receipt-link.js';
 import { SUPPORTED_ASSETS } from '../services/chain.js';
@@ -276,6 +281,35 @@ export async function transactionRoutes(app: FastifyInstance) {
       )
       .header('cache-control', 'private, no-store')
       .send(renderStatement(statement, format));
+  });
+
+  /**
+   * Who this account has already paid, so the second payment is one tap (#99).
+   *
+   * A READ over the ledger rows Activity already reads, through the same mapper
+   * (`recentRecipients`), so the list can never name somebody the history does not
+   * name. Nothing is written and no new store exists.
+   *
+   * LITERAL BEFORE PARAM: declared here, above every `/:id…` route below, for the
+   * reason the statement route states: a literal registered after a parametric
+   * sibling can be read as `/:id` with the id "recipients".
+   *
+   * AUTH: the whole file carries `authMiddleware`, and the filter is the CALLER's
+   * id and network from the SESSION, never from the request. There is no id in the
+   * path, so there is no way to ask for somebody else's history, and a practice
+   * record cannot offer a live recipient.
+   */
+  app.get('/recipients', async (request, reply) => {
+    const user = requireUser(request);
+
+    const rows = await prisma.transaction.findMany({
+      where: recentRecipientWhere(user.id, user.network),
+      include: { merchant: { include: { handleEntry: { select: { handle: true } } } } },
+      orderBy: { createdAt: 'desc' },
+      take: RECENT_RECIPIENT_WINDOW,
+    });
+
+    return reply.send({ recipients: recentRecipients(rows) });
   });
 
   app.post('/preview', async (request, reply) => {

@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { SendLoading } from '@/components/send/SendLoading';
 import { SendScreen } from '@/components/send/SendScreen';
+import { sendSeed } from '@/components/send/sendSeed';
 
 /**
  * Send — `/app/send`, and the ONE way money leaves the account.
@@ -35,10 +36,15 @@ export default function SendPage() {
  * `?to=` (and `?handle=`, the old pay link) name the recipient; nothing is asked
  * twice. The value is passed down verbatim — the same string a typed handle would
  * be, resolved through the same path — and the flow decides what it is.
+ *
+ * The seed is read through `sendSeed`, which is a WHITELIST: it takes the payee and
+ * nothing else, so `?amount=` on a send link is dropped rather than filled in. That
+ * is what makes "the amount is empty until the customer types it" structural on this
+ * route instead of a promise about the code (#99).
  */
 function SendFromUrl() {
   const params = useSearchParams();
-  const linked = params.get('to') ?? params.get('handle') ?? null;
+  const { linked } = sendSeed(params);
 
   return <SendScreen linked={linked} />;
 }

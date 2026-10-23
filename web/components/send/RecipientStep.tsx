@@ -1,7 +1,8 @@
 'use client';
 
 import { Button, Input, Text } from '@/components/ui';
-import { cn } from '@/lib/cn';
+import { RecentRecipients } from './RecentRecipients';
+import { RecipientKindChoice } from './RecipientKindChoice';
 import { SEND_FLOW_COPY } from './Send.constants';
 
 /** Which answer the customer gave to the flow's one question. */
@@ -16,6 +17,12 @@ export interface RecipientStepProps {
   onKindChange: (kind: RecipientKind) => void;
   onChange: (value: string) => void;
   onSubmit: () => void;
+  /**
+   * Fills the payee with somebody this account has paid before (#99): one tap, and
+   * the amount is the only thing left. It is the same string a typed recipient
+   * would be, resolved through the same path.
+   */
+  onPickRecent: (target: string) => void;
 }
 
 /**
@@ -24,21 +31,17 @@ export interface RecipientStepProps {
  * Two answers, and they are the flow's spine — the answer decides what the field
  * asks for and what happens to the value next. A name goes to the server's one
  * resolver (which answers person or merchant), an address is signed as it stands.
+ * Asking rather than inferring is what lets the field say which of the two it wants,
+ * and a customer pasting a name into an address field is told why.
  *
- * The question is asked rather than inferred from what gets typed, because the
- * consequence differs: a name is looked up and must resolve, an address is not
- * looked up at all. Asking first means the field can say which of the two it
- * wants, and a customer pasting a name into an address field is told why.
+ * No card: the question, the answers, the field and Continue sit on the page, so the
+ * flow's prose is page text rather than the contents of a box. The dark fill is kept
+ * only where it MEANS something: the chosen answer, the same selected state
+ * `ReceiveSwitch` draws.
  *
- * The two answers are pressed-state buttons (never colour alone: `aria-pressed`
- * says which is chosen), and the field keeps focus after the choice changes, so
- * choosing does not cost a tap back into the input.
- *
- * No card. The question, the two answers, the field and the Continue control sit
- * directly on the page — the same call the receive halves make — so the flow's prose
- * is page text rather than the contents of a box. The dark fill is kept only where
- * it MEANS something: the chosen answer, which is the same selected state
- * `ReceiveSwitch` draws, and the step's own progress fill.
+ * The repeat block (#99) sits between the field and Continue, and only while the
+ * field is empty: someone this account has paid before is a shortcut past this
+ * question, and typing is a better answer than anything the list can offer.
  */
 export function RecipientStep({
   kind,
@@ -48,8 +51,12 @@ export function RecipientStep({
   onKindChange,
   onChange,
   onSubmit,
+  onPickRecent,
 }: RecipientStepProps) {
   const byName = kind === 'name';
+  // The repeat block is a shortcut past this field, so it is drawn only while the
+  // field is empty: anything typed here is a better answer than what it offers.
+  const fieldIsEmpty = value.trim() === '';
 
   return (
     <div className="flex flex-col gap-5">
@@ -57,35 +64,7 @@ export function RecipientStep({
         {SEND_FLOW_COPY.question}
       </Text>
 
-      <div role="group" aria-label={SEND_FLOW_COPY.question} className="flex flex-col gap-2">
-        {([true, false] as const).map((isName) => {
-          const active = isName === byName;
-
-          return (
-            <button
-              key={isName ? 'name' : 'address'}
-              type="button"
-              aria-pressed={active}
-              onClick={() => onKindChange(isName ? 'name' : 'address')}
-              className={cn(
-                'min-touch w-full rounded-md px-4 py-3 text-left text-body-sm font-semibold transition-colors',
-                // The press is answered on pointer-DOWN with the system's own
-                // pressed step (`Button.constants.ts`): an instant 2% scale, the
-                // same one every other control in the app answers with. Without
-                // it the choice was hover-only, so a touch user got nothing back
-                // until the step changed under them.
-                'active:scale-[0.98]',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-light',
-                active
-                  ? 'bg-canvas-dark text-on-dark'
-                  : 'bg-surface-soft text-ink hover:bg-faint'
-              )}
-            >
-              {isName ? SEND_FLOW_COPY.byName : SEND_FLOW_COPY.byAddress}
-            </button>
-          );
-        })}
-      </div>
+      <RecipientKindChoice kind={kind} onKindChange={onKindChange} />
 
       <Input
         label={byName ? SEND_FLOW_COPY.nameLabel : SEND_FLOW_COPY.addressLabel}
@@ -103,6 +82,8 @@ export function RecipientStep({
           if (event.key === 'Enter' && value && !busy) onSubmit();
         }}
       />
+
+      <RecentRecipients visible={fieldIsEmpty} disabled={busy} onPick={onPickRecent} />
 
       <Button onClick={onSubmit} disabled={!value || busy} loading={busy} fullWidth>
         {busy ? SEND_FLOW_COPY.resolving : SEND_FLOW_COPY.continueAction}
