@@ -1,9 +1,9 @@
 # Seti marks
 
-Two expressions, two colourways, four files. This README is the rule; the script
+Two expressions, three colourways, six files. This README is the rule; the script
 is the source.
 
-    python3 generate.py            # build the four marks + the app icon
+    python3 generate.py            # build the six marks + the app icon
     python3 generate.py --install  # build, then copy into web/public and web/app
 
 ## The sources, and what was wrong with one of them
@@ -36,8 +36,8 @@ Its numbers stay here as the record of why:
 ## What the script builds
 
 The neutral file is the source of truth for the body; the 1254px icon supplies
-the smile, warped into the neutral's pixel space. So the four marks differ only
-by expression and colourway, which is the whole point:
+the smile, warped into the neutral's pixel space. So the marks differ only by
+expression and colourway, which is the whole point:
 
 | file | expression | canvas | how it is drawn |
 | --- | --- | --- | --- |
@@ -45,8 +45,10 @@ by expression and colourway, which is the whole point:
 | `seti-mark-friendly.png` | friendly | light | same body, smile in the eyes' ink |
 | `seti-mark-neutral-dark.png` | neutral | dark | white, same shading, **eyes punched to alpha 0** |
 | `seti-mark-friendly-dark.png` | friendly | dark | as above, smile punched |
+| `seti-mark-neutral-code.png` | neutral | code | cobalt `#494fdf`, same shading, **eyes punched** |
+| `seti-mark-friendly-code.png` | friendly | code | as above, smile punched |
 
-All four are 384×384 with one crop, one scale, and the head at 93% of the
+All six are 384×384 with one crop, one scale, and the head at 93% of the
 canvas, so swapping expression or canvas never shifts the mark by a pixel. The
 head is 356px tall inside that canvas, downscaled from the 359px source: no
 variant is upscaled.
@@ -74,6 +76,8 @@ character; only the mouth differs, so the two can never read as two products.
 - favicon, app icon, home screen
 - error, warning and security screens
 - anything that is a document, a record or a statement
+- the middle of a payment code, in the `code` colourway (a code is a document: it is
+  what a stranger scans and what a printer prints)
 
 **Friendly** — the product talking to someone:
 
@@ -88,6 +92,28 @@ if it could appear on one, it is neutral. Never pick by mood per screen — the
 expression is a role, and `BrandMark` takes it as a prop so it is visible in the
 code that draws it.
 
+## The `code` colourway, and why it is not a recolour
+
+The middle of a payment code is white — it is the well the mark sits in, cut out of
+the symbol so the mark does not eat scanning contrast — and on that well the two
+colourways above both fail, for opposite reasons:
+
+| on the white well | contrast | reads as |
+| --- | --- | --- |
+| cream `rgb(223,214,205)` (light) | 1.3:1 | two dark eyes with no head |
+| white (dark) | 1.0:1 | nothing |
+| **cobalt `#494fdf` (code)** | **6.06:1** | one solid head with white eyes |
+
+So the code colourway is a real third ink, not a tint of an existing file: the head
+is filled with `--color-primary` and its eyes are PUNCHED, exactly the treatment the
+dark pair gets, because the well behind them is white. Cobalt is also the same ink as
+the modules, which is what makes the code read as one object rather than a logo
+pasted on a QR code.
+
+`code` is a colourway axis, so both expressions exist — but only the NEUTRAL one is
+ever drawn: a code is a document. `seti-mark-friendly-code.png` is generated so the
+matrix stays complete, and no surface uses it.
+
 ## In the app
 
 ```tsx
@@ -95,10 +121,11 @@ import { BrandMark } from '@/components/ui';
 
 <BrandMark expression="neutral" canvas="dark" className="h-8" />
 <BrandMark expression="friendly" canvas="dark" className="h-[3.75rem]" preload />
+<BrandMark expression="neutral" canvas="code" className="h-full w-auto" />
 ```
 
 `canvas` follows the surface's own canvas token. Never hand a `src` path to an
-`<img>`: the four files are one decision, and a path taken by hand is a mark
+`<img>`: the six files are one decision, and a path taken by hand is a mark
 nobody can audit.
 
 `label` only when the mark stands alone as the product's name. Beside a wordmark,
@@ -111,10 +138,13 @@ invisible on bare white, so on a light surface either:
 
 - sit the mark on a tinted tile (`surface-soft`), which is how the brand colour is
   meant to be seen, or
-- use the dark (white) pair on a black band, as every current surface does.
+- use the dark (white) pair on a black band, as every current surface does, or
+- if the surface is a payment code's white well, the `code` colourway — that is the
+  only surface where a THIRD ink was needed, and it is the one place the mark shares
+  its colour with the thing around it.
 
-Do not reach for a raw hex to "fix" the contrast; that is a fifth mark nobody
-signed off.
+Do not reach for a raw hex to "fix" the contrast; that is a seventh mark nobody
+signed off. Add a colourway to this script instead, with its measurement.
 
 ## Icons: bare in the tab, tiled on the home screen
 

@@ -36,4 +36,90 @@ export interface QrPlateProps {
 /** The control that saves a code as a PNG: the same hook, placed by the half. */
 export interface QrDownloadControlProps {
   download: QrDownload;
+  /**
+   * The payload of the code this control saves.
+   *
+   * Optional, because a surface draws one code: the half passes nothing and the plate
+   * that is mounted is the one saved. Pass it when a page draws more than one — with
+   * two codes mounted an unnamed request is refused rather than guessed, so a
+   * merchant cannot download somebody else's link.
+   */
+  value?: string;
+}
+
+/** A payload as rows of dark/light modules, as `qrcode-generator` reports it. */
+export type QrModuleMatrix = boolean[][];
+
+/**
+ * One drawn shape, in the SVG's own user units — never pixels.
+ *
+ * Everything the code is made of is a rounded rectangle: a run of dark modules, one
+ * band of a finder pattern, the white well the mark sits in. Keeping them as data
+ * rather than markup means the export can be checked against the same numbers the
+ * page draws.
+ */
+export interface QrRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Corner radius, in user units. `0` is a square. */
+  radius: number;
+}
+
+/** A finder pattern: a rounded ring, the light ring inside it, and the core. */
+export interface QrFinder {
+  ring: QrRect;
+  hole: QrRect;
+  core: QrRect;
+}
+
+/**
+ * Everything one code draws, in user units.
+ *
+ * `size` is the viewBox width AND the width the quiet zone is measured inside, so a
+ * code is complete before any CSS touches it — which is what lets the exported PNG
+ * carry its own margin with no knowledge of the plate.
+ */
+export interface QrGeometry {
+  /** The viewBox width; the four-module quiet zone is inside it. */
+  size: number;
+  /** Modules across the symbol itself (29, 33, 41 …), quiet zone excluded. */
+  modules: number;
+  /** Dark runs, already merged along a row, so the DOM stays in the low hundreds. */
+  runs: QrRect[];
+  finders: QrFinder[];
+  /** The white well: modules are erased under it and the plate shows through. */
+  well: QrRect;
+  /** The mark's own square, centred in the well. */
+  mark: QrRect;
+  /**
+   * The mark's width as a CSS percentage of the box it is drawn in.
+   *
+   * A raster mark cannot be sized in user units by CSS, so this is the one value
+   * that crosses from the vector into the layout; the export multiplies `mark` by
+   * its own scale instead and never reads this.
+   */
+  markWidth: string;
+}
+
+/** A code mounted in the document, before the export draws it. */
+export interface QrRegistration {
+  svg: SVGSVGElement;
+  geometry: QrGeometry;
+}
+
+/** The vector itself: one `<svg>` carrying the whole code, quiet zone included. */
+export interface QrCodeSvgProps {
+  /** The payload, so the mounted code can be found by what it carries. */
+  value: string;
+  /** The SVG's own `<title>`, and the accessible name when it stands alone. */
+  title: string;
+  geometry: QrGeometry;
+}
+
+/** The mark in the middle: a raster, so only its width comes from the geometry. */
+export interface QrPlateMarkProps {
+  /** A CSS percentage of the box the code is drawn in. */
+  width: string;
 }

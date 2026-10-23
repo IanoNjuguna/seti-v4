@@ -1,5 +1,5 @@
 """
-Builds Seti's four official marks, and the app icon, from the supplied sources.
+Builds Seti's official marks, and the app icon, from the supplied sources.
 
     python3 generate.py            # build into this folder
     python3 generate.py --install  # build, then copy to web/public and web/app
@@ -25,18 +25,22 @@ real drawn smile. So:
   * the smile's geometry          -> lifted from the 1254px icon and warped
                                      into the neutral's pixel space
 
-which gives four marks that genuinely differ only by the expression:
+which gives marks that genuinely differ only by the expression:
 
   seti-mark-neutral.png        cream head, ink eyes              (on canvas-light)
   seti-mark-friendly.png       cream head, ink eyes + smile      (on canvas-light)
   seti-mark-neutral-dark.png   white head, eyes punched to alpha 0
   seti-mark-friendly-dark.png  white head, eyes + smile punched
+  seti-mark-neutral-code.png   cobalt head, eyes punched         (in a code's well)
+  seti-mark-friendly-code.png  cobalt head, eyes + smile punched (in a code's well)
 
-Eyes are PUNCHED on the dark pair rather than filled dark: the dark canvas is
-black, and a painted pupil breaks the moment the mark sits on anything else.
+Eyes are PUNCHED on the mono pair rather than filled dark: the dark canvas is
+black and a painted pupil breaks the moment the mark sits on anything else. The
+code colourway is the same argument one surface further in — its well is white,
+so a punched eye is a white eye and the head is one solid cobalt shape.
 
-All four share one crop, one scale and one canvas, so swapping expression or
-canvas never shifts the mark by a pixel.
+Every mark shares one crop, one scale and one canvas, so swapping expression,
+colourway or canvas never shifts the mark by a pixel.
 """
 
 from pathlib import Path
@@ -64,6 +68,15 @@ MINUSCULE = 0.4  # mask feather, px
 
 MOUTH_INK = (26, 22, 23)
 DARK_INK = (255, 255, 255)
+# Cobalt — `--color-primary` in `web/app/globals.css` (`#494fdf`).
+#
+# The one colourway that is not a canvas: it is the ink of the payment code's
+# white well, and the mark has to be the SAME ink as the thing it sits in. Cream
+# on that well is 1.3:1 and reads as two eyes with no head; the white pair has no
+# contrast on white at all. Cobalt on white is 6.06:1, so the mark and the
+# modules are one colour, which is what makes a Seti code read as one object
+# rather than a logo stuck on a QR code.
+CODE_INK = (73, 79, 223)
 
 
 def _luma(rgb: np.ndarray) -> np.ndarray:
@@ -144,14 +157,21 @@ def _shading(neutral: np.ndarray, head_luma: float, eye: np.ndarray) -> np.ndarr
 
 
 def _compose(neutral: np.ndarray, eye: np.ndarray, mouth: np.ndarray | None,
-             shade: np.ndarray, punch: bool) -> Image.Image:
+             shade: np.ndarray, punch: bool, ink: tuple[int, int, int] = DARK_INK) -> Image.Image:
+    """One mono mark: the body in ONE `ink`, features punched or painted.
+
+    `punch` is a decision about what is BEHIND the mark, not about the colour: on a
+    dark canvas (and inside the code's white well) the eyes are holes, so they take
+    the surface's own colour and the mark reads on anything; on a light canvas the
+    eyes are painted, because a hole in a cream head is a hole into the plate.
+    """
     h, w = neutral.shape[:2]
     sil = neutral[:, :, 3].astype(float) / 255.0
     if punch:
         alpha = sil * (1.0 - eye)
         if mouth is not None:
             alpha = alpha * (1.0 - mouth)
-        rgb = np.clip(np.array(DARK_INK, dtype=float) * shade[:, :, None], 0, 255)
+        rgb = np.clip(np.array(ink, dtype=float) * shade[:, :, None], 0, 255)
     else:
         alpha = sil
         rgb = neutral[:, :, :3].astype(float)
@@ -215,6 +235,8 @@ def main() -> None:
         "seti-mark-friendly.png": _compose(neutral, eye, mouth, shade, punch=False),
         "seti-mark-neutral-dark.png": _compose(neutral, eye, None, shade, punch=True),
         "seti-mark-friendly-dark.png": _compose(neutral, eye, mouth, shade, punch=True),
+        "seti-mark-neutral-code.png": _compose(neutral, eye, None, shade, punch=True, ink=CODE_INK),
+        "seti-mark-friendly-code.png": _compose(neutral, eye, mouth, shade, punch=True, ink=CODE_INK),
     }
 
     boxes = [_head_box(np.asarray(img)[:, :, 3]) for img in built.values()]

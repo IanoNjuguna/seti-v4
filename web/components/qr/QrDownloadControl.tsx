@@ -16,8 +16,8 @@ import type { QrDownloadControlProps } from './qr.types';
  * customer asked for, and the honest next step is a screenshot, which only the failing
  * line can suggest.
  */
-export function QrDownloadControl({ download }: QrDownloadControlProps) {
-  const { state, download: save } = useDownloadQr(download.filename);
+export function QrDownloadControl({ download, value }: QrDownloadControlProps) {
+  const { state, download: save } = useDownloadQr(download.filename, value);
 
   return (
     <>
