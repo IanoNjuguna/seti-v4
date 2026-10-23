@@ -12,6 +12,7 @@
     "check:ink": "node scripts/check-ink-contrast.mjs",
     "check:asset-words": "node scripts/check-asset-words.mjs",
     "check:choice-row": "node scripts/check-choice-row.mjs",
+    "check:qr-plate": "tsx scripts/check-qr-plate.mjs",
     "check:profile-mark": "tsx scripts/check-profile-mark.mjs",
     "check:tabs": "tsx scripts/check-tabs.mjs",
     "check:pay-charge": "tsx scripts/check-pay-charge.mjs",
@@ -33,6 +34,7 @@
   "dependencies": {
     "@privy-io/react-auth": "^3.48.1",
     "next": "16.3.8",
+    "qrcode-generator": "^2.0.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-qr-code": "^2.2.0",
