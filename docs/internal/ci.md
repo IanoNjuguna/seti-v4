@@ -155,6 +155,31 @@ Values here are the *live* set. A practice deployment uses `42431`,
 
 ---
 
+### The gate's own CI-only values
+
+Two values exist only so `npm run verify` can prove things that need a constant.
+Neither is a secret, and neither is read by the running product in CI:
+
+| Value | Why it has to exist |
+| --- | --- |
+| `SETI_WEBHOOK_SECRET` | `check:charge-api` signs a real webhook delivery and verifies the signature with the same value. Absent, the suite stops and tells you to set it. |
+| `QUOTE_SIGNING_SECRET` | Receipt ids and quote tokens are HMACs over this. Absent, `lib/signed-token.ts` falls back to a `randomBytes(32)` key **per process**, so every run mints different ids and any assertion that reads one becomes a coin flip — that is exactly how `check:statement` came to fail one CI run in fourteen thousand (#204). |
+
+Both are set in `verify.yml` and in `deploy.yml`'s verify job. A laptop running
+the gate needs them too, or the chain stops partway:
+
+```bash
+SETI_WEBHOOK_SECRET=check-only-webhook-secret \
+QUOTE_SIGNING_SECRET=check-only-quote-signing-secret \
+  npm run verify
+```
+
+Production is unaffected by any of this: with `NODE_ENV=production` the server
+refuses to boot when `QUOTE_SIGNING_SECRET` is unset, and `check:env` proves that
+refusal rather than trusting it.
+
+---
+
 ## 3. Why the ordering in the deploy is load-bearing
 
 The remote script — embedded in the `backend` job, running on the box over SSH —
