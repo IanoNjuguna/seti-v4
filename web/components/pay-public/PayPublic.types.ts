@@ -1,17 +1,21 @@
 import type { ChargeAmounts } from '@/lib/charges/charge-fee';
 import type { ChargeStatus, PayCharge, PayeeDisplay } from '@/lib/charges/charge.types';
+import type { PayerState } from './PayPayer.types';
 
 /**
  * Props for the public pay view and its parts.
  *
- * Every value here was decided SERVER-SIDE — the charge, who is being paid, and what
- * state it is in. Nothing in this module reads a cookie, a session, or a query
- * parameter, and no part of it needs JavaScript to draw.
+ * Every value here was decided SERVER-SIDE — the charge, who is being paid, what
+ * state it is in, and which situation the payer declared. Nothing in this module
+ * reads a cookie, a session, or a query parameter, and no part of it needs JavaScript
+ * to draw.
  */
 export interface PayPublicViewProps {
   charge: PayCharge;
   payee: PayeeDisplay;
   status: ChargeStatus;
+  /** The payer's declared situation (`pay-public.payer.ts`), never a detected one. */
+  payer: PayerState;
 }
 
 export interface PayStatusLineProps {

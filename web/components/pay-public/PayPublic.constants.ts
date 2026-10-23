@@ -101,6 +101,77 @@ export const PAY_DIVIDER_CLASS = 'border-t border-hairline-light';
 export const TAKEDOWN_EMAIL = 'hey@seti.live';
 
 /**
+ * The payer's three states (#153): what the page owes someone who is not the Seti
+ * app's user, and who may have no wallet and no dollars at all.
+ *
+ * The rules this copy follows:
+ *
+ *  - **Say what paying needs, first.** One line, in every state, because it answers
+ *    the question a stranger arrives with. It never promises an on-ramp: there is no
+ *    card, no bank transfer and no way to buy dollars on this page in v1.
+ *  - **"You said", not "we detected".** The state is a declaration in the URL, and
+ *    copy that pretended otherwise would be claiming a fact about someone's wallet
+ *    this page has never seen.
+ *  - **No state is a dead end.** The payer with no wallet is given what to do instead
+ *    and a way back to the request if they get one. They are never shown a payment
+ *    prompt they cannot use.
+ *  - **The amount is the total.** Everything a payer copies or is asked for is what
+ *    leaves their wallet, fee included, so nobody underpays the 2% by accident.
+ */
+export const PAYER_COPY = {
+  /** The heading over everything that answers "can I pay this, and how". */
+  section: 'How to pay',
+  /**
+   * The one line stating what this request needs before anyone can pay it, drawn in
+   * all three states. The network sentence is the half that stops a payer sending on
+   * the wrong one; the second half is the answer to "can Seti just take my card".
+   */
+  need:
+    'To pay this, your wallet needs dollars on the same network as the person you are paying. ' +
+    'Seti does not sell dollars. Nothing here takes a card or a bank transfer.',
+
+  /** A wallet with no dollars in it: the fact, then the only two things to do next. */
+  emptyLine: 'You said your wallet has no dollars in it, so it cannot send this yet.',
+  emptyNext: 'Send dollars to your wallet, then open this link again.',
+  emptyOther: 'A different coin, or dollars on another network, cannot pay this.',
+  /** When a deadline exists it is the charge's own, printed in the page's one date format. */
+  stayOpen: (day: string | null) =>
+    day === null ? 'This request has no deadline.' : `This request stays open until ${day}.`,
+  backToPaying: 'I have dollars now',
+
+  /**
+   * No wallet at all. There is no payment prompt in this state, so there is nothing
+   * to try: the instruction is who to ask, and the only promise is that the link
+   * survives. Wallet creation is out of scope for #153, so it is not offered here.
+   */
+  noneLine: 'You said you do not have a wallet that holds dollars, so there is nothing here you can pay with.',
+  noneNext: 'Ask the person who sent this link for another way to pay.',
+  noneKeep: (day: string | null) =>
+    day === null
+      ? 'If you get a wallet, this link still works.'
+      : `If you get a wallet before ${day}, this link still works.`,
+  backFromNone: 'I do have a wallet',
+
+  /** The request itself, for a wallet other than the browser reading the page. */
+  diyTitle: 'Pay from another wallet',
+  diyLead:
+    'Send the amount below to this address from any wallet that holds dollars. ' +
+    'It includes the 2% fee.',
+  addressLabel: 'Address',
+  amountLabel: 'Amount to send',
+  referenceLabel: 'Reference',
+  copyAddress: 'Copy the address',
+  copyAmount: 'Copy the amount to send',
+  copyReference: 'Copy the reference',
+  copyFailed: 'Could not copy. Select it and copy it by hand.',
+  copied: 'Copied',
+
+  /** The two answers that are not "I can pay", offered as links on every paying state. */
+  switchEmpty: 'No dollars in your wallet?',
+  switchNone: 'No wallet at all?',
+} as const;
+
+/**
  * The mailto a payer opens from the unverified state.
  *
  * The handle goes in the SUBJECT, not the body: a report has to name its subject

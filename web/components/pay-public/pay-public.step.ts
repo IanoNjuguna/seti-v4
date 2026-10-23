@@ -3,6 +3,7 @@ import { chargeAmounts } from '@/lib/charges/charge-fee';
 import type { ChargeStatus, PayCharge, PayeeDisplay } from '@/lib/charges/charge.types';
 import { PLATFORM_FEE_PERCENT } from '@/lib/charges/charge.constants';
 import { formatDay, payeeLabel, payeeName } from './pay-public.format';
+import type { PayerState } from './PayPayer.types';
 
 /**
  * The one sentence each state owes the payer.
@@ -12,16 +13,34 @@ import { formatDay, payeeLabel, payeeName } from './pay-public.format';
  * ask for the difference, ask for the extra back, ask for a new link. A shared
  * template would flatten them into one voice and lose the instruction.
  *
+ * `pending` also depends on the PAYER (#153): the sentence invites a scan only when
+ * the payer has a wallet to scan with, and says the wallet is empty or missing when
+ * they have declared that instead. The status is still the same status; what changes
+ * is whether the instruction can be followed. The detail behind each is in
+ * `PayPayerPanel`, so nothing is said twice.
+ *
  * Every figure is the charge's own, formatted in the charge's currency. Nothing here
  * computes an amount that could be paid — the numbers printed are the numbers stored.
  */
-export function statusStep(status: ChargeStatus, charge: PayCharge, payee: PayeeDisplay): string {
+export function statusStep(
+  status: ChargeStatus,
+  charge: PayCharge,
+  payee: PayeeDisplay,
+  payer: PayerState
+): string {
   const { currency } = charge;
   const { total } = chargeAmounts(charge.amount, currency);
   const who = payeeLabel(payee);
 
   switch (status) {
     case 'pending':
+      if (payer === 'none') return 'You cannot pay this request. Nothing has left your wallet.';
+      if (payer === 'empty') {
+        return (
+          `Your wallet needs dollars before it can send ${formatFiat(total, currency)}. ` +
+          'Nothing has left your wallet.'
+        );
+      }
       return (
         `Scan the code below with the Seti app to pay ${formatFiat(total, currency)}. ` +
         'Nothing leaves your wallet until you confirm it there.'
