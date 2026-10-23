@@ -1,21 +1,74 @@
-import type { MoneyRow } from './MoneySection.types';
+import type { ByAudience } from './Audience.types';
+import type { MoneySectionCopy } from './MoneySection.types';
 
 /**
- * What the dollars are for. Two answers, in the order people ask them: where can
- * I spend it, and can I send it to someone.
+ * What the dollars are for, as four squares per reader.
  *
- * It used to carry a third — "Keep the rest" / "The dollars stay in your balance
- * until you spend them." — deleted by the owner, which leaves this column two
- * rows shorter than the prose beside it. See `MoneySection` for how the band is
- * balanced around that.
+ * THE BAND'S SHAPE IS THE REFERENCE'S card grid, which is the one section shape
+ * this page did not have: four tiles on the band, 20px apart, each carrying one
+ * thing, with the band's heading above them. On cash.app those four are a big
+ * figure, a photograph and a floating UI chip inside square frames; here they are
+ * four things you can do with a balance, in frames that are wider than they are tall
+ * because words are not a photograph, because that is what this product actually
+ * has and a picture of a card would be a picture of something Seti does not issue.
+ *
+ * THE LABEL SITS INSIDE THE SQUARE AND THE SENTENCE AT ITS FOOT, where the
+ * reference puts the sentence OUTSIDE the card and under it. It moved inside
+ * because the object in these squares is a word rather than an image: a caption
+ * repeating the word above it is the same fact twice.
+ *
+ * FOUR IS THE REFERENCE'S COUNT and it is also the count the two audiences have:
+ * each gets the two things it does (pay and send, or be paid by name and be paid
+ * by code), the thing it gets for free (being paid by name, or owning the money
+ * outright), and holding dollars, which is true of both and is where the band
+ * stops making a claim about a currency it cannot convert.
+ *
+ * NOTHING HERE NAMES A CARD, A BANK, M-PESA OR AN OFF-RAMP, because none of them
+ * exist in v1. "Hold dollars" says what happens to a balance and promises no way
+ * out of it.
  */
-export const MONEY_ROWS: MoneyRow[] = [
-  {
-    label: 'Pay in a shop',
-    detail: 'Show your code, or type the shop’s name.',
+export const MONEY_COPY: ByAudience<MoneySectionCopy> = {
+  personal: {
+    title: 'Spend it, or send it.',
+    tiles: [
+      {
+        label: 'Pay in a shop',
+        detail: 'Scan the code, or type the shop name.',
+      },
+      {
+        label: 'Send to a person',
+        detail: 'A name, or a link. No long numbers to copy.',
+      },
+      {
+        label: 'Get paid',
+        detail: 'Your own name and link work the same way round.',
+      },
+      {
+        label: 'Hold dollars',
+        detail: 'Your balance stays in dollars until you spend it.',
+      },
+    ],
   },
-  {
-    label: 'Send to a person',
-    detail: 'No long numbers to copy. A name is enough.',
+
+  business: {
+    title: 'Spend it, or send it.',
+    tiles: [
+      {
+        label: 'Get paid by name',
+        detail: 'Customers type your name instead of a number.',
+      },
+      {
+        label: 'Print your code',
+        detail: 'One code for the counter. It opens your payment page.',
+      },
+      {
+        label: 'The money is yours',
+        detail: 'It lands in your own balance. Nobody holds it in between.',
+      },
+      {
+        label: 'Hold dollars',
+        detail: 'Your balance stays in dollars between payments.',
+      },
+    ],
   },
-];
+};

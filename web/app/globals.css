@@ -112,6 +112,36 @@
      (measured on the rendered rail, see the check suite). */
   --app-grain-highlight: 0.05;
   --app-grain-shadow: 0.06;
+
+  /* -------------------------------------------------------------------------
+   * THE NAVBAR'S SCROLL STATE (issue #187) — the landing nav's own dials.
+   *
+   * Read out of minisend.xyz's own bundle rather than guessed at: the bar flips
+   * ONE boolean at `scrollY > 80` and a 400ms transition on
+   * cubic-bezier(0.33, 1, 0.68, 1) carries the properties. These two tokens are
+   * that duration and that curve, named once so the CSS below and the hook's
+   * threshold cannot drift apart.
+   *
+   * `--ease-nav` is deliberately NOT `--ease-out` (0.22, 1, 0.36, 1). The
+   * reference uses the gentler cubic, and on a width change a reader is
+   * watching, the difference between them is visible: ease-out snaps into its
+   * last 10% where this one is still travelling.
+   *
+   * `--nav-inset` is how far the scrolled bar sits below the viewport's top edge
+   * — the reference's `y: 8`. It is the motion vocabulary's own 8px step rather
+   * than a new number.
+   *
+   * `--nav-width-scrolled` is where the reference and this page part company.
+   * The reference narrows from 90% of the viewport to 62% of it, which on a
+   * 1440px window is 400px of a bar floating over nothing. This page has a
+   * content column, so the bar comes in to that column (72rem: `max-w-6xl` plus
+   * its `px-6`) and to a 12px gutter on a phone, where there is no width to give
+   * back and only the inset, the radius and the edge move.
+   * ---------------------------------------------------------------------- */
+  --duration-nav: 400ms;
+  --ease-nav: cubic-bezier(0.33, 1, 0.68, 1);
+  --nav-inset: 8px;
+  --nav-width-scrolled: min(calc(100% - 1.5rem), 72rem);
 }
 
 :root {
@@ -708,6 +738,101 @@
   .reveal[data-revealed] .stack-item-3 {
     animation-delay: calc(var(--stagger) * 2);
   }
+
+  /* -------------------------------------------------------------------------
+   * THE LANDING NAVBAR, AND WHAT SCROLLING DOES TO IT (issue #187).
+   *
+   * The effect is the one minisend.xyz ships, read out of its bundle: ONE
+   * boolean flips at `scrollY > 80` and a 400ms transition carries the
+   * properties. Theirs is a framer-motion component with `useScroll` +
+   * `useMotionValueEvent`; this is the same effect with the boolean written by
+   * `useScrollNav` as a data attribute and the properties in CSS. Nothing
+   * re-renders while the page is scrolled, and because the attribute is only
+   * ever written by JS, the server-rendered HTML is the REST state: a page that
+   * never hydrates keeps the solid, full-bleed bar it has today.
+   *
+   * WHAT MOVES, and each one is a decision:
+   *
+   *  - `width` 100% -> `--nav-width-scrolled`: the bar pulls in. This is the one
+   *    property in the set that is a LAYOUT property rather than a paint or
+   *    compositor one, which `design/motion.md`'s first guardrail prefers. It is
+   *    kept because the narrowing IS the effect — the bar handing width back is
+   *    what a reader notices — and the cost is bounded: it happens on one fixed
+   *    element that holds a dozen nodes, once per threshold crossing, over
+   *    400ms, not per scroll frame. The reference animates the same property.
+   *  - `border-radius` 0 -> `--radius-md` (12px). The reference goes to a 100px
+   *    pill. Not here: the system's radius scale tops out at `--radius-xl`
+   *    (28px, photography chrome) and `rounded-full` is reserved for CIRCLES, so
+   *    a pill-shaped bar would be off-system. 12px is the control/surface radius
+   *    and it is enough for the bar to read as an island once it is inset.
+   *  - the shell's `padding-top` 0 -> `--nav-inset`, which is the reference's
+   *    `translateY: 8`. A padding on a `fixed` shell moves the bar and moves no
+   *    page content, so there is no layout shift to pay for.
+   *  - `outline-color` transparent -> `hairline-dark`, the system's own edge for
+   *    the dark canvas, in place of the reference's 8% white border.
+   *
+   * WHAT DELIBERATELY DOES NOT MOVE:
+   *
+   *  - **The background.** The reference fades to rgba(19,19,19,.72) behind a
+   *    14px blur. Over a white band that composites to grey plastic, which is
+   *    the exact fault the nav's own ruling in `LandingNav` was written about
+   *    (a translucent bar over white reads as a rendering fault). The bar stays
+   *    SOLID `canvas-dark` in both states, so a white band scrolling under it
+   *    can never change what the labels sit on. That is also why there is no
+   *    backdrop blur here: with an opaque surface it would cost a compositor
+   *    layer to blur nothing.
+   *  - **The shadow.** The reference adds `0 8px 32px rgba(0,0,0,.45)`. This
+   *    system has no shadow language at all; depth is a hairline plus the
+   *    canvas/soft/elevated steps. The island is separated by its edge and by
+   *    the inset instead.
+   *  - **The height.** 64px in both states, as in the reference. A bar that
+   *    shrank would make `scroll-mt-16` (the anchor offset in `Reveal`) longer
+   *    than the bar at rest, and a bar that GREW past it would hide the top of
+   *    whatever a link jumped to.
+   *
+   * THE EDGE IS 1px OF TRANSPARENT OUTLINE AT REST, never no edge at all, and never
+   * a border. Both states have to have the same box or the row inside jumps as the
+   * edge appears, and `box-sizing: border-box` (preflight) would put a real border
+   * INSIDE the 64px, which would make the bar 66px tall in both states and leave
+   * `Reveal`'s `scroll-mt-16` 2px short of it. An outline occupies no space.
+   * ---------------------------------------------------------------------- */
+  .landing-nav {
+    padding-top: 0;
+    transition: padding-top var(--duration-nav) var(--ease-nav);
+  }
+
+  .landing-nav-bar {
+    width: 100%;
+    /* Centred in the viewport at rest (100% of it) and in the same place once it
+       narrows, so the bar shrinks toward the middle rather than toward its left
+       edge. */
+    margin-inline: auto;
+    border-radius: 0;
+    background-color: var(--color-canvas-dark);
+    /* AN OUTLINE, NOT A BORDER, and this is load-bearing twice over. A border
+       would add 2px to the bar's box the moment its colour stopped being
+       transparent, which is a 2px jump in the middle of a transition, and it would
+       also make the bar 66px tall where `Reveal`'s `scroll-mt-16` reserves exactly
+       64. An outline is drawn inside the box, takes no space, follows the radius,
+       and is a stroke rather than a shadow, so it is not the system's forbidden
+       depth cue. */
+    outline: 1px solid transparent;
+    outline-offset: -1px;
+    transition:
+      width var(--duration-nav) var(--ease-nav),
+      border-radius var(--duration-nav) var(--ease-nav),
+      outline-color var(--duration-nav) var(--ease-nav);
+  }
+
+  .landing-nav[data-scrolled] {
+    padding-top: var(--nav-inset);
+  }
+
+  .landing-nav[data-scrolled] .landing-nav-bar {
+    width: var(--nav-width-scrolled);
+    border-radius: var(--radius-md);
+    outline-color: var(--color-hairline-dark);
+  }
 }
 
 @keyframes field-drift {
@@ -796,6 +921,16 @@
   .reveal[data-reveal]:not([data-revealed]) {
     opacity: 1;
     transform: none;
+  }
+
+  /* The navbar still reaches both of its states; it just arrives instead of
+     travelling. Reduced motion asks for "no motion", never "slower motion", and
+     both states are fully legible on their own — the inset bar with its edge and
+     the full-bleed bar without one. The transition is removed rather than
+     shortened, so there is no window in which a reader sees a half-width bar. */
+  .landing-nav,
+  .landing-nav-bar {
+    transition: none;
   }
 }
 
