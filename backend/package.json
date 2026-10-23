@@ -52,7 +52,8 @@
     "check:settle": "tsx src/services/settlement.check.ts",
     "report:gas": "tsx src/services/gas-report.ts",
     "check:charge": "tsx src/services/charge.check.ts",
-    "check:charge-api": "tsx src/services/charge-api.check.ts"
+    "check:charge-api": "tsx src/services/charge-api.check.ts",
+    "check:charge-fee": "tsx src/services/charge-fee.check.ts"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.0",
