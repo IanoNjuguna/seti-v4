@@ -37,9 +37,14 @@ function shareLabel(state: ShareState): string {
  * own, so the two read as one thing; share and save sit under both, because they act on
  * the half rather than on the string.
  *
- * Share and save are `ghost` buttons rather than filled pills because of what they pair
- * with (see `QrDownloadControl`): matching one control's recipe is worth more than two
- * mismatched ones, and the code stays the only object on the page.
+ * SHARE WEARS THE FILL AND SAVE DOES NOT. Both were `ghost`, on the argument that
+ * matching `QrDownloadControl`'s recipe was worth more than two mismatched controls.
+ * The render said otherwise: two cobalt text actions of equal weight under one name gave
+ * the screen two alternatives and no next step, so the eye had nothing to land on after
+ * the code. Sharing is what this page is FOR (hand the code over), and saving it is the
+ * rarer alternative, so Share is the one filled pill and download stays the lighter
+ * action beside it — the system's own premise-and-its-alternative pairing, which the
+ * Home actions already use.
  */
 export function ReceiveHalf({ plate, headline, copy, share, download }: ReceiveHalfProps) {
   const copyState = useCopyLink(copy?.value ?? '');
@@ -67,7 +72,7 @@ export function ReceiveHalf({ plate, headline, copy, share, download }: ReceiveH
       {share || download ? (
         <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
           {share ? (
-            <Button variant="ghost" onClick={shareLink.share}>
+            <Button variant="primary" onClick={shareLink.share}>
               {shareLabel(shareLink.state)}
             </Button>
           ) : null}
