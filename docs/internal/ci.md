@@ -132,12 +132,23 @@ gh variable set NEXT_PUBLIC_AUTH_SOURCE --repo "$OWNER_REPO" --body "privy"
 ```
 
 > **The chain id must agree with the API's.** The web build and the API are
-> deployed by two different jobs from the same commit, but nothing in the
+> deployed by two different jobs from the same commit, and nothing in the
 > pipeline compares these values. If the Worker is built for `4217` while the box
 > runs `TEMPO_CHAIN_ID=42431`, the client signs on a chain the API does not
 > reconcile against, and every payment fails verification. `docs/internal/mainnet-flip.md`
 > is the procedure that moves both; flip them **together**, in one commit that
 > changes the box's `.env.production` and these variables.
+>
+> The comparison is one command, because `GET /health` names the chain the API
+> serves (`network`, `chainId`, `networkLabel`):
+>
+> ```bash
+> curl -s https://api.seti.live/health   # ..."chainId":4217,"networkLabel":"Live"
+> gh variable get NEXT_PUBLIC_TEMPO_CHAIN_ID   # 4217
+> ```
+>
+> Equal values mean the deployment is coherent. The pipeline still does not
+> compare them for you; this is the check, and it is the reader's.
 
 Values here are the *live* set. A practice deployment uses `42431`,
 `NEXT_PUBLIC_ALLOW_MAINNET=false`, and the same token addresses.

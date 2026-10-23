@@ -18,11 +18,34 @@ Base URL in local development: `http://localhost:4000`.
 
 ### `GET /health`
 
-Liveness. Touches nothing, so it answers even when the database is down.
+Liveness, plus the Tempo network this process serves. Touches nothing, so it
+answers even when the database is down.
 
 ```json
-{ "status": "ok", "service": "seti-api", "version": "0.1.0" }
+{
+  "status": "ok",
+  "service": "seti-api",
+  "version": "0.1.0",
+  "network": "mainnet",
+  "chainId": 4217,
+  "networkLabel": "Live"
+}
 ```
+
+`network`, `chainId` and `networkLabel` name the chain this deployment serves —
+`testnet` / `42431` / `Practice`, or `mainnet` / `4217` / `Live` — and come from
+the same constant every route branches on, so they cannot disagree with the
+running process.
+
+They exist to be compared. The client is built with `NEXT_PUBLIC_TEMPO_CHAIN_ID`
+and the API reads `TEMPO_CHAIN_ID` from its own environment: two settings, in two
+places, that nothing compares for you. A Worker signing on one chain against an
+API serving the other means every payment fails verification, and this is the one
+request that shows it. Compare `chainId` against the chain the client was built
+with; they must be equal.
+
+Nothing secret is in the body: a chain id and a label are public, and the route
+is unauthenticated.
 
 ### `GET /health/sweep`
 
