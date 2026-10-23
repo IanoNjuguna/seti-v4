@@ -1,4 +1,11 @@
-/** What the one field in a receive half renders, and what it says while doing it. */
+/**
+ * What a bordered field renders, and what it says while doing it.
+ *
+ * The `note` prop is gone with the receive link row: it existed to say what a sender
+ * could do INSTEAD of the string in the box, and the only surfaces that used it were
+ * the two receive halves whose link rows this change deleted. Nothing else passed it,
+ * and an optional prop nobody passes is a second layout that never gets looked at.
+ */
 export interface ReceiveFieldProps {
   /** The small caption above the field, naming what the value IS. */
   label: string;
@@ -10,9 +17,4 @@ export interface ReceiveFieldProps {
   copyFailed: string;
   /** The confirmation, announced rather than drawn as a second line of prose. */
   copiedText: string;
-  /**
-   * A sentence under the field: the OTHER way a sender can reach this account.
-   * Optional, because the address half has nothing to add to its own string.
-   */
-  note?: string;
 }

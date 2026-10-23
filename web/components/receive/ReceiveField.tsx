@@ -5,31 +5,24 @@ import { useCopyLink } from '@/components/app/useCopyLink';
 import type { ReceiveFieldProps } from './ReceiveField.types';
 
 /**
- * The ONE string a receive half hands out, in a bordered field, with the control
- * that copies it INSIDE the field.
+ * ONE string in a bordered field, with the control that copies it INSIDE the field.
  *
- * The field is the whole point of the layout change. Before it, a half was a
- * plate beside a stack of two or three unbordered lines, so the code, the name and
- * the link all had the same weight and the reader had to work out which string was
- * the one to hand over. Here the border draws the boundary of the value, and the
- * control sits at the end of the line it copies rather than in a column of its own.
+ * This is no longer part of `/app/receive`. The receive page presents its string as
+ * display type with the copy control beside it (see `ReceiveHalf`), because the string
+ * is the page's hero object rather than a value in a box; the field is what a screen
+ * that genuinely holds a URL uses, and its remaining caller is the invite screen
+ * (`components/invite/InviteLinkField.tsx`). It stays here because that is a real
+ * caller, not because anything on this surface still draws it.
  *
- * The value is never truncated: `break-all` wraps a 42-character address inside the
- * field. An address that is clipped is the one thing on this screen that cannot be
- * guessed at, and a QR fails exactly when the camera will not focus.
+ * The value is never truncated: `break-all` wraps a long link inside the field. A link
+ * that is clipped mid-handle is the one thing on those screens that cannot be guessed
+ * at, and it is the whole reason the field exists.
  *
- * The confirmation is a word rather than a glyph change alone, because the control
- * is an icon: `role="status"` announces it, and the sentence is the only thing
- * telling a pointer user that the press worked.
+ * The confirmation is a word rather than a glyph change alone, because the control is
+ * an icon: `role="status"` announces it, and the sentence is the only thing telling a
+ * pointer user that the press worked.
  */
-export function ReceiveField({
-  label,
-  value,
-  copyLabel,
-  copyFailed,
-  copiedText,
-  note,
-}: ReceiveFieldProps) {
+export function ReceiveField({ label, value, copyLabel, copyFailed, copiedText }: ReceiveFieldProps) {
   const { state, copy } = useCopyLink(value);
   const copied = state === 'copied';
 
@@ -56,15 +49,15 @@ export function ReceiveField({
         </Text>
       ) : null}
 
-      <Text variant="micro" as="p" color="success" role="status" className={copied ? undefined : 'sr-only'}>
+      <Text
+        variant="micro"
+        as="p"
+        color="success"
+        role="status"
+        className={copied ? undefined : 'sr-only'}
+      >
         {copied ? copiedText : ''}
       </Text>
-
-      {note ? (
-        <Text variant="micro" as="p" color="secondary">
-          {note}
-        </Text>
-      ) : null}
     </div>
   );
 }

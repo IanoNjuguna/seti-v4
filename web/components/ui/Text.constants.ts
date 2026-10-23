@@ -25,6 +25,12 @@ export const VARIANT_CLASSES: Record<TextVariant, string> = {
   // exactly what the ledger says, and the type shrinks to fit it.
   'balance-compact': 'font-mono font-medium text-heading-sm sm:text-heading-md',
   'balance-tight': 'font-mono font-medium text-heading-sm',
+  // 32px / -0.02em on a phone, 40px from `sm` up — a NAME at hero scale, not a
+  // figure: the brand face rather than mono, because a username is a word a person
+  // types, and the system reserves mono for figures, addresses and hashes. The two
+  // sizes are one base class and one breakpoint variant, so no emission-order
+  // ambiguity (`sm:` variants always follow base utilities).
+  display: 'font-brand font-medium text-heading-lg sm:text-display-md',
   // 24px / 1.33 / 500 — `heading-md`, the size a lockup or panel title uses. Added
   // when the rail's wordmark asked for `heading-md` on top of `section` (20px): a
   // second size class cannot win there. Tailwind emits a FIXED order for these
@@ -60,6 +66,7 @@ export const DEFAULT_COLOR_CLASSES: Record<TextVariant, string> = {
   balance: 'text-ink',
   'balance-compact': 'text-ink',
   'balance-tight': 'text-ink',
+  display: 'text-ink',
   'heading-md': 'text-ink',
   section: 'text-ink',
   'card-title': 'text-ink',

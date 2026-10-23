@@ -9,12 +9,13 @@ import type { InviteLinkFieldProps } from './Invite.types';
 /**
  * The link, and the two ways to pass it on.
  *
- * The field is the app's OWN field primitive (`ReceiveField`, the one the receive
- * halves use), so the border, the monospace value and the control inside the box are
- * the same object on both screens: a person who has seen their receive link knows how
- * to take this one. Share sits BESIDE the field rather than inside it — inside, two
- * icon controls a few pixels apart would read as two ways to copy, which is not what
- * the second one does.
+ * The field is the app's own field primitive (`ReceiveField`), so the border, the
+ * monospace value and the control inside the box are the same object here as on any
+ * screen that holds a URL. It used to be shared with the two receive halves, which have
+ * since stopped putting their string in a box: the receive page presents a username as
+ * display type, so this is now the field's only caller. Share sits BESIDE the field
+ * rather than inside it — inside, two icon controls a few pixels apart would read as two
+ * ways to copy, which is not what the second one does.
  *
  * `items-end` aligns the control with the FIELD rather than with the caption above
  * it, so the button's bottom edge is the box's bottom edge on every width. The field
