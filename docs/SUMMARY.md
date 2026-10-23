@@ -9,6 +9,7 @@
 ## Building
 
 * [Payments](payments.md)
+* [Receiving webhooks](receive.md)
 * [MCP server](mcp.md)
 * [API reference](api-reference.md)
 

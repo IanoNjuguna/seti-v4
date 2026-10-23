@@ -112,6 +112,18 @@ export type AuditAction =
    */
   | 'arrival.recorded'
   /**
+   * A merchant APP and the webhook secret Seti issued for it (#156).
+   *
+   * Ownership of the row is the session's; the binding and every rotation are the
+   * payout address's signature. `metadata` carries `publicId` and `payoutAddress` and
+   * NEVER the secret: an audit body is read by more people than the app screen is.
+   * `secret_rotated` also carries the rotation count, so "did we rotate after that
+   * leak?" is a log read rather than a guess.
+   */
+  | 'merchant_app.created'
+  | 'merchant_app.secret_rotated'
+  | 'merchant_app.revoked'
+  /**
    * A person RENAMED: their one username was replaced by a new signed claim, and
    * the old string was released into `handle_releases` — held to the same account
    * for 30 days when it was live. `metadata` carries `from`, `to`, `reason` and

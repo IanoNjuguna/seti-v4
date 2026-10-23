@@ -199,7 +199,43 @@ export type PaymentRefusalCode =
    * also be filed as an unattributed arrival: that would count one transfer twice
    * and tell the merchant their money is both a charge payment and a stray.
    */
-  | 'arrival-is-charge-settlement';
+  | 'arrival-is-charge-settlement'
+  /**
+   * The merchant app's own refusals (`routes/merchant-apps.ts`, #156).
+   *
+   * A merchant app is a name a wallet SIGNED for, bound to the address its charges
+   * are paid at, plus the webhook secret Seti issues for it. These codes name the ways
+   * creating, reading or rotating one fails, and each names a different fix.
+   */
+  /** The EIP-712 binding signature does not recover to the claimed payout address. */
+  | 'merchant-app-signature-invalid'
+  /** The binding signature was issued outside its window (five minutes either way). */
+  | 'merchant-app-stale'
+  /** The signed fields and the submitted fields disagree (the name, the URL, the address). */
+  | 'merchant-app-mismatch'
+  /** The payout address is not usable, or is not one of the caller's own wallets. */
+  | 'merchant-app-address-not-owned'
+  /** This account already has an app with this name. */
+  | 'merchant-app-name-taken'
+  /** The webhook URL is not https (http is allowed only for localhost in development). */
+  | 'merchant-app-webhook-invalid'
+  /**
+   * No secret-box key is configured, so a webhook secret cannot be sealed. Refused
+   * BEFORE any row is written, because an app whose secret cannot be opened is an app
+   * whose webhooks can never be verified.
+   */
+  | 'secret-box-unset'
+  /**
+   * The app exists and this caller cannot see it. Uniform for "not found" and "not
+   * yours": whether another account owns a given id is not this caller's business.
+   */
+  | 'merchant-app-not-found'
+  /** The app was revoked: its secret is gone, so there is nothing to rotate or replay. */
+  | 'merchant-app-revoked'
+  /** The delivery id is not one of this app's deliveries. */
+  | 'delivery-not-found'
+  /** That delivery already succeeded, so a replay would be a second POST for one event. */
+  | 'delivery-not-replayable';
 
 /** Why an on-chain receipt could not be used to verify a leg. */
 export type ReceiptFailureCode =
