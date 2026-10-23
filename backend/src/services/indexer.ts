@@ -21,6 +21,8 @@ import {
   type ChargeTransferCandidate,
 } from './charge-match.js';
 import { distinctPendingRecipients, unitsToAmount } from './charge-store.js';
+import { recordArrivals, watchedArrivalRecipients } from './arrival-store.js';
+import { ARRIVAL_WATCH_LIMIT, type ObservedArrival } from './arrival.js';
 import { deliverDueWebhooks } from './charge-webhook.js';
 import { cursorKeyFor, type Network } from '../lib/network.js';
 import { logAuditEvent } from './audit.js';
@@ -217,10 +219,27 @@ async function scanWindow(window: BlockWindow): Promise<void> {
     );
   }
 
-  if (addresses.length === 0 && chargeRecipients.length === 0) return;
+  // Money that arrives with no charge behind it. The addresses are the ones Seti can
+  // PROVE belong to someone who means to be paid (a charge recipient, or a signed
+  // handle claim), and the query is a `to` filter on the same window, so this adds
+  // one narrow RPC read per asset rather than a scan of the chain.
+  const arrivalRecipients = await watchedArrivalRecipients(SERVED_NETWORK, ARRIVAL_WATCH_LIMIT);
+  if (arrivalRecipients.length === ARRIVAL_WATCH_LIMIT) {
+    console.warn(
+      `[indexer] ${ARRIVAL_WATCH_LIMIT} watched addresses is the arrival cap; ` +
+        'addresses beyond it are only watched in a later window.'
+    );
+  }
+
+  if (addresses.length === 0 && chargeRecipients.length === 0 && arrivalRecipients.length === 0) {
+    return;
+  }
 
   /** Transfers the charge matcher will consider, with their asset label. */
   const chargeTransfers: ChargeTransferCandidate[] = [];
+
+  /** Transfers to a merchant's address that no charge may account for. */
+  const observedArrivals: ObservedArrival[] = [];
 
   for (const [asset, contractAddress] of ASSET_ADDRESSES) {
     const logs =
@@ -334,6 +353,41 @@ async function scanWindow(window: BlockWindow): Promise<void> {
         });
       }
     }
+
+    // Arrivals, from the PLAIN `Transfer` event on the same window and the same
+    // contract. A payer who skips our page builds an ordinary transfer, and that
+    // log is the only evidence the money exists. `to` is filtered at the RPC, so
+    // this reads transfers to watched addresses and never the whole network.
+    //
+    // A `transferWithMemo` emits BOTH events, so a charge payment lands here too.
+    // That is deliberate: `recordArrivals` asks the classifier, and the classifier
+    // refuses any transfer a charge already settled by this same hash. The filter
+    // that keeps the two paths apart is the charge's own transaction, never an
+    // amount, so nothing here can attach a payment to the wrong charge.
+    if (arrivalRecipients.length > 0) {
+      const arrivalLogs = await publicClient.getLogs({
+        address: contractAddress,
+        event: TRANSFER_EVENT,
+        args: { to: arrivalRecipients as `0x${string}`[] },
+        fromBlock: window.fromBlock,
+        toBlock: window.toBlock,
+      });
+
+      for (const log of arrivalLogs) {
+        observedArrivals.push({
+          txHash: log.transactionHash,
+          recipient: String(log.args.to).toLowerCase(),
+          sender: String(log.args.from).toLowerCase(),
+          asset,
+          amount: unitsToAmount(log.args.value ?? 0n),
+          // Null rather than a substitute: a log that somehow carries no block
+          // number has an unknown one, and inventing a block would put a false
+          // reference in front of a merchant.
+          blockNumber: log.blockNumber ?? null,
+          confirmed: true,
+        });
+      }
+    }
   }
 
   // Whatever the pass saw, the classifier decides — once, in one place. Nothing here
@@ -387,6 +441,33 @@ async function scanWindow(window: BlockWindow): Promise<void> {
         );
       } else if (result.code) {
         console.log(`[charges] ${result.chargeId} unchanged: ${result.code} (${result.txHash})`);
+      }
+    }
+  }
+
+  // The money that no charge accounts for. Recorded AFTER the charge match, so the
+  // classifier can see every charge that this window just settled and refuse to
+  // double-report its transaction as a stray. Nothing here can change a charge's
+  // status: a charge stays `pending` (or expired) and is never made `paid` by an
+  // arrival, because an arrival has no charge to move.
+  if (observedArrivals.length > 0) {
+    const arrivals = await recordArrivals({
+      arrivals: observedArrivals,
+      network: SERVED_NETWORK,
+    });
+
+    const recorded = arrivals.filter((arrival) => arrival.id !== null).length;
+    if (recorded > 0) {
+      console.log(
+        `[arrivals] recorded ${recorded} of ${observedArrivals.length} transfers with no charge`
+      );
+    }
+
+    for (const arrival of arrivals) {
+      if (!arrival.id && arrival.code && arrival.code !== 'already-recorded') {
+        console.log(
+          `[arrivals] ${arrival.txHash} not recorded: ${arrival.code}`
+        );
       }
     }
   }
