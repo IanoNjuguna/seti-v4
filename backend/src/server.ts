@@ -22,6 +22,7 @@ import { receiptRoutes } from './routes/receipts.js';
 import { publicChargeRoutes } from './routes/public-charges.js';
 import { arrivalRoutes } from './routes/arrivals.js';
 import { referralRoutes } from './routes/referrals.js';
+import { merchantAppRoutes } from './routes/merchant-apps.js';
 import { networkScopeHook } from './middleware/network-scope.js';
 
 /**
@@ -250,6 +251,13 @@ export async function buildServer(options: BuildServerOptions = {}) {
   // (who joined). The mix is why this is its own registration rather than a
   // route inside a plugin whose hook is decided once.
   await app.register(referralRoutes, { prefix: '/referrals' });
+
+  // Merchant apps and the webhook secret Seti issues for them (#156). Behind the
+  // SESSION on every route, which is the point: a merchant app is a public id plus a
+  // webhook secret that proves our events are ours, and neither is a session. The app
+  // id cannot create a charge (that needs the recipient's EIP-712 signature) and cannot
+  // read one (same signature, on the public charge routes above).
+  await app.register(merchantAppRoutes, { prefix: '/merchant-apps' });
 
   return app;
 }
