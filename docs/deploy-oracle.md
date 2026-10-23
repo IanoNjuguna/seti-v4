@@ -231,7 +231,7 @@ cloudflared tunnel route dns seti-api api.seti.example   # a domain you control 
 # 5. Run it as a service so it survives reboots.
 sudo cloudflared service install
 sudo systemctl enable --now cloudflared
-curl https://api.seti.example/health      # {"status":"ok","service":"seti-api","version":"0.1.0"}
+curl https://api.seti.example/health      # {"status":"ok","service":"seti-api","version":"0.1.0","network":"mainnet","chainId":4217,"networkLabel":"Live"}
 ```
 
 The API never listens on a public interface: it is bound to `127.0.0.1:4000`
@@ -443,13 +443,21 @@ docker compose -f /opt/seti/docker-compose.yml exec -T postgres \
 ## 10. Health check
 
 The API already exposes `GET /health`, which returns
-`{"status":"ok","service":"seti-api","version":"0.1.0"}`. It is deliberately
-**cheap and touches nothing**: no database round-trip, so it answers even when
-Postgres is down and an orchestrator will not restart a process that is fine.
+`{"status":"ok","service":"seti-api","version":"0.1.0","network":"mainnet","chainId":4217,"networkLabel":"Live"}`.
+It is deliberately **cheap and touches nothing**: no database round-trip, so it
+answers even when Postgres is down and an orchestrator will not restart a process
+that is fine.
+
+It also names the Tempo network this process serves, which is the cheapest way to
+catch the one misconfiguration that otherwise fails silently: the Worker is built
+with `NEXT_PUBLIC_TEMPO_CHAIN_ID` and the API reads `TEMPO_CHAIN_ID` from
+`.env.production`, so a client signing on one chain against an API serving the
+other fails every payment's verification. Compare `chainId` here against the
+client's build value; they must be equal. See `docs/internal/ci.md` §2.
 
 ```bash
 curl http://127.0.0.1:4000/health
-# {"status":"ok","service":"seti-api","version":"0.1.0"}
+# {"status":"ok","service":"seti-api","version":"0.1.0","network":"mainnet","chainId":4217,"networkLabel":"Live"}
 curl https://api.seti.example/health
 ```
 

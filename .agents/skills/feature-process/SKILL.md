@@ -81,6 +81,20 @@ If the change touches a public surface — a route, a response shape, a refusal 
 env default — `verify` is not the whole gate: the MCP tools and the docs move in the
 same PR. See the `surface-parity` skill for what to touch and how to prove it.
 
+### The `verify` chain is one line, and every branch edits it
+
+`package.json`'s `verify` script is a single string. Two branches that both add a check
+conflict on that exact line every time, and a squash merge cannot be predicted from a
+green PR check because the conflict only appears against the new `main`. Two habits:
+
+- **Append, never replace.** New entries go on the end of the chain, keeping every
+  existing one, so the diff is an insertion rather than a rewrite.
+- **Resolve by taking `main`'s line and appending only what is missing.** Do not
+  hand-merge the markers: `git checkout --theirs package.json`, read `origin/main`'s
+  `verify`, then append each fragment the branch has and `main` does not. Check every
+  appended fragment still carries its `--workspace` flag: a fragment that loses
+  `--workspace backend` fails in CI with `Missing script` and reads like a code failure.
+
 ## 5. The pull request carries the reasoning
 
 `gh pr create` with `.github/pull_request_template.md` as the shape. What

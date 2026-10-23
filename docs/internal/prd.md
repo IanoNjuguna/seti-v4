@@ -403,7 +403,8 @@ row was written, or is still pending.
   the probe is unauthenticated and does not need to publish *which* payments are
   stuck — use `support:payment --stuck` for those. `GET /health/` stays pure
   liveness and touches no database, so a database outage cannot make a healthy
-  process look dead.
+  process look dead; it also names the Tempo network the process serves, so a
+  client/API chain mismatch is one unauthenticated request away from being seen.
 - The "sweep has stopped" case is covered deliberately. The sweep state is
   in-process, so `lastSweepAt` going stale (over 60s — four missed ticks) is
   itself reported as degraded. A dead sweep otherwise looks exactly like a quiet

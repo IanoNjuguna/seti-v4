@@ -55,7 +55,8 @@
     "check:charge": "tsx src/services/charge.check.ts",
     "check:charge-api": "tsx src/services/charge-api.check.ts",
     "check:arrival": "DEV_BYPASS_AUTH=true tsx src/services/arrival.check.ts",
-    "check:charge-fee": "tsx src/services/charge-fee.check.ts"
+    "check:charge-fee": "tsx src/services/charge-fee.check.ts",
+    "check:health": "tsx src/services/health.check.ts"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.0",
