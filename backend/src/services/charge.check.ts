@@ -19,9 +19,16 @@
  *  4. **The classifier at the boundary.** Exactly 1% under is paid, 1.01% under is
  *     underpaid, exactly 1% over is paid, 1.01% over is overpaid, and every refusal
  *     names a code from the existing taxonomy rather than prose.
+ *  5. **The fee leg as its own fact.** The same receipt with and without a transfer
+ *     to the treasury is `paid` either way, and only one of them is fee-collected;
+ *     `inside-transfer` mode is never collected; a fee one base unit short is short.
+ *     The status never moves with the fee, which is the whole point of the split.
  *
  * No database, no chain, no user: `services/charge.ts` is pure, so this suite runs
- * with no `docker compose up`. Signatures are REAL signatures from deterministic
+ * with no `docker compose up`. It does read one piece of config — the fee schedule —
+ * because the fee expectation has to be the SAME 2% the payment path charges, and
+ * copying the number into a fixture would be the second definition of it that
+ * `fees.ts` exists to prevent. Signatures are REAL signatures from deterministic
  * dev keys, never fabricated hex — a check that asserts on a made-up signature
  * proves nothing about whether a wallet can sign anything.
  */
@@ -29,6 +36,7 @@ import { hashTypedData } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { TEMPO_MAINNET_CHAIN_ID, TEMPO_TESTNET_CHAIN_ID } from '../config/assets.js';
 import {
+  CHARGE_FEE_REASONS,
   CHARGE_SIGNED_FIELDS,
   CHARGE_SPEC_VERSION,
   CHARGE_STATUSES,
@@ -51,10 +59,33 @@ import {
   recoverChargeSigner,
   type Charge,
   type ChargeDecision,
+  type ChargeFeeInput,
+  type ChargeFeeOutcome,
   type ChargeFields,
   type ChargeStatus,
+  type ObservedFeeLeg,
   type ObservedTransfer,
 } from './charge.js';
+import type { FeeRoutingMode, MerchantFeeSchedule } from './fees.js';
+
+/**
+ * The treasury fixture, and the reason it is a constant rather than `env`:
+ * `charge.ts` never reads config, so the address is data the caller supplies. The
+ * live value is injected in `charge-match.ts` (`treasuryAddressFor`).
+ */
+const TREASURY = '0x48cb25f9d82aF721e71437feAfb295da627BA475';
+
+/** The mode the product ships: the fee is a second transfer, to the treasury. */
+const BATCH: FeeRoutingMode = 'batch';
+
+/**
+ * The shipped schedule, written out: 2%, no floor, no cap.
+ *
+ * Written as a literal on purpose — a fixture that read the environment would move
+ * when the environment moved, and these assertions are about the arithmetic at a
+ * known 2%, not about whatever this box is configured with.
+ */
+const FEE_SCHEDULE: MerchantFeeSchedule = { percent: 2, minKes: 0, maxPercent: 0 };
 
 const TESTNET = TEMPO_TESTNET_CHAIN_ID;
 const MAINNET = TEMPO_MAINNET_CHAIN_ID;
@@ -351,7 +382,19 @@ async function main(): Promise<void> {
   );
   checkEq(
     'the transition table refuses an out-edge from a terminal state',
-    nextChargeStatus('paid', { ok: true, status: 'overpaid', deltaUnits: 1n, toleranceUnits: 0n }),
+    nextChargeStatus('paid', {
+      ok: true,
+      status: 'overpaid',
+      deltaUnits: 1n,
+      toleranceUnits: 0n,
+      fee: {
+        collected: false,
+        reason: 'fee-not-observed',
+        expectedUnits: null,
+        observedUnits: null,
+        excessUnits: 0n,
+      },
+    }),
     null
   );
 
@@ -607,7 +650,315 @@ async function main(): Promise<void> {
   );
 
   // -------------------------------------------------------------------------
-  // 7. Defaults
+  // 7. The fee leg — a second fact, never a condition on the status
+  // -------------------------------------------------------------------------
+  console.log('\nthe fee leg — 2% of the signed amount, checked on its own\n');
+
+  /**
+   * The fixtures below are all about ONE charge of `100.000000 ousd`, whose 2% is
+   * exactly `2.000000` — the same arithmetic a payer's client performs, which is
+   * what makes an exact comparison fair.
+   */
+  const feeReasons = new Set<string>();
+
+  function noteFee(decision: ChargeDecision): ChargeFeeOutcome | null {
+    if (!decision.ok) return null;
+    if (decision.fee.reason) feeReasons.add(decision.fee.reason);
+    return decision.fee;
+  }
+
+  /** A treasury leg of `amount`, in the charge's asset unless overridden. */
+  function treasuryLeg(amount: string, over: Partial<ObservedFeeLeg> = {}): ObservedFeeLeg {
+    return { recipient: TREASURY, asset: BASE.asset, amount, ...over };
+  }
+
+  /** A fee observation for the batch mode the product ships. */
+  function batchFee(legs: ObservedFeeLeg[] = [], over: Partial<ChargeFeeInput> = {}): ChargeFeeInput {
+    return { routing: BATCH, treasury: TREASURY, legs, schedule: FEE_SCHEDULE, ...over };
+  }
+
+  /** Classify `good` with a fee observation attached. */
+  function withFee(
+    fee: ChargeFeeInput | undefined,
+    transferOver: Partial<ObservedTransfer> = {}
+  ): Promise<ChargeDecision> {
+    return classifyCharge({
+      charge: good,
+      transfer: transfer(transferOver),
+      chainId: TESTNET,
+      now: NOW,
+      fee,
+    });
+  }
+
+  // (a) The principal arrived and the fee did not. This is the defect: before the
+  // fee leg was read at all, this receipt and a full one were the same decision.
+  const principalOnly = withFee(batchFee());
+  const principalOnlyDecision = await principalOnly;
+  const principalOnlyFee = noteFee(principalOnlyDecision);
+
+  check(
+    'a transfer carrying the principal and NO fee leg is still paid',
+    statusOf(principalOnlyDecision) === 'paid',
+    statusOf(principalOnlyDecision)
+  );
+  check(
+    'and the fee is reported uncollected, not inferred from the principal',
+    principalOnlyFee?.collected === false,
+    `${principalOnlyFee?.collected}`
+  );
+  checkEq(
+    'with a reason naming the missing leg',
+    principalOnlyFee?.reason,
+    'fee-leg-missing'
+  );
+  check(
+    'and the expectation is the schedule applied to the signed amount (2.000000)',
+    principalOnlyFee?.expectedUnits === 2_000_000n,
+    principalOnlyFee?.expectedUnits ?? 'null'
+  );
+  check(
+    'and nothing was observed at the treasury',
+    principalOnlyFee?.observedUnits === null,
+    principalOnlyFee?.observedUnits ?? 'null'
+  );
+
+  // (b) The same receipt, with the fee leg beside the principal — one transaction,
+  // two transfers. Now, and only now, is the fee collected.
+  const withFeeLeg = await withFee(batchFee([treasuryLeg('2.000000')]));
+  const withFeeLegFee = noteFee(withFeeLeg);
+
+  check('a principal plus a treasury leg is paid', statusOf(withFeeLeg) === 'paid');
+  check(
+    'and the fee is reported collected',
+    withFeeLegFee?.collected === true,
+    `${withFeeLegFee?.collected}`
+  );
+  check('with no reason left to give', withFeeLegFee?.reason === null);
+  check(
+    'observed equals expected to the base unit',
+    withFeeLegFee?.observedUnits === 2_000_000n && withFeeLegFee?.expectedUnits === 2_000_000n,
+    `${withFeeLegFee?.observedUnits ?? 'null'} / ${withFeeLegFee?.expectedUnits ?? 'null'}`
+  );
+  check('and there is no excess', withFeeLegFee?.excessUnits === 0n, withFeeLegFee?.excessUnits ?? 'null');
+
+  // The two decisions above differ ONLY in the fee leg: same charge, same transfer,
+  // same amount. That is the property the old 1%-only check could not express.
+  check(
+    'the two receipts are the same status and differ only in the fee fact',
+    statusOf(principalOnlyDecision) === statusOf(withFeeLeg) &&
+      principalOnlyFee?.collected !== withFeeLegFee?.collected
+  );
+
+  // (c) inside-transfer: the fee rides inside the single transfer to the RECIPIENT,
+  // so Seti receives nothing. This mode must never be reported as collected.
+  const insideTransfer = await withFee(batchFee([], { routing: 'inside-transfer' }));
+  const insideTransferFee = noteFee(insideTransfer);
+
+  check(
+    'inside-transfer mode is never reported as fee-collected',
+    insideTransferFee?.collected === false,
+    `${insideTransferFee?.collected}`
+  );
+  checkEq(
+    'and says the fee went to the recipient',
+    insideTransferFee?.reason,
+    'fee-inside-transfer'
+  );
+  check(
+    'and the charge is still paid — the recipient did receive the money',
+    statusOf(insideTransfer) === 'paid',
+    statusOf(insideTransfer)
+  );
+
+  // Even if a transfer to the treasury happens to be in that transaction, in
+  // inside-transfer mode it was not the fee and it was not collected.
+  const insideTransferWithLeg = await withFee(
+    batchFee([treasuryLeg('2.000000')], { routing: 'inside-transfer' })
+  );
+  noteFee(insideTransferWithLeg);
+  check(
+    'a treasury transfer in inside-transfer mode is not a collected fee',
+    insideTransferWithLeg.ok && insideTransferWithLeg.fee.collected === false && insideTransferWithLeg.fee.reason === 'fee-inside-transfer',
+    insideTransferWithLeg.ok ? String(insideTransferWithLeg.fee.collected) : 'refused'
+  );
+
+  // (d) A paid charge with an uncollected fee is readable as BOTH facts.
+  const readable = await withFee(batchFee([treasuryLeg('1.980000')]));
+  const readableFee = noteFee(readable);
+  check(
+    'a paid charge with a short fee reads paid AND fee-uncollected',
+    statusOf(readable) === 'paid' && readableFee?.collected === false,
+    `${statusOf(readable)} / ${readableFee?.collected}`
+  );
+  checkEq('with the shortfall named', readableFee?.reason, 'fee-short');
+  check(
+    'and the arithmetic of the shortfall is reported, not just the verdict',
+    readableFee?.expectedUnits === 2_000_000n && readableFee?.observedUnits === 1_980_000n,
+    `${readableFee?.observedUnits ?? 'null'} of ${readableFee?.expectedUnits ?? 'null'}`
+  );
+
+  // One base unit is the boundary, and it bites in both directions. This is why the
+  // fee has no 1% tolerance: a tolerance here IS the defect, smaller.
+  const oneUnitShort = await withFee(batchFee([treasuryLeg('1.999999')]));
+  const oneUnitShortFee = noteFee(oneUnitShort);
+  check(
+    'a fee one base unit short is not collected',
+    oneUnitShortFee?.collected === false && oneUnitShortFee.reason === 'fee-short',
+    oneUnitShortFee?.reason ?? 'collected'
+  );
+  check(
+    'and the payment is still paid (a fee shortfall is not a failed payment)',
+    statusOf(oneUnitShort) === 'paid',
+    statusOf(oneUnitShort)
+  );
+
+  const oneUnitOver = await withFee(batchFee([treasuryLeg('2.000001')]));
+  const oneUnitOverFee = noteFee(oneUnitOver);
+  check(
+    'a fee one base unit over is collected, and the excess is reported',
+    oneUnitOverFee?.collected === true && oneUnitOverFee.excessUnits === 1n,
+    oneUnitOverFee?.excessUnits ?? 'null'
+  );
+
+  // (e) Every way the fee can fail to arrive, each its own fact.
+  const wrongAsset = await withFee(batchFee([treasuryLeg('2.000000', { asset: 'pathusd' })]));
+  const wrongAssetFee = noteFee(wrongAsset);
+  check(
+    'a fee paid in another token is not this fee',
+    wrongAssetFee?.collected === false && wrongAssetFee.reason === 'fee-asset-mismatch',
+    wrongAssetFee?.reason ?? 'collected'
+  );
+
+  const paidToThePayee = await withFee(
+    batchFee([treasuryLeg('2.000000', { recipient: PAYEE.address })])
+  );
+  const paidToThePayeeFee = noteFee(paidToThePayee);
+  check(
+    'a transfer to the payee is not a fee to the treasury',
+    paidToThePayeeFee?.collected === false && paidToThePayeeFee.reason === 'fee-leg-missing',
+    paidToThePayeeFee?.reason ?? 'collected'
+  );
+
+  const notObserved = await withFee(undefined);
+  const notObservedFee = noteFee(notObserved);
+  check(
+    'a caller that did not look reports uncollected, never collected',
+    notObservedFee?.collected === false && notObservedFee.reason === 'fee-not-observed',
+    notObservedFee?.reason ?? 'collected'
+  );
+  check(
+    'and it still decides the payment',
+    statusOf(notObserved) === 'paid',
+    statusOf(notObserved)
+  );
+
+  // Two treasury calls in one batch: a batch is a list of calls, so the legs are
+  // summed rather than the first one being taken for the whole fee.
+  const splitLegs = await withFee(
+    batchFee([treasuryLeg('1.000000'), treasuryLeg('1.000000')])
+  );
+  const splitLegsFee = noteFee(splitLegs);
+  check(
+    'two treasury legs in one batch sum to the fee',
+    splitLegsFee?.collected === true && splitLegsFee.observedUnits === 2_000_000n,
+    splitLegsFee?.observedUnits ?? 'null'
+  );
+
+  // A schedule that cannot be expressed in token units (a fiat floor or cap) is a
+  // refusal, never a guess: the fee a deployment THINKS it collects must not be
+  // understated by an arithmetic this module cannot do.
+  const flooredSchedule = await withFee(
+    batchFee([treasuryLeg('2.000000')], { schedule: { percent: 2, minKes: 50, maxPercent: 0 } })
+  );
+  const flooredFee = noteFee(flooredSchedule);
+  check(
+    'a floor schedule cannot be measured in token units, and says so',
+    flooredFee?.collected === false && flooredFee.reason === 'fee-schedule-not-units',
+    flooredFee?.reason ?? 'collected'
+  );
+
+  // A schedule that charges nothing has nothing to leave uncollected.
+  const freeSchedule = await withFee(
+    batchFee([], { schedule: { percent: 0, minKes: 0, maxPercent: 0 } })
+  );
+  const freeFee = noteFee(freeSchedule);
+  check(
+    'a zero-percent schedule reports a collected fee rather than a permanent shortfall',
+    freeFee?.collected === true && freeFee.expectedUnits === 0n,
+    `${freeFee?.collected}`
+  );
+
+  // The expectation must come from `fees.ts` when the caller does not override it:
+  // 2% is the product's number, owned in one place, never a constant in the
+  // classifier. (CI pins MERCHANT_FEE_* to nothing, so the default is the shipped 2%.)
+  const liveSchedule = await withFee({
+    routing: BATCH,
+    treasury: TREASURY,
+    legs: [treasuryLeg('2.000000')],
+  });
+  const liveScheduleFee = noteFee(liveSchedule);
+  check(
+    'with no schedule passed, the expectation is the live one from fees.ts',
+    liveScheduleFee?.expectedUnits === 2_000_000n && liveScheduleFee.collected === true,
+    liveScheduleFee?.expectedUnits ?? 'null'
+  );
+
+  // The expectation is the SCHEDULE on the signed amount, so it scales and floors
+  // exactly as `fees.ts` says: 2% of 1.000000 is 0.020000, and 2% of one base unit
+  // (0.000001) is below a base unit, so nothing is owed and nothing is short.
+  const smallCharge = await signed({ ...BASE, amount: '1.000000' });
+  const smallDecision = await classifyCharge({
+    charge: smallCharge,
+    transfer: transfer({ amount: '1.000000' }),
+    chainId: TESTNET,
+    now: NOW,
+    fee: batchFee([treasuryLeg('0.020000')]),
+  });
+  check(
+    'the expectation scales with the charge (2% of 1.000000 is 0.020000)',
+    smallDecision.ok && smallDecision.fee.expectedUnits === 20_000n && smallDecision.fee.collected,
+    smallDecision.ok ? smallDecision.fee.expectedUnits ?? 'null' : 'refused'
+  );
+
+  const dustCharge = await signed({ ...BASE, amount: '0.000001' });
+  const dustDecision = await classifyCharge({
+    charge: dustCharge,
+    transfer: transfer({ amount: '0.000001' }),
+    chainId: TESTNET,
+    now: NOW,
+    fee: batchFee([]),
+  });
+  check(
+    'a fee below one base unit is zero, and zero is collected rather than missing',
+    dustDecision.ok && dustDecision.fee.expectedUnits === 0n && dustDecision.fee.collected,
+    dustDecision.ok ? String(dustDecision.fee.expectedUnits) : 'refused'
+  );
+
+  // The two questions are independent in the other direction too: an underpaid
+  // principal does not make the fee uncollected, and a collected fee does not make
+  // an underpaid principal paid.
+  const underpaidWithFee = await withFee(batchFee([treasuryLeg('2.000000')]), {
+    amount: '98.990000',
+  });
+  const underpaidWithFeeFee = noteFee(underpaidWithFee);
+  check(
+    'an underpaid principal is a separate fact from a collected fee',
+    statusOf(underpaidWithFee) === 'underpaid' && underpaidWithFeeFee?.collected === true,
+    `${statusOf(underpaidWithFee)} / ${underpaidWithFeeFee?.collected}`
+  );
+
+  // Every declared reason must be reachable, and none may be invented — the same
+  // discipline the refusal codes get, for the same reason: a code nobody can reach
+  // is dead weight, and a code not declared does not compile.
+  checkEq(
+    'every declared fee reason is exercised, and nothing else is',
+    [...feeReasons].sort(),
+    [...CHARGE_FEE_REASONS].sort()
+  );
+
+  // -------------------------------------------------------------------------
+  // 8. Defaults
   // -------------------------------------------------------------------------
   console.log('\ndefaults\n');
 

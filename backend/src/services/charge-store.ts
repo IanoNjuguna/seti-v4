@@ -122,6 +122,17 @@ export interface ChargeView extends SignedCharge {
   txHash: string | null;
   /** How much actually arrived, in decimal token units. `"0.000000"` while pending. */
   received: string;
+  /**
+   * Whether the 2% reached `SETI_TREASURY_ADDRESS` in this charge's receipt.
+   *
+   * `null` until a transfer decides the charge — and for a charge decided before
+   * this column existed, where the honest answer is "not recorded" rather than a
+   * guess. Deliberately NOT folded into `status`: a payment can be `paid` and its
+   * fee uncollected, and those are two facts a surface must be able to tell apart.
+   */
+  feeCollected: boolean | null;
+  /** Why not, when it was not. Null when collected, or when nothing was decided. */
+  feeUncollectedReason: string | null;
   /** `testnet` | `mainnet` — the network the signature was made under. */
   network: string;
   chainId: number;
@@ -156,6 +167,8 @@ export function toChargeView(row: ChargeRow): ChargeView {
     status: row.status,
     txHash: row.txHash,
     received: row.received,
+    feeCollected: row.feeCollected ?? null,
+    feeUncollectedReason: row.feeUncollectedReason ?? null,
     network: row.network,
     chainId: row.chainId,
     createdAt: row.createdAt.toISOString(),
@@ -415,6 +428,14 @@ export interface TransitionInput {
   txHash?: string | null;
   /** How much the transfer moved, decimal token units. */
   received?: string;
+  /**
+   * The fee fact, when a decision produced one.
+   *
+   * Written on the same conditional UPDATE as the status, so a charge can never be
+   * `paid` with a fee verdict from a different transfer. Omitted by a transition
+   * that decided no money at all (an expiry), which leaves both columns alone.
+   */
+  fee?: { collected: boolean; reason: string | null };
   /** Set only by a recipient's cancel. */
   cancelledAt?: Date | null;
   now?: Date;
@@ -441,6 +462,12 @@ export async function applyChargeTransition(input: TransitionInput): Promise<Cha
       txHash: input.txHash ?? null,
       received: input.received ?? input.row.received,
       settledAt: input.to === CHARGE_INITIAL_STATUS ? null : now,
+      ...(input.fee
+        ? {
+            feeCollected: input.fee.collected,
+            feeUncollectedReason: input.fee.reason,
+          }
+        : {}),
       ...(input.cancelledAt ? { cancelledAt: input.cancelledAt } : {}),
     },
   });

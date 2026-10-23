@@ -79,6 +79,48 @@ replicas, a replayed transfer and a racing cancel cannot each move the charge; t
 sees `count = 0` and reports nothing. Nothing here holds funds, so "the money arrived" is a
 conclusion the transfer already made.
 
+## The fee leg is a second fact, not a condition on `paid`
+
+The 2% rides in the same atomic batch as the principal: one transaction, two transfers,
+the fee to `SETI_TREASURY_ADDRESS`. The reconciliation used to compare only the principal
+against 1%, so a transfer carrying the principal and NOT the fee produced exactly the same
+decision as one carrying both. A fee Seti claims to collect could be missing with nothing
+anywhere saying so.
+
+Two questions, two answers:
+
+- **Is the charge paid?** `classifyCharge`'s `status`, unchanged: recipient, asset, memo,
+  confirmation, and the amount within 1%.
+- **Did we get paid?** `decision.fee`, from `classifyFeeLeg`: the expectation is
+  `merchantFeeUnits(charge amount, schedule)` — 2% of the SIGNED amount, integer arithmetic,
+  floored — compared with the transfers to the treasury in that same receipt.
+
+The fee comparison has **no** tolerance, and the asymmetry is deliberate. The principal's
+1% absorbs a payer whose client rounded the figure they were shown: both sides of that
+comparison came from outside Seti. The fee's expectation is exact arithmetic over the
+charge's own signed amount, so a tolerance there would mean reporting a fee as collected
+while being up to 1% short of it — the same defect, smaller. One base unit short is short;
+over-payment is `excessUnits`, not a failure.
+
+Nothing about the fee moves the status. A paid charge with an uncollected fee is `paid` and
+the fee fact is recorded beside it:
+
+| Column | Meaning |
+| --- | --- |
+| `charges.feeCollected` | `true` collected, `false` not, `NULL` not decided (pending, cancelled, or a row older than the column) |
+| `charges.feeUncollectedReason` | one of `fee-not-observed`, `fee-inside-transfer`, `fee-leg-missing`, `fee-asset-mismatch`, `fee-short`, `fee-schedule-not-units` |
+
+Both are written on the same conditional UPDATE as the status, so a charge can never carry a
+fee verdict from a different transfer, and both are exposed on the charge read
+(`GET /public/charges/:id`) so a receipt or a support tool can show them apart from `paid`.
+
+`inside-transfer` mode is never collected by definition: the fee rides inside the transfer
+to the recipient, so the recipient was paid it. That is the same reason a send to a person
+is refused while the server is in that mode.
+
+`npm run check:charge` pins the arithmetic (`npm run check:charge-fee` pins the receipt
+decode: which log is a fee leg, and that a receipt without one yields uncollected).
+
 ## Exactly one webhook per status change
 
 `ChargeWebhookDelivery` has a UNIQUE `(chargeId, status)`. That is the rule, expressed where

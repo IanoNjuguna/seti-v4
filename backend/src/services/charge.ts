@@ -55,6 +55,7 @@ import {
   type Hex,
 } from 'viem';
 import { ASSET_DECIMALS, type SupportedAsset } from '../config/assets.js';
+import { merchantFeeUnits, type FeeRoutingMode, type MerchantFeeSchedule } from './fees.js';
 import type { PaymentRefusalCode } from './payment-refusal.js';
 
 /**
@@ -64,6 +65,13 @@ import type { PaymentRefusalCode } from './payment-refusal.js';
  * i.e. when something a stored signature or a stored row depends on changes. The
  * document that describes it (`docs/internal/charge-object.md`) carries the same
  * number.
+ *
+ * NOT bumped for the fee leg (#151), deliberately: `fee` was added as a separate
+ * fact BESIDE the decision. The signed set is untouched, the status enum is
+ * untouched, and no charge's status can change because of it — so no stored
+ * signature and no stored status means something different after the change. A
+ * version bump here would tell every reader that a v1 charge is now read
+ * differently, which is the opposite of what happened.
  */
 export const CHARGE_SPEC_VERSION = '1';
 
@@ -540,6 +548,246 @@ export interface ObservedTransfer {
   confirmed: boolean;
 }
 
+// ---------------------------------------------------------------------------
+// The fee leg — a second fact, decided separately from the status
+// ---------------------------------------------------------------------------
+
+/**
+ * Why the fee is NOT collected, or `null` when it is.
+ *
+ * Each of these is a different fact, which is the whole point of separating them
+ * from `paid`: a payer can pay in full and the fee can fail to arrive, and that is
+ * neither a failed payment nor a collected fee.
+ *
+ * - `fee-not-observed` — nobody looked at the receipt for a treasury leg. The
+ *   fallback direction: a claim about money we did not verify is not made.
+ * - `fee-inside-transfer` — the server routes the fee INSIDE the transfer to the
+ *   recipient (`FEE_ROUTING_MODE=inside-transfer`). The recipient was paid it, so
+ *   Seti was not.
+ * - `fee-leg-missing` — batch mode, and the receipt carries no transfer to the
+ *   treasury in this charge's asset.
+ * - `fee-asset-mismatch` — a transfer to the treasury did arrive, but in another
+ *   token: a fee paid in a different asset has not paid THIS fee.
+ * - `fee-short` — the treasury leg is smaller than the schedule's expectation, by
+ *   any amount, down to one base unit.
+ * - `fee-schedule-not-units` — the schedule has a floor or a cap, both of which are
+ *   fiat figures, so no token-unit expectation exists without a rate.
+ */
+export type ChargeFeeReason =
+  | 'fee-not-observed'
+  | 'fee-inside-transfer'
+  | 'fee-leg-missing'
+  | 'fee-asset-mismatch'
+  | 'fee-short'
+  | 'fee-schedule-not-units';
+
+/** Every reason, in one list. `check:charge` asserts each one is reachable. */
+export const CHARGE_FEE_REASONS = [
+  'fee-not-observed',
+  'fee-inside-transfer',
+  'fee-leg-missing',
+  'fee-asset-mismatch',
+  'fee-short',
+  'fee-schedule-not-units',
+] as const;
+
+/**
+ * One transfer to the treasury, as the receipt recorded it.
+ *
+ * Deliberately the same shape as {@link ObservedTransfer}'s money fields and none
+ * of its matching fields: a fee leg has no memo to match on and no charge to settle.
+ * It is only ever evidence that a figure arrived at an address.
+ */
+export interface ObservedFeeLeg {
+  /** The `to` the chain recorded. */
+  recipient: string;
+  /** The Seti ledger label of the token that moved. */
+  asset: string;
+  /** Decimal token units, as a string — the same shape as a charge's amount. */
+  amount: string;
+}
+
+/**
+ * What the caller OBSERVED about the fee leg, and the rules to judge it by.
+ *
+ * Passed in rather than read here: the classifier touches no config and no chain,
+ * so the treasury address, the routing mode and the schedule all arrive as data.
+ * Every field is required, because a caller that has not decided these has not
+ * looked at the fee leg — and the honest answer then is `fee-not-observed`, which
+ * is what omitting the whole input produces.
+ */
+export interface ChargeFeeInput {
+  /** Where the 2% is collected, or why it is not. `fees.ts` owns the vocabulary. */
+  routing: FeeRoutingMode;
+  /** The address that receives the fee on this network (`treasuryAddressFor`). */
+  treasury: string;
+  /**
+   * Transfers to the treasury found in the SAME transaction as the principal.
+   *
+   * More than one is not a mistake: a batch is a list of calls, and two treasury
+   * legs are summed. A payer cannot pay the fee twice by accident, but the ledger
+   * should not call a doubled fee short either.
+   */
+  legs: readonly ObservedFeeLeg[];
+  /**
+   * The schedule the expectation is derived from. Defaults to the live one.
+   *
+   * Injected so the fixture at the boundary can be a schedule the environment
+   * cannot express (a floor, a zero percent) without changing process config.
+   */
+  schedule?: MerchantFeeSchedule;
+}
+
+/** What the receipt says about the fee: the answer, and the arithmetic behind it. */
+export interface ChargeFeeOutcome {
+  /** The obligation is met: the treasury received at least the schedule's fee. */
+  collected: boolean;
+  /** `null` when collected; otherwise WHY not. Branch on this, never on prose. */
+  reason: ChargeFeeReason | null;
+  /** The schedule's fee on this charge's amount, in token units. Null when unknown. */
+  expectedUnits: bigint | null;
+  /** What the treasury legs summed to, in token units. Null when none were seen. */
+  observedUnits: bigint | null;
+  /** Units above the expectation. Non-zero is money Seti was not owed. */
+  excessUnits: bigint;
+}
+
+/** The fee decoded from `legs`: summed, in units, or null when nothing is usable. */
+function feeUnitsObserved(
+  legs: readonly ObservedFeeLeg[],
+  treasury: string,
+  asset: string
+): { units: bigint; foreignAssetSeen: boolean } {
+  let units = 0n;
+  let counted = 0;
+  let foreignAssetSeen = false;
+
+  for (const leg of legs) {
+    if (!sameAddress(leg.recipient, treasury)) continue;
+    if (leg.asset !== asset) {
+      // A fee in another token has not paid this fee. Remembered so the reason can
+      // say so instead of claiming nothing arrived.
+      foreignAssetSeen = true;
+      continue;
+    }
+    const legUnits = amountUnits(leg.amount);
+    if (legUnits === null) continue; // unreadable is not evidence of payment
+    units += legUnits;
+    counted += 1;
+  }
+
+  return { units: counted > 0 ? units : 0n, foreignAssetSeen };
+}
+
+/**
+ * Decide whether the 2% actually arrived, from the receipt alone.
+ *
+ * PURE, and deliberately independent of the charge's status: this answers "did we
+ * get paid", where the classifier's status answers "did the customer pay". Two
+ * questions, two answers, and neither is derived from the other. The consequence
+ * that matters: a short or missing fee NEVER moves the status, because the money
+ * the payer sent to the recipient is real either way.
+ *
+ * The comparison has NO tolerance, and that asymmetry with the principal's 1% is
+ * the point:
+ *
+ *  - The principal's 1% absorbs a payer whose client rounded the figure they were
+ *    shown. Both sides of that comparison came from outside Seti.
+ *  - The fee's expectation is integer arithmetic over the charge's own signed
+ *    amount — the exact figure a client computing 2% of the same amount produces.
+ *    A percentage tolerance here would mean reporting a fee as collected while
+ *    being up to 1% short of it, which is the defect this function exists to
+ *    close, only smaller. One base unit short is short.
+ *
+ * Overpayment is not a failure: `excessUnits` records it, and `collected` stays
+ * true because the obligation was met.
+ */
+export function classifyFeeLeg(input: {
+  /** The charge's amount in token units — what the fee is a percentage OF. */
+  amountUnits: bigint;
+  /** The charge's asset label, so a fee in another token is not this fee. */
+  asset: string;
+  /** What was seen. Omitted means "not observed", which is not collected. */
+  fee?: ChargeFeeInput;
+}): ChargeFeeOutcome {
+  if (!input.fee) {
+    return {
+      collected: false,
+      reason: 'fee-not-observed',
+      expectedUnits: null,
+      observedUnits: null,
+      excessUnits: 0n,
+    };
+  }
+
+  const { routing, treasury, legs } = input.fee;
+  const expected = merchantFeeUnits(input.amountUnits, input.fee.schedule);
+
+  if (!expected.ok) {
+    return {
+      collected: false,
+      reason: 'fee-schedule-not-units',
+      expectedUnits: null,
+      observedUnits: null,
+      excessUnits: 0n,
+    };
+  }
+
+  // Inside the payer's own transfer, the fee is paid TO THE RECIPIENT. Nothing
+  // arrived at Seti, so nothing is collected — and a treasury leg in this mode was
+  // not the fee, so it does not make one collected either.
+  if (routing !== 'batch') {
+    return {
+      collected: false,
+      reason: 'fee-inside-transfer',
+      expectedUnits: expected.units,
+      observedUnits: null,
+      excessUnits: 0n,
+    };
+  }
+
+  // A schedule that charges nothing cannot be left uncollected.
+  if (expected.units === 0n) {
+    return {
+      collected: true,
+      reason: null,
+      expectedUnits: 0n,
+      observedUnits: 0n,
+      excessUnits: 0n,
+    };
+  }
+
+  const observed = feeUnitsObserved(legs, treasury, input.asset);
+
+  if (observed.units === 0n) {
+    return {
+      collected: false,
+      reason: observed.foreignAssetSeen ? 'fee-asset-mismatch' : 'fee-leg-missing',
+      expectedUnits: expected.units,
+      observedUnits: null,
+      excessUnits: 0n,
+    };
+  }
+
+  if (observed.units >= expected.units) {
+    return {
+      collected: true,
+      reason: null,
+      expectedUnits: expected.units,
+      observedUnits: observed.units,
+      excessUnits: observed.units - expected.units,
+    };
+  }
+
+  return {
+    collected: false,
+    reason: 'fee-short',
+    expectedUnits: expected.units,
+    observedUnits: observed.units,
+    excessUnits: 0n,
+  };
+}
+
 /** What the classifier concluded. */
 export type ChargeDecision =
   | {
@@ -550,6 +798,15 @@ export type ChargeDecision =
       deltaUnits: bigint;
       /** The tolerance applied, in token units. */
       toleranceUnits: bigint;
+      /**
+       * The fee leg, decided on its own from the same receipt.
+       *
+       * A separate FACT, not a second condition on the status: a charge can be
+       * `paid` with this reporting uncollected, and that combination is exactly
+       * what a payer who sent the principal and no fee produces. Nothing about it
+       * moves the status.
+       */
+      fee: ChargeFeeOutcome;
     }
   | {
       ok: false;
@@ -618,6 +875,9 @@ function refuse(code: ChargeRefusalCode, reason: string): ChargeDecision {
  *     from an unrelated transfer, and a TIP-20 transfer has no other identifier.
  *  7. **How much moved, against 1%?** Within tolerance is `paid`; outside it is
  *     `underpaid` or `overpaid`.
+ *  8. **Did the 2% arrive?** A separate fact (`fee`), never a condition on the
+ *     status: {@link classifyFeeLeg} reads the treasury legs of the same receipt
+ *     and can report the fee uncollected while the decision stays `paid`.
  *
  * The amount comparison uses 1% of the CHARGE's amount — the same figure and the
  * same direction `recordPayment` uses (`|observed − claimed| > claimed × 1%`) so a
@@ -639,6 +899,15 @@ export async function classifyCharge(input: {
    * prove both branches without a node.
    */
   recipientHasCode?: (recipient: Address) => Promise<boolean>;
+  /**
+   * What the receipt says about the fee leg, and the rules to judge it by.
+   *
+   * Omitted means "nobody looked": the decision is still made, and its `fee` fact
+   * says uncollected with `fee-not-observed`. That direction is deliberate — this
+   * classifier will not report a fee as collected on no evidence, and it will not
+   * refuse a payment that the principal settled either.
+   */
+  fee?: ChargeFeeInput;
 }): Promise<ChargeDecision> {
   const { charge, transfer, chainId, now } = input;
 
@@ -735,8 +1004,14 @@ export async function classifyCharge(input: {
   const tolerance = (expected * BigInt(CHARGE_TOLERANCE_PERCENT)) / 100n;
   const delta = observed - expected;
 
+  // 8. The fee leg, as its own fact — measured against the charge's own amount
+  //    and never against what arrived. A payer who is 1% short still owes the fee
+  //    on what they signed for; only the expectation's basis is debatable, and the
+  //    signed ask is the one thing nobody can edit after the fact.
+  const fee = classifyFeeLeg({ amountUnits: expected, asset: charge.asset, fee: input.fee });
+
   if (abs(delta) <= tolerance) {
-    return { ok: true, status: 'paid', deltaUnits: delta, toleranceUnits: tolerance };
+    return { ok: true, status: 'paid', deltaUnits: delta, toleranceUnits: tolerance, fee };
   }
 
   return {
@@ -744,6 +1019,7 @@ export async function classifyCharge(input: {
     status: delta < 0n ? 'underpaid' : 'overpaid',
     deltaUnits: delta,
     toleranceUnits: tolerance,
+    fee,
   };
 }
 

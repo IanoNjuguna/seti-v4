@@ -641,6 +641,18 @@ does not depend on an indexer running. `404` for an unknown id; `422
 charge-signature-invalid` when the STORED charge no longer verifies (a tampered link
 is a refusal, not a dead link).
 
+Two fields say whether the 2% was actually collected, separately from the status:
+
+| Field | Meaning |
+| --- | --- |
+| `feeCollected` | `true` the fee reached the treasury, `false` it did not, `null` not decided yet (pending, cancelled, or a charge older than the column) |
+| `feeUncollectedReason` | a code naming why not: `fee-not-observed`, `fee-inside-transfer`, `fee-leg-missing`, `fee-asset-mismatch`, `fee-short`, `fee-schedule-not-units` |
+
+A `paid` charge with `feeCollected: false` is a real payment whose fee leg did not
+arrive. The status stays `paid` on purpose: the money the payer sent to the
+recipient is the payment, and the fee is a separate fact. See
+`docs/internal/charge-api.md`.
+
 ### `POST /public/charges/:id/cancel`
 
 Only from `pending`, and only by the recipient. The THREE headers carry a second
