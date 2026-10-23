@@ -25,7 +25,8 @@
     "restore:route-types": "next typegen",
     "start:vinext": "vite preview",
     "preview:worker": "wrangler dev --config dist/server/wrangler.json --port 8787",
-    "deploy:vinext": "vinext-cloudflare deploy"
+    "deploy:vinext": "vinext-cloudflare deploy",
+    "check:activity-search": "tsx scripts/check-activity-search.mjs"
   },
   "dependencies": {
     "@privy-io/react-auth": "^3.48.1",
