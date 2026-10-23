@@ -46,6 +46,10 @@ export async function resolvePayee(
     name,
     address: named.address,
     verified: named.verified,
+    // Carried through, never defaulted: a directory that does not say when the merchant
+    // was reviewed must not have its silence read as a review. `null` is the unverified
+    // tier, and so is a missing answer (#154).
+    merchantVerifiedAt: named.merchantVerifiedAt ?? null,
   };
 }
 

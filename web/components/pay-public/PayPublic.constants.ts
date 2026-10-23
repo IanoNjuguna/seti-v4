@@ -35,17 +35,32 @@ export const PAY_COPY = {
   goToApp: 'Go to Seti',
   /** A re-read of a charge whose state can still change: a plain link, so it works with JS off. */
   again: 'Check again',
-  /** The three recipient states, and the one line each carries. */
-  verified: 'Name verified',
-  unverified: 'Name not verified',
-  noName: 'Not a Seti name',
   /**
-   * The note under the badge. It says "above" because that is where the address is
-   * drawn: the name, the `@handle` and the address all sit over the badge, and the
-   * only thing under it is the way out below. "Below" sent a payer looking at the
-   * report link for an address that was never there.
+   * The two tiers (#154). A merchant Seti has reviewed, and everyone else.
+   *
+   * The verified sentences are claims about OUR ACTION — we checked the name and the
+   * address it pays to — and never about the money: reviewing a merchant does not mean
+   * Seti holds it, pays it, or guarantees it. The unverified sentence is the agreed line
+   * the issue names, kept verbatim, because it is the one a payer reads when a link has
+   * been forwarded to them by someone they do not know.
    */
-  unverifiedNote: 'Seti has not checked this name. The address above is where the money goes.',
+  verifiedBadge: 'Verified merchant',
+  verifiedNote: 'Seti has checked this merchant’s name and the address above. Both are the merchant’s own.',
+  unverifiedBadge: 'Not verified',
+  unverifiedNote: 'The recipient is not verified with Seti. The address above is where the money goes.',
+  /**
+   * What Seti did, on BOTH tiers: rendered this request, and once the money arrives,
+   * checked the transfer. It never says who the recipient is, which is why it can sit
+   * under a stranger's address without endorsing it.
+   */
+  facilitatedBy: 'Payment facilitated by Seti',
+  /** The charge id's label beside the facilitated-by line. The shop can quote this back. */
+  requestLabel: 'Request',
+  /**
+   * The note under the unverified mark. "Above" is where the address is drawn: the
+   * heading and the address both sit over the note, and "below" once sent a payer
+   * looking for an address that was never there.
+   */
   noNameNote: 'This address has no Seti name. Check it with the person who sent the link.',
   /**
    * The way out of an unverified name, on the page where money is at stake.

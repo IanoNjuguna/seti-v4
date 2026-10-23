@@ -39,7 +39,7 @@ export function PayPublicView({ charge, payee, status, payer }: PayPublicViewPro
         <PayAmountPanel currency={charge.currency} amount={charge.amount} memo={charge.memo} />
 
         <div className={PAY_DIVIDER_CLASS} />
-        <PayRecipient payee={payee} />
+        <PayRecipient payee={payee} chargeId={charge.id} />
 
         <div className={PAY_DIVIDER_CLASS} />
         <PayFeeBreakdown currency={charge.currency} amounts={amounts} note={feeNote(charge, payee)} />

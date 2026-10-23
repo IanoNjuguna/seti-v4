@@ -15,6 +15,7 @@ import type { ChargeSource, ChargeSourceResult, NamedPayee, PayeeDirectory } fro
  *   /pay/ch_8f2c1a4e7b9d   pending, a verified Seti name, a memo
  *   /pay/ch_7a1e3d5b9c22   pending, a Seti name that is NOT verified
  *   /pay/ch_2b6d9c0f4a13   pending, an address with no Seti name
+ *   /pay/ch_3c8d1f6a7b24   pending, a VERIFIED MERCHANT's name (tier #154)
  *   /pay/ch_4c9a0e2f6b71   paid, with a receipt link
  *   /pay/ch_5d1b7a3c8e04   partly paid
  *   /pay/ch_6e2c8b4d9f35   paid over the amount
@@ -35,10 +36,22 @@ const NO_NAME = '0x596f4c3b5856d7acd8453666db0624ed3ed3caad';
 const FORGED_ID = 'ch_1a7f4e9c2d60';
 
 const PAYEES: NamedPayee[] = [
-  { handle: 'ian', name: 'Ian Njuguna', address: IAN, verified: true },
-  { handle: 'mwangisuppliers', name: 'Mwangi Suppliers', address: MWANGI, verified: true },
+  // A person's name: the claim signature holds, and there is no merchant record at all,
+  // so this is NOT the verified tier. It is the case that proves the tier needs the
+  // stored review and not just a name that checks out (#154).
+  { handle: 'ian', name: 'Ian Njuguna', address: IAN, verified: true, merchantVerifiedAt: null },
+  // A business whose claim verifies AND whose merchant record a person reviewed:
+  // the one fixture that renders the verified tier.
+  {
+    handle: 'mwangisuppliers',
+    name: 'Mwangi Suppliers',
+    address: MWANGI,
+    verified: true,
+    merchantVerifiedAt: '2026-10-02T09:00:00.000Z',
+  },
   // A claim whose signature no longer checks out: named, and marked as unverified.
-  { handle: 'kade-store', name: 'Kade Stores', address: KADE, verified: false },
+  // The merchant record is unreviewed too, because an unproven claim cannot inherit one.
+  { handle: 'kade-store', name: 'Kade Stores', address: KADE, verified: false, merchantVerifiedAt: null },
 ];
 
 /** The stored charges, keyed by id, in the shape a source would return. */
@@ -72,6 +85,17 @@ const CHARGES: Record<string, Record<string, unknown>> = {
     received: 0,
     recipientAddress: NO_NAME,
     memo: null,
+    expiresAt: null,
+    paidAt: null,
+    receiptPath: null,
+  },
+  ch_3c8d1f6a7b24: {
+    id: 'ch_3c8d1f6a7b24',
+    currency: 'KES',
+    amount: 4200,
+    received: 0,
+    recipientAddress: MWANGI,
+    memo: 'October stock',
     expiresAt: null,
     paidAt: null,
     receiptPath: null,

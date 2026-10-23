@@ -61,19 +61,36 @@ export interface NamedPayee {
   name: string;
   address: string;
   verified: boolean;
+  /**
+   * When a person at Seti approved the MERCHANT RECORD this name belongs to, ISO-8601,
+   * or null when nobody has reviewed it (#154).
+   *
+   * A DIFFERENT fact from `verified`, and the reason the pay page needs both. `verified`
+   * proves this address controls this name — it is recomputed from the stored claim
+   * signature on every read. This proves Seti looked at the business and recorded what it
+   * looked at (`merchants."verifiedAt"`, with the evidence beside it). Either alone is
+   * still the unverified tier: a name with no reviewed merchant behind it is a name, not
+   * a verified merchant, and a reviewed merchant whose claim no longer verifies is not
+   * bound to the address the money would go to.
+   *
+   * STORED, never derived. It is not inferred from volume, age, a memo or the amount —
+   * a page that guessed would be selling a trust signal it does not hold.
+   */
+  merchantVerifiedAt: string | null;
 }
 
 /**
- * Who is being paid, in the three states the page can honestly draw.
+ * Who is being paid, in the two display tiers the page can honestly draw (#154).
  *
  *  - `handle` — a Seti name was found for the address; `verified` says whether the
- *    backend's check holds. Both halves of that are shown, because "named" and
- *    "checked" are different promises and collapsing them is how a forwarded link
- *    borrows trust it has not got.
+ *    backend's check holds and `merchantVerifiedAt` whether a person reviewed the
+ *    merchant behind it. All three are carried, because "named", "checked" and
+ *    "reviewed as a merchant" are different promises and collapsing them is how a
+ *    forwarded link borrows trust it has not got.
  *  - `address` — no name for this address. The short address is then the identity,
  *    and it is labelled as what it is.
  *
- * There is no fourth state and no fallback string: a handle arrives from the
+ * There is no third state and no fallback string: a handle arrives from the
  * directory lookup, never from the query, so a payer cannot put a name on the page.
  */
 export type PayeeDisplay =
