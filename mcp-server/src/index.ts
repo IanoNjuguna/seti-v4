@@ -19,6 +19,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { allowWrites, defaultNetwork, setiApiConfig } from './config.js';
 import { scrub } from './errors.js';
 import { registerTempoTools } from './tools/tempo.js';
+import { registerReceiveTools } from './tools/receive.js';
 import { registerSetiTools } from './tools/seti.js';
 
 const SERVER_NAME = 'seti-mcp';
@@ -38,6 +39,9 @@ async function main(): Promise<void> {
 
   registerTempoTools(server);
   log('registered Tempo tools (no credentials required)');
+
+  const receiveTools = registerReceiveTools(server);
+  log(`registered ${receiveTools.length} receive tools (no token needed): ${receiveTools.join(', ')}`);
 
   const setiTools = registerSetiTools(server);
   log(`registered ${setiTools.length} Seti API tools: ${setiTools.join(', ')}`);

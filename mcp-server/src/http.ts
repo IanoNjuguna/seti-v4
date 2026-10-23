@@ -103,7 +103,17 @@ async function perform<T>(
       payload && typeof payload === 'object' && 'error' in payload
         ? String((payload as { error: unknown }).error)
         : scrub(text).slice(0, 300);
-    throw new ToolError(`Seti API returned HTTP ${response.status} for ${options.method} ${options.path}: ${detail}`);
+    // The refusal CODE is the part a caller switches on, so it rides in the message:
+    // a wrong-wallet signature must read as `charge-signature-invalid`, not as a bare
+    // HTTP status the agent has to guess at.
+    const code =
+      payload && typeof payload === 'object' && 'code' in payload
+        ? String((payload as { code: unknown }).code)
+        : null;
+    throw new ToolError(
+      `Seti API returned HTTP ${response.status} for ${options.method} ${options.path}` +
+        `${code ? ` [${code}]` : ''}: ${detail}`
+    );
   }
 
   return payload as T;
@@ -132,7 +142,24 @@ export async function setiPublicGet<T>(
   toolName: string,
   options: Omit<RequestOptions, 'method' | 'body'>
 ): Promise<T> {
-  const baseUrl = requirePublicBaseUrl(toolName);
+  return setiPublicRequest<T>(toolName, { ...options, method: 'GET' });
+}
 
-  return perform<T>(baseUrl, { ...options, method: 'GET' }, { accept: 'application/json' });
+/**
+ * A token-free request that may also write, and may carry the caller's own signature
+ * headers.
+ *
+ * The receive tools need both: creating a charge is a POST whose authorisation is the
+ * payee's EIP-712 signature in the body, and listing the payee's charges is a GET whose
+ * authorisation is the same kind of signature in three `x-seti-*` headers. Neither has
+ * anything to do with a Seti account, so no Authorization header is ever set here.
+ */
+export async function setiPublicRequest<T>(
+  toolName: string,
+  options: RequestOptions & { headers?: Record<string, string> }
+): Promise<T> {
+  const baseUrl = requirePublicBaseUrl(toolName);
+  const { headers = {}, ...rest } = options;
+
+  return perform<T>(baseUrl, rest, { accept: 'application/json', ...headers });
 }
