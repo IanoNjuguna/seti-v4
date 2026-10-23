@@ -23,10 +23,12 @@ export function SendSteps({
   isAddress,
   resolved,
   payment,
+  focusAmount,
   onChangeKind,
   onChangeTyped,
   onSubmitRecipient,
   onBackToWho,
+  onPickRecent,
 }: SendStepsProps) {
   if (recipient === null) {
     return (
@@ -38,6 +40,7 @@ export function SendSteps({
         onKindChange={onChangeKind}
         onChange={onChangeTyped}
         onSubmit={onSubmitRecipient}
+        onPickRecent={onPickRecent}
       />
     );
   }
@@ -80,7 +83,10 @@ export function SendSteps({
 
   return (
     <MfaGate>
-      <SendPanel initialRecipient={recipient ?? undefined} />
+      <SendPanel
+        initialRecipient={recipient ?? undefined}
+        focusAmount={focusAmount}
+      />
     </MfaGate>
   );
 }

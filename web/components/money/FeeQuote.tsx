@@ -1,14 +1,8 @@
 import { Text } from '@/components/ui';
 import { cn } from '@/lib/cn';
-import { formatFiat } from '@/lib/formatCurrency';
 import { useHighlightOnChange } from '@/hooks/useHighlightOnChange';
+import { quoteRows } from './quoteRows';
 import type { FeeQuoteProps } from './FeeQuote.types';
-
-/** `2.00` → `2`, `2.50` → `2.5`: a rate is not money, so no trailing zeros. */
-function formatPercent(value: string): string {
-  const percent = Number(value);
-  return Number.isFinite(percent) ? String(percent) : value;
-}
 
 /**
  * One line of the quote: a quiet label, the money beside it.
@@ -87,15 +81,11 @@ function Total({
 /**
  * What the customer is about to spend, itemised — the ONE quote table.
  *
- * Four rows, and the order is the argument: what the person gets, what Seti takes,
- * what the chain takes, what leaves the wallet. It used to exist twice, as
- * `SendFeeSummary` and `PayPreviewSummary` — the same four rows, the same row
- * grammar, in two files that had already drifted (13px labels in one, 14px in the
- * other) and that would have kept drifting, because nothing kept them in step.
- * The `tone` prop is the only real difference between them, exactly as `Input`
- * already does for a field on either canvas. `dark` is the send flow's review
- * block — black well, small rows, one loud total — and `light` is the merchant
- * step's, where the quote sits on the page beside the merchant it is paying.
+ * The rows themselves are `quoteRows`, a pure function, and that is deliberate: the
+ * four figures are asserted by `check:repeat-send` — the platform fee (the leg that
+ * reaches the treasury) and the total especially — and a check can only assert what
+ * the screen actually draws if the screen draws from the thing the check reads. This
+ * component owns the drawing: the well, the row grammar, and the two warnings.
  *
  * The rate is the share of the PRINCIPAL, which is what the fee is charged on:
  * quoting it against the total would overstate it, and a customer checking the
@@ -140,30 +130,15 @@ export function FeeQuote({ preview, loading, tone, subject }: FeeQuoteProps) {
     ) : null;
   }
 
-  const approxGas = preview.networkFeeSource === 'estimate' ? '≈ ' : '';
-
   return (
     <div className={well}>
-      <Row
-        label="They receive"
-        value={formatFiat(Number(preview.fiatAmount), preview.fiatCurrency)}
-        tone={tone}
-      />
-      <Row
-        label={`Platform fee (${formatPercent(preview.feePercentOfPrincipal)}%)`}
-        value={formatFiat(Number(preview.feeFiat), preview.fiatCurrency)}
-        tone={tone}
-      />
-      <Row
-        label="Network gas"
-        value={`${approxGas}${formatFiat(Number(preview.networkFeeFiat), preview.fiatCurrency)}`}
-        tone={tone}
-      />
-      <Total
-        label="You send"
-        value={formatFiat(Number(preview.totalFiat), preview.fiatCurrency)}
-        tone={tone}
-      />
+      {quoteRows(preview).map((row) =>
+        row.total ? (
+          <Total key={row.key} label={row.label} value={row.value} tone={tone} />
+        ) : (
+          <Row key={row.key} label={row.label} value={row.value} tone={tone} />
+        )
+      )}
 
       {preview.fxRateStale ? (
         <Text variant="micro" as="p" color="warning">

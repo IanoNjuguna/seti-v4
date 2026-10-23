@@ -9,6 +9,15 @@ export interface SendPanelProps {
    * address before anything is signed.
    */
   initialRecipient?: string;
+  /**
+   * Whether the amount field should take focus as the step mounts (#99).
+   *
+   * True when the payee arrived known — a link that named them, or a tap on someone
+   * this account has paid before. The payee is the answered question, so the cursor
+   * belongs in the amount field. It says nothing about the amount's VALUE: the field
+   * is empty until the customer types, on every route into this step.
+   */
+  focusAmount?: boolean;
 }
 
 /** Only `previewing`, `signing` and `recording` are busy. A receipt is `sent`. */
@@ -95,6 +104,11 @@ export interface SendFieldProps {
   /** Addresses read as code: monospace, no autocorrect, no autocapitalise. */
   mono?: boolean;
   disabled: boolean;
+  /**
+   * Takes focus on mount. Only the amount field uses it, and only when the payee is
+   * already known (#99): the field it asks about is the only one left to fill.
+   */
+  autoFocus?: boolean;
 }
 
 /** The resolved name and address, shown before anything is signed. */
@@ -117,6 +131,8 @@ export interface SendFormProps {
   /** The step, so the submit row can narrate what is being waited on. */
   step: SendStep;
   busy: boolean;
+  /** The payee arrived known, so the amount field takes focus (#99). */
+  focusAmount: boolean;
   onRecipientChange: (value: string) => void;
   onAmountChange: (value: string) => void;
   onSubmit: () => void;

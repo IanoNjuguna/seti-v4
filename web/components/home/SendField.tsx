@@ -25,6 +25,7 @@ export function SendField({
   inputMode = 'text',
   mono = false,
   disabled,
+  autoFocus = false,
 }: SendFieldProps) {
   return (
     <Input
@@ -35,6 +36,7 @@ export function SendField({
       onChange={(event) => onChange(event.target.value)}
       inputMode={inputMode}
       disabled={disabled}
+      autoFocus={autoFocus}
       autoComplete="off"
       autoCapitalize={mono ? 'none' : undefined}
       autoCorrect={mono ? 'off' : undefined}

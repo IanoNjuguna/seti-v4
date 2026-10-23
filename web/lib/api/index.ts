@@ -33,6 +33,8 @@ export type {
 } from './pay.types';
 export { previewSend, recordSend } from './send';
 export type { SendPreview, RecordSendInput, RecordSendResult } from './send.types';
+export { fetchRecentRecipients } from './recipients';
+export type { RecentRecipient, RecentRecipientsAnswer } from './recipients.types';
 export { resolveHandle, fetchHandleStatus, claimHandle, fetchPublicHandle } from './handles';
 export { fetchAccountIdentity, setAccountIntent, setAccountNetwork, fetchDepositTarget } from './account';
 export type { AccountIdentity, AccountIntent, DepositTarget } from './account.types';

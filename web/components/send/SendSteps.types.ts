@@ -21,8 +21,12 @@ export interface SendStepsProps {
   isAddress: boolean;
   resolved: ResolvedRecipient;
   payment: UsePayMerchantReturn;
+  /** The payee arrived already known, so the amount field takes focus (see #99). */
+  focusAmount: boolean;
   onChangeKind: (kind: RecipientKind) => void;
   onChangeTyped: (value: string) => void;
   onSubmitRecipient: () => void;
   onBackToWho: () => void;
+  /** Fills the payee from someone this account has paid before. */
+  onPickRecent: (target: string) => void;
 }

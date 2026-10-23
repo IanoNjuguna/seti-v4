@@ -29,12 +29,12 @@ import type { SendPanelProps } from './SendPanel.types';
  * signed as ONE Tempo transaction with two calls, then verified against the
  * receipt before it appears in Activity.
  */
-export function SendPanel({ initialRecipient }: SendPanelProps) {
+export function SendPanel({ initialRecipient, focusAmount }: SendPanelProps) {
   const session = useSession();
 
   if (session.status !== 'signed-in') {
     return <SignInPrompt title={SEND_SIGNED_OUT_COPY.title} body={SEND_SIGNED_OUT_COPY.body} />;
   }
 
-  return <SendPanelForm initialRecipient={initialRecipient} />;
+  return <SendPanelForm initialRecipient={initialRecipient} focusAmount={focusAmount} />;
 }
