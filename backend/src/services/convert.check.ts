@@ -11,10 +11,10 @@
  *     because those are the answers the app switches on, and a refusal that
  *     needed a database to be reached would be a 500 in production instead.
  *  2. LIVE. The book itself is read from the DEX precompile on the network this
- *     deployment serves, and the price is asserted to be at par within the spread
- *     measured on 2026-10-20 (0.00–0.02% on the pairs we offer). This half is what
- *     fails if the venue changes shape, the precompile moves, or someone widens
- *     the allowlist to a pair with no orders.
+ *     deployment serves, and each quote is asserted to sit inside the par band
+ *     MEASURED for that pair (`PAR_BAND_BPS` below, with the date it was taken).
+ *     This half is what fails if the venue changes shape, the precompile moves, or
+ *     someone widens the allowlist to a pair with no orders.
  *
  * What it deliberately does NOT do: sign, record, or write. There is no ledger in
  * this slice, so a suite that moved money to prove a quote would be proving the
@@ -31,6 +31,7 @@ import {
 } from './convert.js';
 import { networkConfigFor, servedNetwork } from './chain.js';
 import { SUPPORTED_ASSETS } from '../config/assets.js';
+import type { Network } from '../lib/network.js';
 
 let total = 0;
 let failures = 0;
@@ -52,6 +53,74 @@ async function refusalOf(run: () => Promise<unknown>): Promise<string> {
 }
 
 const NETWORK = servedNetwork;
+
+/**
+ * The par band each pair is held to, in basis points, PER NETWORK: a MEASUREMENT
+ * WITH A DATE, not a claim about how wide a spread is allowed to be.
+ *
+ * Measured on 2026-10-23 at 10.000000 units in, one quote per pair:
+ *
+ *     mainnet   pathusd ↔ ousd      0.00 bps
+ *               ousd ↔ usdc.e       1.00 bps
+ *               pathusd ↔ usdc.e    2.00 bps
+ *               ousd ↔ usdt0        5.00 bps
+ *               pathusd ↔ usdt0     6.00 bps
+ *     practice  ousd ↔ pathusd      1.00 bps
+ *
+ * Per network because the books are: practice carries one pair and quoted a basis
+ * point off par on the day mainnet's native pair sat at zero. One number for both
+ * would be a number that was never true of either.
+ *
+ * The native pair sits at (or near) zero because OUSD and pathUSD are one issuer's
+ * dollar on one book. A BRIDGED asset is a different instrument: USDC.e and USDT0
+ * arrive through a bridge, so their price carries the bridge's float and is wider.
+ * USDT0 went from 1–2 bps on 2026-10-21 (`docs/operations.md` §9) to the 5–6 bps
+ * above in two days — drift worth watching rather than a number that broke.
+ *
+ * One band for all five pairs was wrong, and wrong in a way CI could not see: it
+ * read "at par within the measured spread (<= 2bps)", which only ever held on
+ * practice, where USDT0 has no book at all and every USDT0 pair short-circuits
+ * before the assertion (#202). A check that passes because the network it runs on
+ * has nothing to quote is not a check.
+ *
+ * Keys are order-insensitive (`canonicalPair`) so one row covers both directions,
+ * and a pair with no entry FAILS rather than defaulting: a band has to be measured,
+ * not inherited.
+ */
+const MEASURED_ON = '2026-10-23';
+
+const PAR_BAND_BPS: Readonly<Record<Network, Readonly<Record<string, number>>>> = {
+  mainnet: {
+    'ousd↔pathusd': 0,
+    'ousd↔usdc.e': 1,
+    'pathusd↔usdc.e': 2,
+    'ousd↔usdt0': 5,
+    'pathusd↔usdt0': 6,
+  },
+  testnet: {
+    'ousd↔pathusd': 1,
+  },
+};
+
+/**
+ * A live book moves between blocks, so a band is the measurement plus one basis
+ * point: enough that a single tick is not read as drift, not enough to hide a real
+ * move. It is a constant rather than a per-pair allowance on purpose, so the
+ * headroom cannot be tuned pair by pair.
+ */
+const LIVE_BOOK_HEADROOM_BPS = 1;
+
+/**
+ * The widest band plus headroom any pair may be given. A pair is not allowed an
+ * arbitrarily loose tolerance, so loosening the table above is a visible edit
+ * against a limit instead of a quiet way to turn this suite green.
+ */
+const PAR_BAND_CEILING_BPS = 15;
+
+/** `['usdt0','ousd']` and `['ousd','usdt0']` are the same book. */
+function canonicalPair(a: string, b: string): string {
+  return [a, b].sort().join('↔');
+}
 
 async function main(): Promise<void> {
   // -------------------------------------------------------------------------
@@ -164,17 +233,33 @@ async function main(): Promise<void> {
 
       const out = Number(quoted.amountOut) / 1_000_000;
       const min = Number(quoted.minAmountOut) / 1_000_000;
-      // Integer basis points, so the bound cannot fail on a float artefact: the
-      // worst pair measured 2bps exactly, and 2.0000000004 > 2 in floating point.
+      // Integer basis points, so the bound cannot fail on a float artefact:
+      // 2.0000000004 > 2 in floating point, and a quote is integers all the way.
       const spreadBps = Number(
         ((BigInt(10_000_000) - quoted.amountOut) * BigInt(10_000)) / BigInt(10_000_000)
       );
 
+      const band = PAR_BAND_BPS[NETWORK][canonicalPair(a, b)];
+      const allowed = band === undefined ? 0 : band + LIVE_BOOK_HEADROOM_BPS;
+
       check(`${a} → ${b} quotes`, quoted.amountOut > 0n, `${out.toFixed(6)} out`);
+      // A pair with no measured band is a FAILURE, not a pass with a default: the
+      // number below has to come from a quote somebody took, or this suite would
+      // hold a new pair to a tolerance nobody chose.
       check(
-        `${a} → ${b} is at par within the measured spread (<= 2bps)`,
-        spreadBps <= 2,
+        `${a} → ${b} has a par band measured on ${MEASURED_ON}`,
+        band !== undefined,
+        band === undefined ? 'no entry in PAR_BAND_BPS' : `<= ${band}bps`
+      );
+      check(
+        `${a} → ${b} is inside its measured band (${band ?? 0}bps + ${LIVE_BOOK_HEADROOM_BPS}bp headroom, measured ${MEASURED_ON})`,
+        spreadBps <= allowed,
         `${spreadBps.toFixed(2)}bps`
+      );
+      check(
+        `the band for ${a} → ${b} is inside the ceiling (<= ${PAR_BAND_CEILING_BPS}bps)`,
+        allowed <= PAR_BAND_CEILING_BPS,
+        `${allowed}bps`
       );
       check(
         `${a} → ${b} floor is the quote less ${CONVERT_TOLERANCE_BPS}bps, never above the quote`,

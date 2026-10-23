@@ -28,7 +28,8 @@
 
 import { createPublicClient, http, type TransactionReceipt } from 'viem';
 import { networkConfigFor, servedNetwork, getTokenContract, STABLECOIN_DEX_ADDRESS } from './chain.js';
-import { isAllowedPair } from './convert.js';
+import { isAllowedPair, CONVERT_PAIRS } from './convert.js';
+import { SUPPORTED_ASSETS } from '../config/assets.js';
 import { readTransferredAmount, shortOfFloor } from './transactions.js';
 
 let failures = 0;
@@ -117,10 +118,44 @@ async function main(): Promise<void> {
   // ------------------------------------------------------------------ the pair gate
   check('ousd → pathusd is on the allowlist', isAllowedPair('ousd', 'pathusd', servedNetwork));
   check('the same asset twice is not a pair', !isAllowedPair('ousd', 'ousd', servedNetwork));
+
+  // The pair gate is PER NETWORK, and the invariant is about which assets a network
+  // lists — not about which pairs today's table happens to carry.
+  //
+  // This used to assert "usdt0 is on no allowlist on this network", which was the
+  // practice answer written down as a rule: true at 42431, where USDT0 is not
+  // deployed, and FALSE on mainnet, where the USDT0 book is listed and quoted
+  // (#202). So the rule is asserted instead of the day's table, and the pair the
+  // check knows is impossible is derived from the served network the same way
+  // `check:convert` derives its refusals.
+  const listedHere = networkConfigFor(servedNetwork).assets;
   check(
-    'usdt0 is on no allowlist on this network',
-    !isAllowedPair('usdt0', 'ousd', servedNetwork) && !isAllowedPair('usdc.e', 'usdt0', servedNetwork)
+    'every allowed pair is between two assets this network lists',
+    CONVERT_PAIRS[servedNetwork].every(
+      ([a, b]) => listedHere.includes(a) && listedHere.includes(b)
+    ),
+    CONVERT_PAIRS[servedNetwork].map(([a, b]) => `${a}↔${b}`).join(', ')
   );
+  check(
+    'the allowlist answers in both directions',
+    CONVERT_PAIRS[servedNetwork].every(
+      ([a, b]) => isAllowedPair(a, b, servedNetwork) && isAllowedPair(b, a, servedNetwork)
+    )
+  );
+  const notListed = SUPPORTED_ASSETS.find((asset) => !listedHere.includes(asset));
+  if (notListed) {
+    // Practice: USDT0 is supported by the product and absent from this chain, so no
+    // pair may carry it however much of a book it has elsewhere.
+    check(
+      `an asset this network does not list (${notListed}) is on no allowlist`,
+      CONVERT_PAIRS[servedNetwork].every(([a, b]) => a !== notListed && b !== notListed)
+    );
+  } else {
+    console.log(
+      `skip  every supported asset is listed on ${servedNetwork}, so there is no ` +
+        'foreign asset to keep off the allowlist'
+    );
+  }
 
   // -------------------------------------------------------------------- the floor
   check('an exact fill meets the floor', !shortOfFloor(10, 10), 'observed 10, floor 10');
