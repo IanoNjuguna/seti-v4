@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { Text } from '@/components/ui';
-import { PAY_COPY } from '@/components/pay-public/PayPublic.constants';
+import { PayPageFrame } from '@/components/pay-public/PayPageFrame';
 import { PayPublicView } from '@/components/pay-public/PayPublicView';
 import { PayRefusal } from '@/components/pay-public/PayRefusal';
 import { resolvePayerState } from '@/components/pay-public/pay-public.payer';
@@ -59,27 +58,17 @@ export default async function PayChargePage({ params, searchParams }: PayChargeP
   if (result.kind === 'not-found') notFound();
 
   return (
-    <main className="min-h-dvh bg-canvas-light text-ink">
-      <div className="mx-auto w-full max-w-md px-5 py-10">
-        {/* The wordmark belongs to the PAGE, not to the charge: a refusal has to say
-            who is refusing, or a stranger cannot tell it from a broken link. */}
-        <div className="space-y-6">
-          <Text variant="micro" as="p" color="primary" className="font-brand text-heading-sm">
-            {PAY_COPY.brand}
-          </Text>
-
-          {result.kind === 'invalid' ? (
-            <PayRefusal />
-          ) : (
-            <PayPublicView
-              charge={result.charge}
-              payee={result.payee}
-              status={result.status}
-              payer={payer}
-            />
-          )}
-        </div>
-      </div>
-    </main>
+    <PayPageFrame>
+      {result.kind === 'invalid' ? (
+        <PayRefusal />
+      ) : (
+        <PayPublicView
+          charge={result.charge}
+          payee={result.payee}
+          status={result.status}
+          payer={payer}
+        />
+      )}
+    </PayPageFrame>
   );
 }

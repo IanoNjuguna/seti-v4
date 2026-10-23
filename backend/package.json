@@ -54,6 +54,7 @@
     "report:gas": "tsx src/services/gas-report.ts",
     "check:charge": "tsx src/services/charge.check.ts",
     "check:charge-api": "tsx src/services/charge-api.check.ts",
+    "check:arrival": "DEV_BYPASS_AUTH=true tsx src/services/arrival.check.ts",
     "check:charge-fee": "tsx src/services/charge-fee.check.ts"
   },
   "dependencies": {

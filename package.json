@@ -43,7 +43,7 @@
     "check:ink": "npm run check:ink --workspace web",
     "check:stuck": "npm run check:stuck --workspace backend",
     "support:payment": "npm run --workspace backend support:payment --",
-    "verify": "npm run typecheck && npm run lint && npm run check:address && npm run check:env && npm run check:rpc-guard && npm run check:server && npm run check:fault && npm run check:cors && npm run check:session && npm run check:fees && npm run check:balances && npm run check:analytics && npm run check:payout && npm run check:indexer && npm run check:cursor && npm run check:reconcile && npm run check:indexer-pass && npm run check:stuck && npm run check:send && npm run check:convert && npm run check:convert-record && npm run check:settle && npm run check:quote && npm run check:receipt-link && npm run check:wallets && npm run check:claim && npm run check:rename && npm run check:handle && npm run check:username && npm run check:referral && npm run check:consent && npm run check:network && npm run check:statement && npm run check:fee-batch && npm run check:build-env && npm run check:ink && npm run check:tabs --workspace web && npm run check:pay-charge --workspace web && npm run check:activity-bands --workspace web && npm run check:payee && npm run check:activity-retry --workspace web && npm run check:home-summary --workspace web && npm run check:amount-privacy --workspace web && npm run check:asset-words --workspace web && npm run check:save && npm run check:charge && npm run check:charge-api && npm run check:profile-mark --workspace web && npm run check:choice-row --workspace web && npm run check:charge-fee && npm run check:pay-states --workspace web && npm run check:activity-search --workspace web && npm run check:repeat-send --workspace web && npm run check:recent-recipients",
+    "verify": "npm run typecheck && npm run lint && npm run check:address && npm run check:env && npm run check:rpc-guard && npm run check:server && npm run check:fault && npm run check:cors && npm run check:session && npm run check:fees && npm run check:balances && npm run check:analytics && npm run check:payout && npm run check:indexer && npm run check:cursor && npm run check:reconcile && npm run check:indexer-pass && npm run check:stuck && npm run check:send && npm run check:convert && npm run check:convert-record && npm run check:settle && npm run check:quote && npm run check:receipt-link && npm run check:wallets && npm run check:claim && npm run check:rename && npm run check:handle && npm run check:username && npm run check:referral && npm run check:consent && npm run check:network && npm run check:statement && npm run check:fee-batch && npm run check:build-env && npm run check:ink && npm run check:tabs --workspace web && npm run check:pay-charge --workspace web && npm run check:activity-bands --workspace web && npm run check:payee && npm run check:activity-retry --workspace web && npm run check:home-summary --workspace web && npm run check:amount-privacy --workspace web && npm run check:asset-words --workspace web && npm run check:save && npm run check:charge && npm run check:charge-api && npm run check:arrival && npm run check:profile-mark --workspace web && npm run check:choice-row --workspace web && npm run check:charge-fee && npm run check:pay-states --workspace web && npm run check:activity-search --workspace web && npm run check:pay-tiers --workspace web && npm run check:repeat-send --workspace web && npm run check:recent-recipients",
     "dev:backend": "npm run dev --workspace backend",
     "dev:web": "npm run dev --workspace web",
     "check:convert": "npm run check:convert --workspace backend",
@@ -53,8 +53,6 @@
     "check:pay-states": "npm run check:pay-states --workspace web",
     "check:activity-bands": "npm run check:activity-bands --workspace web",
     "check:payee": "npm run check:payee --workspace backend",
-    "check:repeat-send": "npm run check:repeat-send --workspace web",
-    "check:recent-recipients": "npm run check:recent-recipients --workspace backend",
     "check:activity-retry": "npm run check:activity-retry --workspace web",
     "check:home-summary": "npm run check:home-summary --workspace web",
     "check:amount-privacy": "npm run check:amount-privacy --workspace web",
@@ -62,6 +60,7 @@
     "check:save": "cd backend && tsx src/services/savings.check.ts",
     "check:charge": "npm run check:charge --workspace backend",
     "check:charge-api": "npm run check:charge-api --workspace backend",
+    "check:arrival": "npm run check:arrival --workspace backend",
     "check:charge-fee": "npm run check:charge-fee --workspace backend"
   },
   "engines": {

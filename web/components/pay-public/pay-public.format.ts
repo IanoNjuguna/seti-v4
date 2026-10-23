@@ -34,16 +34,17 @@ export function shortAddress(address: string): string {
   return `${address.slice(0, SHORT_ADDRESS_LEAD)}…${address.slice(-SHORT_ADDRESS_TAIL)}`;
 }
 
-/** The recipient as a heading: their name when there is one, else the address itself. */
-export function payeeName(payee: PayeeDisplay): string {
-  return payee.kind === 'handle' ? payee.name : shortAddress(payee.address);
-}
-
 /**
  * The recipient as one word inside a sentence — `@ian`, or the short address.
  *
  * Used where a sentence has to tell the payer to go back to this person ("ask @ian
  * for a new link"), so it reads as a person rather than as a paragraph about one.
+ *
+ * There is deliberately no `payeeName()` beside it any more (#154): a NAME is what the
+ * verified tier earns, so the one place that decides which name a sentence may print is
+ * `payeeIdentity()`, and `pay-public.step.ts` reads the heading off it. A second
+ * formatter here would have printed a merchant's name on a stranger's page the moment
+ * somebody called it for a fee line.
  */
 export function payeeLabel(payee: PayeeDisplay): string {
   return payee.kind === 'handle' ? `@${payee.handle}` : shortAddress(payee.address);
