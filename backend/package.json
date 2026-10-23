@@ -35,6 +35,7 @@
     "check:send-anchor": "tsx src/services/send-anchor.check.ts",
     "check:quote": "tsx src/services/quote.check.ts",
     "check:payee": "tsx src/lib/payee.check.ts",
+    "check:recent-recipients": "tsx src/services/recent-recipients.check.ts",
     "check:receipt-link": "tsx src/services/receipt-link.check.ts",
     "check:wallets": "tsx src/services/wallet-registry.check.ts",
     "check:claim": "DEV_BYPASS_AUTH=true tsx src/services/merchant-claims.check.ts",

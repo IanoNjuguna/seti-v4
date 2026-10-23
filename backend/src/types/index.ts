@@ -25,6 +25,28 @@ export interface HomeDashboard {
   recentTransactions: RecentTransaction[];
 }
 
+/**
+ * Somebody this account has already paid, as the send screen offers them (#99).
+ *
+ * Built by `services/recent-recipients.ts` from the same ledger rows Activity
+ * reads. It carries the name the transfer was made AS (never an invented display
+ * name), the handle to re-resolve when there is one, and the address behind it.
+ */
+export interface RecentRecipient {
+  /**
+   * What the row calls this person: a merchant's own signed business name, the
+   * handle the customer resolved, or the address shortened for prose. Nothing else
+   * is ever substituted, because a name is a claim about who gets the money.
+   */
+  name: string;
+  /** The handle to re-resolve on tap, when this person has one. */
+  handle: string | null;
+  /** The address the money went to. The fallback target, and the identity key. */
+  address: string;
+  /** When they were last paid, as an ISO string. The list is ordered by it. */
+  lastPaidAt: string;
+}
+
 export interface RecentTransaction {
   id: string;
   merchant: string;

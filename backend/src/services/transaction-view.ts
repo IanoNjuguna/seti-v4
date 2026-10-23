@@ -50,7 +50,7 @@ export function describeCounterparty(transaction: {
 
   const address = transaction.counterparty;
   if (address && !/^0x0{40}$/i.test(address) && /^0x[a-fA-F0-9]{40}$/.test(address)) {
-    const short = `${address.slice(0, 6)}…${address.slice(-4)}`;
+    const short = shortenAddress(address);
     return transaction.type === 'p2p_send' ? `Sent to ${short}` : short;
   }
 
@@ -85,6 +85,17 @@ export function describeType(type: string): string {
 }
 
 /**
+ * An address, shortened for prose: `0x1234…abcd`.
+ *
+ * Same 6+4 shape the send panel and every other row use, so one address is never
+ * written two ways on two surfaces. The full value stays beside it wherever the
+ * customer might check it.
+ */
+export function shortenAddress(address: string): string {
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
+
+/**
  * A stored value as an address, or null when it is not one.
  *
  * `counterparty` holds whatever the caller supplied — a wallet address, a phone,
@@ -92,7 +103,7 @@ export function describeType(type: string): string {
  * excluded too: it is a mint, not a sender, and printing it as one end of a
  * transfer names a party that does not exist.
  */
-function asAddress(value: string | null | undefined): string | null {
+export function asAddress(value: string | null | undefined): string | null {
   if (!value) return null;
   if (/^0x0{40}$/i.test(value)) return null;
   return /^0x[a-fA-F0-9]{40}$/.test(value) ? value : null;
