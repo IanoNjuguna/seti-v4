@@ -1,11 +1,102 @@
 import { encodeFunctionData, erc20Abi, parseUnits, type Address } from 'viem';
-import type { TempoCall, TempoTransactionRequest, TokenTransfer } from './build-transfer.types';
+import { ChargeMemoUnavailableError, memoForCharge } from './charge-memo';
+import type {
+  PaymentReference,
+  TempoCall,
+  TempoTransactionRequest,
+  TokenTransfer,
+} from './build-transfer.types';
 import type { SupportedAsset } from '@/lib/chain';
 import type { Network } from '@/lib/network';
 import { ASSET_DECIMALS, chainConfigFor, getTokenContractFor } from '@/lib/chain';
 
 /** Tempo's native transaction type (EIP-2718 envelope, serialized as `0x76`). */
 export const TEMPO_TRANSACTION_TYPE = 118;
+
+/**
+ * TIP-20's memo transfer, as its own ABI fragment.
+ *
+ * `erc20Abi` has no `transferWithMemo`, and typing the memo as `bytes32` here is
+ * the point: it is what makes a memo that is not exactly 32 bytes a compile error
+ * rather than a transfer the chain accepts and the matcher cannot read. No
+ * outputs, because TIP-20 declares it `external` with no return value (the
+ * ERC-20 `transfer` in `erc20Abi` returns `bool`, this one does not).
+ */
+export const TIP20_MEMO_ABI = [
+  {
+    type: 'function',
+    name: 'transferWithMemo',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'to', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+      { name: 'memo', type: 'bytes32' },
+    ],
+    outputs: [],
+  },
+] as const;
+
+/**
+ * Refuse a payment assembled with no reference at all.
+ *
+ * The types already require one, so reaching this means a caller came through
+ * JavaScript, a form payload, or a spread of a partial object. Absence must never
+ * be read as "no charge": that guess is precisely how a charge payment would go
+ * out as an anonymous transfer. Only a stated `direct` builds without a memo.
+ */
+function assertReference(
+  reference: PaymentReference | null | undefined
+): asserts reference is PaymentReference {
+  if (reference?.kind === 'charge' || reference?.kind === 'direct') return;
+
+  throw new ChargeMemoUnavailableError(
+    'This payment was assembled with no reference, so nothing says whether a charge is being ' +
+      'answered. A charge payment has to carry its id in the memo, and a missing reference is ' +
+      'not a reason to build a transfer that would arrive anonymously. Refusing to build it.'
+  );
+}
+
+/**
+ * The call that moves the principal, with the memo when there is a charge.
+ *
+ * ONE place decides this, for both the single-transfer path and the batch's first
+ * leg, so the two cannot disagree about whether a charge payment carries its id.
+ * The fee leg never comes through here: it goes to the treasury, answers no charge,
+ * and is read back as a plain `Transfer` beside the principal
+ * (`feeLegsFromReceipt`), so putting a memo on it would claim a charge id it does
+ * not settle.
+ */
+function principalCall(input: {
+  asset: SupportedAsset;
+  network: Network;
+  recipient: Address;
+  value: bigint;
+  reference: PaymentReference;
+}): TokenTransfer {
+  const to = getTokenContractFor(input.asset, input.network);
+
+  if (input.reference.kind === 'charge') {
+    return {
+      to,
+      data: encodeFunctionData({
+        abi: TIP20_MEMO_ABI,
+        functionName: 'transferWithMemo',
+        args: [input.recipient, input.value, memoForCharge(input.reference.chargeId)],
+      }),
+      value: BigInt(0),
+    };
+  }
+
+  return {
+    to,
+    data: encodeFunctionData({
+      abi: erc20Abi,
+      functionName: 'transfer',
+      args: [input.recipient, input.value],
+    }),
+    value: BigInt(0),
+  };
+}
 
 /**
  * Build the single TIP-20 transfer for `inside-transfer` fee routing.
@@ -41,7 +132,17 @@ export function buildTransfer(input: {
    * chain here, which is the bug this parameter exists to close. See `chainConfigFor`.
    */
   network: Network;
+  /**
+   * What the payment answers. Required, and a union rather than an optional id:
+   * a charge payment is a `transferWithMemo` carrying the charge id, and there is
+   * no argument shape that produces a single transfer for a charge without one
+   * (#184). See {@link PaymentReference}.
+   */
+  reference: PaymentReference;
 }): TokenTransfer {
+  const reference: PaymentReference | undefined = input.reference;
+  assertReference(reference);
+
   const decimals = ASSET_DECIMALS[input.asset];
   const value = parseUnits(input.grossAmount, decimals);
 
@@ -51,15 +152,13 @@ export function buildTransfer(input: {
     throw new Error(`Refusing to sign a non-positive transfer: ${input.grossAmount}`);
   }
 
-  return {
-    to: getTokenContractFor(input.asset, input.network),
-    data: encodeFunctionData({
-      abi: erc20Abi,
-      functionName: 'transfer',
-      args: [input.recipientAddress, value],
-    }),
-    value: BigInt(0),
-  };
+  return principalCall({
+    asset: input.asset,
+    network: input.network,
+    recipient: input.recipientAddress,
+    value,
+    reference,
+  });
 }
 
 /**
@@ -87,7 +186,16 @@ export function buildBatchTransfer(input: {
   treasuryAddress: Address;
   /** The network the ACCOUNT is acting on. See {@link buildTransfer}. */
   network: Network;
+  /**
+   * What the payment answers. The FIRST leg is the one that carries the memo: the
+   * principal is what the charge measures against, and the fee leg answers no
+   * charge. See {@link PaymentReference} and {@link assertReference}.
+   */
+  reference: PaymentReference;
 }): TempoCall[] {
+  const reference: PaymentReference | undefined = input.reference;
+  assertReference(reference);
+
   const decimals = ASSET_DECIMALS[input.asset];
 
   const principal = toPositiveUnits(input.principalAmount, decimals, 'principal');
@@ -96,7 +204,7 @@ export function buildBatchTransfer(input: {
   // A zero fee leg would make the batch two calls of which one moves nothing.
   // That is not a cheaper payment, it is a mis-signed one: refuse before the
   // wallet sees it.
-  const encode = (recipient: Address, value: bigint): TempoCall => ({
+  const encodeFee = (recipient: Address, value: bigint): TempoCall => ({
     to: getTokenContractFor(input.asset, input.network),
     data: encodeFunctionData({
       abi: erc20Abi,
@@ -106,7 +214,16 @@ export function buildBatchTransfer(input: {
     value: BigInt(0),
   });
 
-  return [encode(input.recipientAddress, principal), encode(input.treasuryAddress, fee)];
+  return [
+    principalCall({
+      asset: input.asset,
+      network: input.network,
+      recipient: input.recipientAddress,
+      value: principal,
+      reference,
+    }),
+    encodeFee(input.treasuryAddress, fee),
+  ];
 }
 
 function toPositiveUnits(amount: string, decimals: number, label: string): bigint {

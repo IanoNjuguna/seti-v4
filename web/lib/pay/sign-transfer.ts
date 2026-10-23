@@ -64,6 +64,14 @@ export async function signSend(input: SignSendInput): Promise<SignSendResult> {
     feeAmount: preview.feeInAsset,
     treasuryAddress: preview.treasuryAddress as Address,
     network,
+    /**
+     * A send answers no charge: there is no request behind it, so there is no id to
+     * carry and nothing the backend could match a memo to. It is reconciled by
+     * `recordSend` against the receipt instead. Stated as `direct` rather than left
+     * out, because absence is what silently produces an unattributable payment
+     * (#184).
+     */
+    reference: { kind: 'direct' },
   });
 
   const txHash = await sendTempoTransaction(buildTempoTransaction({ asset, calls, network }));

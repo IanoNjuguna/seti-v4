@@ -74,6 +74,23 @@ The memo arrives as `bytes32`, so it is decoded as UTF-8 with the zero padding s
 correct rather than unfortunate: an anonymous transfer to a merchant's address is not this
 charge's money.
 
+**That money is recorded, not ignored.** A transfer to a charge's recipient that no charge
+settled is filed as an arrival (`services/arrival.ts`, `GET /arrivals`) and read by the
+merchant as money with no charge behind it: no status, no charge id, no fee verdict, and
+never the word `paid`. Two paths produce it, and the second is the one #184 is about:
+
+- a payer who deliberately paid straight to the address without opening the page, and
+- a payer who used the page and whose wallet built a plain `transfer` anyway.
+
+The page's own builder can no longer produce the second. `web/lib/pay/build-transfer.ts`
+takes a `PaymentReference`, and `{ kind: 'charge' }` builds the principal as
+`transferWithMemo(recipient, amount, bytes32(chargeId))`; a charge payment with no
+reference, a blank id, or an id that cannot fit 32 bytes is refused before the wallet sees
+anything (`ChargeMemoUnavailableError`). `npm run check:memo-always` decodes the calldata,
+reads the id back through this file's own `memoFromBytes32`, and fails if the memo argument
+is dropped. A third-party wallet is not ours to fix, which is why the arrival is the
+backstop rather than an alternative.
+
 **The status write is a conditional UPDATE** (`WHERE status = 'pending'`). Two indexer
 replicas, a replayed transfer and a racing cancel cannot each move the charge; the loser
 sees `count = 0` and reports nothing. Nothing here holds funds, so "the money arrived" is a
@@ -218,7 +235,9 @@ the follow-up if receive traffic makes a per-instance limit insufficient.
    deploy the moment this merges, before an operator has had a chance to set it.
 4. **The per-instance rate limiter is not a global cap.** Two API replicas each allow 120 an
    hour per address. If receive traffic grows, the limiter needs a store.
-5. **An address with no pending charge is not scanned for**, and a charge payment needs the
-   id in the memo. A payer whose wallet cannot set a TIP-20 memo cannot pay a charge yet —
-   the page shows the address, and a plain transfer lands as a normal transfer with no charge
-   attached.
+5. **An address with no pending charge is not scanned for as a charge**, and a charge payment
+   needs the id in the memo. Our own page's builder now always writes it (#184): it cannot
+   build a charge payment without a memo, and refuses rather than send a plain `transfer`.
+   A payer in somebody else's wallet that cannot set a TIP-20 memo still cannot pay a charge
+   that way; the page shows the address and the reference, and their plain transfer lands as
+   an arrival (`GET /arrivals`) with no charge attached.
