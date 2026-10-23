@@ -417,15 +417,59 @@ async function main(): Promise<void> {
   );
   check('a deposit with no fee is null, not 0.00', ROWS[2].platformFee === null);
 
-  const serialised = JSON.stringify(ROWS);
+  /**
+   * The words a PERSON reads on a row: the title, the counterparty, the status word
+   * the API returns, and the direction.
+   *
+   * `reference` is deliberately not among them. It is an opaque receipt id minted
+   * by `receiptIdFor`, whose key is `randomBytes(32)` per process whenever
+   * `QUOTE_SIGNING_SECRET` is unset — which is every CI run unless the workflow
+   * pins it. About 1 random id in 14,000 spells `ousd`/`usdc`/`usdt`/`tempo`, so the
+   * assertion below, which used to regex the whole serialised row, failed at
+   * random on a tree nobody had touched (#204). A check that fires on a coin flip
+   * teaches the reader to re-run it rather than to read it.
+   */
+  const readableWords = (row: StatementRow): string =>
+    [row.description, row.counterparty, row.status, row.direction].join(' | ');
+
+  const TOKEN_NAME = /pathusd|ousd|usdc|usdt|tempo|testnet|mainnet/i;
+  const tokenNameIn = (row: StatementRow): string | null => readableWords(row).match(TOKEN_NAME)?.[0] ?? null;
+
+  const leaked = ROWS.map(tokenNameIn).filter((name): name is string => name !== null);
   check(
-    'no token, asset or chain name reaches a row',
-    !/pathusd|ousd|usdc|usdt|tempo|testnet|mainnet/i.test(serialised),
-    serialised.slice(0, 80)
+    'no token, asset or chain name reaches a row a person reads',
+    leaked.length === 0,
+    leaked.join(', ') || 'none'
   );
+
+  // Both directions, or the guard above could pass because it reads nothing. These
+  // two cases are why the assertion still bites after the reference was excluded:
+  // a name in a description fails it, and an opaque reference that spells one does
+  // not — which is the exact pair of behaviours that flaked.
+  const nameInDescription: StatementRow = { ...ROWS[0], description: 'Top-up from OUSD' };
+  check(
+    'and it fires when a name reaches a description',
+    tokenNameIn(nameInDescription) === 'OUSD',
+    tokenNameIn(nameInDescription) ?? 'nothing'
+  );
+  const nameInReference: StatementRow = {
+    ...ROWS[0],
+    reference: 'ousdUSDT0tempo-mainnet',
+  };
+  check(
+    'while a reference that happens to spell one is not a row a person reads',
+    // The first half is the point: this row is exactly what used to fail, so the
+    // second half proves the new predicate is what stops it rather than a fixture
+    // that could never have triggered the old one.
+    TOKEN_NAME.test(JSON.stringify(nameInReference)) && tokenNameIn(nameInReference) === null,
+    `old predicate ${TOKEN_NAME.test(JSON.stringify(nameInReference)) ? 'fired' : 'missed'}, ` +
+      `new predicate ${tokenNameIn(nameInReference) === null ? 'quiet' : 'fired'}`
+  );
+
   check(
     'no gas anywhere: the fee is the platform fee',
-    !/\bgas\b/i.test(serialised) && !/\bgas\b/i.test(statementHeaders('KES').join(' '))
+    !ROWS.some((row) => /\bgas\b/i.test(readableWords(row))) &&
+      !/\bgas\b/i.test(statementHeaders('KES').join(' '))
   );
   check(
     'the reference is the app\u2019s receipt id, never the row id',
