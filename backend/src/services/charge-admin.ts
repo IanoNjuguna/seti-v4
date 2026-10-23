@@ -173,3 +173,120 @@ export async function verifyChargeAdmin(input: {
 
   return { ok: true };
 }
+
+/**
+ * The payee's listing signature: "these are my charges, up to N of them".
+ *
+ * A second message rather than a third `ChargeAdmin` action, because there is no
+ * charge to name here — the object being authorised is the SET, not one row. Reusing
+ * `ChargeAdmin` would mean putting an address in a field called `chargeId`, and a
+ * struct whose field names lie is the kind of thing a later reader trusts.
+ *
+ * The signed message names `recipient` AND `limit`, so a header captured from one
+ * request cannot be replayed to walk a different page size, and the signature is over
+ * the payee's OWN address, so the address a caller is allowed to list is the address
+ * whose key signed. Same window and same domain as every other charge signature.
+ */
+export const CHARGE_LIST_PRIMARY_TYPE = 'ChargeList';
+
+export const CHARGE_LIST_TYPES = {
+  [CHARGE_LIST_PRIMARY_TYPE]: [
+    { name: 'recipient', type: 'string' },
+    { name: 'limit', type: 'uint256' },
+    { name: 'issuedAt', type: 'string' },
+    { name: 'nonce', type: 'string' },
+  ],
+} as const;
+
+export interface ChargeListMessage {
+  recipient: string;
+  limit: number;
+  issuedAt: string;
+  nonce: string;
+}
+
+/** The typed data a payee's wallet signs to list its own charges. */
+export function chargeListTypedData(message: ChargeListMessage, chainId: number) {
+  return {
+    domain: { name: CHARGE_DOMAIN_NAME, version: CHARGE_DOMAIN_VERSION, chainId },
+    types: CHARGE_LIST_TYPES,
+    primaryType: CHARGE_LIST_PRIMARY_TYPE,
+    message: {
+      recipient: message.recipient,
+      limit: BigInt(message.limit),
+      issuedAt: message.issuedAt,
+      nonce: message.nonce,
+    },
+  } as const;
+}
+
+/** Who signed this listing message, or null when it cannot be read. */
+export async function recoverChargeListSigner(input: {
+  message: ChargeListMessage;
+  signature: string;
+  chainId: number;
+}): Promise<string | null> {
+  try {
+    const recovered = await recoverTypedDataAddress({
+      ...chargeListTypedData(input.message, input.chainId),
+      signature: input.signature as Hex,
+    });
+    return getAddress(recovered).toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+/** Verify a listing signature against the address whose charges are being asked for. */
+export async function verifyChargeList(input: {
+  recipient: string;
+  limit: number;
+  headers: { signature: string | null; issuedAt: string | null; nonce: string | null };
+  chainId: number;
+  now?: Date;
+}): Promise<ChargeAdminVerdict> {
+  const { signature, issuedAt, nonce } = input.headers;
+
+  if (!signature || !issuedAt || !nonce) {
+    return {
+      ok: false,
+      code: 'charge-signature-invalid',
+      reason:
+        'Listing the charges of a payee must be signed by that payee: send x-seti-signature, x-seti-issued-at and x-seti-nonce.',
+    };
+  }
+
+  const issued = Date.parse(issuedAt);
+  if (Number.isNaN(issued)) {
+    return {
+      ok: false,
+      code: 'charge-admin-stale',
+      reason: `x-seti-issued-at "${issuedAt}" is not an ISO-8601 instant.`,
+    };
+  }
+
+  const now = (input.now ?? new Date()).getTime();
+  if (Math.abs(now - issued) > CHARGE_ADMIN_WINDOW_MS) {
+    return {
+      ok: false,
+      code: 'charge-admin-stale',
+      reason: `The signature was issued at ${issuedAt}, more than ${CHARGE_ADMIN_WINDOW_MS / 60_000} minutes from now.`,
+    };
+  }
+
+  const signer = await recoverChargeListSigner({
+    message: { recipient: input.recipient.toLowerCase(), limit: input.limit, issuedAt, nonce },
+    signature,
+    chainId: input.chainId,
+  });
+
+  if (!signer || signer !== input.recipient.toLowerCase()) {
+    return {
+      ok: false,
+      code: 'charge-signature-invalid',
+      reason: `This signature does not come from ${input.recipient}, so its charges are not this caller's to list.`,
+    };
+  }
+
+  return { ok: true };
+}

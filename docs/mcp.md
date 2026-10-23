@@ -16,7 +16,10 @@ an AI agent can do two things:
    tool takes no token either.
 
 It **never signs and never holds a key**. `seti_build_payment_transfer` returns
-calldata for a wallet you control.
+calldata for a wallet you control, and the receive tools return the exact typed data
+for your wallet to sign and take the signature back. An MCP server that signs for you
+is an MCP server that owns your money, and it is also a prompt-injection target: a
+hostile page could otherwise have a charge signed to an attacker's address.
 
 ## Install and configure
 
@@ -63,6 +66,10 @@ call (`"network": "mainnet"`) or via `TEMPO_CHAIN_ID=4217`.
 | `tempo_get_balance` | no | Read a TIP-20 balance, with the token's own `decimals` and `symbol` so the number can be trusted rather than assumed. |
 | `tempo_get_dex_quote` | no | Quote an exact-input swap on Tempo's enshrined Stablecoin DEX, including the spread. |
 | `seti_build_payment_transfer` | no | Build the ERC-20 `transfer` calldata for a merchant payment. |
+| `seti_create_payment_request` | no | Ask to be paid: a two-call shape that returns the typed data for YOUR wallet to sign, then creates the charge. No key is held here. |
+| `seti_get_charge` | no | One charge by id: amount, asset, memo, status, txHash. |
+| `seti_resolve_pay_link` | no | A pasted pay link, `seti://` URI or charge id, turned into the charge itself. |
+| `seti_list_received` | no | The charges one address issued, newest first, signed by that address. |
 | `seti_lookup_payee_address` | no | Who is paid at an address, and what has been checked: the bound handle, plus `name` and `merchantVerifiedAt` only for a merchant a person actually reviewed. |
 | `seti_resolve_merchant` | yes | Resolve a Seti QR payload to a merchant record. |
 | `seti_preview_payment` | yes | The server-computed fee, FX, gross and balance sufficiency. |
@@ -70,6 +77,28 @@ call (`"network": "mainnet"`) or via `TEMPO_CHAIN_ID=4217`.
 | `seti_get_balance` | yes | The balance the API reports for a user. |
 | `seti_list_transactions` | yes | Recent transactions, newest first. |
 | `seti_record_payment` | yes, **writes** | Record a settled payment. Registered only with `SETI_MCP_ALLOW_WRITES=true`. |
+
+### Receiving: an agent that needs money
+
+Four tools, none of which needs a Seti account. The payee's own signature is the
+credential, on the same EIP-712 domain every charge uses.
+
+```
+seti_create_payment_request { "recipient": "0xPayee…", "amount": "250.000000",
+                              "memo": "Invoice 4812", "expiresInMinutes": 60 }
+→ { "needsSignature": true, "wrote": false, "chainId": 42431,
+    "typedData": { …Charge… }, "next": "…" }
+```
+
+Nothing was written. Your wallet signs that `typedData`, and the SAME call with
+`signature` plus the returned `id` and `nonce` creates the charge and answers with
+`pageUrl` and `uri` to hand a human. The signature has to recover to `recipient`, so a
+wallet that signs for the wrong address is refused with `charge-signature-invalid`, not
+stored.
+
+`seti_list_received` works the same way with a `ChargeList` signature: without one it
+returns what to sign and reads nothing, because the SET of a payee's charges is not
+public even though a single charge (a pay link) is.
 
 ## Examples
 
