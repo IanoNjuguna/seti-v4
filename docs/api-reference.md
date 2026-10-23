@@ -692,6 +692,35 @@ Rate limits: **120 creates an hour per recipient address** (a merchant's hour) a
 **20 a minute per source address** (a script's minute). Over either → `429` with
 `code: "rate-limited"`.
 
+### `GET /public/charges?recipient=0x…&limit=20`
+
+A payee's OWN charges, newest first: `{ recipient, limit, count, charges }`, each row
+the same `charge` object as below. This is the read an agent reconciling its invoices
+needs, and it is the only call here that returns a SET.
+
+A single charge is public by design — that is what a pay link is — but the set is not,
+because `recipient` is a string anybody can type. So the listing is signed by the
+payee, over a message that names the address and the page size:
+
+```
+ChargeList { recipient, limit, issuedAt, nonce }
+```
+
+```bash
+curl "https://api.seti.live/public/charges?recipient=0xPayee…&limit=20" \
+  -H "x-seti-signature: 0x…" \
+  -H "x-seti-issued-at: 2026-10-22T12:00:00.000Z" \
+  -H "x-seti-nonce: 6b2d…"
+```
+
+`limit` is 1 to 50 (default 20) and is part of the signed message, so a captured
+header cannot be replayed to walk a different page size. Refusals: `403
+charge-signature-invalid` (no signature, or one from another wallet), `403
+charge-admin-stale` (issued more than 5 minutes from now), `422 recipient-invalid`
+(the recipient is not an address), `429 rate-limited` (20 a minute per source). Rows
+past their deadline are expired on read, exactly as `GET /public/charges/:id` does, so
+a lapsed charge never comes back as `pending`.
+
 ### `GET /public/charges/:id`
 
 The same `charge` object, one of `pending`, `paid`, `underpaid`, `overpaid`,

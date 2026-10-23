@@ -497,6 +497,29 @@ export async function expireChargeIfDue(row: ChargeRow, now: Date = new Date()):
   return applyChargeTransition({ row, to: 'expired', now });
 }
 
+/**
+ * A payee's own charges on the network being served, newest first.
+ *
+ * The filter is the ADDRESS and the NETWORK, both indexed, and nothing else: a payee
+ * listing their own rows is asking "what have I issued", which is exactly the set this
+ * returns. Status is NOT filtered, because the caller is reconciling invoices and a
+ * paid one is the most interesting row in the answer.
+ *
+ * Capped by the caller's signed `limit` (route side), so this function never decides
+ * how much of the table one request may read.
+ */
+export async function listChargesByRecipient(input: {
+  recipient: string;
+  network: Network;
+  limit: number;
+}): Promise<ChargeRow[]> {
+  return prisma.charge.findMany({
+    where: { recipient: input.recipient.toLowerCase(), network: input.network },
+    orderBy: { createdAt: 'desc' },
+    take: input.limit,
+  });
+}
+
 /** Every pending charge whose deadline has passed, oldest deadline first. */
 export async function findDueExpiries(limit: number, now: Date = new Date()): Promise<ChargeRow[]> {
   return prisma.charge.findMany({

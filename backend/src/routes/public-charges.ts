@@ -7,12 +7,14 @@ import { chargeVerifies, type SignedCharge } from '../services/charge.js';
 import {
   CHARGE_ADMIN_HEADERS,
   verifyChargeAdmin,
+  verifyChargeList,
 } from '../services/charge-admin.js';
 import { expireChargeIfDue, applyChargeTransition } from '../services/charge-store.js';
 import {
   CHARGE_ID_PATTERN,
   createCharge,
   findIdempotentReplay,
+  listChargesByRecipient,
   loadChargeView,
   toChargeView,
   chargeAmountUnits,
@@ -73,6 +75,13 @@ const READ_PER_SOURCE = new RateLimiter(120, 60_000);
 
 /** Managing calls (cancel, delivery log), which are a person or a cron, not a crowd. */
 const ADMIN_PER_SOURCE = new RateLimiter(30, 60_000);
+
+/** A payee reconciling invoices: a handful of pages a minute, not a crawl. */
+const LIST_PER_SOURCE = new RateLimiter(20, 60_000);
+
+/** How many charges one listing may return, and the default. */
+export const LIST_DEFAULT_LIMIT = 20;
+export const LIST_MAX_LIMIT = 50;
 
 /** The header a create may carry. Honoured for 24 hours (`charge-store.ts`). */
 const IDEMPOTENCY_HEADER = 'idempotency-key';
@@ -332,6 +341,60 @@ export async function publicChargeRoutes(app: FastifyInstance) {
     });
 
     return reply.status(201).type('application/json').send(result.body);
+  });
+
+  // -------------------------------------------------------------------------
+  // GET /public/charges?recipient=0x…&limit=…
+  //
+  // A payee's own rows, and the only read here that returns a SET. Signed like every
+  // other managing call (`ChargeList`, see `services/charge-admin.ts`) because an
+  // unsigned listing would let anyone walk a merchant's invoices by address: the
+  // charges are public one at a time — that is what a pay link is — but the set is
+  // not public, and `recipient` alone is a string anybody can type.
+  // -------------------------------------------------------------------------
+  app.get('/', async (request, reply) => {
+    if (!LIST_PER_SOURCE.allow(request.ip || 'unknown')) return tooMany(reply, 'per source');
+
+    const query = z
+      .object({
+        recipient: z.string().min(1).max(64),
+        limit: z.coerce.number().int().min(1).max(LIST_MAX_LIMIT).default(LIST_DEFAULT_LIMIT),
+      })
+      .parse(request.query);
+
+    const recipient = normaliseAddress(query.recipient);
+    if (!recipient) {
+      return refuse(
+        reply,
+        422,
+        'recipient-invalid',
+        `"${query.recipient}" is not an address, so no key can have signed for its charges.`
+      );
+    }
+
+    const verified = await verifyChargeList({
+      recipient,
+      limit: query.limit,
+      headers: adminHeaders(request),
+      chainId: servedChain.chainId,
+    });
+
+    if (!verified.ok) return refuse(reply, 403, verified.code, verified.reason);
+
+    const rows = await listChargesByRecipient({ recipient, network: servedChain.network, limit: query.limit });
+
+    // A listing is a read, and a read must not report a lapsed charge as pending: the
+    // same rule GET /:id follows applies to every row here, one expiry at a time.
+    const now = new Date();
+    const charges = [];
+    for (const row of rows) {
+      const current = row.status === 'pending' && row.expiresAt <= now
+        ? ((await expireChargeIfDue(row)) ?? row)
+        : row;
+      charges.push(toChargeView(current));
+    }
+
+    return { recipient, limit: query.limit, count: charges.length, charges };
   });
 
   // -------------------------------------------------------------------------
