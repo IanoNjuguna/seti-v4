@@ -23,13 +23,17 @@
  *
  * ## The signing secret, and the seam
  *
- * **There is ONE secret for every charge: `SETI_WEBHOOK_SECRET`.** Per-merchant
- * secrets belong to #156 (merchant app records, scoped keys); until then a single
- * deployment-wide key is the only honest option, because a per-charge key would have
- * to be handed back to a caller who has no account to hand it to. The two seams a
- * future change moves through are {@link webhookSecret} (where the key comes from)
- * and {@link buildWebhookPayload} (what is signed); nothing else in the codebase
- * reads the secret or signs a body.
+ * **A charge is signed with the secret of the app that owns its recipient.** #156
+ * gave a merchant an app record bound to a payout address, and the secret Seti issued
+ * for it; when `charge.recipient` is that address, THAT secret signs the delivery, so
+ * one merchant's secret cannot verify another merchant's events. Anything else — a
+ * charge to a bare address, a withdrawal, every row written before #156 — falls back
+ * to the deployment-wide `SETI_WEBHOOK_SECRET`, which is why existing receivers keep
+ * working unchanged.
+ *
+ * The two seams a future change moves through are {@link secretForRecipient} (where
+ * the key comes from) and {@link buildWebhookPayload} (what is signed); nothing else
+ * in the codebase reads a secret or signs a body.
  *
  * When the secret is unset a delivery is NOT attempted: an unsigned webhook is a
  * webhook a receiver must reject, and sending one would teach a receiver to accept
@@ -40,7 +44,12 @@
 import { createHmac, randomUUID } from 'node:crypto';
 import { prisma } from '../lib/prisma.js';
 import { env } from '../config/env.js';
+import { WEBHOOK_SIGNATURE_HEADER } from '../lib/webhook-signature.js';
 import { logAuditEvent } from './audit.js';
+import {
+  merchantAppForRecipient,
+  merchantAppSecret,
+} from './merchant-app.js';
 import type { ChargeStatus } from './charge.js';
 import type { ChargeView } from './charge-store.js';
 import type {
@@ -65,11 +74,23 @@ export const WEBHOOK_EVENT_BY_STATUS: Record<ChargeStatus, string> = {
   expired: 'charge.expired',
 };
 
-/** The header carrying the signature. Documented in `docs/api-reference.md`. */
-export const WEBHOOK_SIGNATURE_HEADER = 'x-seti-signature';
+/**
+ * The header carrying the signature. Defined in `lib/webhook-signature.ts`, because the
+ * receiver's verifier and the sender must agree on the name and only one file may own
+ * it; re-exported here so every existing import keeps working.
+ */
+export { WEBHOOK_SIGNATURE_HEADER };
 export const WEBHOOK_EVENT_HEADER = 'x-seti-event';
 export const WEBHOOK_DELIVERY_HEADER = 'x-seti-delivery';
 export const WEBHOOK_CHARGE_HEADER = 'x-seti-charge';
+/**
+ * The PUBLIC id of the merchant app whose secret signed the delivery (#156).
+ *
+ * Absent when the deployment-wide key signed it. A label for a merchant's own logs and
+ * a support ticket, never something a receiver should authorise on: the signature
+ * already says the event is ours.
+ */
+export const WEBHOOK_APP_HEADER = 'x-seti-app';
 
 /**
  * Backoff between attempts, in seconds. Six attempts over roughly eight hours.
@@ -90,10 +111,45 @@ const WEBHOOK_TIMEOUT_MS = 10_000;
 /** A `sending` row older than this is treated as abandoned and reclaimed. */
 const WEBHOOK_STALE_CLAIM_MS = 5 * 60_000;
 
-/** The key deliveries are signed with. THE SEAM — see the file header. */
+/** The deployment-wide fallback key. THE SEAM's second half — see the file header. */
 export function webhookSecret(): string | null {
   const secret = (env.SETI_WEBHOOK_SECRET ?? '').trim();
   return secret.length > 0 ? secret : null;
+}
+
+/**
+ * The secret that signs a charge paid to `recipient`, and where that receiver said to
+ * POST — THE SEAM.
+ *
+ * A merchant app bound to the address wins, because that is the merchant's own
+ * credential and the whole point of #156: a leaked app secret's blast radius is one
+ * merchant's fulfilment logic, not every receiver on the deployment. The
+ * deployment-wide key is the fallback, and it is NOT tried when an app matched but its
+ * secret could not be opened: quietly signing a merchant's event with a key they do not
+ * have would teach them to distrust every signature we send.
+ *
+ * `webhookUrl` is the APP's endpoint, and it is only ever a fallback for a charge that
+ * declared none of its own (see `enqueueChargeWebhook`). It travels back with the secret
+ * because the app is where a merchant configures "where my events go" once, instead of
+ * on every charge.
+ */
+export async function secretForRecipient(input: {
+  recipient: string;
+  network?: string;
+}): Promise<{ secret: string; merchantAppId: string | null; webhookUrl: string | null } | null> {
+  const app = await merchantAppForRecipient({
+    recipient: input.recipient,
+    network: input.network === 'mainnet' || input.network === 'testnet' ? input.network : undefined,
+  });
+
+  if (app) {
+    const appSecret = merchantAppSecret(app);
+    if (!appSecret) return null;
+    return { secret: appSecret, merchantAppId: app.id, webhookUrl: app.webhookUrl };
+  }
+
+  const fallback = webhookSecret();
+  return fallback ? { secret: fallback, merchantAppId: null, webhookUrl: null } : null;
 }
 
 /**
@@ -157,12 +213,21 @@ export async function enqueueChargeWebhook(
   view: ChargeView,
   now: Date = new Date()
 ): Promise<DeliveryRow | null> {
-  if (!row.webhookUrl) return null;
+  // The merchant's own app secret when one owns this recipient, the deployment key
+  // otherwise. Resolved BEFORE the row, so the row records which key signed it.
+  const signing = await secretForRecipient({ recipient: row.recipient, network: row.network });
+
+  // Where this goes: the URL the charge declared, or — when it declared none — the one
+  // its merchant configured on the app that owns the recipient (#156). Without the
+  // second, an app's `webhookUrl` would be a column nothing reads, and a merchant who
+  // set up their endpoint once would silently receive nothing.
+  const url = row.webhookUrl ?? signing?.webhookUrl ?? null;
+  if (!url) return null;
 
   const event = WEBHOOK_EVENT_BY_STATUS[view.status];
   const deliveryId = randomUUID();
   const payload = buildWebhookPayload({ view, deliveryId, sentAt: now });
-  const secret = webhookSecret();
+  const secret = signing?.secret ?? null;
 
   try {
     const created = await prisma.chargeWebhookDelivery.create({
@@ -171,11 +236,12 @@ export async function enqueueChargeWebhook(
         chargeId: row.id,
         event,
         status: view.status,
-        url: row.webhookUrl,
+        url,
         state: secret ? 'pending' : 'failed',
         attempts: 0,
         nextAttemptAt: secret ? now : null,
         payload: payload as unknown as Prisma.InputJsonValue,
+        merchantAppId: signing?.merchantAppId ?? null,
         ...(secret ? {} : { lastError: 'webhook-signing-secret-unset' }),
       },
     });
@@ -198,16 +264,41 @@ export async function enqueueChargeWebhook(
 
 let warnedMissingSecret = false;
 
-/** One loud line per process, not one per charge: the fault is the deployment's. */
+/**
+ * One loud line per process, not one per charge: the fault is the deployment's.
+ *
+ * The name in the message is `webhook-signing-secret-unset`, which now covers BOTH
+ * causes: no merchant app owns the recipient AND `SETI_WEBHOOK_SECRET` is unset.
+ */
 function logMissingSecretOnce(publicId: string): void {
   if (warnedMissingSecret) return;
   warnedMissingSecret = true;
   console.error(
-    '[webhook] SETI_WEBHOOK_SECRET is unset, so no webhook can be signed and none is ' +
-      `sent (first affected charge: ${publicId}). Deliveries are recorded as failed with ` +
-      'lastError="webhook-signing-secret-unset". Set the variable to the same strong value ' +
-      'on every backend instance; receivers verify against it.'
+    '[webhook] No key can sign this delivery: no merchant app owns the charge recipient ' +
+      'and SETI_WEBHOOK_SECRET is unset. Nothing is sent (first affected charge: ' +
+      `${publicId}). Deliveries are recorded as failed with ` +
+      'lastError="webhook-signing-secret-unset". Either set SETI_WEBHOOK_SECRET to the same ' +
+      'strong value on every backend instance, or have the merchant create an app bound to ' +
+      'the address their charges pay.'
   );
+}
+
+/** A delivery row with the fact that decides which key signs it. */
+type DeliveryWithCharge = DeliveryRow & { charge: { recipient: string; network: string } };
+
+/**
+ * The key that signs one stored delivery.
+ *
+ * Resolved from the CHARGE's recipient rather than from `merchantAppId`, because a row
+ * written before #156 has no app id and a charge's recipient never changes: the address
+ * is the answer, and the column only records what the answer was at enqueue.
+ */
+async function deliverySecret(row: DeliveryWithCharge): Promise<string | null> {
+  const resolved = await secretForRecipient({
+    recipient: row.charge.recipient,
+    network: row.charge.network,
+  });
+  return resolved?.secret ?? null;
 }
 
 function isUniqueViolation(error: unknown): boolean {
@@ -227,11 +318,14 @@ export async function deliverChargeWebhook(
   deliveryId: string,
   now: Date = new Date()
 ): Promise<DeliveryRow | null> {
-  const secret = webhookSecret();
-  if (!secret) return null;
-
-  const row = await prisma.chargeWebhookDelivery.findUnique({ where: { id: deliveryId } });
+  const row = await prisma.chargeWebhookDelivery.findUnique({
+    where: { id: deliveryId },
+    include: { charge: { select: { recipient: true, network: true } } },
+  });
   if (!row || row.state === 'delivered' || row.state === 'failed') return row;
+
+  const secret = await deliverySecret(row);
+  if (!secret) return null;
 
   const claim = await prisma.chargeWebhookDelivery.updateMany({
     where: { id: row.id, attempts: row.attempts, state: { in: ['pending', 'sending'] } },
@@ -261,6 +355,18 @@ async function attemptDelivery(
     [WEBHOOK_CHARGE_HEADER]: String((row.payload as { charge?: { id?: string } } | null)?.charge?.id ?? ''),
   };
 
+  // The PUBLIC app id, when a merchant app signed this delivery (#156). It is a label,
+  // never a credential: it lets a merchant with two apps on one endpoint tell their
+  // events apart, and it is what support asks for on a ticket. One primary-key read,
+  // and only for rows an app signed.
+  if (row.merchantAppId) {
+    const signer = await prisma.merchantApp.findUnique({
+      where: { id: row.merchantAppId },
+      select: { publicId: true },
+    });
+    if (signer) headers[WEBHOOK_APP_HEADER] = signer.publicId;
+  }
+
   const attempts = row.attempts + 1;
 
   try {
@@ -280,6 +386,7 @@ async function attemptDelivery(
           attempts,
           lastStatusCode: response.status,
           lastError: null,
+          lastAttemptAt: now,
           deliveredAt: now,
           nextAttemptAt: null,
         },
@@ -311,6 +418,7 @@ async function scheduleRetry(
         attempts,
         lastStatusCode: statusCode ?? null,
         lastError: `${reason} (gave up after ${attempts} attempts)`,
+        lastAttemptAt: now,
         nextAttemptAt: null,
       },
     });
@@ -325,6 +433,7 @@ async function scheduleRetry(
       attempts,
       lastStatusCode: statusCode ?? null,
       lastError: reason,
+      lastAttemptAt: now,
       nextAttemptAt: new Date(now.getTime() + waitSeconds * 1000),
     },
   });
@@ -342,9 +451,9 @@ export async function deliverDueWebhooks(
   limit = 25,
   now: Date = new Date()
 ): Promise<{ attempted: number; delivered: number }> {
-  const secret = webhookSecret();
-  if (!secret) return { attempted: 0, delivered: 0 };
-
+  // No deployment-key gate here any more: a row may be signed by a merchant app's own
+  // secret while `SETI_WEBHOOK_SECRET` is unset, and skipping the sweep for that would
+  // strand every app's retries. Each row resolves its own key below.
   const staleBefore = new Date(now.getTime() - WEBHOOK_STALE_CLAIM_MS);
   const due = await prisma.chargeWebhookDelivery.findMany({
     where: {
@@ -381,6 +490,8 @@ export interface DeliveryView {
   lastStatusCode: number | null;
   lastError: string | null;
   nextAttemptAt: string | null;
+  /** When the last POST left, or null if none has. The merchant's "did you try?". */
+  lastAttemptAt: string | null;
   deliveredAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -397,10 +508,94 @@ export function toDeliveryView(row: DeliveryRow): DeliveryView {
     lastStatusCode: row.lastStatusCode,
     lastError: row.lastError,
     nextAttemptAt: row.nextAttemptAt?.toISOString() ?? null,
+    lastAttemptAt: row.lastAttemptAt?.toISOString() ?? null,
     deliveredAt: row.deliveredAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
+}
+
+/**
+ * Re-send ONE delivery, with a fresh timestamp and therefore a fresh signature.
+ *
+ * ## Why this is a reset and not a new row
+ *
+ * The uniqueness rule above is one delivery per (charge, status), and it exists so a
+ * replay can never double-count an event. A replay that inserted a new row would break
+ * exactly that invariant, and a merchant's consumer would see two `charge.paid`
+ * deliveries with different delivery ids for one payment.
+ *
+ * So the row is reset to `pending` and attempted at once. What the merchant gets is the
+ * same bytes — the stored payload, the same `X-Seti-Delivery` — signed NOW: the
+ * signature covers `<t>.<body>`, and `t` is read at send time, so a replayed delivery
+ * verifies against the CURRENT secret. That is the whole point of a replay after a
+ * rotation: the old signature is dead, and this is how the merchant gets one that works.
+ *
+ * A delivery that already succeeded is refused: re-sending it would be a second POST for
+ * one event, and the merchant can tell us the endpoint is broken without us pretending
+ * the first success did not happen.
+ */
+export type ReplayVerdict =
+  | { ok: true; delivery: DeliveryView }
+  | { ok: false; reason: 'not-found' | 'not-replayable' };
+
+export async function replayDelivery(input: {
+  deliveryId: string;
+  /** The app the caller owns. A delivery of another app is `not-found`, not a 403. */
+  merchantAppId: string;
+  now?: Date;
+}): Promise<ReplayVerdict> {
+  const now = input.now ?? new Date();
+
+  const row = await prisma.chargeWebhookDelivery.findUnique({
+    where: { id: input.deliveryId },
+    include: { charge: { select: { recipient: true, network: true } } },
+  });
+
+  if (!row || row.merchantAppId !== input.merchantAppId) {
+    return { ok: false, reason: 'not-found' };
+  }
+
+  if (row.state === 'delivered') {
+    return { ok: false, reason: 'not-replayable' };
+  }
+
+  const secret = await deliverySecret(row);
+  if (!secret) return { ok: false, reason: 'not-replayable' };
+
+  // Reset the row first, so a crash mid-send leaves a due row the sweep reclaims rather
+  // than one stuck in `sending` with nothing in flight.
+  await prisma.chargeWebhookDelivery.update({
+    where: { id: row.id },
+    data: {
+      state: 'pending',
+      nextAttemptAt: now,
+      lastError: null,
+    },
+  });
+
+  const attempted = await attemptDelivery(row, secret, now);
+  return { ok: true, delivery: toDeliveryView(attempted ?? row) };
+}
+
+/**
+ * One merchant app's delivery log, newest first.
+ *
+ * Scoped by `merchantAppId`, which is the app whose secret signed the row. A merchant
+ * reads their own deliveries and nobody else's, and there is no parameter that widens
+ * that: the app id comes from the authenticated route.
+ */
+export async function readMerchantAppDeliveries(
+  merchantAppId: string,
+  limit = 50
+): Promise<DeliveryView[]> {
+  const rows = await prisma.chargeWebhookDelivery.findMany({
+    where: { merchantAppId },
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+  });
+
+  return rows.map(toDeliveryView);
 }
 
 /**

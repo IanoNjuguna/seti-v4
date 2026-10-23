@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { RateLimiter } from '../lib/rate-limit.js';
+import { usableWebhookUrl as webhookUrlVerdict } from '../lib/webhook-url.js';
 import { SUPPORTED_ASSETS } from '../config/assets.js';
 import { chargeVerifies, type SignedCharge } from '../services/charge.js';
 import {
@@ -123,33 +124,11 @@ function tooMany(reply: FastifyReply, scope: string) {
 /**
  * A webhook URL we are willing to POST to.
  *
- * https only, with one exception — `http://localhost` and `127.0.0.1` outside
- * production — because a local receiver is how the feature is tested and there is no
- * secret on that hop that a loopback does not already carry. In production the rule is
- * absolute: a merchant's webhook carries a txHash and an amount, and sending it in
- * clear over the public internet is not a trade this product makes.
+ * The rule itself lives in `lib/webhook-url.ts` (`webhookUrlVerdict`), because a
+ * merchant app's webhook URL is the same promise to the same kind of receiver: one
+ * copy, one place to get it wrong. See that file for why loopback is the only
+ * exception.
  */
-function usableWebhookUrl(
-  raw: string | undefined
-): { kind: 'none' } | { kind: 'url'; url: string } | { kind: 'invalid' } {
-  if (raw === undefined) return { kind: 'none' };
-
-  let url: URL;
-  try {
-    url = new URL(raw);
-  } catch {
-    return { kind: 'invalid' };
-  }
-
-  if (url.protocol === 'https:') return { kind: 'url', url: url.toString() };
-
-  const loopback = url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]';
-  if (url.protocol === 'http:' && loopback && process.env.NODE_ENV !== 'production') {
-    return { kind: 'url', url: url.toString() };
-  }
-
-  return { kind: 'invalid' };
-}
 
 /** The three admin headers, read from one place so GET and POST agree. */
 function adminHeaders(request: FastifyRequest) {
@@ -230,7 +209,7 @@ export async function publicChargeRoutes(app: FastifyInstance) {
       return refuse(reply, 422, 'amount-invalid', `"${body.amount}" is not a positive token amount.`);
     }
 
-    const webhook = usableWebhookUrl(body.webhookUrl);
+    const webhook = webhookUrlVerdict(body.webhookUrl);
     if (webhook.kind === 'invalid') {
       return refuse(
         reply,
