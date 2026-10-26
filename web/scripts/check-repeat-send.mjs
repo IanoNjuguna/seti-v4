@@ -14,8 +14,18 @@
  *    nothing else, and the send route's own seed refuses `?amount=`, so there is no
  *    channel (tap, link, retry link or hand-edited URL) through which a figure
  *    the customer did not choose can reach the field.
+ * 4. Which balance pays is the SAME answer the pay step gives (#232). The send form
+ *    mounts the one selector and pins the choice on every quote it makes, the
+ *    default is the row the quote named, and a pinned balance that cannot cover
+ *    produces #223's sentence exactly once — with the balance that can, or by itself
+ *    when no single balance can.
  */
+import { readFileSync } from 'node:fs';
 import { quoteRows, QUOTE_LABELS } from '../components/money/quoteRows.ts';
+import { buildTokenSelector, selectorLine } from '../components/token-selector/token-selector.model.ts';
+import { sendFormFlags } from '../components/home/send-panel-step.ts';
+import { REFUSAL_BY_CODE } from '../lib/api/refusal.constants.ts';
+import { COVERAGE_REFUSAL, pinAsset } from '../lib/pay/quote-asset.ts';
 import { repeatDetail, repeatTarget, showsRecents } from '../components/send/repeat.ts';
 import { sendSeed } from '../components/send/sendSeed.ts';
 import { RECENT_RECIPIENT_COPY } from '../components/send/Send.constants.ts';
@@ -145,6 +155,126 @@ console.log('the confirmation carries the fee and the total, every time:');
     'the fee reads the same on a repeat, because it is the same table',
     quoteRows(SEND_PREVIEW).find((row) => row.key === 'fee')?.value === fee?.value
   );
+}
+
+console.log('which balance pays, on a send, is the same answer as on a pay (#232):');
+{
+  /**
+   * The home payload's shape (#224): one row per asset, each with its own value in
+   * the dashboard's currency. The primary balance is empty, so the row that covers
+   * is the one the money actually arrived in — the case that makes an unpinned send
+   * work at all.
+   */
+  const ROWS = [
+    { asset: 'ousd', symbol: 'OUSD', amount: '0.000000', value: '0.00' },
+    { asset: 'pathusd', symbol: 'pathUSD', amount: '4.500000', value: '4.50' },
+    { asset: 'usdt0', symbol: 'USDT0', amount: '1240.000000', value: '1240.00' },
+  ];
+
+  const model = (overrides = {}) =>
+    buildTokenSelector({
+      rows: ROWS,
+      currency: 'KES',
+      loading: false,
+      unavailable: false,
+      priced: null,
+      pinned: null,
+      offer: null,
+      ...overrides,
+    });
+
+  const hook = readFileSync(new URL('../components/home/useSendPanel.ts', import.meta.url), 'utf8');
+  const amountStep = readFileSync(
+    new URL('../components/home/SendAmountSection.tsx', import.meta.url),
+    'utf8'
+  );
+  const quotes = hook.match(/previewSend\(\{[\s\S]*?\)/g) ?? [];
+
+  check(
+    'the send form mounts the ONE selector, the component the pay step mounts',
+    amountStep.includes("<TokenSelector model={tokenSelector} onChoose={onChooseAsset} />"),
+    amountStep.split('\n').find((line) => line.includes('TokenSelector')) ?? 'not mounted'
+  );
+  check(
+    'and a second control is not what it draws: the hook derives that model, it does not build one',
+    hook.includes('buildTokenSelector(') && !amountStep.includes('<select') && !amountStep.includes('role="listbox"')
+  );
+  check(
+    'every send quote carries the pin, so the price, the fee and the record are one token',
+    quotes.length === 3 && quotes.every((call) => call.includes('...pinAsset(pinned)')),
+    quotes.filter((call) => !call.includes('...pinAsset(pinned)')).length + ' of ' + quotes.length + ' unpinned'
+  );
+  check(
+    'unpinned, nothing is asked for: the server still picks the row that covers',
+    Object.keys(pinAsset(null)).length === 0,
+    Object.keys(pinAsset(null)).join(',') || 'none'
+  );
+  check(
+    'pinned, exactly the balance the customer chose rides on the quote',
+    JSON.stringify(pinAsset('pathusd')) === JSON.stringify({ asset: 'pathusd' }),
+    JSON.stringify(pinAsset('pathusd'))
+  );
+  check(
+    'the quote names that balance back, and the row it writes names the quote’s asset',
+    hook.includes('asset: resolvedAsset(preview.asset)')
+  );
+  {
+    const defaulted = model({ priced: 'usdt0' });
+    const line = selectorLine(defaulted);
+    check(
+      'with one funded balance and no choice made, the default is the token the QUOTE named',
+      defaulted.paying?.asset === 'usdt0' && line?.label === 'Paying from USDT0',
+      `${defaulted.paying?.asset} / ${line?.label}`
+    );
+    check(
+      'and it costs no tap: a single funded balance is a line, not a control',
+      model({ rows: ROWS.filter((row) => row.asset === 'usdt0'), priced: 'usdt0' }).choosable === false
+    );
+  }
+  {
+    const refused = model({ pinned: 'pathusd', offer: 'usdt0' });
+    const sentence = REFUSAL_BY_CODE[COVERAGE_REFUSAL];
+    check(
+      'a pinned balance that cannot cover is #223’s refusal, in the sentence the code owns',
+      refused.refusal?.sentence === sentence && refused.refusal?.offer?.asset === 'usdt0',
+      refused.refusal?.sentence
+    );
+    check(
+      'the selector draws it, so the form stays out of the way and nothing is said twice',
+      sendFormFlags({
+        formError: sentence,
+        formErrorCode: COVERAGE_REFUSAL,
+        tokenSelector: refused,
+      }).formError === null
+    );
+  }
+  {
+    const spread = model({ pinned: 'pathusd' });
+    const sentence = REFUSAL_BY_CODE[COVERAGE_REFUSAL];
+    check(
+      'when no single balance covers there is nothing to offer, and no control pretending there is',
+      spread.refusal === null
+    );
+    check(
+      'so the form says it rather than leaving a refused send looking idle',
+      sendFormFlags({
+        formError: sentence,
+        formErrorCode: COVERAGE_REFUSAL,
+        tokenSelector: spread,
+      }).formError === sentence
+    );
+  }
+  {
+    const other = model({ priced: 'usdt0' });
+    check(
+      'a refusal of any OTHER kind is still the form’s to draw',
+      sendFormFlags({
+        formError: 'The price has expired.',
+        formErrorCode: 'quote-expired',
+        tokenSelector: other,
+      }).formError === 'The price has expired.'
+    );
+  }
 }
 
 console.log('word of the block:');
