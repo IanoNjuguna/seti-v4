@@ -17,6 +17,20 @@ import { logAuditEvent } from './audit.js';
 export type PaymentRefusalCode =
   /** The user has no active wallet for the asset being paid with. */
   | 'no-active-wallet'
+  /**
+   * The preview could not name ONE asset that covers the amount, so nothing was
+   * signed (#223).
+   *
+   * The one code here that is raised BEFORE a signature exists, which is why it
+   * never reaches `refusal()`: there is no `txHash` to key an audit row to and no
+   * row to write. It is in this taxonomy because the taxonomy is what a client
+   * switches on, and it is named apart from the app's own `insufficient-funds`
+   * kind because the fix is different: `insufficient-funds` means there is not
+   * enough money, this one means the money is not in the balance the payment is
+   * being taken from — the pinned asset is short while another covers, or no
+   * single balance covers the amount and only their sum does.
+   */
+  | 'no-single-asset-covers'
   /** No merchant matches the id the QR resolved to. */
   | 'merchant-not-found'
   /**

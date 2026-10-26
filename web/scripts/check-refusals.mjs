@@ -33,7 +33,10 @@
  *
  *  4. **The voice holds.** No em dash, no en dash used as one, no exclamation, no
  *     question mark, no stablecoin name, no "revolutionary" vocabulary, no claim
- *     that Seti is a bank, and second person in every row.
+ *     that Seti is a bank, and second person in every row. The same rules run over
+ *     the sentence a REFUSED PAYMENT shows before any signature
+ *     (`no-single-asset-covers`, #223), which is not on the page but is read at the
+ *     moment the customer needs it to be true.
  *
  * Run from `web/`: npm run check:refusals (part of the root `verify` gate).
  */
@@ -48,6 +51,7 @@ import {
   REFUSALS_EYEBROW,
   REFUSALS_HEADING,
 } from '../app/components/landing/RefusalsSection.constants.ts';
+import { REFUSAL_BY_CODE, REFUSAL_UNKNOWN } from '../lib/api/refusal.constants.ts';
 import { MENU_LINKS, SEARCH_SECTIONS } from '../app/components/landing/LandingNav.constants.ts';
 
 const WEB = fileURLToPath(new URL('..', import.meta.url));
@@ -166,6 +170,37 @@ check(
   'every detail is a finished sentence',
   REFUSAL_ROWS.every((row) => /\.$/.test(row.detail.trim()))
 );
+
+console.log('the sentence a payment gives before any signature (#223):');
+{
+  // This code is not on the landing page, so the band's own rules above do not
+  // reach it — and it is the one sentence a customer reads at the moment they were
+  // told, until #223, that they were short of money while looking at a card that
+  // said otherwise. So it is held to the same voice here: it names where the money
+  // IS, it names no token (a screen shows the customer's currency), and it says
+  // what to do next.
+  const code = 'no-single-asset-covers';
+  const sentence = REFUSAL_BY_CODE[code];
+
+  check('the code has a sentence of its own, not the generic fallback', Boolean(sentence) && sentence !== REFUSAL_UNKNOWN, String(sentence));
+  check('no em dash and no en dash standing in for one', !/[—–]/.test(sentence), sentence);
+  check('no exclamation mark', !sentence.includes('!'), sentence);
+  check('no question mark', !sentence.includes('?'), sentence);
+  check(
+    'no stablecoin name where a customer is looking',
+    !/\b(OUSD|USDC|USDC\.e|USDT0|USDT|pathUSD)\b/i.test(sentence),
+    sentence
+  );
+  check('it speaks to the reader, second person', /\byou\b|\byour\b/i.test(sentence), sentence);
+  check('it is a finished sentence', /\.$/.test(sentence.trim()), sentence);
+  check('it says where the money is, which is the thing "not enough" got wrong', /more than one balance/i.test(sentence), sentence);
+  check('it says what to do next', /add money/i.test(sentence), sentence);
+
+  // And the backend declares the same code, so the sentence cannot outlive the
+  // refusal it was written for (or arrive for a code nobody sends).
+  const taxonomy = readFileSync(join(BACKEND, 'services/payment-refusal.ts'), 'utf8');
+  check('the backend declares the code that renders this sentence', taxonomy.includes(`'${code}'`));
+}
 
 console.log('the sentences render, on the page, under the anchor they are linked by:');
 {

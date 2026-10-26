@@ -18,7 +18,12 @@ import {
 } from '../services/statement-model.js';
 import { PaymentRefusalError } from '../services/payment-refusal.js';
 import { refusalResponse } from './refusal-response.js';
-import { previewPayment, previewSend, SendRequiresBatchError } from '../services/payments.js';
+import {
+  previewPayment,
+  previewSend,
+  NoSingleAssetCoversError,
+  SendRequiresBatchError,
+} from '../services/payments.js';
 import { previewConvert, ConvertRefusalError } from '../services/convert.js';
 import { planSettlement } from '../services/settlement.js';
 import { toRecentTransaction } from '../services/transaction-view.js';
@@ -316,14 +321,26 @@ export async function transactionRoutes(app: FastifyInstance) {
     const user = requireUser(request);
     const body = previewSchema.parse(request.body);
 
-    const preview = await previewPayment({
-      ...body,
-      userId: user.id,
-      network: user.network,
-      type: 'payment',
-    });
+    try {
+      const preview = await previewPayment({
+        ...body,
+        userId: user.id,
+        network: user.network,
+        type: 'payment',
+      });
 
-    return reply.send({ preview });
+      return reply.send({ preview });
+    } catch (error) {
+      // No txHash exists yet, so there is nothing to key an audit refusal to —
+      // this is an answer about the customer's balances, and the code is what the
+      // app switches on for its sentence (#223). Same shape as `/send/preview`
+      // below, for the same reason: a refusal that arrives BEFORE a signature is
+      // not a receipt to reconcile, it is a request the server would not price.
+      if (error instanceof NoSingleAssetCoversError) {
+        return reply.status(422).send({ error: error.message, code: error.code });
+      }
+      throw error;
+    }
   });
 
   app.post('/pay', async (request, reply) => {
@@ -435,7 +452,9 @@ export async function transactionRoutes(app: FastifyInstance) {
     } catch (error) {
       // No txHash exists yet, so there is nothing to key an audit refusal to —
       // this is a configuration answer, and the code is what the app switches on.
-      if (error instanceof SendRequiresBatchError) {
+      // A send shares `resolveQuoteAsset`, so it can also arrive here with no
+      // single balance able to fund it (#223).
+      if (error instanceof SendRequiresBatchError || error instanceof NoSingleAssetCoversError) {
         return reply.status(422).send({ error: error.message, code: error.code });
       }
       throw error;

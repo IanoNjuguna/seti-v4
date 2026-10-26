@@ -459,6 +459,13 @@ asset units), `fee` (KES), `total` (asset units — **what you sign**), `fiatAmo
 `feeRoutingMode`, `feeInAsset`, and the resolved `merchant`. Field-by-field
 meaning: [Payments](./payments.md).
 
+The resolved `asset` is one that can fund `total` on this network. A preview that
+cannot name one is refused with `422 { "code": "no-single-asset-covers" }`
+**before anything is signed** — the `asset` you named cannot cover it while another
+balance could, or no single balance can and only their sum does. `hasEnoughBalance:
+false` is the different case, where the account cannot afford the amount at all and
+the preview is still priced.
+
 ### `POST /transactions/pay`
 
 Record a payment you have already broadcast. The amount is a claim that the

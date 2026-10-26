@@ -2,7 +2,7 @@ import { getAddress } from 'viem';
 import { prisma } from '../lib/prisma.js';
 import { env } from '../config/env.js';
 import { describeEvmAddress } from '../lib/address.js';
-import { getUserBalance, pickSpendAsset } from './balance.js';
+import { getUserBalance, pickSpendAsset, type SpendAssetChoice } from './balance.js';
 import { estimateNetworkFee, reserveNetworkFee, isListedOn, SUPPORTED_ASSETS } from './chain.js';
 import { calculateMerchantFee, minimumTicketForFloor } from './fees.js';
 import { issueQuote } from './quote.js';
@@ -494,20 +494,89 @@ export async function resolveUserFiat(userId: string): Promise<string> {
 }
 
 /**
+ * Why a preview stops: it could not name ONE asset that covers the amount.
+ *
+ * Every other refusal in this codebase is raised AFTER a signature, keyed to the
+ * `txHash` the customer can quote to support (`services/payment-refusal.ts`). This
+ * one has no receipt to key anything to, because its whole purpose is that no
+ * signature is created: the payment is refused while it is still an amount on a
+ * screen.
+ *
+ * The alternative it replaces is what the customer saw: a quote naming an asset
+ * holding less than the amount, a signature, and an `InsufficientBalance` revert
+ * from the token contract — rendered as "not enough to cover this payment" beside
+ * a balance card that sums across assets and says otherwise. So the error carries
+ * a CODE the app maps to its own sentence, and a reason for the log naming which
+ * asset was short (or that the money is spread), which is the thing support needs
+ * and the customer must never read.
+ *
+ * Same shape as `SendRequiresBatchError` below: a typed, pre-signature refusal the
+ * route answers with 422 and a code.
+ */
+export class NoSingleAssetCoversError extends Error {
+  readonly code = 'no-single-asset-covers';
+
+  constructor(reason: string) {
+    super(reason);
+    this.name = 'NoSingleAssetCoversError';
+  }
+}
+
+/**
+ * The asset to price, or the refusal that stops the preview.
+ *
+ * `covered` and `short` both produce an asset: a preview that prices an amount the
+ * customer cannot afford is correct and useful, and `hasEnoughBalance` says so in
+ * the words they already read ("add money").
+ *
+ * `under-funded` and `spread` are the two ways the preview cannot name ONE asset
+ * that covers the amount, and both are refused here — before the signature, which
+ * is the entire point. They share one code because the customer reads one fact
+ * from both: this payment needs a single balance that covers it and does not have
+ * one.
+ */
+function fundedAsset(choice: SpendAssetChoice, grossAsset: number): SupportedAsset {
+  if (choice.kind === 'covered' || choice.kind === 'short') return choice.asset;
+
+  const amount = grossAsset.toFixed(8);
+  const reason =
+    choice.kind === 'under-funded'
+      ? `The requested asset ${choice.asset} cannot cover ${amount}, and the payment is pinned to ` +
+        'it rather than switched to one that can. Nothing was signed.'
+      : `No single asset covers ${amount}: the balance is held across more than one and only their ` +
+        'sum would. Nothing was signed.';
+
+  throw new NoSingleAssetCoversError(reason);
+}
+
+/**
  * Which asset this quote is for.
  *
- * Three cases, in order:
+ * Four cases, in order:
  *
  * 1. **The client named one.** Honoured, but only if the product supports it and
  *    the CHAIN lists it. Asking a practice quote for USDT0 is refused by name
  *    rather than priced against an address that chain does not carry — a
  *    transfer to a token contract with no code can land as a silent no-op.
- * 2. **The client named nothing.** `pickSpendAsset` chooses from what the
+ * 2. **The named asset cannot cover the amount.** Refused, with that asset named
+ *    in the reason, even when another balance would cover it. Switching silently
+ *    here was the bug: the customer signs a transfer denominated in a token they
+ *    did not choose, and `hasEnoughBalance` was read from an asset other than the
+ *    one the preview shows. Refused only when the money EXISTS (the pinned
+ *    balance is short and the sum covers) — a customer who is simply short keeps
+ *    the priced preview and its true "not enough" answer, because refusing them
+ *    would describe money they do not have.
+ * 3. **The client named nothing.** `pickSpendAsset` chooses from what the
  *    customer actually holds on this network, preferring `PRIMARY_ASSET`. This
  *    is the case that fixes the bridged deposit: the money is in USDT0, the
  *    primary balance is zero, and the payment goes through anyway.
- * 3. There is no third case. An unknown asset is never silently substituted for
- *    the primary one; the customer would sign a transfer they never agreed to.
+ * 4. **No single balance covers it, but their sum does.** Refused with
+ *    `no-single-asset-covers`: the money is real, a payment still spends one
+ *    asset, and the alternative was naming an asset that cannot fund it and
+ *    finding out from a contract revert.
+ *
+ * There is no fifth case. An unknown asset is never silently substituted for the
+ * primary one; the customer would sign a transfer they never agreed to.
  */
 async function resolveQuoteAsset(
   input: { userId: string; asset?: string; network?: Network },
@@ -516,7 +585,7 @@ async function resolveQuoteAsset(
   const network = normalizeNetwork(input.network, servedNetwork);
 
   if (!input.asset) {
-    return pickSpendAsset(input.userId, grossAsset, network);
+    return fundedAsset(await pickSpendAsset(input.userId, grossAsset, network), grossAsset);
   }
 
   const requested = input.asset as SupportedAsset;
@@ -531,7 +600,10 @@ async function resolveQuoteAsset(
     throw new Error(`This network does not list "${input.asset}", so it cannot be spent here.`);
   }
 
-  return requested;
+  return fundedAsset(
+    await pickSpendAsset(input.userId, grossAsset, network, requested),
+    grossAsset
+  );
 }
 
 export async function quoteTransfer(input: {

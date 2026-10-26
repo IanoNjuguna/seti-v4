@@ -8,7 +8,7 @@
  * USDT0, and the app showed a zero balance because it only read OUSD and pathUSD.
  * The money was on-chain at an address Seti already knew; the READ was too narrow.
  *
- * So this asserts the three things that make that impossible again:
+ * So this asserts the four things that make that impossible again:
  *
  *   1. Every chain lists the assets its registry lists — four on mainnet, three
  *      on practice (USDT0 is not on the practice registry, and is NOT faked).
@@ -18,15 +18,26 @@
  *      zero in three of them still yields the right total.
  *   4. The home payload's rows carry their own value and the total IS their sum —
  *      for an account holding two assets, one asset, or none (#222).
+ *   5. Which ONE asset pays a payment, and the two cases where none can (#223):
+ *      the asset the client pinned is short while another balance covers, or no
+ *      single balance covers the amount and only their sum does. Both are refused
+ *      before a signature; a customer who is merely short keeps the priced preview
+ *      that says so.
  *
- * It is hermetic: the summing loop takes its reader as an argument, so no chain
- * and no database are involved. The live reads are proven separately by the
- * `eth_call` transcript in the task report.
+ * It is hermetic: the summing loop and the spend decision take their inputs as
+ * arguments, so no chain and no database are involved. The live reads are proven
+ * separately by the `eth_call` transcript in the task report.
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { assetsForChain, tokenAddressFor, TEMPO_ASSETS } from '../config/assets.js';
-import { assetBalanceRows, homeBalanceInFiat, totalBalanceInFiat, sumBalancesInFiat } from './balance.js';
+import {
+  assetBalanceRows,
+  chooseSpendAsset,
+  homeBalanceInFiat,
+  totalBalanceInFiat,
+  sumBalancesInFiat,
+} from './balance.js';
 import type { SupportedAsset } from '../config/networks.js';
 
 let total = 0;
@@ -249,6 +260,142 @@ console.log('asset rows:');
     threw = true;
   }
   check('a read that throws is not turned into a missing row', threw);
+}
+
+// ---------------------------------------------------------------------------
+// (e) which asset pays — and when NO single one can (#223)
+// ---------------------------------------------------------------------------
+
+console.log('\nwhich asset pays (one payment, one balance):');
+
+/**
+ * The rows a preview builds, in the order it builds them: the primary asset first,
+ * then the chain's own list. `chooseSpendAsset` takes rows rather than a map
+ * because that ORDER is the preference, so the fixture has to be in it too.
+ */
+function rowsFor(
+  balances: Partial<Record<SupportedAsset, string>>,
+  assets: readonly SupportedAsset[]
+) {
+  return assets.map((asset) => ({ asset, balance: balances[asset] ?? '0.00' }));
+}
+
+// The account from the issue, exactly: 3 OUSD and 900 of the bridged asset. Paying
+// 5 USD spans neither of them, and paying 2 USD is OUSD's own business.
+{
+  const account = rowsFor({ ousd: '3.00', usdt0: '900.00' }, mainnetAssets);
+
+  const small = chooseSpendAsset(account, 2);
+  check(
+    'a 2 USD payment from 3 OUSD is priced in OUSD',
+    small.kind === 'covered' && small.asset === 'ousd',
+    `${small.kind} ${small.asset}`
+  );
+
+  const large = chooseSpendAsset(account, 5);
+  check(
+    'a 5 USD payment from the same account is priced in the balance that covers it',
+    large.kind === 'covered' && large.asset === 'usdt0',
+    `${large.kind} ${large.asset}`
+  );
+
+  // The bug, as the client used to reach it: the payment names OUSD, OUSD holds 3,
+  // and another balance holds 900. It is REFUSED, not switched — the customer
+  // signed OUSD before, and the token contract answered `InsufficientBalance`.
+  const pinnedShort = chooseSpendAsset(account, 5, 'ousd');
+  check(
+    'a payment PINNED to an asset that cannot cover it is refused, not switched',
+    pinnedShort.kind === 'under-funded' && pinnedShort.asset === 'ousd',
+    `${pinnedShort.kind} ${pinnedShort.asset}`
+  );
+
+  const pinnedFits = chooseSpendAsset(account, 2, 'ousd');
+  check(
+    'and pinning an asset that does cover it is still honoured',
+    pinnedFits.kind === 'covered' && pinnedFits.asset === 'ousd',
+    `${pinnedFits.kind} ${pinnedFits.asset}`
+  );
+}
+
+// The other half: no single balance covers it and only the SUM does. 3 + 2 = 5.
+// This is the case the home card makes look like a lie, because the card sums.
+{
+  const split = rowsFor({ ousd: '3.00', pathusd: '2.00' }, practiceAssets);
+  const choice = chooseSpendAsset(split, 5);
+
+  check(
+    'an amount only the sum of two balances covers is `spread`, not a payment',
+    choice.kind === 'spread',
+    choice.kind
+  );
+  check(
+    'and it is priced in the largest balance, which is the one that is short',
+    choice.asset === 'ousd',
+    choice.asset
+  );
+  // The invariant behind the refusal: a `spread` answer never names a balance that
+  // covers. If it did, the refusal would be wrong about the account.
+  check(
+    'no `spread` answer names a balance that could actually cover the amount',
+    split.every((row) => Number(row.balance) < 5),
+    split.map((row) => `${row.asset}:${row.balance}`).join(' ')
+  );
+
+  // One cent under the sum is not spread money, it is missing money: that customer
+  // is simply short, and their preview says so in their own currency.
+  const short = chooseSpendAsset(rowsFor({ ousd: '3.00', pathusd: '1.99' }, practiceAssets), 5);
+  check(
+    'an amount the balances do not cover even together is `short`, not a refusal',
+    short.kind === 'short',
+    short.kind
+  );
+  check(
+    'and `short` still names the largest balance, so the preview prices something real',
+    short.asset === 'ousd',
+    short.asset
+  );
+
+  // One funded balance can never be `spread`: the sum would be that balance, and it
+  // would have covered. This is what makes the sentence's "more than one balance"
+  // true rather than a guess.
+  const single = chooseSpendAsset(rowsFor({ ousd: '3.00' }, practiceAssets), 5);
+  check(
+    'a single funded balance that is short is `short`, never `spread`',
+    single.kind === 'short',
+    single.kind
+  );
+}
+
+// Ordering, boundaries and malformed reads — the three ways this decides wrongly
+// without anyone noticing.
+{
+  const primaryFirst = chooseSpendAsset(rowsFor({ ousd: '5.00', usdt0: '900.00' }, mainnetAssets), 4);
+  check(
+    'the primary asset pays when it alone can, even when another is far richer',
+    primaryFirst.kind === 'covered' && primaryFirst.asset === 'ousd',
+    `${primaryFirst.kind} ${primaryFirst.asset}`
+  );
+
+  const exact = chooseSpendAsset(rowsFor({ ousd: '3.00' }, practiceAssets), 3);
+  check(
+    'a balance exactly equal to the amount covers it',
+    exact.kind === 'covered' && exact.asset === 'ousd',
+    `${exact.kind} ${exact.asset}`
+  );
+
+  const malformed = chooseSpendAsset(rowsFor({ ousd: 'not-a-number', pathusd: '5.00' }, practiceAssets), 4);
+  check(
+    'a malformed balance is zero, and does not poison the sum into `spread`',
+    malformed.kind === 'covered' && malformed.asset === 'pathusd',
+    `${malformed.kind} ${malformed.asset}`
+  );
+
+  const unusable = chooseSpendAsset(rowsFor({ ousd: '9.00' }, practiceAssets), Number.NaN);
+  check(
+    'an amount that is not a number covers nothing, so it fails closed',
+    unusable.kind === 'short',
+    `${unusable.kind} ${unusable.asset}`
+  );
 }
 
 
