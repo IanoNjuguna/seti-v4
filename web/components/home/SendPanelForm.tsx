@@ -50,7 +50,9 @@ export function SendPanelForm({ initialRecipient, focusAmount }: SendPanelProps)
           recipientError={panel.recipientError}
           amountError={panel.amountError}
           formError={panel.formError}
+          formErrorCode={panel.formErrorCode}
           resolved={panel.resolved}
+          tokenSelector={panel.tokenSelector}
           preview={panel.preview}
           previewLoading={panel.previewLoading}
           step={panel.step}
@@ -58,6 +60,7 @@ export function SendPanelForm({ initialRecipient, focusAmount }: SendPanelProps)
           focusAmount={focusAmount === true}
           onRecipientChange={panel.setRecipient}
           onAmountChange={panel.setAmountKes}
+          onChooseAsset={panel.setAsset}
           onSubmit={panel.submit}
           amountLabel={currency ? `Amount (${currency})` : SEND_COPY.amountLabelFallback}
         />
