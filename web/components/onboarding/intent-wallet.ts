@@ -3,6 +3,7 @@ import { refusalMessageFor } from '@/lib/api/refusal.constants';
 import type { ClaimFailure } from '@/components/merchant/Claim.error';
 import type {
   EmbeddedWalletStatus,
+  PrivySessionState,
   WalletRepairFailureCode,
 } from '@/hooks/useEmbeddedWallet.types';
 
@@ -23,7 +24,11 @@ import type {
  *     says so BEFORE it offers a tap that cannot complete, and carries the controls
  *     that fix it. This is the case that walled a new account out: the options
  *     were offered, the tap failed, and the failure was blamed on the name.
- *  3. **A wallet still loading.** A moment, not a fault. Same treatment, a sentence
+ *  3. **A wallet session that expired (#241).** Ours is signed in, Privy's is not,
+ *     so the sentence names the expiry and the repair is gone: nothing can be
+ *     refreshed or created without the session that ended. The sign-in is the whole
+ *     answer, and it is the only control.
+ *  4. **A wallet still loading.** A moment, not a fault. Same treatment, a sentence
  *     that promises nothing more than "in a moment".
  *
  * An option is only offerable when there is a wallet that can sign: `canChoose` is
@@ -85,20 +90,25 @@ export interface IntentWalletState {
 }
 
 /**
- * What the wallet contributes to the decision, as two answers and not one.
+ * What the wallet contributes to the decision, as three answers and not one.
  *
  *  - `status` — whether an address is KNOWN. Decides the sentence: `loading` is a
  *    moment ("still getting ready"), `missing` is a dead end (`wallet-missing`).
  *  - `canSign` — whether THIS DEVICE can produce the signature. Decides
  *    `canChoose`, and nothing else does.
+ *  - `privySession` — whether the SESSION those answers are about is still alive
+ *    (#241). Decides the expiry sentence and takes the repair off the table.
  *
- * Both are fields of one object rather than two positional arguments because
- * `ready` and `canSign` are `boolean`-adjacent facts that were collapsed into one and
- * must not be able to swap places at a call site (#233).
+ * All are fields of one object rather than positional arguments because `ready`,
+ * `canSign` and `privySession` are `boolean`-adjacent facts that were collapsed into
+ * one and must not be able to swap places at a call site (#233, #241). `privySession`
+ * is REQUIRED rather than defaulted for the same reason: the compiler then names
+ * every call site that has not thought about it.
  */
 export interface IntentWalletFacts {
   status: EmbeddedWalletStatus;
   canSign: boolean;
+  privySession: PrivySessionState;
 }
 
 /**
@@ -119,7 +129,12 @@ export function intentWalletState(
   const view = claimErrorView(claim);
   // A repair that has already run and left nothing is spent: offering it again is
   // the same tap, and the sign-in is what remains.
-  const canRepair = repair.canRepair && repair.failureCode === null;
+  //
+  // An expired wallet session is the second reason it is spent (#241), and it is a
+  // TERM here rather than a branch below so the two places that can offer a repair
+  // cannot disagree: a claim that failed just before Privy's session died still has
+  // to stop offering a control whose refresh and create calls cannot run.
+  const canRepair = repair.canRepair && repair.failureCode === null && wallet.privySession === 'live';
 
   if (view.blockError) {
     const walletFailed = claim.errorCode === 'wallet-missing';
@@ -135,10 +150,33 @@ export function intentWalletState(
     };
   }
 
-  // The LOADING sentence is checked first, because a list that has not arrived yet
-  // cannot sign either: the second branch below would otherwise claim a device that
-  // is a moment away is a dead end, and take its repair offer with it. This is an
-  // ordering of answer, not of blame: nothing is wrong, something is late.
+  // Privy's own session is over while OURS is not (#241). It is checked BEFORE
+  // `loading`, because the two are different kinds of not-yet: a list that is late
+  // will arrive, and an unauthenticated Privy will never load the user the list comes
+  // from. A sentence promising "in a moment" there would be a promise the SDK cannot
+  // keep, which is the same lie as the button this issue removes.
+  //
+  // The repair is refused whatever the caller passed, because `refreshUser()` and
+  // `createWallet()` both need the session that has expired: offering it would move
+  // the same lie from the button to the sentence above it. The sign-in is the one
+  // control that can work, and it ends our session as well, which is what makes a new
+  // Privy one possible.
+  if (wallet.privySession === 'expired') {
+    return {
+      canChoose: false,
+      failure: {
+        blockError: refusalMessageFor('wallet-session-expired'),
+        reference: null,
+        needsSignIn: true,
+        canRepair: false,
+      },
+    };
+  }
+
+  // The LOADING sentence comes before the dead end below, because a list that has
+  // not arrived yet cannot sign either: the second branch would otherwise claim a
+  // device that is a moment away is a dead end, and take its repair offer with it.
+  // This is an ordering of answer, not of blame: nothing is wrong, something is late.
   if (wallet.status === 'loading') {
     return {
       canChoose: false,

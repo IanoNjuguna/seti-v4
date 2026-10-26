@@ -2,6 +2,7 @@ import type { AccountIntent } from '@/lib/api';
 import type { ClaimFailure } from '@/components/merchant/Claim.error';
 import type {
   EmbeddedWalletStatus,
+  PrivySessionState,
   WalletRepairFailureCode,
 } from '@/hooks/useEmbeddedWallet.types';
 import type { UseMerchantClaimReturn } from '@/hooks/useMerchantClaim.types';
@@ -37,6 +38,15 @@ export interface UseOnboardingReturn {
      * two intents must not learn that one fact by asking the other question.
      */
     canSign: boolean;
+    /**
+     * Whether PRIVY's session is alive, which is the fact that decides between a
+     * missing wallet and an expired one (#241).
+     *
+     * Carried for the same reason as `canSign`: the state exists in the hook, and the
+     * step that prints the sentence must not re-derive it from `status`, which is
+     * `ready` in this state because the account still names an address.
+     */
+    privySession: PrivySessionState;
     repairing: boolean;
     failureCode: WalletRepairFailureCode | null;
     canRepair: boolean;
@@ -96,6 +106,14 @@ export interface OnboardingIntentProps {
    * would otherwise offer both intents on a device where the tap cannot finish.
    */
   canSign: boolean;
+  /**
+   * Whether PRIVY's own session is alive (#241).
+   *
+   * The third fact, and a required prop rather than an optional one: a step that has
+   * not been told about the expiry would print the missing-wallet sentence and offer
+   * a repair that cannot work, which is the defect this issue removes.
+   */
+  privySession: PrivySessionState;
   /**
    * What the repair can do about a missing wallet, and why it may have stopped
    * being offered. A decision input, not a cosy prop: see `intent-wallet.ts`.

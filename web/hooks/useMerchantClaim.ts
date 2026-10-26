@@ -7,6 +7,7 @@ import { fetchHandleStatus } from '@/lib/api/handles';
 import { reportClaimFailure } from '@/lib/claim/classify-claim-error';
 import { merchantHandle } from '@/lib/merchant-link';
 import { useSignHandleClaim } from './useSignHandleClaim';
+import { useEmbeddedWallet } from './useEmbeddedWallet';
 import type {
   MerchantClaimState,
   UseMerchantClaimReturn,
@@ -82,6 +83,16 @@ export function useMerchantClaim(initialKind: HandleKind = 'business'): UseMerch
    * what stops a claim being started that cannot finish (#233).
    */
   const { status: walletStatus, canSign: walletCanSign, sign } = useSignHandleClaim();
+  /**
+   * Privy's own session, read for the one fact the signer value does not carry (#241).
+   *
+   * `useSignHandleClaim` answers "what is the address" and "can this device sign"; it
+   * does not say WHY not, and the guard below has to name the cause it can actually
+   * observe. A second instance of the hook is the shape the rest of the app already
+   * uses for a wallet fact (`useOnboarding`, `usePayMerchant`, `useSave` each read it
+   * for themselves), and the cost is the same account read those already pay.
+   */
+  const { privySession: walletPrivySession } = useEmbeddedWallet();
 
   const setPartial = useCallback((partial: Partial<MerchantClaimState>) => {
     setState((prev) => ({ ...prev, ...partial }));
@@ -168,7 +179,17 @@ export function useMerchantClaim(initialKind: HandleKind = 'business'): UseMerch
     // could not produce the signature, and the person met `wallet-missing` one
     // Privy throw later instead of being told before they tapped.
     if (!walletCanSign) {
-      const code = walletStatus === 'loading' ? 'wallet-not-ready' : 'wallet-missing';
+      // The sentence names what this device can actually see (#241). An expired wallet
+      // session is not a missing wallet: a refresh cannot re-read a user that is not
+      // there and no wallet can be created into a session that ended, so the only
+      // honest next step is a new sign-in — the same one a missing wallet gets, said
+      // for the reason it is true here.
+      const code =
+        walletPrivySession === 'expired'
+          ? 'wallet-session-expired'
+          : walletStatus === 'loading'
+            ? 'wallet-not-ready'
+            : 'wallet-missing';
       setPartial({
         step: 'error',
         error: refusalMessageFor(code),
@@ -191,7 +212,7 @@ export function useMerchantClaim(initialKind: HandleKind = 'business'): UseMerch
       const { message, code, requestId } = toError(error);
       setPartial({ step: 'error', error: message, errorCode: code, errorRequestId: requestId });
     }
-  }, [state.name, state.kind, walletCanSign, walletStatus, sign, setPartial]);
+  }, [state.name, state.kind, walletCanSign, walletStatus, walletPrivySession, sign, setPartial]);
 
   const reset = useCallback(() => {
     setState({ ...INITIAL, kind: initialKind });
