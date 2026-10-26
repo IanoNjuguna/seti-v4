@@ -233,40 +233,137 @@ export async function getUserTotalBalanceInFiat(
 }
 
 /**
- * Which of the customer's assets should pay this transfer.
+ * What the balance rows say about ONE amount.
  *
- * `PRIMARY_ASSET` first, then the chain's remaining assets in display order — the
- * first whose balance covers `requiredAsset`. This is what makes a payment work
- * from any of the four: without it the client signed the primary asset and a
- * customer whose money had arrived as USDT0 was told they had nothing, even though
- * their balance card showed the money.
+ * `pickSpendAsset` used to answer this with an asset label and no verdict, and
+ * that label was "the richest" whenever nothing covered the amount. Naming a real
+ * balance read as correct, and it is what let a quote name an asset that cannot
+ * fund the transfer, get signed, and revert inside the token contract with
+ * `InsufficientBalance` — translated for the customer as "not enough to cover this
+ * payment" (`web/lib/pay/classify-payment-error.ts`), beside a balance card that
+ * SUMS across assets (`sumBalancesInFiat`) and says there is enough. True of the
+ * account and false of the number the customer is looking at.
  *
- * When nothing covers the amount, the LARGEST balance is returned rather than the
- * primary one, so the subsequent sufficiency check fails against the money the
- * customer actually has instead of against an empty asset. The caller still decides
- * whether that is enough; this chooses, it does not authorise.
+ * So the answer is a decision, not a label, and two of its four cases stop the
+ * preview before a signature exists:
+ *
+ * - `covered` — one asset's own balance is at least the amount. The only case that
+ *   signs, because a payment spends exactly ONE asset and this is which one.
+ * - `under-funded` — the amount was PINNED to an asset (the client named it, or a
+ *   check suite did) whose balance is short. Refused with that asset named in the
+ *   reason, never quietly switched for one that covers: a switch means the
+ *   customer signs a transfer in a token they did not choose, and every figure on
+ *   the receipt came from an asset other than the one that left.
+ * - `spread` — no single balance covers it, but the SUM across balances does. The
+ *   money is real and the payment is impossible in one leg, so the refusal says
+ *   the money is in more than one balance instead of naming an asset that cannot
+ *   fund it.
+ * - `short` — nothing covers it and the sum does not either. Deliberately NOT a
+ *   refusal: this customer is simply short. The preview prices what they can see
+ *   and `hasEnoughBalance` gives the answer they already read as "add money".
+ *   Refusing here would swap a true sentence for one about splitting money that
+ *   is not there.
  */
-export async function pickSpendAsset(
-  userId: string,
+export type SpendAssetChoice =
+  | { kind: 'covered'; asset: SupportedAsset }
+  | { kind: 'under-funded'; asset: SupportedAsset }
+  | { kind: 'spread'; asset: SupportedAsset }
+  | { kind: 'short'; asset: SupportedAsset };
+
+/**
+ * Decide which asset pays this amount, from balance rows the caller already read.
+ *
+ * **Row order is the preference**, which is why this takes rows rather than a map:
+ * the caller puts `PRIMARY_ASSET` first, so the primary asset pays whenever it
+ * alone can, and the chain's remaining assets keep their display order after it.
+ * Without that ordering a payment would bill whichever asset happened to be
+ * richest, and one asset would collect all the spending, the fee legs and the gas
+ * while the others never move.
+ *
+ * `pinned` is the asset the caller ASKED for. It is honoured only when it covers
+ * the amount; otherwise the answer is `under-funded`, which the preview turns into
+ * a refusal. The other assets are still read before that verdict, because
+ * `under-funded` and `short` are told apart by whether the money exists somewhere
+ * else — and only one of those two is worth refusing.
+ *
+ * Pure, and separated from the reads, so the whole table above can be proven
+ * against fixed balances with no chain and no database: the same split
+ * `sumBalancesInFiat` uses. `balance-assets.check.ts` is the proof.
+ */
+export function chooseSpendAsset(
+  rows: ReadonlyArray<{ asset: SupportedAsset; balance: string }>,
   requiredAsset: number,
-  network: Network = servedNetwork
-): Promise<SupportedAsset> {
-  const listed = assetsForNetwork(network);
-  const ordered = [PRIMARY_ASSET, ...listed.filter((asset) => asset !== PRIMARY_ASSET)].filter(
-    (asset) => listed.includes(asset)
-  );
+  pinned?: SupportedAsset
+): SpendAssetChoice {
+  // A balance is in the asset's own units, so it compares to the amount directly.
+  // A malformed read becomes zero rather than NaN: NaN would poison the sum below
+  // and turn "the money is spread" into "the money is gone".
+  const balances = rows.map((row) => {
+    const value = Number(row.balance);
+    return { asset: row.asset, value: Number.isFinite(value) ? value : 0 };
+  });
 
-  const balances = await Promise.all(
-    ordered.map(async (asset) => ({ asset, value: Number((await getUserBalance(userId, asset, network)).balance) }))
-  );
+  // Fail closed on a required amount that is not a number: nothing can cover it,
+  // so it resolves like an account holding nothing and `hasEnoughBalance` says no.
+  const required = Number.isFinite(requiredAsset) ? requiredAsset : Number.POSITIVE_INFINITY;
 
-  const covering = balances.find((entry) => Number.isFinite(entry.value) && entry.value >= requiredAsset);
-  if (covering) return covering.asset;
+  const total = balances.reduce((sum, entry) => sum + entry.value, 0);
+
+  if (pinned) {
+    const held = balances.find((entry) => entry.asset === pinned)?.value ?? 0;
+    if (held >= required) return { kind: 'covered', asset: pinned };
+    return { kind: total >= required ? 'under-funded' : 'short', asset: pinned };
+  }
+
+  const covering = balances.find((entry) => entry.value >= required);
+  if (covering) return { kind: 'covered', asset: covering.asset };
 
   const richest = balances.reduce(
     (best, entry) => (entry.value > best.value ? entry : best),
     balances[0] ?? { asset: PRIMARY_ASSET, value: 0 }
   );
 
-  return richest.asset;
+  // Two balances, not one: if the sum covers and no single balance does, the money
+  // is necessarily held in more than one of them.
+  return { kind: total >= required ? 'spread' : 'short', asset: richest.asset };
+}
+
+/**
+ * Which of the customer's assets should pay this transfer, and whether one can.
+ *
+ * `PRIMARY_ASSET` first, then the chain's remaining assets in display order, and
+ * `chooseSpendAsset` decides from there. This is the read half: one balance per
+ * listed asset, scoped to `network`, because a practice payment checked against a
+ * live balance (or the reverse) refuses payments the customer can afford and
+ * admits ones they cannot.
+ *
+ * Every listed asset is read, not just the primary one. That was already true —
+ * what changed is what the other balances are FOR. They are no longer only a
+ * fallback to pay from; they are what tells "the money is in another balance"
+ * apart from "the money is not there", and that is the difference between a
+ * refusal that names the real problem and a priced preview that says "not enough"
+ * beside a card that says otherwise.
+ *
+ * The caller still decides what to do with the verdict. This reads and chooses; it
+ * does not authorise, and nothing here signs.
+ */
+export async function pickSpendAsset(
+  userId: string,
+  requiredAsset: number,
+  network: Network = servedNetwork,
+  pinned?: SupportedAsset
+): Promise<SpendAssetChoice> {
+  const listed = assetsForNetwork(network);
+  const ordered = [PRIMARY_ASSET, ...listed.filter((asset) => asset !== PRIMARY_ASSET)].filter(
+    (asset) => listed.includes(asset)
+  );
+
+  const rows = await Promise.all(
+    ordered.map(async (asset) => ({
+      asset,
+      balance: (await getUserBalance(userId, asset, network)).balance,
+    }))
+  );
+
+  return chooseSpendAsset(rows, requiredAsset, pinned);
 }
