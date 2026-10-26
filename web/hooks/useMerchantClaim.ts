@@ -6,8 +6,7 @@ import { claimHandle } from '@/lib/api/handles';
 import { fetchHandleStatus } from '@/lib/api/handles';
 import { reportClaimFailure } from '@/lib/claim/classify-claim-error';
 import { merchantHandle } from '@/lib/merchant-link';
-import { signHandleClaim } from '@/lib/pay/sign-handle-claim';
-import { useEmbeddedWallet } from './useEmbeddedWallet';
+import { useSignHandleClaim } from './useSignHandleClaim';
 import type {
   MerchantClaimState,
   UseMerchantClaimReturn,
@@ -76,7 +75,13 @@ export function useMerchantClaim(initialKind: HandleKind = 'business'): UseMerch
   const [state, setState] = useState<MerchantClaimState>({ ...INITIAL, kind: initialKind });
   const [preview, setPreview] = useState<HandleStatusPreview | null>(null);
   const [previewFailed, setPreviewFailed] = useState(false);
-  const { getSigningWallet } = useEmbeddedWallet();
+  /**
+   * The signature, from Privy's own typed-data hook — the same supported path every
+   * payment already uses for its transaction. `status` is whether anything on this
+   * device can sign at all, which is what stops a claim being started that cannot
+   * finish.
+   */
+  const { status: walletStatus, sign } = useSignHandleClaim();
 
   const setPartial = useCallback((partial: Partial<MerchantClaimState>) => {
     setState((prev) => ({ ...prev, ...partial }));
@@ -152,13 +157,25 @@ export function useMerchantClaim(initialKind: HandleKind = 'business'): UseMerch
       return;
     }
 
+    // Nothing on this device can sign, so a signature cannot be asked for. Said
+    // BEFORE the wallet is touched: the point is not a better error, it is not
+    // starting something that cannot finish. A wallet still loading is a moment,
+    // not a dead end, and gets the sentence that says so.
+    if (walletStatus !== 'ready') {
+      const code = walletStatus === 'loading' ? 'wallet-not-ready' : 'wallet-missing';
+      setPartial({
+        step: 'error',
+        error: refusalMessageFor(code),
+        errorCode: code,
+        errorRequestId: null,
+      });
+      return;
+    }
+
     setPartial({ step: 'signing', claimed: null, error: null, errorCode: null, errorRequestId: null });
 
     try {
-      // The wallet only exists once the embedded wallet does; asking for it is
-      // what surfaces "sign in first".
-      const { provider, address } = await getSigningWallet();
-      const { message, signature } = await signHandleClaim({ provider, address, kind, name });
+      const { message, signature } = await sign({ kind, name });
 
       setPartial({ step: 'submitting' });
       const claimed = await claimHandle({ kind, ...message, signature });
@@ -168,7 +185,7 @@ export function useMerchantClaim(initialKind: HandleKind = 'business'): UseMerch
       const { message, code, requestId } = toError(error);
       setPartial({ step: 'error', error: message, errorCode: code, errorRequestId: requestId });
     }
-  }, [state.name, state.kind, getSigningWallet, setPartial]);
+  }, [state.name, state.kind, walletStatus, sign, setPartial]);
 
   const reset = useCallback(() => {
     setState({ ...INITIAL, kind: initialKind });
@@ -192,5 +209,6 @@ export function useMerchantClaim(initialKind: HandleKind = 'business'): UseMerch
     handle,
     preview: appliedPreview,
     previewLoading,
+    walletStatus,
   };
 }
