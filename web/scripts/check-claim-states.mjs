@@ -35,6 +35,11 @@
  *     that failed (the cause is named and the repair is no longer offered). Signing
  *     out stays reachable in all three, and is never the only control while a
  *     repair is still possible.
+ *  8. **Our session alive and Privy's dead is its own state (#241).** The wallet
+ *     session expired state gets its own row in the matrix, its own sentence, no
+ *     repair control at all, and exactly one way out. `canSign` and `canRepair` are
+ *     both asserted to require Privy's own authentication, so dropping that term
+ *     fails here rather than in a report from a device.
  *
  * Run from `web/`: npm run check:claim-states (part of the root `verify` gate).
  */
@@ -104,11 +109,27 @@ const NOT_REPAIRABLE = { canRepair: false, repairing: false, failureCode: null }
 /**
  * A wallet that can sign, which is what the step opens on in the ordinary case.
  *
- * Both facts are named at every call site rather than defaulted: `status` says an
- * address is known and `canSign` says this device can sign with one, and a default
- * for either is how #233 came to be offered a tap that could not finish.
+ * Every fact is named at every call site rather than defaulted: `status` says an
+ * address is known, `canSign` says this device can sign with one, and `privySession`
+ * says whether the session behind both is still alive (#241). A default for any of
+ * them is how #233 came to be offered a tap that could not finish.
  */
-const SIGNING = { status: 'ready', canSign: true };
+const SIGNING = { status: 'ready', canSign: true, privySession: 'live' };
+
+/** The ordinary device with no wallet: Privy's session is fine, the wallet is not. */
+const WALLETLESS = { status: 'missing', canSign: false, privySession: 'live' };
+
+/** A list that has not arrived yet, which is a moment and not a verdict. */
+const LOADING = { status: 'loading', canSign: false, privySession: 'live' };
+
+/**
+ * The state #241 is about: OUR session signed in, PRIVY's over.
+ *
+ * `status` stays `ready`, because the account still names an address — which is
+ * exactly why `status` alone cannot tell this state from row two of the #233 matrix,
+ * and why the third fact exists.
+ */
+const PRIVY_EXPIRED = { status: 'ready', canSign: false, privySession: 'expired' };
 
 function render(claim, wallet = SIGNING, walletRepair = REPAIRABLE) {
   return renderToStaticMarkup(
@@ -118,6 +139,7 @@ function render(claim, wallet = SIGNING, walletRepair = REPAIRABLE) {
       claim,
       walletStatus: wallet.status,
       canSign: wallet.canSign,
+      privySession: wallet.privySession,
       walletRepair,
       onChoose: NOOP,
       onRepair: NOOP,
@@ -173,13 +195,17 @@ const html = {
   refused: render(refused),
   taken: render(taken),
   offline: render(offline),
-  loading: render(NOTHING_FAILED, { status: 'loading', canSign: false }),
+  loading: render(NOTHING_FAILED, LOADING),
   /** The wall itself: a device with no wallet, and no claim attempted yet. */
-  walletGone: render(NOTHING_FAILED, { status: 'missing', canSign: false }),
+  walletGone: render(NOTHING_FAILED, WALLETLESS),
   /** A repair was tried and its create call failed: the cause must be on screen. */
-  repairFailed: render(NOTHING_FAILED, { status: 'missing', canSign: false }, REPAIR_FAILED),
+  repairFailed: render(NOTHING_FAILED, WALLETLESS, REPAIR_FAILED),
   /** A build with no Privy app: nothing can be created, so only the sign-in is left. */
-  noRepair: render(NOTHING_FAILED, { status: 'missing', canSign: false }, NOT_REPAIRABLE),
+  noRepair: render(NOTHING_FAILED, WALLETLESS, NOT_REPAIRABLE),
+  /** Our session alive, Privy's over (#241): its own sentence, its own single control. */
+  privyExpired: render(NOTHING_FAILED, PRIVY_EXPIRED),
+  /** The same state after a repair that was refused rather than attempted. */
+  privyExpiredRepair: render(NOTHING_FAILED, PRIVY_EXPIRED, REPAIR_FAILED),
 };
 
 for (const [name, body] of Object.entries({
@@ -221,23 +247,23 @@ check('the wall says why, and offers the sign-in', html.walletGone.includes('Sig
 
 check(
   'the decision offers nothing while there is no wallet',
-  intentWalletState({ status: 'missing', canSign: false }, NOTHING_FAILED).canChoose === false
+  intentWalletState(WALLETLESS, NOTHING_FAILED).canChoose === false
 );
 check(
   'the decision offers both options once the wallet is ready',
-  intentWalletState({ status: 'ready', canSign: true }, NOTHING_FAILED).canChoose === true
+  intentWalletState(SIGNING, NOTHING_FAILED).canChoose === true
 );
 check(
   'a claim that already failed outranks the wallet state',
   (() => {
-    const state = intentWalletState({ status: 'missing', canSign: false }, taken);
+    const state = intentWalletState(WALLETLESS, taken);
     return state.failure?.blockError === taken.error && state.failure?.needsSignIn === false;
   })()
 );
 check(
   'a missing wallet on the claim becomes the sign-in case',
   (() => {
-    const state = intentWalletState({ status: 'ready', canSign: true }, failureFrom(noWallet));
+    const state = intentWalletState(SIGNING, failureFrom(noWallet));
     return state.failure?.needsSignIn === true && state.failure?.blockError === REFUSAL_BY_CODE['wallet-missing'];
   })()
 );
@@ -374,7 +400,7 @@ console.log('\na wallet the browser cannot see is repaired in place, not signed 
   check(
     'a claim refused for a missing wallet offers the repair too, not only a sign-out',
     (() => {
-      const state = intentWalletState({ status: 'ready', canSign: true }, failureFrom(noWallet), REPAIRABLE);
+      const state = intentWalletState(SIGNING, failureFrom(noWallet), REPAIRABLE);
       return state.failure?.canRepair === true && state.failure?.needsSignIn === true;
     })()
   );
@@ -435,26 +461,33 @@ console.log('\na wallet the browser cannot see is repaired in place, not signed 
 
 // --- 9. the matrix: an option is offered only when this device can sign (#233)
 //
-// The table the issue writes out, four rows, each one a fact about the browser
-// rather than a preference:
+// The table the issue writes out, each row a fact about the browser rather than a
+// preference, plus the fifth row #241 adds:
 //
-//   privy  account  created  status   canSign  canChoose  what happens
-//   yes    yes      -        ready    true     true       signs
-//   no     yes      -        ready    false    false      repair offered on arrival
-//   no     no       -        missing  false    false      repair offered on arrival
-//   no     yes      yes      ready    true     true       repaired here, offered again
+//   privy  account  created  session  status   canSign  canChoose  what happens
+//   yes    yes      -        live     ready    true     true       signs
+//   no     yes      -        live     ready    false    false      repair offered on arrival
+//   no     no       -        live     missing  false    false      repair offered on arrival
+//   no     yes      yes      live     ready    true     true       repaired here, offered again
+//   no     yes      -        expired  ready    false    false      sign in again, and no repair
 //
 // Column one and two are what `useWallets()` and `GET /users/:id/wallets` answer,
-// `created` is a wallet `repair` made in THIS browser, `status` is what
+// `created` is a wallet `repair` made in THIS browser, `session` is what
+// `usePrivy().authenticated` says about Privy's own session, `status` is what
 // `resolveEmbeddedWallet` makes of the first two, and `canSign` is the hook's rule —
-// `privyAddress !== null || createdAddress !== null` — which is asserted against the
-// hook's own source at the end of this block so the column cannot drift into being
-// this check's private opinion.
+// a live Privy session AND (`privyAddress !== null || createdAddress !== null`) —
+// which is asserted against the hook's own source at the end of this block so the
+// column cannot drift into being this check's private opinion.
 //
-// Row two is the bug. It was `canChoose: true`, and the tap it offered ended in a
+// Row two is the #233 bug. It was `canChoose: true`, and the tap it offered ended in a
 // Privy throw classified `wallet-missing`: the sentence the step could have printed
 // BEFORE the tap, printed after it instead, with the repair only then appearing.
-console.log('\n an option is offered only when this device can sign (#233):');
+//
+// Row five is the #241 bug, on the owner's own device: `status` is `ready` because the
+// account still names a wallet, so three columns agree with row two and only the
+// session column tells them apart — which is why both the sentence and the absence of
+// a repair hang on it.
+console.log('\n an option is offered only when this device can sign (#233, #241):');
 {
   const PRIVY_WALLET = '0x5c1F7d3a2E9bB80d6C4aF1e7D2b3A4c5E6f70819';
   const ACCOUNT_WALLET = ADDRESS;
@@ -465,6 +498,7 @@ console.log('\n an option is offered only when this device can sign (#233):');
       privy: PRIVY_WALLET,
       account: ACCOUNT_WALLET,
       created: null,
+      session: 'live',
       status: 'ready',
       canSign: true,
       canChoose: true,
@@ -476,6 +510,7 @@ console.log('\n an option is offered only when this device can sign (#233):');
       privy: null,
       account: ACCOUNT_WALLET,
       created: null,
+      session: 'live',
       status: 'ready',
       canSign: false,
       canChoose: false,
@@ -489,6 +524,7 @@ console.log('\n an option is offered only when this device can sign (#233):');
       privy: null,
       account: null,
       created: null,
+      session: 'live',
       status: 'missing',
       canSign: false,
       canChoose: false,
@@ -500,10 +536,25 @@ console.log('\n an option is offered only when this device can sign (#233):');
       privy: null,
       account: ACCOUNT_WALLET,
       created: ACCOUNT_WALLET,
+      session: 'live',
       status: 'ready',
       canSign: true,
       canChoose: true,
       sentence: null,
+      repair: false,
+    },
+    {
+      label: 'our session signed in and Privy unauthenticated: the wallet session expired',
+      privy: null,
+      account: ACCOUNT_WALLET,
+      created: null,
+      // The 401 state. Nothing about the browser differs from row two except this:
+      // Privy cannot load a user, so neither half of the repair can run.
+      session: 'expired',
+      status: 'ready',
+      canSign: false,
+      canChoose: false,
+      sentence: 'wallet-session-expired',
       repair: false,
     },
   ];
@@ -515,11 +566,16 @@ console.log('\n an option is offered only when this device can sign (#233):');
       privyAddress: row.privy,
       accountAddress: row.account,
     });
-    // The hook's rule, term by term: a wallet Privy lists, or one a repair created
-    // in this browser. Never the account's address on its own.
-    const canSign = row.privy !== null || row.created !== null;
-    const state = intentWalletState({ status, canSign }, NOTHING_FAILED, REPAIRABLE);
-    const markup = render(NOTHING_FAILED, { status, canSign });
+    // The hook's rule, term by term: a live Privy session first, then a wallet Privy
+    // lists or one a repair created in this browser. Never the account's address on
+    // its own, and never a wallet whose session cannot use it.
+    const canSign = row.session === 'live' && (row.privy !== null || row.created !== null);
+    const state = intentWalletState(
+      { status, canSign, privySession: row.session },
+      NOTHING_FAILED,
+      REPAIRABLE
+    );
+    const markup = render(NOTHING_FAILED, { status, canSign, privySession: row.session });
 
     check(`${row.label}: status is ${row.status}, which is about knowledge`, status === row.status, status);
     check(
@@ -544,7 +600,10 @@ console.log('\n an option is offered only when this device can sign (#233):');
       `${row.label}: both options are disabled in the markup, before any tap`,
       (markup.match(/disabled=""/g) ?? []).length >= 2
     );
-    check(`${row.label}: the repair control is on the page`, markup.includes('Set up my wallet'));
+    check(
+      `${row.label}: the repair control is ${row.repair ? 'on' : 'NOT on'} the page`,
+      row.repair ? markup.includes('Set up my wallet') : !markup.includes('Set up my wallet')
+    );
   }
 
   /**
@@ -557,13 +616,22 @@ console.log('\n an option is offered only when this device can sign (#233):');
    */
   const walletSource = stripComments(readSource('../hooks/useEmbeddedWallet.ts'));
   check(
-    'canSign is defined in the hook, from the wallet Privy lists or one the repair created HERE',
-    walletSource.includes('const canSign = privyAddress !== null || createdAddress !== null;')
+    'canSign is defined in the hook, from a live Privy session AND a wallet Privy lists or one the repair created HERE',
+    walletSource.includes(
+      "const canSign = privySession === 'live' && (privyAddress !== null || createdAddress !== null);"
+    )
   );
   check(
     'the account address alone is NOT what canSign is made of',
     !/const canSign = [^;]*accountAddress/.test(walletSource),
     'canSign must not be derived from the account read'
+  );
+  check(
+    'the expiry term is Privy own authentication, read from the SDK and not inferred from an empty list',
+    walletSource.includes('usePrivy()') &&
+      walletSource.includes('authenticated: privyAuthenticated') &&
+      /privySession: PrivySessionState =\s*privyReady && !privyAuthenticated && signedIn/.test(walletSource),
+    'privySession must be derived from usePrivy().ready and .authenticated, and only while OUR session is signed in'
   );
   check(
     'a created wallet is recorded after creation, which is what carries canSign through the catch-up window',
@@ -584,6 +652,161 @@ console.log('\n an option is offered only when this device can sign (#233):');
   check(
     'the step decides canChoose on canSign, not on status',
     decisionSource.includes('canChoose: wallet.canSign') && decisionSource.includes('if (!wallet.canSign)')
+  );
+}
+
+// --- 10. our session alive, Privy's dead (#241) --------------------------
+//
+// The state the whole wallet saga was actually in, and the app mislabelled it. Two
+// sessions exist; only one was being checked. The evidence was on the owner's own
+// device: the page on onboarding step three, so `session.status` signed-in, while
+// `GET https://auth.privy.io/api/v1/users/me` answered 401 — twice. `useWallets()` was
+// empty because Privy could not load a USER, not because a list lagged.
+//
+// So both repairs #229/#233 added are impossible there: `refreshUser()` re-reads a
+// user that is not there, and `createWallet()` needs a session to create into. The
+// surface offered exactly that repair beside a sentence about a missing wallet, which
+// is a button that cannot work — the class of bug this stack keeps removing.
+console.log("\n our session alive and Privy's dead is its own state (#241):");
+{
+  const sentence = REFUSAL_BY_CODE['wallet-session-expired'];
+
+  // The sentence: its own, and in the voice every failure sentence is held to.
+  check(
+    'the expiry has a sentence of its own, not the generic fallback and not the missing-wallet one',
+    typeof sentence === 'string' && sentence !== REFUSAL_UNKNOWN && sentence !== REFUSAL_BY_CODE['wallet-missing'],
+    String(sentence)
+  );
+  check('it says what happened, which is the session expiring', /session expired/i.test(sentence), sentence);
+  check('it says what to do next, which is signing in again', /sign in again/i.test(sentence), sentence);
+  check('it says nothing was claimed, like every other wallet sentence', /nothing was claimed/i.test(sentence));
+  check('no em dash, no exclamation, no question mark', !/[—!?]/.test(sentence), sentence);
+  check(
+    'no token name where a customer is looking',
+    !/\b(OUSD|USDC|USDC\.e|USDT0|USDT|pathUSD)\b/i.test(sentence),
+    sentence
+  );
+  check('it speaks to the reader, second person', /\byou\b|\byour\b/i.test(sentence), sentence);
+  check('it is a finished sentence', /\.$/.test(sentence.trim()), sentence);
+
+  // The decision: no repair, one control, and the sentence above it.
+  const state = intentWalletState(PRIVY_EXPIRED, NOTHING_FAILED, REPAIRABLE);
+  check('the options are refused on arrival', state.canChoose === false);
+  check('the sentence is the expiry, not the missing wallet', state.failure?.blockError === sentence);
+  check('signing in again is offered, because it is the only thing that works', state.failure?.needsSignIn === true);
+  check(
+    'the repair is NOT offered, even to a caller that says it is available',
+    state.failure?.canRepair === false
+  );
+
+  // The markup: one control, and the word for the state.
+  check('the expiry sentence is on the page', html.privyExpired.includes(escapeHtml(sentence)));
+  check(
+    "the missing-wallet sentence is NOT: this is not a missing wallet",
+    !html.privyExpired.includes(escapeHtml(REFUSAL_BY_CODE['wallet-missing']))
+  );
+  check('there is no repair control to press', !html.privyExpired.includes('Set up my wallet'));
+  check('there IS a sign-in control, which is the whole answer here', html.privyExpired.includes('Sign in again'));
+  check(
+    'both intents are disabled, so no signature is asked for in a session that cannot give one',
+    (html.privyExpired.match(/disabled=""/g) ?? []).length >= 2
+  );
+  check(
+    'one control and no other: no repair offered in either variant of the state, and no retry',
+    // The sentence itself says "Sign in again", so the control is counted by the
+    // repair that is absent rather than by the sign-in that is present twice.
+    !html.privyExpired.includes('Set up my wallet') &&
+      !html.privyExpiredRepair.includes('Set up my wallet') &&
+      !/Try again/i.test(html.privyExpired)
+  );
+  check(
+    'the state a repair refused looks the same, since the repair was never attempted',
+    html.privyExpiredRepair.includes('Sign in again') &&
+      !html.privyExpiredRepair.includes('Set up my wallet') &&
+      html.privyExpiredRepair.includes(escapeHtml(sentence))
+  );
+  check(
+    'a claim refused for an expired session keeps its own reason, and still offers no repair',
+    (() => {
+      const failed = intentWalletState(
+        PRIVY_EXPIRED,
+        { error: refusalMessageFor('wallet-missing'), errorCode: 'wallet-missing', errorRequestId: null },
+        REPAIRABLE
+      );
+      return failed.failure?.canRepair === false && failed.failure?.needsSignIn === true;
+    })()
+  );
+  // And the state that must NOT change: a wallet-less device in a live session.
+  check(
+    'a live session with no wallet still offers the repair, which is #233 unchanged',
+    (() => {
+      const live = intentWalletState(WALLETLESS, NOTHING_FAILED, REPAIRABLE);
+      return live.failure?.canRepair === true && live.failure?.blockError === REFUSAL_BY_CODE['wallet-missing'];
+    })()
+  );
+
+  // The code behind it, which markup cannot show. The terms are asserted against the
+  // hook's own source so the two cannot drift: a `canRepair` that stops requiring a
+  // live Privy session re-offers the button this issue removes, and that is the one
+  // thing this block exists to catch.
+  const hookSource = stripComments(readSource('../hooks/useEmbeddedWallet.ts'));
+  const decisionSource = stripComments(readSource('../components/onboarding/intent-wallet.ts'));
+  check(
+    'canRepair requires a live Privy session, so a dead one does not offer the repair',
+    hookSource.includes("canRepair: privySession === 'live'")
+  );
+  check(
+    'a repair called anyway refuses instead of trying: no createWallet in a session that cannot create',
+    (() => {
+      const guard = hookSource.indexOf("if (privySession !== 'live') {");
+      return (
+        guard !== -1 &&
+        guard < hookSource.indexOf('await createWallet()') &&
+        /setRepairFailure\('wallet-session-expired'\)/.test(hookSource)
+      );
+    })()
+  );
+  check(
+    'the automatic refresh does not run in a dead session, where it could only fail',
+    (() => {
+      const refresh = hookSource.indexOf('void refreshUser().catch(reportPrivyRefusal)');
+      const skip = hookSource.lastIndexOf("if (privySession !== 'live') return;", refresh);
+      return refresh !== -1 && skip !== -1 && refresh - skip < 200;
+    })()
+  );
+  check(
+    'the 401 is written down ONCE with its cause, instead of being swallowed',
+    // The reporter is ref-guarded (once), it is threaded into both catches that used
+    // to be empty, and the state itself is reported on arrival.
+    hookSource.includes('const refusalReported = useRef(false)') &&
+      hookSource.includes('if (refusalReported.current) return;') &&
+      hookSource.includes('reportPrivyRefusal(error)') &&
+      hookSource.indexOf('reportPrivyRefusal(error)') > hookSource.indexOf('await refreshUser()') - 400 &&
+      /reportPrivyRefusal\(\s*'Privy reports no authenticated user/.test(hookSource)
+  );
+  check(
+    'the decision hard-codes no repair in the expiry branch, so a caller cannot re-open it',
+    (() => {
+      const branch = decisionSource.indexOf("if (wallet.privySession === 'expired')");
+      const end = decisionSource.indexOf("if (wallet.status === 'loading')");
+      return branch !== -1 && end > branch && /canRepair: false/.test(decisionSource.slice(branch, end));
+    })()
+  );
+  check(
+    'the step is TOLD about the session, rather than deriving it from a status that stays ready',
+    stripComments(readSource('../components/onboarding/OnboardingIntent.tsx')).includes(
+      '{ status: walletStatus, canSign, privySession }'
+    )
+  );
+  check(
+    "the claim's guard names the expiry rather than blaming a wallet that is there",
+    (() => {
+      const claim = stripComments(readSource('../hooks/useMerchantClaim.ts'));
+      return (
+        claim.includes("walletPrivySession === 'expired'") &&
+        claim.includes("? 'wallet-session-expired'")
+      );
+    })()
   );
 }
 

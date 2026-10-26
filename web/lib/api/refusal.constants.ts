@@ -81,6 +81,15 @@ export const REFUSAL_BY_CODE: Record<string, string> = {
   // the person saw the same sentence about a wallet that was never coming.
   'wallet-create-failed':
     'Setting up a wallet on this device failed, so nothing was claimed. Sign in again and Seti will create one when you do.',
+  // A wallet SESSION that is over while ours is not (#241). Different from every
+  // sentence above, and the distinction is the point: the account is signed in, the
+  // wallet is not missing in the sense of "never set up", and nothing here can be
+  // repaired — Privy answers every request for its user with 401, so a refresh
+  // changes nothing and a wallet cannot be created into a session that does not
+  // exist. The sentence therefore names the expiry rather than a missing wallet, and
+  // promises the one thing that does work: a new sign-in.
+  'wallet-session-expired':
+    'Your wallet session expired, so nothing was claimed. Sign in again to set up a wallet on this device.',
 
   // A takedown acts on a NAME, not on money: these are the operator's refusals,
   // and they read as such.

@@ -138,6 +138,9 @@ export function useOnboarding(): UseOnboardingReturn {
       // first: this page offers the two intents, and `status` cannot tell it
       // whether the tap would finish (#233).
       canSign: wallet.canSign,
+      // The third answer, and the one #241 is about: ours signed in while Privy's
+      // expired is its own state, with its own sentence and no repair.
+      privySession: wallet.privySession,
       repairing: wallet.repairing,
       failureCode: wallet.repairFailure,
       canRepair: wallet.canRepair,

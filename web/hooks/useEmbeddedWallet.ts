@@ -1,6 +1,6 @@
 'use client';
 
-import { useCreateWallet, useUser, useWallets } from '@privy-io/react-auth';
+import { useCreateWallet, usePrivy, useUser, useWallets } from '@privy-io/react-auth';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Address, EIP1193Provider } from 'viem';
 import { tempoChainFor } from '@/lib/chain';
@@ -12,6 +12,7 @@ import { fetchAccountWallets, registerAccountWallet } from '@/lib/api/wallets';
 import {
   NoEmbeddedWalletError,
   type EmbeddedWalletValue,
+  type PrivySessionState,
   type SigningWallet,
   type WalletRepairFailureCode,
 } from './useEmbeddedWallet.types';
@@ -53,6 +54,23 @@ import {
  * taken only when the account's own rows say it holds no wallet at all — a second
  * address is the failure `wallet-registry.ts` records, and `createWallet()` errors
  * outright once an embedded wallet exists.
+ *
+ * ## Two sessions, and #241 is what happens when only one is alive
+ *
+ * Everything above assumes Privy HAS a user. It is a second session, with its own
+ * expiry, and it can be over while ours is not: the page sits on onboarding with
+ * `session.status` signed-in while `GET auth.privy.io/api/v1/users/me` answers 401.
+ * `useWallets()` is then empty because the USER could not be loaded, not because a
+ * list lagged, so every repair above is impossible — a refresh re-reads a user that
+ * is not there, and there is no session to create a wallet into.
+ *
+ * So Privy's own authentication is read (`usePrivy().authenticated`) and it is a
+ * TERM of both answers: `canSign` cannot be true without it, and `canRepair` is
+ * false in that one state because the repair cannot work. The surface then offers
+ * the single control that does — signing in again — and the sentence names the
+ * expiry instead of a missing wallet. The 401 is written down once, with its cause,
+ * because the catches that used to hold it were empty and a day went by without a
+ * line to read.
  */
 function usePrivyEmbeddedWallet(): EmbeddedWalletValue {
   const { wallets, ready } = useWallets();
@@ -65,6 +83,17 @@ function usePrivyEmbeddedWallet(): EmbeddedWalletValue {
    */
   const { refreshUser } = useUser();
   const { createWallet } = useCreateWallet();
+  /**
+   * Privy's own session (`usePrivy`), which is not the same thing as `useSession`.
+   *
+   * `ready` is read as well as `authenticated` because the SDK's own types say to:
+   * before `ready` is true, `authenticated` is "outdated while the Privy client
+   * fetches fresh tokens". Reading it alone would report an expired session on every
+   * page load, for the render or two before the SDK restores the real one — a
+   * sentence about an expiry that has not happened, which is the same class of
+   * lie as the button this issue removes.
+   */
+  const { authenticated: privyAuthenticated, ready: privyReady } = usePrivy();
   const session = useSession();
   /**
    * The network the ACCOUNT is acting on. The wallet is switched to it before
@@ -76,6 +105,16 @@ function usePrivyEmbeddedWallet(): EmbeddedWalletValue {
 
   const signedIn = session.status === 'signed-in';
   const userId = signedIn ? (session.user?.id ?? null) : null;
+
+  /**
+   * The state of PRIVY's session, which is the fact #241 was missing.
+   *
+   * `expired` needs all three: the SDK settled (`ready`), it reports no
+   * authenticated user, and OUR session says signed-in — because without our session
+   * an unauthenticated Privy is the ordinary signed-out state, not an expiry.
+   */
+  const privySession: PrivySessionState =
+    privyReady && !privyAuthenticated && signedIn ? 'expired' : 'live';
 
   /**
    * The address the ACCOUNT holds, or the one a repair just created.
@@ -157,8 +196,49 @@ function usePrivyEmbeddedWallet(): EmbeddedWalletValue {
    * What is deliberately NOT a term: `accountAddress`. An account's registered
    * address is a fact about the account, and treating it as proof of a local key is
    * exactly what made row two of #233 offer a tap that could not complete.
+   *
+   * Both of those terms are about a wallet that EXISTS, so #241 adds the one that
+   * decides whether it can be USED: Privy's own session. A wallet whose account
+   * cannot load signs nothing, and the signing path is Privy's — `useSignTypedData`
+   * needs the user that the 401 took away. `privySession` rather than
+   * `privyAuthenticated` so the not-yet-started SDK is not mistaken for an expired
+   * session, for the reason written where `privySession` is derived.
    */
-  const canSign = privyAddress !== null || createdAddress !== null;
+  const canSign = privySession === 'live' && (privyAddress !== null || createdAddress !== null);
+
+  /**
+   * The one line a dead Privy session leaves behind (#241).
+   *
+   * Both catches in this hook were empty: the automatic refresh swallowed its 401
+   * ("left to the repair action below, which says something when it fails") and the
+   * repair's refresh swallowed its own, while the repair's FAILURE turn surfaced only
+   * a create error that never happened. So the state that walled the owner out for a
+   * day left nothing in the console to read.
+   *
+   * Once per state, not once per render: a console that repeats itself is not
+   * evidence, and the person who reports it re-reads the first line anyway. The ref is
+   * cleared when Privy authenticates, so a SESSION that dies twice is reported twice.
+   */
+  const refusalReported = useRef(false);
+  const reportPrivyRefusal = useCallback((cause: unknown) => {
+    if (refusalReported.current) return;
+    refusalReported.current = true;
+    console.error(
+      '[wallet] Privy has no authenticated user for this signed-in session, so the wallet calls it makes are refused:',
+      (cause as Error | null)?.message ?? cause
+    );
+  }, []);
+
+  useEffect(() => {
+    if (privyAuthenticated) refusalReported.current = false;
+  }, [privyAuthenticated]);
+
+  useEffect(() => {
+    if (privySession !== 'expired') return;
+    reportPrivyRefusal(
+      'Privy reports no authenticated user (its users/me call answers 401), so nothing here can be refreshed or created'
+    );
+  }, [privySession, reportPrivyRefusal]);
 
   /**
    * The one automatic catch-up attempt, per address.
@@ -174,13 +254,15 @@ function usePrivyEmbeddedWallet(): EmbeddedWalletValue {
   const refreshedFor = useRef<Address | null>(null);
   useEffect(() => {
     if (!ready || privyAddress || !signedIn || !accountAddress) return;
+    // An expired Privy session cannot be refreshed into a live one — this is the
+    // call that spent a day answering 401 with nothing written down (#241) — and the
+    // state itself is reported once by the effect above.
+    if (privySession !== 'live') return;
     if (refreshedFor.current === accountAddress) return;
 
     refreshedFor.current = accountAddress;
-    void refreshUser().catch(() => {
-      // Left to the repair action below, which says something when it fails.
-    });
-  }, [ready, privyAddress, signedIn, accountAddress, refreshUser]);
+    void refreshUser().catch(reportPrivyRefusal);
+  }, [ready, privyAddress, signedIn, accountAddress, privySession, refreshUser, reportPrivyRefusal]);
 
   const getSigningWallet = useCallback(async (): Promise<SigningWallet> => {
     if (!wallet) throw new NoEmbeddedWalletError();
@@ -203,8 +285,21 @@ function usePrivyEmbeddedWallet(): EmbeddedWalletValue {
    * Put a wallet on this device without ending the session, in the order that
    * cannot make things worse: refresh, read the account, create only if it holds
    * nothing.
+   *
+   * It refuses in one state (#241): Privy's own session being over. Nothing below
+   * can run there — a refresh re-reads a user that is not there and creating needs a
+   * session to create into — so the attempt is not made at all. `canRepair` keeps the
+   * control off the surface; this keeps a caller that ignored it from looping through
+   * a create call that cannot succeed, which is the "button that lies" this stack
+   * keeps removing.
    */
   const repair = useCallback(async () => {
+    if (privySession !== 'live') {
+      // No second console line: the state was reported once already, above.
+      setRepairFailure('wallet-session-expired');
+      return;
+    }
+
     setRepairing(true);
     setRepairFailure(null);
 
@@ -213,8 +308,10 @@ function usePrivyEmbeddedWallet(): EmbeddedWalletValue {
         // The list lags; asking again is free and needs no prompt. A failure here
         // is not fatal — the account read below is the authority either way.
         await refreshUser();
-      } catch {
-        // Continue: see above.
+      } catch (error) {
+        // Continue: see above. Written down once, because a refresh that fails here
+        // is the only evidence a person can hand over later (#241).
+        reportPrivyRefusal(error);
       }
 
       const rows = userId ? await fetchAccountWallets(userId) : [];
@@ -256,15 +353,23 @@ function usePrivyEmbeddedWallet(): EmbeddedWalletValue {
     } finally {
       setRepairing(false);
     }
-  }, [userId, refreshUser, createWallet]);
+  }, [userId, privySession, refreshUser, createWallet, reportPrivyRefusal]);
 
   return {
     status,
     canSign,
+    privySession,
     address,
     getSigningWallet,
     repair,
-    canRepair: true,
+    /**
+     * False in exactly one state that is not a build limitation: Privy's own session
+     * is over (#241). Both halves of the repair need it — a refresh re-reads the user,
+     * and creating needs a session to create into — so offering the control would be
+     * the button this issue removes. The other four states keep the offer #226 gave
+     * them.
+     */
+    canRepair: privySession === 'live',
     repairing,
     repairFailure,
   };
@@ -293,6 +398,9 @@ function useNoEmbeddedWallet(): EmbeddedWalletValue {
     // Nothing here can sign, and not merely "no address is known": there is no SDK
     // to sign with at all, so the two are the same answer in this build.
     canSign: false,
+    // There is no Privy session to expire, so this state is never the dead-session
+    // one: a wallet-less build says `wallet-missing`, which is what is true here.
+    privySession: 'live',
     address: null,
     getSigningWallet,
     repair,

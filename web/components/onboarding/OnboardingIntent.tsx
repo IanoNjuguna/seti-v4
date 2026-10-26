@@ -55,17 +55,25 @@ export function OnboardingIntent({
   claim,
   walletStatus,
   canSign,
+  privySession,
   walletRepair,
   onChoose,
   onRepair,
   onSignIn,
 }: OnboardingIntentProps) {
-  // Asking for a signature needs something that can sign. The decision is a
+  // Asking for a signature needs something that can sign, and #241 added a second
+  // way of not being able to: a wallet session that is over. The decision is a
   // precedence with a test of its own (`intent-wallet.ts`), not a condition here,
-  // and it takes the wallet's two answers separately: whether an address is known
-  // (`status`) and whether this device can sign with one (`canSign`). Offering the
-  // two options on `ready` alone is what let a person tap into a Privy throw (#233).
-  const { canChoose, failure } = intentWalletState({ status: walletStatus, canSign }, claim, walletRepair);
+  // and it takes the wallet's three answers separately: whether an address is known
+  // (`status`), whether this device can sign with one (`canSign`), and whether the
+  // session behind both is alive (`privySession`). Offering the two options on
+  // `ready` alone is what let a person tap into a Privy throw (#233); offering a
+  // repair in a dead session is the button #241 removes.
+  const { canChoose, failure } = intentWalletState(
+    { status: walletStatus, canSign, privySession },
+    claim,
+    walletRepair
+  );
 
   return (
     <div className="flex flex-col gap-4">
