@@ -409,6 +409,12 @@ console.log('\na wallet the browser cannot see is repaired in place, not signed 
     'a failed create is logged with its cause, not swallowed',
     walletSource.includes('could not set up a wallet') && /catch \(error\)/.test(walletSource)
   );
+  check(
+    'sign-in no longer swallows a failed createWallet either',
+    readSource('../lib/auth/privy-email-sign-in.ts').includes(
+      'could not create an embedded wallet during sign-in'
+    )
+  );
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
