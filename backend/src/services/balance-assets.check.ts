@@ -23,6 +23,8 @@
  * and no database are involved. The live reads are proven separately by the
  * `eth_call` transcript in the task report.
  */
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { assetsForChain, tokenAddressFor, TEMPO_ASSETS } from '../config/assets.js';
 import { assetBalanceRows, homeBalanceInFiat, totalBalanceInFiat, sumBalancesInFiat } from './balance.js';
 import type { SupportedAsset } from '../config/networks.js';
@@ -379,6 +381,84 @@ function sumValues(rows: ReadonlyArray<{ value: string }>): string {
     twice.balance === (Number(once.balance) * 2).toFixed(2) &&
       once.assets.every((row, index) => twice.assets[index]?.value === (Number(row.value) * 2).toFixed(2)),
     `${once.balance} → ${twice.balance}`
+  );
+}
+
+// ---------------------------------------------------------------------------
+// (f) nothing converts itself: the app-open path does not plan settlement
+// ---------------------------------------------------------------------------
+
+console.log('\nnothing converts itself at app open:');
+
+/**
+ * The planner is not a failure of design; being called on the way IN was. It ran a
+ * few seconds after the app opened, converting whatever bridged stablecoin arrived
+ * into OUSD with the customer's own signature — money moving because a screen
+ * appeared (#222). Asserted at the source because the wiring is what went wrong, and
+ * a one-line mount would re-create the whole behaviour with no test noticing.
+ */
+
+/** A file's CODE, with comments removed: an explanation is not a call site. */
+function codeOf(sourcePath: string): string {
+  return readFileSync(sourcePath, 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+}
+
+/** Every .ts/.tsx under a directory, recursively. */
+function sourceFiles(dir: string): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(dir)) {
+    const sourcePath = join(dir, entry);
+    if (statSync(sourcePath).isDirectory()) found.push(...sourceFiles(sourcePath));
+    else if (/\.(ts|tsx)$/.test(entry)) found.push(sourcePath);
+  }
+  return found;
+}
+
+const WEB = join(__dirname, '..', '..', '..', 'web');
+const PLANNER = /\bplanSettlement\b|settlement\.js/;
+const SETTLE_PASS = /SettlementRunner|useSettlementRunner|fetchSettlePlan|settle\/plan/;
+
+// The server side of the home read: the route and the service behind it.
+for (const file of ['wallet.ts', join('..', 'routes', 'users.ts')]) {
+  const sourcePath = join(__dirname, file);
+  check(
+    `the home read never plans a swap (${file})`,
+    !PLANNER.test(codeOf(sourcePath)),
+    sourcePath.replace(join(__dirname, '..', '..', '..'), '…')
+  );
+}
+
+// The client side: the app shell and every route that paints on open. Excluded is
+// `SettlementRunner.tsx` itself — the mechanism is kept on purpose. A swap the
+// customer taps will live in a feature surface and call the planner then, which is
+// the distinction this assertion is drawing.
+{
+  const surfaces = [...sourceFiles(join(WEB, 'app')), ...sourceFiles(join(WEB, 'components', 'app'))]
+    .filter((sourcePath) => !sourcePath.endsWith('SettlementRunner.tsx'));
+
+  const wired = surfaces
+    .filter((sourcePath) => SETTLE_PASS.test(codeOf(sourcePath)))
+    .map((sourcePath) => sourcePath.slice(sourcePath.indexOf('/web/') + 1));
+
+  check(
+    'no app-open surface mounts the settlement pass',
+    wired.length === 0,
+    wired.length === 0 ? `${surfaces.length} surfaces clean` : wired.join(', ')
+  );
+}
+
+// The check must not be satisfiable by deleting the planner: a user-initiated swap
+// reuses it, and `recordConvert` still validates the history it wrote.
+{
+  const settlement = codeOf(join(__dirname, 'settlement.ts'));
+  const transactions = codeOf(join(__dirname, '..', 'routes', 'transactions.ts'));
+
+  check('the planner is still in the tree', /export async function planSettlement/.test(settlement));
+  check(
+    'and still answerable on request, as a read',
+    /app\.get\('\/settle\/plan'/.test(transactions)
   );
 }
 
