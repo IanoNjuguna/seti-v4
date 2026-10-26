@@ -32,10 +32,20 @@ export interface ClaimErrorView {
   reference: string | null;
 }
 
+/**
+ * The only part of the claim's state this view reads.
+ *
+ * Narrowed to the three fields deliberately: onboarding's intent step renders a
+ * claim failure from the SAME view as the form, and it holds a claim's failure
+ * without holding the form's whole state. Two renderers of one decision, not two
+ * decisions.
+ */
+export type ClaimFailure = Pick<MerchantClaimState, 'error' | 'errorCode' | 'errorRequestId'>;
+
 /** The codes fixed by EDITING THE NAME, so they belong on the field. */
 const NAME_CODES = new Set(['invalid-handle-name', 'reserved-handle']);
 
-export function claimErrorView(claim: MerchantClaimState): ClaimErrorView {
+export function claimErrorView(claim: ClaimFailure): ClaimErrorView {
   const nameProblem = claim.errorCode !== null && NAME_CODES.has(claim.errorCode);
 
   return {

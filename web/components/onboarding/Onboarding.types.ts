@@ -1,4 +1,5 @@
 import type { AccountIntent } from '@/lib/api';
+import type { ClaimFailure } from '@/components/merchant/Claim.error';
 import type { UseMerchantClaimReturn } from '@/hooks/useMerchantClaim.types';
 
 /**
@@ -22,6 +23,13 @@ export interface UseOnboardingReturn {
   finish: () => Promise<void>;
   /** True while the account is being re-read and the app is being opened. */
   finishing: boolean;
+  /**
+   * Sign out and go to `/signin`, for a claim that has no wallet to sign with.
+   *
+   * The alternative on that refusal is "try again", which fails identically, so the
+   * only honest control is the one that gets a wallet onto the device.
+   */
+  signInAgain: () => Promise<void>;
 }
 
 export interface OnboardingStepsProps {
@@ -33,9 +41,23 @@ export interface OnboardingIntentProps {
   pending: AccountIntent | null;
   /** True while a wallet prompt or request is in flight. */
   busy: boolean;
-  /** The claim's refusal, if it was refused. */
-  error: string | null;
+  /**
+   * The claim's own failure — the three fields `claimErrorView` reads.
+   *
+   * Passed rather than the pre-mapped sentence, because this step must NOT decide
+   * what a failure means: a name problem belongs on the field and a wallet problem
+   * belongs beside a sign-in, and that decision already exists in one place for the
+   * claim form.
+   */
+  claim: ClaimFailure;
   onChoose: (intent: AccountIntent) => void;
+  /**
+   * Leave for `/signin` and come back with a wallet.
+   *
+   * Offered only for `wallet-missing`, the one refusal that pressing the same
+   * control cannot fix.
+   */
+  onSignIn: () => void;
 }
 
 /** One of the two intents, as a control that performs the claim for its kind. */

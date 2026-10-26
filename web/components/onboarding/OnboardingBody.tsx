@@ -18,7 +18,7 @@ import type { OnboardingBodyProps } from './Onboarding.types';
  * purpose would be a guess), and step three signs.
  */
 export function OnboardingBody({ wizard }: OnboardingBodyProps) {
-  const { step, claim, pending, toIntent, choose, finish, finishing } = wizard;
+  const { step, claim, pending, toIntent, choose, finish, finishing, signInAgain } = wizard;
 
   if (step === 'sign-in') return <OnboardingSignIn />;
 
@@ -38,8 +38,9 @@ export function OnboardingBody({ wizard }: OnboardingBodyProps) {
       <OnboardingIntent
         pending={pending}
         busy={claim.isBusy}
-        error={claim.error}
+        claim={claim}
         onChoose={(intent) => void choose(intent)}
+        onSignIn={() => void signInAgain()}
       />
     );
   }

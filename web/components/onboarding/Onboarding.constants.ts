@@ -52,7 +52,15 @@ export const ONBOARDING_COPY = {
     'This decides whether your name is a username or a business name, and which link it gets. You sign once, and the purpose is part of what your wallet signs.',
   intentReversible:
     'Reversible: you can switch this in Profile whenever you like, and an account can hold both a username and a business name.',
-  intentError: 'That name could not be claimed',
+  /**
+   * The control offered when the claim had no wallet to sign with.
+   *
+   * It does what it says: the session ends and `/signin` starts a new one, which is
+   * where a device without an embedded wallet gets one. The heading over a failed
+   * claim is the claim's own (`Claim.constants.ts` → `errorTitle`), never a sentence
+   * naming the name, because the name is often not what failed.
+   */
+  signInAgain: 'Sign in again',
   finish: 'Go to Seti',
   finishing: 'Opening Seti…',
   /** Shown when a finished account reaches the wizard — no second name to claim. */

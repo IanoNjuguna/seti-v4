@@ -57,6 +57,9 @@ const NOT_RETRYABLE = new Set([
   'invalid-handle-name',
   'handle-taken',
   'reserved-handle',
+  // There is nothing on this device to sign with. The same button, pressed again,
+  // fails identically; the fix is a sign-in that materialises a wallet.
+  'wallet-missing',
   // The signer is not a wallet this account holds: pressing the same button with
   // the same wallet fails identically, so the fix is a different sign-in, not a
   // retry.

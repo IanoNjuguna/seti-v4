@@ -7,6 +7,7 @@ import type { AccountIntent } from '@/lib/api';
 import { HANDLE_KIND_FOR_INTENT, useAccountIdentity } from '@/lib/account';
 import { useSession } from '@/lib/auth';
 import { useMerchantClaim } from '@/hooks/useMerchantClaim';
+import { SIGN_IN_PATH } from '@/lib/routes';
 import { APP_HOME_PATH } from '@/components/app/AppGate.constants';
 import type { OnboardingStep, UseOnboardingReturn } from './Onboarding.types';
 
@@ -89,6 +90,19 @@ export function useOnboarding(): UseOnboardingReturn {
     router.replace(APP_HOME_PATH);
   }, [router, syncIdentity]);
 
+  /**
+   * End the session and go back to the front door.
+   *
+   * This is the answer to `wallet-missing` and to nothing else. Every other refusal
+   * is fixable on this page; a device with no embedded wallet is not, and a retry
+   * there is a button that lies. Signing out is what re-runs wallet creation on the
+   * next sign-in (`createOnLogin: 'users-without-wallets'`).
+   */
+  const signInAgain = useCallback(async () => {
+    await session.signOut();
+    router.replace(SIGN_IN_PATH);
+  }, [router, session]);
+
   // `done` is derived, never stored, and has TWO ways to be true: a claim that has
   // just landed in this wizard, or an account that finished onboarding in an earlier
   // session and has arrived at this URL. Both are "there is nothing left to set up",
@@ -101,5 +115,5 @@ export function useOnboarding(): UseOnboardingReturn {
         ? 'done'
         : requested;
 
-  return { step, claim, pending, toIntent, choose, finish, finishing };
+  return { step, claim, pending, toIntent, choose, finish, finishing, signInAgain };
 }
