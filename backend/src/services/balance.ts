@@ -168,6 +168,46 @@ export async function totalBalanceInFiat(
   return sumBalancesInFiat(balances, fiatPerUsd);
 }
 
+/** A row that carries its own value, in the currency the total is quoted in. */
+export type ValuedAssetBalanceRow = SupportedAssetBalanceRow & { value: string };
+
+/**
+ * The home card's rows AND its total, from one read at one rate.
+ *
+ * The card puts a figure on top and lists what it is made of underneath, so the two
+ * have to be the same arithmetic: `balance` here is the SUM OF THE ROWS AS SHOWN, not
+ * a second total computed from the underlying amounts. That distinction is the whole
+ * point. Rounding each row to a cent and then rounding the whole can land a cent
+ * apart, and a screen whose rows add up to a different figure from the one at the top
+ * contradicts itself — the customer cannot tell which half to believe, and the half
+ * they check by adding will be the one that looks wrong.
+ *
+ * The rate is passed in, never defaulted: a hardcoded rate made the card quote a
+ * different figure from the pay screen, which uses the live `getFxQuote()` rate. The
+ * caller passes the rate from that same quote, so both surfaces price the same money
+ * identically.
+ *
+ * A malformed balance becomes NaN in its row and therefore in the total, for the
+ * reason `sumBalancesInFiat` gives: counting it as zero would hide money, and the
+ * caller must see the fault rather than a tidy number that is missing some of it.
+ */
+export function homeBalanceInFiat(
+  rows: readonly SupportedAssetBalanceRow[],
+  fiatPerUsd: number
+): { assets: ValuedAssetBalanceRow[]; balance: string } {
+  const rate = Number.isFinite(fiatPerUsd) ? fiatPerUsd : 0;
+
+  const assets = rows.map((row) => {
+    const amount = Number(row.amount);
+    const fiat = (Number.isFinite(amount) ? amount : Number.NaN) * rate;
+    return { ...row, value: fiat.toFixed(2) };
+  });
+
+  const balance = assets.reduce((sum, row) => sum + Number(row.value), 0).toFixed(2);
+
+  return { assets, balance };
+}
+
 /**
  * Total balance across every asset THIS CHAIN lists, in fiat.
  *

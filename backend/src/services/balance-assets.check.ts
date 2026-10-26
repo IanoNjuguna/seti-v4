@@ -16,13 +16,17 @@
  *      between chains, so a shared address would be a transfer to nowhere.
  *   3. The balance read sums all of them into ONE fiat figure at ONE rate, and a
  *      zero in three of them still yields the right total.
+ *   4. The home payload's rows carry their own value and the total IS their sum —
+ *      for an account holding two assets, one asset, or none (#222).
  *
  * It is hermetic: the summing loop takes its reader as an argument, so no chain
  * and no database are involved. The live reads are proven separately by the
  * `eth_call` transcript in the task report.
  */
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { assetsForChain, tokenAddressFor, TEMPO_ASSETS } from '../config/assets.js';
-import { assetBalanceRows, totalBalanceInFiat, sumBalancesInFiat } from './balance.js';
+import { assetBalanceRows, homeBalanceInFiat, totalBalanceInFiat, sumBalancesInFiat } from './balance.js';
 import type { SupportedAsset } from '../config/networks.js';
 
 let total = 0;
@@ -247,6 +251,216 @@ console.log('asset rows:');
   check('a read that throws is not turned into a missing row', threw);
 }
 
+
+// ---------------------------------------------------------------------------
+// (e) the home card: rows, each with its value, summing to the figure on top
+// ---------------------------------------------------------------------------
+
+console.log('\nthe home card: rows, their values, and the total:');
+
+/** The rows' values added up the way a customer checking the card would. */
+function sumValues(rows: ReadonlyArray<{ value: string }>): string {
+  return rows.reduce((sum, row) => sum + Number(row.value), 0).toFixed(2);
+}
+
+// Two funded assets and two empty ones. The card has four rows, and the figure on
+// top is those four added up — not a separately computed total that happens to agree.
+{
+  const { read } = readerFor({ ousd: '1.50', 'usdc.e': '4.25' });
+  const rows = await assetBalanceRows(read, mainnetAssets);
+  const { assets, balance } = homeBalanceInFiat(rows, RATE);
+
+  check(
+    'an account holding two assets gets a row per LISTED asset',
+    assets.length === mainnetAssets.length,
+    `${assets.length} rows for ${mainnetAssets.length} listed`
+  );
+  check(
+    'two of those rows carry money',
+    assets.filter((row) => Number(row.amount) > 0).length === 2,
+    assets.map((row) => `${row.asset}:${row.amount}`).join(' ')
+  );
+  check(
+    'every row carries its own value in the card currency',
+    assets.every((row) => /^\d+\.\d{2}$/.test(row.value)),
+    assets.map((row) => `${row.asset}:${row.value}`).join(' ')
+  );
+  check(
+    'sum(assets.value) IS the total',
+    sumValues(assets) === balance,
+    `${sumValues(assets)} vs ${balance}`
+  );
+  check('and the total is the money, not the row count', balance === (5.75 * RATE).toFixed(2), `${balance} KES`);
+}
+
+// An account holding nothing. Every listed asset is a zero ROW, kept, and the total
+// is their sum: zero, in the card's currency, at the card's rate. A payload that
+// shrinks to an empty list for a new account would make the row count a property of
+// this customer instead of the network.
+{
+  const { read } = readerFor({});
+  const rows = await assetBalanceRows(read, mainnetAssets);
+  const { assets, balance } = homeBalanceInFiat(rows, RATE);
+
+  check(
+    'an empty account still gets a row per listed asset',
+    assets.length === mainnetAssets.length,
+    `${assets.length} rows for ${mainnetAssets.length} listed`
+  );
+  check(
+    'all of them are zero, none are dropped',
+    assets.every((row) => row.amount === '0.00' && row.value === '0.00'),
+    assets.map((row) => `${row.asset}:${row.value}`).join(' ')
+  );
+  check('sum(assets.value) is still the total', sumValues(assets) === balance && balance === '0.00', balance);
+}
+
+// The bug this issue was filed for: everything arrived as USDT0. One funded row,
+// three real zeros — and the total is the funded row, visible as such.
+{
+  const { read } = readerFor({ usdt0: '3.00' });
+  const rows = await assetBalanceRows(read, mainnetAssets);
+  const { assets, balance } = homeBalanceInFiat(rows, RATE);
+  const funded = assets.filter((row) => Number(row.amount) > 0);
+
+  check(
+    'a USDT0-only account shows one funded row and three zeros',
+    assets.length === 4 && funded.length === 1 && funded[0]?.asset === 'usdt0',
+    `${assets.length} rows, funded: ${funded.map((row) => row.asset).join(',')}`
+  );
+  check(
+    'and the zeros carry no value while the funded row carries it all',
+    assets.filter((row) => row.value === '0.00').length === 3 && assets[0]?.value === '388.50',
+    assets.map((row) => `${row.asset}:${row.value}`).join(' ')
+  );
+  check('the total is that one row, not a figure from nowhere', balance === assets[0]?.value, balance);
+}
+
+// Practice lists three assets, so its card has three rows — the count comes from the
+// network, not from a constant in the dashboard.
+{
+  const { read } = readerFor({ ousd: '1.00' });
+  const rows = await assetBalanceRows(read, practiceAssets);
+  const { assets, balance } = homeBalanceInFiat(rows, RATE);
+
+  check(
+    'a practice card has the practice registry’s row count',
+    assets.length === 3 && sumValues(assets) === balance,
+    `${assets.length} rows, ${balance}`
+  );
+}
+
+// The rounding trap this identity exists to close. Rows rounded to a cent do NOT add
+// up to a rounding of the whole, so a total computed from the amounts and a breakdown
+// computed from the rows can sit a cent apart. The card shows the rows; the figure on
+// top must therefore BE their sum.
+{
+  const oddRate = 129.555;
+  const { read } = readerFor({ ousd: '0.01', pathusd: '0.01', usdt0: '0.01' });
+  const rows = await assetBalanceRows(read, mainnetAssets);
+  const { assets, balance } = homeBalanceInFiat(rows, oddRate);
+
+  check(
+    'rounding each row then adding differs from rounding the whole',
+    balance !== (0.03 * oddRate).toFixed(2),
+    `rows ${balance} vs whole ${(0.03 * oddRate).toFixed(2)}`
+  );
+  check('the card shows the sum of its rows, so the two agree', balance === sumValues(assets), balance);
+}
+
+// One rate for the whole card: doubling the rate doubles every row and the total,
+// which is what "its value at the same rate the total used" has to mean.
+{
+  const { read } = readerFor({ ousd: '1.00', 'usdc.e': '2.00' });
+  const rows = await assetBalanceRows(read, mainnetAssets);
+  const once = homeBalanceInFiat(rows, RATE);
+  const twice = homeBalanceInFiat(rows, RATE * 2);
+
+  check(
+    'rows and total are priced at ONE rate',
+    twice.balance === (Number(once.balance) * 2).toFixed(2) &&
+      once.assets.every((row, index) => twice.assets[index]?.value === (Number(row.value) * 2).toFixed(2)),
+    `${once.balance} → ${twice.balance}`
+  );
+}
+
+// ---------------------------------------------------------------------------
+// (f) nothing converts itself: the app-open path does not plan settlement
+// ---------------------------------------------------------------------------
+
+console.log('\nnothing converts itself at app open:');
+
+/**
+ * The planner is not a failure of design; being called on the way IN was. It ran a
+ * few seconds after the app opened, converting whatever bridged stablecoin arrived
+ * into OUSD with the customer's own signature — money moving because a screen
+ * appeared (#222). Asserted at the source because the wiring is what went wrong, and
+ * a one-line mount would re-create the whole behaviour with no test noticing.
+ */
+
+/** A file's CODE, with comments removed: an explanation is not a call site. */
+function codeOf(sourcePath: string): string {
+  return readFileSync(sourcePath, 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+}
+
+/** Every .ts/.tsx under a directory, recursively. */
+function sourceFiles(dir: string): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(dir)) {
+    const sourcePath = join(dir, entry);
+    if (statSync(sourcePath).isDirectory()) found.push(...sourceFiles(sourcePath));
+    else if (/\.(ts|tsx)$/.test(entry)) found.push(sourcePath);
+  }
+  return found;
+}
+
+const WEB = join(__dirname, '..', '..', '..', 'web');
+const PLANNER = /\bplanSettlement\b|settlement\.js/;
+const SETTLE_PASS = /SettlementRunner|useSettlementRunner|fetchSettlePlan|settle\/plan/;
+
+// The server side of the home read: the route and the service behind it.
+for (const file of ['wallet.ts', join('..', 'routes', 'users.ts')]) {
+  const sourcePath = join(__dirname, file);
+  check(
+    `the home read never plans a swap (${file})`,
+    !PLANNER.test(codeOf(sourcePath)),
+    sourcePath.replace(join(__dirname, '..', '..', '..'), '…')
+  );
+}
+
+// The client side: the app shell and every route that paints on open. Excluded is
+// `SettlementRunner.tsx` itself — the mechanism is kept on purpose. A swap the
+// customer taps will live in a feature surface and call the planner then, which is
+// the distinction this assertion is drawing.
+{
+  const surfaces = [...sourceFiles(join(WEB, 'app')), ...sourceFiles(join(WEB, 'components', 'app'))]
+    .filter((sourcePath) => !sourcePath.endsWith('SettlementRunner.tsx'));
+
+  const wired = surfaces
+    .filter((sourcePath) => SETTLE_PASS.test(codeOf(sourcePath)))
+    .map((sourcePath) => sourcePath.slice(sourcePath.indexOf('/web/') + 1));
+
+  check(
+    'no app-open surface mounts the settlement pass',
+    wired.length === 0,
+    wired.length === 0 ? `${surfaces.length} surfaces clean` : wired.join(', ')
+  );
+}
+
+// The check must not be satisfiable by deleting the planner: a user-initiated swap
+// reuses it, and `recordConvert` still validates the history it wrote.
+{
+  const settlement = codeOf(join(__dirname, 'settlement.ts'));
+  const transactions = codeOf(join(__dirname, '..', 'routes', 'transactions.ts'));
+
+  check('the planner is still in the tree', /export async function planSettlement/.test(settlement));
+  check(
+    'and still answerable on request, as a read',
+    /app\.get\('\/settle\/plan'/.test(transactions)
+  );
+}
 
   console.log('-'.repeat(74));
   console.log(

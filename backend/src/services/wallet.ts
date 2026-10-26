@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import type { HomeDashboard, RecentTransaction } from '../types/index.js';
-import { getUserAssetBalances, sumBalancesInFiat } from './balance.js';
+import { getUserAssetBalances, homeBalanceInFiat } from './balance.js';
 import { toRecentTransaction } from './transaction-view.js';
 import { getFiatPerUsd, resolveUserFiat } from './payments.js';
 import { servedNetwork } from '../config/networks.js';
@@ -24,17 +24,16 @@ import type { Network } from '../lib/network.js';
  * The live wallet balance is read from the Tempo chain and reconciled with
  * the local ledger. The local transaction list is used for the recent activity
  * feed and spending trend calculations.
+ *
+ * The payload carries what the balance is MADE OF — one row per asset the network
+ * lists, each with its own amount and its own value — because what is displayed is
+ * what is spendable, and a wallet-style home cannot be built on a single figure: a
+ * customer had no way to learn which stablecoin their money arrived in.
  */
 export async function getHomeDashboard(
   userId: string,
   network: Network = servedNetwork
 ): Promise<HomeDashboard> {
-  // Scoped by the session's network: the home card is one network's money. A
-  // practice balance and a live balance are different numbers on different chains.
-  const wallet = await prisma.wallet.findFirst({
-    where: { userId, status: 'active', network },
-  });
-
   const transactions = await prisma.transaction.findMany({
     where: { userId, network },
     include: { merchant: true, wallet: true },
@@ -48,18 +47,26 @@ export async function getHomeDashboard(
   const fiatCurrency = await resolveUserFiat(userId);
 
   /**
-   * ONE read, two answers. The total and the breakdown are computed from the same
-   * asset rows rather than read twice, so the figure on the card can never disagree
-   * with the rows the breakdown shows for the same moment. It is also one set of RPC
-   * calls instead of two.
+   * ONE read, one answer. The rows and the total are produced together by
+   * `homeBalanceInFiat`, and the total is the sum of exactly those rows — the figure
+   * on the card cannot disagree with the breakdown under it, because there is only
+   * one conversion and it is applied to the rows the customer sees. Two reads would
+   * be two chances to quote different money for the same moment, and one read that
+   * summed the amounts independently could round to a different cent than the rows.
+   *
+   * The read runs whether or not a wallet row exists. `getUserBalance` answers 0.00
+   * per asset when there is no address to ask, so a brand-new account still gets one
+   * row per asset the CHAIN lists, and the row count is a property of the network
+   * rather than of this customer. That guard used to sit here, asking the database
+   * "does this user have a wallet" so the payload could shrink to an empty list —
+   * which is the same failure from the other end as a too-narrow read: the money (or
+   * its absence) described by something other than the network's asset list.
+   *
+   * Scoped by the session's network: the home card is one network's money. A
+   * practice balance and a live balance are different numbers on different chains.
    */
-  const assets = wallet ? await getUserAssetBalances(userId, network) : [];
-  const balance = wallet
-    ? sumBalancesInFiat(
-        assets.map((row) => ({ asset: row.asset, balance: row.amount })),
-        await getFiatPerUsd(fiatCurrency)
-      )
-    : '0.00';
+  const rows = await getUserAssetBalances(userId, network);
+  const { assets, balance } = homeBalanceInFiat(rows, await getFiatPerUsd(fiatCurrency));
 
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);

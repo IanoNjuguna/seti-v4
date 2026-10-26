@@ -5,7 +5,6 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAccountIdentity } from '@/lib/account';
 import { useSession } from '@/lib/auth';
 import { AppLoading } from './AppLoading';
-import { SettlementRunner } from './SettlementRunner';
 import { AppShell } from './AppShell';
 import { ONBOARDING_PATH } from './AppGate.constants';
 import { decideGatePlacement, isOnboardingRoute } from './gate-decision';
@@ -44,19 +43,17 @@ export function AppGate({ children }: AppGateProps) {
   if (placement === 'loading') return <AppLoading />;
   if (placement === 'onboarding') return <>{children}</>;
   if (placement === 'shell') {
-    return (
-      <>
-        {/*
-          The settlement pass lives here rather than in the layout because this is
-          the one branch that means "an onboarded account with a wallet, on a real
-          app surface". It renders nothing; it signs a swap into OUSD only while
-          the customer has the app open, which is the only time their own wallet can
-          sign. See useSettlementRunner.
-        */}
-        <SettlementRunner />
-        <AppShell>{children}</AppShell>
-      </>
-    );
+    /*
+      NOTHING runs on the way in any more. This branch used to mount a settlement pass
+      that converted bridged stablecoins into OUSD a few seconds after the app opened,
+      signed by the customer's own wallet — money moving because a screen appeared,
+      under a UI that now shows each token as itself (#222). A wallet may not move a
+      balance the customer did not ask it to move, and "they opened the app" is not an
+      instruction. `useSettlementRunner` stays in the tree for a swap the customer
+      actually asks for; the planner and its record path stay for the same reason.
+      `check:balances` fails if anything mounts it here again.
+    */
+    return <AppShell>{children}</AppShell>;
   }
 
   // A redirect is in flight. The destination's own surfaces must not paint in the

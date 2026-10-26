@@ -12,11 +12,13 @@ import type { BalanceFigureProps } from './BalanceFigure.types';
 /**
  * The balance itself and the control that hides it.
  *
- * ONE figure, and there is deliberately no breakdown under it any more. The account
- * settles into OUSD in the background (the settlement pass), so which token holds
- * the money is housekeeping, not information: a customer who holds KES 4,800 wants
- * to know they hold KES 4,800, and a disclosure listing OUSD, USDC.e and pathUSD
- * turned that answer into a crypto question with four parts.
+ * ONE figure, and there is deliberately no breakdown under it yet. While the account
+ * settled into OUSD in the background, which token held the money was housekeeping
+ * rather than information: a customer who holds KES 4,800 wants to know they hold
+ * KES 4,800, and a disclosure listing OUSD, USDC.e and pathUSD turned that answer into
+ * a crypto question with four parts. That settlement no longer runs (#222) — a bridged
+ * balance stays bridged until the customer moves it — so the rows the API already
+ * returns are the next surface's job, not this card's.
  *
  * The figure is EXACT and pinned to one line. It used to compact at a million
  * ("KES 4.8M"), which put a rounded figure where spendable money belongs and

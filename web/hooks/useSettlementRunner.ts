@@ -15,23 +15,30 @@ import { useAppNetwork } from '@/components/app/useAppNetwork';
 const SETTLE_DELAY_MS = 2500;
 
 /**
- * Settle the account's balance into OUSD, quietly, once per app open.
+ * Settle the account's balance into OUSD — a swap the customer asks for, once.
  *
- * ## Why this is client-side at all
+ * ## It is not called on its own any more
+ *
+ * This used to run a few seconds after the app opened, converting any bridged
+ * stablecoin into OUSD with the customer's own signature. Doing that on app open made
+ * the wallet move money nobody instructed it to move, and once the home card lists
+ * each token, the conversion bought no invisibility either: it just quietly changed
+ * what the customer held (#222). Nothing mounts `SettlementRunner` today, and
+ * `check:balances` fails if an app-open surface does.
+ *
+ * ## Why it is client-side at all
  *
  * Because the customer signs it. Seti is non-custodial, so no backend key can move
  * a customer's stablecoin; the only wallet that can is theirs, and it is available
- * only while they have the app open. That constraint IS the batching rule: settle
- * at app open, when the plan says the amount is worth a swap, one interaction with
- * the book per threshold crossing instead of one per payment.
+ * only while they have the app open. That is also why the pass is shaped as it is:
+ * one plan, one decision per asset, no retries — it is the mechanism a swap control
+ * will reuse, not a habit of the app.
  *
  * ## Why it is invisible
  *
- * The balance is one USD figure (#85), so which token holds it is not a customer's
- * business. Nothing here renders. Every failure — no book, a revert, an expired
- * plan, the wallet briefly unavailable — is a skip and the money stays where it is,
- * which is a supported state. A customer must never be told that housekeeping
- * failed.
+ * Nothing here renders. Every failure — no book, a revert, an expired plan, the
+ * wallet briefly unavailable — is a skip and the money stays where it is, which is a
+ * supported state. A customer must never be told that housekeeping failed.
  *
  * ## Ordering that matters
  *
