@@ -38,7 +38,7 @@ function Row({ label, value, tone }: { label: string; value: string; tone: FeeQu
  * what `variant="body-medium"` resolves to on each surface, so this renders
  * identically.
  *
- * The figure's colour FADES when the total changes (`app/app/motion.css`,
+ * The figure's colour FADES when the total changes (`app/(product)/app/motion.css`,
  * `design/motion.md` DIAL TWO): a number that animates through false values in a
  * payments app is a trust problem, so the figure changes instantly and only its
  * colour says "this is new".

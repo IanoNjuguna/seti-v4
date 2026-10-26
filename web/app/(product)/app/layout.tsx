@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import './motion.css';
 import { AppGate } from '@/components/app/AppGate';
-import { PrivyAppProvider } from '@/components/providers/PrivyAppProvider';
 import { AccountIdentityProvider } from '@/lib/account';
 import { SessionProvider } from '@/lib/auth';
 import { AmountPrivacyProvider } from '@/lib/privacy/amount-privacy.context';
@@ -29,10 +28,10 @@ export const metadata: Metadata = {
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    // Privy is outermost so the session (which may adopt a Privy session) and
-    // everything below it can reach the SDK. It is a no-op wrapper when no app id
-    // is configured, which is what keeps the `dev` sign-in path working.
-    <PrivyAppProvider>
+    // Privy is mounted once, above this route group, in `(product)/layout.tsx`:
+    // one instance for sign-in and the app it signs into (#249). Session and
+    // everything below it can still reach the SDK, and it is still a no-op
+    // wrapper when no app id is configured, which keeps `dev` sign-in working.
       <SessionProvider>
         <AccountIdentityProvider>
           {/*
@@ -46,6 +45,5 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </AmountPrivacyProvider>
         </AccountIdentityProvider>
       </SessionProvider>
-    </PrivyAppProvider>
   );
 }

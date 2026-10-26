@@ -35,7 +35,8 @@
     "deploy:vinext": "vinext-cloudflare deploy",
     "check:activity-search": "tsx scripts/check-activity-search.mjs",
     "check:repeat-send": "tsx scripts/check-repeat-send.mjs",
-    "check:memo-always": "tsx scripts/check-memo-always.mjs"
+    "check:memo-always": "tsx scripts/check-memo-always.mjs",
+    "check:privy-mount": "node scripts/check-privy-mount.mjs"
   },
   "dependencies": {
     "@privy-io/react-auth": "^3.48.1",
