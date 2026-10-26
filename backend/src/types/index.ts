@@ -12,15 +12,36 @@ export interface AssetBalanceRow {
   amount: string;
 }
 
+/**
+ * One asset's share of the home balance, with its own value.
+ *
+ * The home card shows rows, so a row has to be a figure a customer can add up: the
+ * amount in the asset's own units AND what that amount is worth in the currency on
+ * the card. Both are produced by `homeBalanceInFiat` from one read at one rate, and
+ * the total above is the sum of these `value` strings rather than a parallel
+ * computation — a breakdown whose rows add up to something other than the figure on
+ * top contradicts itself, and the customer is right to trust the top of the screen.
+ *
+ * The currency is stated once, on the dashboard: repeating it per row would be N
+ * chances for one row to disagree about what money is being measured in.
+ */
+export interface HomeAssetRow extends AssetBalanceRow {
+  /** This row's own value, in the dashboard's currency, at the total's rate. */
+  value: string;
+}
+
 export interface HomeDashboard {
+  /**
+   * The one money figure on the card: the sum of `assets[].value`. Not a second
+   * total computed another way, which is how the card and its breakdown drift apart.
+   */
   balance: string;
   currency: string;
   /**
    * What the balance is made of: one row per asset the chain lists, largest first.
-   * Amounts are in the asset's OWN units and carry no currency — the total above is
-   * the one figure that is money, and it is the only one converted.
+   * `amount` is in the asset's OWN units; `value` is that amount in `currency`.
    */
-  assets: AssetBalanceRow[];
+  assets: HomeAssetRow[];
   monthToDateDelta: number;
   recentTransactions: RecentTransaction[];
 }

@@ -16,13 +16,15 @@
  *      between chains, so a shared address would be a transfer to nowhere.
  *   3. The balance read sums all of them into ONE fiat figure at ONE rate, and a
  *      zero in three of them still yields the right total.
+ *   4. The home payload's rows carry their own value and the total IS their sum —
+ *      for an account holding two assets, one asset, or none (#222).
  *
  * It is hermetic: the summing loop takes its reader as an argument, so no chain
  * and no database are involved. The live reads are proven separately by the
  * `eth_call` transcript in the task report.
  */
 import { assetsForChain, tokenAddressFor, TEMPO_ASSETS } from '../config/assets.js';
-import { assetBalanceRows, totalBalanceInFiat, sumBalancesInFiat } from './balance.js';
+import { assetBalanceRows, homeBalanceInFiat, totalBalanceInFiat, sumBalancesInFiat } from './balance.js';
 import type { SupportedAsset } from '../config/networks.js';
 
 let total = 0;
@@ -247,6 +249,138 @@ console.log('asset rows:');
   check('a read that throws is not turned into a missing row', threw);
 }
 
+
+// ---------------------------------------------------------------------------
+// (e) the home card: rows, each with its value, summing to the figure on top
+// ---------------------------------------------------------------------------
+
+console.log('\nthe home card: rows, their values, and the total:');
+
+/** The rows' values added up the way a customer checking the card would. */
+function sumValues(rows: ReadonlyArray<{ value: string }>): string {
+  return rows.reduce((sum, row) => sum + Number(row.value), 0).toFixed(2);
+}
+
+// Two funded assets and two empty ones. The card has four rows, and the figure on
+// top is those four added up — not a separately computed total that happens to agree.
+{
+  const { read } = readerFor({ ousd: '1.50', 'usdc.e': '4.25' });
+  const rows = await assetBalanceRows(read, mainnetAssets);
+  const { assets, balance } = homeBalanceInFiat(rows, RATE);
+
+  check(
+    'an account holding two assets gets a row per LISTED asset',
+    assets.length === mainnetAssets.length,
+    `${assets.length} rows for ${mainnetAssets.length} listed`
+  );
+  check(
+    'two of those rows carry money',
+    assets.filter((row) => Number(row.amount) > 0).length === 2,
+    assets.map((row) => `${row.asset}:${row.amount}`).join(' ')
+  );
+  check(
+    'every row carries its own value in the card currency',
+    assets.every((row) => /^\d+\.\d{2}$/.test(row.value)),
+    assets.map((row) => `${row.asset}:${row.value}`).join(' ')
+  );
+  check(
+    'sum(assets.value) IS the total',
+    sumValues(assets) === balance,
+    `${sumValues(assets)} vs ${balance}`
+  );
+  check('and the total is the money, not the row count', balance === (5.75 * RATE).toFixed(2), `${balance} KES`);
+}
+
+// An account holding nothing. Every listed asset is a zero ROW, kept, and the total
+// is their sum: zero, in the card's currency, at the card's rate. A payload that
+// shrinks to an empty list for a new account would make the row count a property of
+// this customer instead of the network.
+{
+  const { read } = readerFor({});
+  const rows = await assetBalanceRows(read, mainnetAssets);
+  const { assets, balance } = homeBalanceInFiat(rows, RATE);
+
+  check(
+    'an empty account still gets a row per listed asset',
+    assets.length === mainnetAssets.length,
+    `${assets.length} rows for ${mainnetAssets.length} listed`
+  );
+  check(
+    'all of them are zero, none are dropped',
+    assets.every((row) => row.amount === '0.00' && row.value === '0.00'),
+    assets.map((row) => `${row.asset}:${row.value}`).join(' ')
+  );
+  check('sum(assets.value) is still the total', sumValues(assets) === balance && balance === '0.00', balance);
+}
+
+// The bug this issue was filed for: everything arrived as USDT0. One funded row,
+// three real zeros — and the total is the funded row, visible as such.
+{
+  const { read } = readerFor({ usdt0: '3.00' });
+  const rows = await assetBalanceRows(read, mainnetAssets);
+  const { assets, balance } = homeBalanceInFiat(rows, RATE);
+  const funded = assets.filter((row) => Number(row.amount) > 0);
+
+  check(
+    'a USDT0-only account shows one funded row and three zeros',
+    assets.length === 4 && funded.length === 1 && funded[0]?.asset === 'usdt0',
+    `${assets.length} rows, funded: ${funded.map((row) => row.asset).join(',')}`
+  );
+  check(
+    'and the zeros carry no value while the funded row carries it all',
+    assets.filter((row) => row.value === '0.00').length === 3 && assets[0]?.value === '388.50',
+    assets.map((row) => `${row.asset}:${row.value}`).join(' ')
+  );
+  check('the total is that one row, not a figure from nowhere', balance === assets[0]?.value, balance);
+}
+
+// Practice lists three assets, so its card has three rows — the count comes from the
+// network, not from a constant in the dashboard.
+{
+  const { read } = readerFor({ ousd: '1.00' });
+  const rows = await assetBalanceRows(read, practiceAssets);
+  const { assets, balance } = homeBalanceInFiat(rows, RATE);
+
+  check(
+    'a practice card has the practice registry’s row count',
+    assets.length === 3 && sumValues(assets) === balance,
+    `${assets.length} rows, ${balance}`
+  );
+}
+
+// The rounding trap this identity exists to close. Rows rounded to a cent do NOT add
+// up to a rounding of the whole, so a total computed from the amounts and a breakdown
+// computed from the rows can sit a cent apart. The card shows the rows; the figure on
+// top must therefore BE their sum.
+{
+  const oddRate = 129.555;
+  const { read } = readerFor({ ousd: '0.01', pathusd: '0.01', usdt0: '0.01' });
+  const rows = await assetBalanceRows(read, mainnetAssets);
+  const { assets, balance } = homeBalanceInFiat(rows, oddRate);
+
+  check(
+    'rounding each row then adding differs from rounding the whole',
+    balance !== (0.03 * oddRate).toFixed(2),
+    `rows ${balance} vs whole ${(0.03 * oddRate).toFixed(2)}`
+  );
+  check('the card shows the sum of its rows, so the two agree', balance === sumValues(assets), balance);
+}
+
+// One rate for the whole card: doubling the rate doubles every row and the total,
+// which is what "its value at the same rate the total used" has to mean.
+{
+  const { read } = readerFor({ ousd: '1.00', 'usdc.e': '2.00' });
+  const rows = await assetBalanceRows(read, mainnetAssets);
+  const once = homeBalanceInFiat(rows, RATE);
+  const twice = homeBalanceInFiat(rows, RATE * 2);
+
+  check(
+    'rows and total are priced at ONE rate',
+    twice.balance === (Number(once.balance) * 2).toFixed(2) &&
+      once.assets.every((row, index) => twice.assets[index]?.value === (Number(row.value) * 2).toFixed(2)),
+    `${once.balance} → ${twice.balance}`
+  );
+}
 
   console.log('-'.repeat(74));
   console.log(

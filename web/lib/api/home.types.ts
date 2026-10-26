@@ -37,19 +37,25 @@ export interface RecentTransaction {
 }
 
 /**
- * One asset's share of the balance.
+ * One asset's share of the balance, with its own value.
  *
- * Amounts are in the asset's OWN units and carry no currency: the total above is the
- * one figure that is money. The symbol is the registry's spelling, never the token
- * contract's own claim about itself.
+ * `amount` is in the asset's own units, exactly as the ledger holds it; `value` is
+ * that amount in the dashboard's currency, at the same rate as the total. The two
+ * come from one read, and the total is the sum of these `value` strings — so a row
+ * surface can print the rows and trust that they add up to the figure on the card.
+ *
+ * The symbol is the registry's spelling, never the token contract's own claim.
  */
 export interface AssetBalanceRow {
   asset: string;
   symbol: string;
   amount: string;
+  /** This row's own value, in the dashboard's currency. */
+  value: string;
 }
 
 export interface HomeDashboard {
+  /** The one money figure: the sum of `assets[].value`. */
   balance: string;
   currency: string;
   /** What the balance is made of: one row per asset the chain lists, largest first. */
