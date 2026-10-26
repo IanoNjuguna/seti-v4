@@ -12,6 +12,13 @@ export interface BalanceTokensProps {
    * untouched. Absent means the payload did not say, and the list is then absent too.
    */
   currency: string | undefined;
+  /**
+   * A swap from one of these rows was recorded.
+   *
+   * The balance the card prints is now out of date — two rows changed, not one — so the
+   * screen re-reads rather than leaving a figure it knows to be wrong on screen.
+   */
+  onSwapped?: () => void;
 }
 
 /**
@@ -38,4 +45,6 @@ export interface BalanceTokenRowProps {
   row: BalanceTokenRowView;
   /** The dashboard's currency, for the figure on the right. */
   currency: string;
+  /** A swap from THIS row was recorded. See {@link BalanceTokensProps.onSwapped}. */
+  onSwapped?: () => void;
 }

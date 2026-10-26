@@ -24,7 +24,7 @@ import {
   NoSingleAssetCoversError,
   SendRequiresBatchError,
 } from '../services/payments.js';
-import { previewConvert, ConvertRefusalError } from '../services/convert.js';
+import { previewConvert, quoteConvert, ConvertRefusalError } from '../services/convert.js';
 import { planSettlement } from '../services/settlement.js';
 import { toRecentTransaction } from '../services/transaction-view.js';
 import {
@@ -109,6 +109,27 @@ const convertPreviewSchema = z.object({
   assetIn: assetSchema,
   assetOut: assetSchema,
   amountFiat: z.string().regex(/^\d+(\.\d+)?$/),
+});
+
+/**
+ * A convert's QUOTE: the pair, and the amount in the INPUT TOKEN's own units.
+ *
+ * Deliberately loose at this boundary — plain strings, no enum, no decimal regex.
+ * Every one of the five refusals the surface branches on has to arrive as a CODE,
+ * and the schema is where that is lost: `z.enum(SUPPORTED_ASSETS)` turns "dai" into
+ * a generic 400 before the service can answer `convert-unknown-asset`, and a
+ * decimal regex turns "lots" into the same 400 instead of `convert-amount-invalid`.
+ * The SHAPE is checked here; whether the amount names an amount, whether the pair
+ * has a market and whether the balance covers it are the service's answers.
+ *
+ * `previewConvert` (the fiat-facing preview) keeps its stricter schema because it
+ * is not the route a refusal code is branched on.
+ */
+const convertQuoteSchema = z.object({
+  assetIn: z.string().min(1),
+  assetOut: z.string().min(1),
+  /** A decimal in `assetIn` units, or `max`. See `resolveConvertAmount`. */
+  amountIn: z.string().min(1),
 });
 
 /**
@@ -388,6 +409,34 @@ export async function transactionRoutes(app: FastifyInstance) {
     const plan = await planSettlement({ userId: user.id, network: user.network });
 
     return reply.send({ plan });
+  });
+
+  /**
+   * What this swap would pay, from an amount in the INPUT TOKEN's units.
+   *
+   * A READ: nothing is signed and nothing is written, so it is safe to call for a
+   * figure the customer has not committed to — which is exactly what the control on
+   * a balance row does, and why a pair with no book can be asked about without
+   * costing anything.
+   *
+   * `user.network` rather than the served network: a quote is minted for the network
+   * the ACCOUNT acts on, and a practice quote must never price a live swap.
+   */
+  app.post('/convert/quote', async (request, reply) => {
+    const user = requireUser(request);
+    const body = convertQuoteSchema.parse(request.body);
+
+    try {
+      const quote = await quoteConvert({ ...body, userId: user.id, network: user.network });
+      return reply.send({ quote });
+    } catch (error) {
+      // 422 with a code, never a 500: each of the five refusals is a sentence the
+      // app renders and an answer the customer can act on.
+      if (error instanceof ConvertRefusalError) {
+        return reply.status(422).send({ error: error.message, code: error.code });
+      }
+      throw error;
+    }
   });
 
   app.post('/convert/preview', async (request, reply) => {

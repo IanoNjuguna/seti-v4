@@ -33,10 +33,29 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { AmountPrivacyProvider } from '../lib/privacy/amount-privacy.context.tsx';
-import { BalanceCard } from '../components/home/BalanceCard.tsx';
-import { PAID_RECENTLY_LIMIT, longestWindow, paidRecently } from '../components/home/home.summary.ts';
-import { formatFiat } from '../lib/formatCurrency.ts';
+
+/**
+ * The served chain, set BEFORE anything imports the app's chain table.
+ *
+ * The card used to be pure presentational code. It is not any more: a token row asks
+ * whether the book can fill a swap (#240), and that gate reaches `@/lib/chain`, whose
+ * module body calls `resolveNetwork()` and throws when `NEXT_PUBLIC_TEMPO_CHAIN_ID` is
+ * unset. Next loads `.env.local`; tsx does not, and CI sets no web chain id, so this
+ * check failed in CI while passing on a machine that had one. Practice, always: nothing
+ * here signs or spends. Skipped when the environment already named one.
+ */
+process.env.NEXT_PUBLIC_TEMPO_CHAIN_ID ??= '42431';
+
+/**
+ * Loaded AFTER the line above, which is why they are dynamic: the chain table evaluates
+ * the env var at module load, so a static import would hoist past the default.
+ */
+const { AmountPrivacyProvider } = await import('../lib/privacy/amount-privacy.context.tsx');
+const { BalanceCard } = await import('../components/home/BalanceCard.tsx');
+const { PAID_RECENTLY_LIMIT, longestWindow, paidRecently } = await import(
+  '../components/home/home.summary.ts'
+);
+const { formatFiat } = await import('../lib/formatCurrency.ts');
 
 const WEB = path.resolve(import.meta.dirname, '..');
 

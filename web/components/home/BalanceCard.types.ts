@@ -10,4 +10,10 @@ export interface BalanceCardProps {
    * sentence instead — never zero, never a placeholder (see `BalanceNote`).
    */
   view: AuthStatus;
+  /**
+   * A swap from one of the token rows was recorded. Threaded straight through to the
+   * rows (#240): the figure above them is now stale, and the screen that owns the read
+   * is the only thing that can refresh it.
+   */
+  onSwapped?: () => void;
 }

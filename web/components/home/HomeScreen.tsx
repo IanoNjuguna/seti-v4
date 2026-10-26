@@ -54,7 +54,7 @@ export function HomeScreen() {
 
   return (
     <div className="flex flex-col gap-6 md:gap-8">
-      <BalanceCard data={data} view="signed-in" />
+      <BalanceCard data={data} view="signed-in" onSwapped={refetch} />
 
       <HomeActions />
 

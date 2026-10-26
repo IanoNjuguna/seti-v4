@@ -13,6 +13,7 @@
     "check:receipt": "tsx scripts/check-receipt.mjs",
     "check:asset-words": "node scripts/check-asset-words.mjs",
     "check:refusals": "tsx scripts/check-refusals.mjs",
+    "check:convert-swap": "tsx scripts/check-convert-swap.mjs",
     "check:choice-row": "node scripts/check-choice-row.mjs",
     "check:qr-plate": "tsx scripts/check-qr-plate.mjs",
     "check:profile-mark": "tsx scripts/check-profile-mark.mjs",

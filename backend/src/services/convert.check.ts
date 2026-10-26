@@ -4,7 +4,11 @@
  * Run with:  npx tsx src/services/convert.check.ts
  * (or `npm run check:convert` from the repo root.)
  *
- * Two halves, and the split is the point:
+ * Requires:  docker compose up -d  (the `seti-postgres` container) for the route
+ *            section, which authenticates through the development bypass and needs a
+ *            user row. The three sections before it need no database.
+ *
+ * Four halves, and the split is the point:
  *
  *  1. HERMETIC. Every refusal that must happen before the chain or the database
  *     is touched is asserted here with no Postgres, no wallet and no network —
@@ -15,22 +19,40 @@
  *     MEASURED for that pair (`PAR_BAND_BPS` below, with the date it was taken).
  *     This half is what fails if the venue changes shape, the precompile moves, or
  *     someone widens the allowlist to a pair with no orders.
+ *  3. THE AMOUNT RULE (`resolveConvertAmount`), pure: how much of a balance may be
+ *     signed, which is the balance less gas because Tempo charges the fee in the
+ *     token being spent. Signing the whole balance reverts on chain (#105).
+ *  4. THE QUOTE ROUTE, over HTTP with the real auth guard: the five refusals #240
+ *     names, each with its own code, plus one successful quote and the assertion
+ *     that asking wrote no row. The schema is where a refusal code is lost — a
+ *     `z.enum` for the assets answers 400 where the app expects
+ *     `convert-unknown-asset` — so the route is driven rather than described.
  *
- * What it deliberately does NOT do: sign, record, or write. There is no ledger in
- * this slice, so a suite that moved money to prove a quote would be proving the
- * wrong thing. The paired half of this work (record + receipt verification) gets
- * its own reconciliation against a real swap receipt when it lands.
+ * What it deliberately does NOT do: sign, record, or write. A quote is a read, and
+ * a suite that moved money to prove one would be proving the wrong thing. The
+ * record path is proved by `check:convert-record` against a real swap receipt.
  */
+import Fastify, { type FastifyInstance } from 'fastify';
+import { parseUnits } from 'viem';
 import {
+  CONVERT_AMOUNT_MAX,
   CONVERT_PAIRS,
+  CONVERT_ROW_TARGET,
   CONVERT_TOLERANCE_BPS,
   ConvertRefusalError,
   isAllowedPair,
   previewConvert,
   quoteDexConvert,
+  resolveConvertAmount,
+  type ConvertQuote,
 } from './convert.js';
-import { networkConfigFor, servedNetwork } from './chain.js';
-import { SUPPORTED_ASSETS } from '../config/assets.js';
+import { STABLECOIN_DEX_ADDRESS, networkConfigFor, servedNetwork } from './chain.js';
+import { ASSET_DECIMALS, SUPPORTED_ASSETS } from '../config/assets.js';
+import { readQuote } from './quote.js';
+import { SETTLE_TARGET } from './settlement.js';
+import { prisma } from '../lib/prisma.js';
+import { apiErrorHandler } from '../server.js';
+import { transactionRoutes } from '../routes/transactions.js';
 import type { Network } from '../lib/network.js';
 
 let total = 0;
@@ -149,6 +171,15 @@ async function main(): Promise<void> {
     NETWORK === 'testnet'
       ? isAllowedPair('usdt0', 'pathusd', NETWORK) === false
       : isAllowedPair('usdt0', 'pathusd', NETWORK) === true
+  );
+
+  // The destination a balance row offers is the destination settlement aims at, because
+  // it is one product decision made once (OUSD is the asset to hold). If one of them is
+  // changed alone, a customer's row and the settlement pass would hold different assets.
+  check(
+    'the row target and the settlement target are the same asset',
+    CONVERT_ROW_TARGET === SETTLE_TARGET,
+    `${CONVERT_ROW_TARGET} vs ${SETTLE_TARGET}`
   );
 
   // -------------------------------------------------------------------------
@@ -285,6 +316,260 @@ async function main(): Promise<void> {
     })
   );
   check('a size the book cannot fill is refused as no-liquidity', absurd === 'convert-no-liquidity', absurd);
+
+  // -------------------------------------------------------------------------
+  // (d) the amount a balance can actually swap — the money rule, no chain
+  // -------------------------------------------------------------------------
+  //
+  // Gas is charged in the token being spent on Tempo, so the amount that may be
+  // signed is the balance LESS the fee. Signing the whole balance reverts on chain
+  // with a perfectly good quote (#105), which is why this is decided on the server
+  // and proven here without a wallet.
+  console.log('\nwhat a balance can swap:');
+
+  const balance = parseUnits('10', ASSET_DECIMALS);
+  const gas = parseUnits('0.05', ASSET_DECIMALS);
+
+  const maxSwap = resolveConvertAmount({ amountIn: CONVERT_AMOUNT_MAX, balance, gas });
+  check(
+    `"max" is the balance less the network fee (10 - 0.05 = 9.95)`,
+    maxSwap.ok && maxSwap.amountIn === parseUnits('9.95', ASSET_DECIMALS),
+    maxSwap.ok ? String(maxSwap.amountIn) : maxSwap.code
+  );
+  check(
+    'and "MAX" in capitals is the same word, because a client may shout it',
+    resolveConvertAmount({ amountIn: 'MAX', balance, gas }).ok
+  );
+
+  const exactFit = resolveConvertAmount({
+    amountIn: '9.95',
+    balance,
+    gas,
+  });
+  check(
+    'the whole spendable balance is allowed, to the unit',
+    exactFit.ok && exactFit.amountIn === parseUnits('9.95', ASSET_DECIMALS),
+    exactFit.ok ? String(exactFit.amountIn) : exactFit.code
+  );
+
+  const noRoomForGas = resolveConvertAmount({ amountIn: '10', balance, gas });
+  check(
+    'an amount that leaves no room for the fee is insufficient, not signed and reverted',
+    !noRoomForGas.ok && noRoomForGas.code === 'convert-insufficient-balance',
+    noRoomForGas.ok ? 'accepted' : noRoomForGas.code
+  );
+
+  for (const [label, amount] of [
+    ['zero', '0'],
+    ['negative', '-5'],
+    ['non-numeric', 'lots'],
+    ['empty', ' '],
+    ['finer than the token carries', '1.0000001'],
+    ['scientific notation', '1e-3'],
+  ] as const) {
+    const result = resolveConvertAmount({ amountIn: amount, balance, gas });
+    check(
+      `an amount that is ${label} ("${amount}") is refused as convert-amount-invalid`,
+      !result.ok && result.code === 'convert-amount-invalid',
+      result.ok ? 'accepted' : result.code
+    );
+  }
+
+  check(
+    'a balance that the fee alone would consume cannot be swapped at all',
+    (() => {
+      const drained = resolveConvertAmount({
+        amountIn: CONVERT_AMOUNT_MAX,
+        balance: parseUnits('0.01', ASSET_DECIMALS),
+        gas,
+      });
+      return !drained.ok && drained.code === 'convert-insufficient-balance';
+    })()
+  );
+
+  // -------------------------------------------------------------------------
+  // (e) the quote route: the five refusals as CODES, over HTTP
+  // -------------------------------------------------------------------------
+  //
+  // Driven through the REAL route, with the real auth guard, because the schema is
+  // where a refusal code is lost: a `z.enum` for the assets would turn "dai" into a
+  // generic 400 before the service could answer, and only a request proves which
+  // one this route really says.
+  //
+  // The funded case needs a balance, and a check cannot sign a swap. So the fixture
+  // wallet points at the DEX CONTRACT, which holds a real balance of every token on
+  // both chains (measured on practice 2026-10-26: 50,536 OUSD, 75.3bn pathUSD). That
+  // address is protocol-owned and permanent, unlike a faucet drip to a stranger,
+  // which would make the suite's verdict depend on what happened to be funded that
+  // hour. No ledger row is ever written: a quote is a read.
+  console.log('\nquote route (POST /transactions/convert/quote):');
+
+  const app: FastifyInstance = Fastify();
+  app.setErrorHandler(apiErrorHandler);
+  await app.register(transactionRoutes, { prefix: '/transactions' });
+  await app.ready();
+
+  const ask = (body: Record<string, string>) =>
+    app.inject({
+      method: 'POST',
+      url: '/transactions/convert/quote',
+      payload: body as never,
+    });
+
+  /** The refusal CODE a response carried, or its status when it carried none. */
+  const codeOf = (response: { statusCode: number; body: string; json: <T>() => T }): string => {
+    const body = response.json<{ code?: string }>();
+    return body.code ?? `status-${response.statusCode}`;
+  };
+
+  const devUser = await prisma.user.upsert({
+    where: { email: 'dev@seti.test' },
+    update: {},
+    create: { email: 'dev@seti.test' },
+  });
+
+  // A leftover from a suite that crashed mid-run would silently change the balance
+  // this file measures, so the fixture is removed before it is created as well.
+  const clearFixture = () =>
+    prisma.wallet.deleteMany({ where: { userId: devUser.id, address: STABLECOIN_DEX_ADDRESS } });
+  await clearFixture();
+
+  const quotesBefore = await prisma.transaction.count({
+    where: { userId: devUser.id, type: 'convert' },
+  });
+
+  try {
+    const [pairIn, pairOut] = outsidePairs[0] ?? [listed[0], listed[1]];
+    const pairRefusal = await ask({ assetIn: pairIn, assetOut: pairOut, amountIn: '10' });
+    check(
+      `a listed pair with no market (${pairIn} → ${pairOut}) is refused as convert-pair-unavailable`,
+      pairRefusal.statusCode === 422 && codeOf(pairRefusal) === 'convert-pair-unavailable',
+      `${pairRefusal.statusCode} ${codeOf(pairRefusal)}`
+    );
+
+    const same = await ask({ assetIn: listed[0], assetOut: listed[0], amountIn: '10' });
+    check(
+      'the same asset in and out is refused as convert-same-asset',
+      same.statusCode === 422 && codeOf(same) === 'convert-same-asset',
+      `${same.statusCode} ${codeOf(same)}`
+    );
+
+    // The boundary is loose so this could answer at all: an enum here would say 400.
+    const unknown = await ask({ assetIn: 'dai', assetOut: 'ousd', amountIn: '10' });
+    check(
+      'an asset this product does not support is refused as convert-unknown-asset',
+      unknown.statusCode === 422 && codeOf(unknown) === 'convert-unknown-asset',
+      `${unknown.statusCode} ${codeOf(unknown)}`
+    );
+    if (foreign) {
+      const unlisted = await ask({ assetIn: foreign, assetOut: listed[0], amountIn: '10' });
+      check(
+        `an asset this network does not list (${foreign}) is refused as convert-unknown-asset`,
+        unlisted.statusCode === 422 && codeOf(unlisted) === 'convert-unknown-asset',
+        `${unlisted.statusCode} ${codeOf(unlisted)}`
+      );
+    }
+
+    for (const [label, amount] of [
+      ['a zero amount', '0'],
+      ['a non-numeric amount', 'lots'],
+      ['an amount finer than the token carries', '0.0000001'],
+      ['scientific notation, which is not an amount a person types', '1e5'],
+    ] as const) {
+      const response = await ask({ assetIn: listed[0], assetOut: listed[1], amountIn: amount });
+      check(
+        `${label} ("${amount}") is refused as convert-amount-invalid`,
+        response.statusCode === 422 && codeOf(response) === 'convert-amount-invalid',
+        `${response.statusCode} ${codeOf(response)}`
+      );
+    }
+
+    // More than any account on either chain could hold in this asset, so the refusal
+    // is about the balance and cannot accidentally be about the book.
+    const short = await ask({ assetIn: 'ousd', assetOut: 'pathusd', amountIn: '1000000000' });
+    check(
+      'an amount the balance cannot cover is refused as convert-insufficient-balance',
+      short.statusCode === 422 && codeOf(short) === 'convert-insufficient-balance',
+      `${short.statusCode} ${codeOf(short)}`
+    );
+
+    // ---- now with a balance to quote against ----
+    await prisma.wallet.create({
+      data: {
+        userId: devUser.id,
+        chain: 'tempo',
+        asset: 'pathusd',
+        address: STABLECOIN_DEX_ADDRESS,
+        network: NETWORK,
+        status: 'active',
+      },
+    });
+
+    const ok = await ask({ assetIn: 'ousd', assetOut: 'pathusd', amountIn: '10' });
+    const quoted = ok.statusCode === 200 ? ok.json<{ quote: ConvertQuote }>().quote : null;
+    check('a pair with a book quotes 200', ok.statusCode === 200, `${ok.statusCode} ${codeOf(ok)}`);
+
+    if (quoted) {
+      const out = parseUnits(quoted.amountOut, ASSET_DECIMALS);
+      const floor = parseUnits(quoted.minAmountOut, ASSET_DECIMALS);
+      check(
+        'the quote answers the amount in, the amount out and the floor',
+        quoted.amountIn === '10' && out > BigInt(0) && floor > BigInt(0),
+        `${quoted.amountIn} → ${quoted.amountOut}, floor ${quoted.minAmountOut}`
+      );
+      check(
+        `the floor is the quote less ${CONVERT_TOLERANCE_BPS}bps, exactly`,
+        floor === (out * BigInt(10_000 - CONVERT_TOLERANCE_BPS)) / BigInt(10_000) &&
+          quoted.toleranceBps === CONVERT_TOLERANCE_BPS,
+        `${quoted.minAmountOut} of ${quoted.amountOut}`
+      );
+      check(
+        'the network fee is a real figure in the input token, not a placeholder',
+        Number(quoted.networkFee) > 0 && Number(quoted.networkFee) < Number(quoted.amountIn),
+        `${quoted.networkFee} ${quoted.assetIn} (${quoted.networkFeeSource})`
+      );
+      check('the quote names the network it priced', quoted.network === NETWORK, quoted.network);
+      // The record path refuses a convert without a frozen rate, so the quote id has
+      // to be one `readQuote` accepts for THIS account on THIS network.
+      const frozen = readQuote(quoted.quoteId, devUser.id, NETWORK);
+      check(
+        'the quote id is a frozen rate this account can record with',
+        frozen.fiatPerUsd > 0,
+        `${frozen.fiatCurrency} at ${frozen.fiatPerUsd}`
+      );
+      const notYours = await (async () => {
+        try {
+          readQuote(quoted.quoteId, 'someone-else', NETWORK);
+          return 'accepted';
+        } catch (error) {
+          return (error as { code?: string }).code ?? 'unreadable';
+        }
+      })();
+      check('and it is not usable by another account', notYours === 'quote-not-yours', notYours);
+    }
+
+    // The whole balance is more than the book can fill: the DEX holds 75.3bn pathUSD
+    // against an OUSD inventory of ~50k, and `quoteSwapExactAmountIn` reverts rather
+    // than part-filling. This is the case that HIDES the control on a row.
+    const noBook = await ask({ assetIn: 'pathusd', assetOut: 'ousd', amountIn: 'max' });
+    check(
+      'a size the book cannot fill is refused as convert-no-liquidity',
+      noBook.statusCode === 422 && codeOf(noBook) === 'convert-no-liquidity',
+      `${noBook.statusCode} ${codeOf(noBook)}`
+    );
+  } finally {
+    await clearFixture();
+    await app.close();
+  }
+
+  const quotesAfter = await prisma.transaction.count({
+    where: { userId: devUser.id, type: 'convert' },
+  });
+  check(
+    'no quote wrote a row: asking what a swap would pay is a read',
+    quotesAfter === quotesBefore,
+    `${quotesBefore} → ${quotesAfter}`
+  );
 
   console.log('-'.repeat(74));
   console.log(
