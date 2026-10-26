@@ -254,6 +254,43 @@ jobs:
           echo "==> deploying $IMAGE_REF"
 
           # ---------------------------------------------------------------------
+          # 0. DISK, BEFORE THE PULL (#243). A host that cannot hold the new image
+          #    cannot deploy it, and the failure surfaces as "no space left on
+          #    device" halfway through extracting a layer — after a long pull, and
+          #    with nothing to act on. Pruning here means a deploy REPAIRS itself,
+          #    which matters because the box only accepts the CI deploy key: an
+          #    operator cannot log in to clean up.
+          #
+          #    VOLUMES ARE NEVER TOUCHED. The production database is a volume on
+          #    this host, and `docker system prune --volumes` would destroy it,
+          #    which is why neither of those appears below.
+          #
+          #    Unused IMAGES are safe to drop and are the thing that accumulates:
+          #    every merge to main pushes one. An image a container references is
+          #    not "unused", so the running release and anything a stopped
+          #    container still points at survive.
+          # ---------------------------------------------------------------------
+          echo "==> disk before:"
+          df -h / /var/lib/docker 2>/dev/null | tail -3 || df -h /
+          docker image prune -af || true
+          docker builder prune -af >/dev/null 2>&1 || true
+          # The journal is the other thing that grows without bound here. `-n` so a
+          # box without passwordless sudo skips it rather than waiting on a prompt.
+          sudo -n journalctl --vacuum-size=200M >/dev/null 2>&1 || true
+          echo "==> disk after:"
+          df -h / /var/lib/docker 2>/dev/null | tail -3 || df -h /
+
+          # A pull that cannot extract is a worse error than a preflight that says
+          # so, so this fails WHILE THE OLD CONTAINER IS STILL SERVING.
+          DISK_ROOT=/var/lib/docker
+          [ -d "$DISK_ROOT" ] || DISK_ROOT=/
+          AVAIL_KB="$(df --output=avail -k "$DISK_ROOT" | tail -1 | tr -d ' ')"
+          if [ "${AVAIL_KB:-0}" -lt 3145728 ]; then
+            echo "::error::less than 3 GiB free on $DISK_ROOT (${AVAIL_KB:-0} KiB avail). The existing container was NOT removed and is still serving. Free space on the host, then re-run this job."
+            exit 1
+          fi
+
+          # ---------------------------------------------------------------------
           # 1. PULL FIRST. This line is the fix for the outage: if it fails, the
           #    script exits here with the OLD container still running and still
           #    serving. Nothing below this point has touched it.
