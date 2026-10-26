@@ -1,4 +1,5 @@
 import type { HandleIdentity, HandleKind, HandleStatusPreview } from '@/lib/api';
+import type { EmbeddedWalletStatus } from './useEmbeddedWallet.types';
 
 /**
  * Steps a claim moves through.
@@ -67,4 +68,12 @@ export interface UseMerchantClaimReturn extends MerchantClaimState {
   preview: HandleStatusPreview | null;
   /** True while a preview for the current handle is in flight. */
   previewLoading: boolean;
+  /**
+   * Whether anything on this device can sign: `loading`, `ready` or `missing`.
+   *
+   * Read by the surfaces that ASK for a signature, so an option that cannot
+   * complete is never offered. The claim itself refuses before signing when this is
+   * not `ready`, which covers every caller including the ones that forgot to check.
+   */
+  walletStatus: EmbeddedWalletStatus;
 }
