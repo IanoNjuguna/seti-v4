@@ -10,7 +10,12 @@ export {
 } from './refusal.constants';
 export { API_BASE_URL } from './api.constants';
 export { fetchHomeDashboard } from './home';
-export type { HomeDashboard, RecentTransaction, RecentTransactionStatus } from './home.types';
+export type {
+  AssetBalanceRow,
+  HomeDashboard,
+  RecentTransaction,
+  RecentTransactionStatus,
+} from './home.types';
 export { fetchReceipt } from './receipt';
 export { mintReceiptLink } from './receipt-link';
 export type { ReceiptLink } from './receipt-link';

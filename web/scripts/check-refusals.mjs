@@ -52,6 +52,13 @@ import {
   REFUSALS_HEADING,
 } from '../app/components/landing/RefusalsSection.constants.ts';
 import { REFUSAL_BY_CODE, REFUSAL_UNKNOWN } from '../lib/api/refusal.constants.ts';
+import { COVERAGE_REFUSAL, pinAsset } from '../lib/pay/quote-asset.ts';
+import { TokenSelector } from '../components/token-selector/TokenSelector.tsx';
+import { TOKEN_SELECTOR_COPY } from '../components/token-selector/TokenSelector.constants.ts';
+import {
+  buildTokenSelector,
+  selectorLine,
+} from '../components/token-selector/token-selector.model.ts';
 import { MENU_LINKS, SEARCH_SECTIONS } from '../app/components/landing/LandingNav.constants.ts';
 
 const WEB = fileURLToPath(new URL('..', import.meta.url));
@@ -236,6 +243,131 @@ console.log('the wallet sentences a signature failure shows (#226):');
       /sign in again/i.test(REFUSAL_BY_CODE['wallet-create-failed'])
   );
 }
+
+console.log('the token selector: the same refusal, with the balance that can pay it (#228):');
+{
+  /**
+   * The state #223 made reachable and #228 made actionable: a pinned balance is
+   * short, and another balance covers. Rendered through the REAL component tree, so
+   * this is an assertion about what a customer reads rather than about a branch.
+   *
+   * The rows are the home payload's shape (#224): one per asset, each with its own
+   * value in the dashboard's currency. `priced` is null on the refused path, because
+   * a refused preview is not a preview.
+   */
+  const ROWS = [
+    { asset: 'ousd', symbol: 'OUSD', amount: '0.000000', value: '0.00' },
+    { asset: 'pathusd', symbol: 'pathUSD', amount: '4.500000', value: '4.50' },
+    { asset: 'usdt0', symbol: 'USDT0', amount: '1240.000000', value: '1240.00' },
+  ];
+
+  const model = (overrides = {}) =>
+    buildTokenSelector({
+      rows: ROWS,
+      currency: 'KES',
+      loading: false,
+      unavailable: false,
+      priced: null,
+      pinned: null,
+      offer: null,
+      ...overrides,
+    });
+
+  const render = (selector) =>
+    renderToStaticMarkup(createElement(TokenSelector, { model: selector, onChoose: () => {} }));
+
+  const sentence = REFUSAL_BY_CODE[COVERAGE_REFUSAL];
+
+  check(
+    'an unpinned quote carries NO asset, so the server still picks the row that covers',
+    Object.keys(pinAsset(null)).length === 0 && Object.keys(pinAsset(undefined)).length === 0,
+    `keys on the request: ${Object.keys(pinAsset(null)).join(',') || 'none'}`
+  );
+  check(
+    'a pinned quote carries exactly the chosen token, and nothing else',
+    JSON.stringify(pinAsset('usdt0')) === JSON.stringify({ asset: 'usdt0' }),
+    JSON.stringify(pinAsset('usdt0'))
+  );
+  check(
+    'an empty balance is not an option, because it cannot pay',
+    model().options.length === 2 && !model().options.some((option) => option.asset === 'ousd'),
+    model().options.map((option) => option.asset).join(',')
+  );
+  {
+    const priced = model({ priced: 'usdt0' });
+    const line = selectorLine(priced);
+    check(
+      'the default is the row that covers: the token the PRICE named, not one the UI picked',
+      priced.paying?.asset === 'usdt0' && line?.label === `Paying from USDT0`,
+      `${priced.paying?.asset} / ${line?.label}`
+    );
+    check(
+      'and the line holds what that balance holds, in the customer’s currency',
+      line?.detail === 'holds KES 1,240.00',
+      line?.detail
+    );
+    check(
+      'the price wins over the pin, so the token shown and the fee line can never disagree',
+      model({ priced: 'usdt0', pinned: 'pathusd' }).paying?.asset === 'usdt0'
+    );
+  }
+  {
+    const single = model({ rows: ROWS.filter((row) => row.asset === 'usdt0'), priced: 'usdt0' });
+    const html = render(single);
+    check(
+      'one funded balance costs no tap: it is a line, and there is no control to press',
+      single.choosable === false && !html.includes('<button') && html.includes('Paying from USDT0'),
+      `${single.choosable} / ${html.includes('<button')}`
+    );
+  }
+  {
+    const refused = model({ pinned: 'pathusd', offer: 'usdt0' });
+    const html = render(refused);
+    check(
+      'a pinned token that cannot cover renders #223’s sentence, the one the code owns',
+      refused.refusal?.sentence === sentence,
+      refused.refusal?.sentence
+    );
+    check(
+      'and offers the balance that CAN pay, in one tap',
+      refused.refusal?.offer?.asset === 'usdt0' && html.includes('Pay from USDT0'),
+      refused.refusal?.offer?.asset
+    );
+    check(
+      'the sentence is drawn once, and the way out is beside it',
+      html.split(sentence).length === 2 &&
+        html.indexOf(sentence) < html.indexOf('Pay from USDT0')
+    );
+    check(
+      'the refusal says nothing about a token of its own: the selector is the only place one is named',
+      !/\b(OUSD|USDC|USDC\.e|USDT0|USDT|pathUSD)\b/.test(sentence)
+    );
+  }
+  {
+    const spread = model({ pinned: 'pathusd' });
+    const html = render(spread);
+    check(
+      'when no single balance covers, nothing is offered: switching would only refuse again',
+      spread.refusal === null && !html.includes('Pay from'),
+      String(spread.refusal)
+    );
+  }
+  {
+    const failed = model({ unavailable: true });
+    check(
+      'a failed balance read is said in words, since the payment still prices without it',
+      render(failed).includes(TOKEN_SELECTOR_COPY.unavailable)
+    );
+  }
+  {
+    const paying = model({ priced: 'usdt0' });
+    check(
+      'the amount field never appears in this control: no figure but the balance’s own',
+      !render(paying).includes('Amount')
+    );
+  }
+}
+
 
 console.log('the sentences render, on the page, under the anchor they are linked by:');
 {

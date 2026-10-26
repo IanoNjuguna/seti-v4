@@ -1,8 +1,8 @@
 'use client';
 
-import { Input, StateMessage } from '@/components/ui';
-import { FeeQuote } from '@/components/money/FeeQuote';
+import { StateMessage } from '@/components/ui';
 import { MerchantCard } from './MerchantCard';
+import { MerchantAmountSection } from './MerchantAmountSection';
 import { MerchantPaySuccess } from './MerchantPaySuccess';
 import { PayActions } from './PayActions';
 import { PAY_STEP_COPY } from './Pay.constants';
@@ -10,8 +10,8 @@ import { merchantPayStepFlags } from './merchant-pay-step';
 import type { MerchantPayStepProps } from './MerchantPayStep.types';
 
 /**
- * The merchant payment itself: the card, the itemised quote, the Pay action and
- * the success screen.
+ * The merchant payment itself: the card, the amount and token choice, the itemised
+ * quote, the Pay action and the success screen.
  *
  * Note the amount input's currency label: it is the customer's own currency, and
  * the quote beside it is the server's answer. Nothing here prices anything.
@@ -34,22 +34,10 @@ export function MerchantPayStepBody({ payment, onCancel }: MerchantPayStepProps)
           wait instead of two, and nothing draws a surface around a sentence. */}
       <MerchantCard merchant={payment.merchant} resolving={payment.step === 'resolving'} />
 
-      <Input
-        label={PAY_STEP_COPY.amountLabel}
-        inputMode="decimal"
-        placeholder="0"
-        value={payment.amount}
-        onChange={(event) => payment.setAmount(event.target.value)}
-        error={amountError}
-        disabled={payment.isBusy}
-      />
-
-      <FeeQuote
-        preview={payment.preview}
-        loading={payment.previewLoading || payment.step === 'previewing'}
-        tone="light"
-        subject="payment"
-      />
+      {/* The amount, then which balance pays it, then the price of that answer.
+          The selector lives inside the section because it is what the fee line is
+          a function of (#228); see `MerchantAmountSection`. */}
+      <MerchantAmountSection payment={payment} amountError={amountError} />
 
       {blockError ? (
         <StateMessage

@@ -26,3 +26,10 @@ export interface MerchantPaySuccessProps {
   /** The payment that landed — its quote and merchant name are the receipt. */
   payment: UsePayMerchantReturn;
 }
+
+/** What the amount section draws: the payment, and the message the field carries. */
+export interface MerchantAmountSectionProps {
+  payment: UsePayMerchantReturn;
+  /** The field's own error — only a balance problem belongs there. */
+  amountError: string | undefined;
+}
