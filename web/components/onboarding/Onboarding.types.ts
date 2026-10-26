@@ -1,7 +1,11 @@
 import type { AccountIntent } from '@/lib/api';
 import type { ClaimFailure } from '@/components/merchant/Claim.error';
-import type { EmbeddedWalletStatus } from '@/hooks/useEmbeddedWallet.types';
+import type {
+  EmbeddedWalletStatus,
+  WalletRepairFailureCode,
+} from '@/hooks/useEmbeddedWallet.types';
 import type { UseMerchantClaimReturn } from '@/hooks/useMerchantClaim.types';
+import type { WalletRepairState } from './intent-wallet';
 
 /**
  * The wizard's steps. `done` is not stored — it is derived from the claim having
@@ -14,6 +18,22 @@ export interface UseOnboardingReturn {
   step: OnboardingStep;
   /** The claim this wizard runs — the SAME hook and form `/app/merchant` uses. */
   claim: UseMerchantClaimReturn;
+  /**
+   * The embedded wallet, as this page needs it: whether anything can sign, and
+   * whether it can be fixed HERE.
+   *
+   * Read from its own instance of `useEmbeddedWallet` rather than threaded through
+   * the claim, because the repair is the wizard's offer and not the claim's: a
+   * claim cannot create a wallet, and the step that renders the failure is this
+   * one.
+   */
+  wallet: {
+    status: EmbeddedWalletStatus;
+    repairing: boolean;
+    failureCode: WalletRepairFailureCode | null;
+    canRepair: boolean;
+    repair: () => Promise<void>;
+  };
   /** Which intent is currently signing, so the right option can show it. */
   pending: AccountIntent | null;
   /** Move from the name to the intent step. */
@@ -59,13 +79,35 @@ export interface OnboardingIntentProps {
    * account came to be told its name was wrong.
    */
   walletStatus: EmbeddedWalletStatus;
+  /**
+   * What the repair can do about a missing wallet, and why it may have stopped
+   * being offered. A decision input, not a cosy prop: see `intent-wallet.ts`.
+   */
+  walletRepair: WalletRepairState;
   onChoose: (intent: AccountIntent) => void;
+  /**
+   * Put a wallet on this device WITHOUT signing out — the first offer on a device
+   * with no wallet, and the one control that fixes the state in place.
+   */
+  onRepair: () => void;
   /**
    * Leave for `/signin` and come back with a wallet.
    *
-   * Offered only for `wallet-missing`, the one refusal that pressing the same
-   * control cannot fix.
+   * Since #226 the FALLBACK rather than the only control for `wallet-missing`: a
+   * sign-in ends the session and costs an emailed code, so it is offered beside the
+   * repair and alone only once the repair has failed.
    */
+  onSignIn: () => void;
+}
+
+/** The repair controls, as one component renders them. */
+export interface WalletRepairActionProps {
+  /** Whether the repair is worth offering, which it is not once it has failed. */
+  showRepair: boolean;
+  /** Whether the sign-in is a way out of this state. */
+  showSignIn: boolean;
+  repairing: boolean;
+  onRepair: () => void;
   onSignIn: () => void;
 }
 

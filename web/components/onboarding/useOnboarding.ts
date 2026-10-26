@@ -7,6 +7,7 @@ import type { AccountIntent } from '@/lib/api';
 import { HANDLE_KIND_FOR_INTENT, useAccountIdentity } from '@/lib/account';
 import { useSession } from '@/lib/auth';
 import { useMerchantClaim } from '@/hooks/useMerchantClaim';
+import { useEmbeddedWallet } from '@/hooks/useEmbeddedWallet';
 import { SIGN_IN_PATH } from '@/lib/routes';
 import { APP_HOME_PATH } from '@/components/app/AppGate.constants';
 import type { OnboardingStep, UseOnboardingReturn } from './Onboarding.types';
@@ -38,6 +39,15 @@ export function useOnboarding(): UseOnboardingReturn {
   const account = useAccountIdentity();
   const router = useRouter();
   const claim = useMerchantClaim();
+  /**
+   * The wallet, read directly rather than through the claim.
+   *
+   * The repair is this page's offer, not the claim's: `claim.claim` can only refuse
+   * when nothing can sign, and nothing in the claim path may create a key. One more
+   * instance of the hook is the shape the rest of the app already uses
+   * (`usePayMerchant`, `useSave`, `useSendPanel` each read it for themselves).
+   */
+  const wallet = useEmbeddedWallet();
 
   const [requested, setRequested] = useState<OnboardingStep>('username');
   const [pending, setPending] = useState<AccountIntent | null>(null);
@@ -93,10 +103,14 @@ export function useOnboarding(): UseOnboardingReturn {
   /**
    * End the session and go back to the front door.
    *
-   * This is the answer to `wallet-missing` and to nothing else. Every other refusal
-   * is fixable on this page; a device with no embedded wallet is not, and a retry
-   * there is a button that lies. Signing out is what re-runs wallet creation on the
-   * next sign-in (`createOnLogin: 'users-without-wallets'`).
+   * Since #226 this is the FALLBACK for `wallet-missing`, not the answer to it. The
+   * app can put a wallet on this device without ending the session — resolve the
+   * account's registered address, ask Privy for its user again, create one only if
+   * the account holds none (`useEmbeddedWallet.repair`) — and a sign-out costs an
+   * emailed code to fix something one call could have fixed.
+   *
+   * It stays reachable, and it is the only control left once a repair has already
+   * failed: a second press of the same failing call is a button that lies.
    */
   const signInAgain = useCallback(async () => {
     await session.signOut();
@@ -115,5 +129,21 @@ export function useOnboarding(): UseOnboardingReturn {
         ? 'done'
         : requested;
 
-  return { step, claim, pending, toIntent, choose, finish, finishing, signInAgain };
+  return {
+    step,
+    claim,
+    wallet: {
+      status: wallet.status,
+      repairing: wallet.repairing,
+      failureCode: wallet.repairFailure,
+      canRepair: wallet.canRepair,
+      repair: wallet.repair,
+    },
+    pending,
+    toIntent,
+    choose,
+    finish,
+    finishing,
+    signInAgain,
+  };
 }

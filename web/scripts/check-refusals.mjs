@@ -202,6 +202,41 @@ console.log('the sentence a payment gives before any signature (#223):');
   check('the backend declares the code that renders this sentence', taxonomy.includes(`'${code}'`));
 }
 
+console.log('the wallet sentences a signature failure shows (#226):');
+{
+  // None of these is on the landing page, so the band's rules above do not reach
+  // them. The last one is new with #226: setting a wallet up in place used to fail
+  // into an empty catch, and the person got the same sentence about a wallet that
+  // was never coming. Failure copy is held to the same voice as the promises,
+  // because it is read at the worst possible moment.
+  const walletCodes = [
+    'wallet-missing',
+    'wallet-signing-failed',
+    'wallet-not-ready',
+    'wallet-create-failed',
+  ];
+  const walletSentences = walletCodes.map((code) => REFUSAL_BY_CODE[code]);
+
+  check(
+    'every wallet state has a sentence of its own',
+    walletSentences.every((line) => typeof line === 'string' && line !== REFUSAL_UNKNOWN && line.length > 40)
+  );
+  check('no two wallet states say the same thing', new Set(walletSentences).size === walletCodes.length);
+  check('no em dash and no en dash standing in for one', !walletSentences.some((line) => /[—–]/.test(line)));
+  check('no exclamation mark', !walletSentences.some((line) => line.includes('!')));
+  check('no question mark', !walletSentences.some((line) => line.includes('?')));
+  check(
+    'no stablecoin name where a customer is looking',
+    !walletSentences.some((line) => /\b(OUSD|USDC|USDC\.e|USDT0|USDT|pathUSD)\b/i.test(line))
+  );
+  check('every one of them says nothing was claimed', walletSentences.every((line) => /nothing was claimed/i.test(line)));
+  check(
+    'the failed set-up says what failed and what to do next',
+    /failed/i.test(REFUSAL_BY_CODE['wallet-create-failed']) &&
+      /sign in again/i.test(REFUSAL_BY_CODE['wallet-create-failed'])
+  );
+}
+
 console.log('the sentences render, on the page, under the anchor they are linked by:');
 {
   const html = renderToStaticMarkup(createElement(RefusalsSection));

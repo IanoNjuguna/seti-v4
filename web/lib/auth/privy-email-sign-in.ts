@@ -99,9 +99,19 @@ function usePrivyEmailSignInImpl(): PrivyEmailSignIn {
    * hold the key, and `wallet-registry.ts` records what minting wallets server-side
    * cost — a second wallet nobody could spend from.
    *
-   * A failure is swallowed on purpose. The verify that follows answers with the
-   * sentence a customer can act on ("Sign in again so the app can create one"),
-   * and failing the login here would replace it with a generic error.
+   * ## A failure is no longer swallowed (#226)
+   *
+   * It used to be, and the reason is worth keeping in view: the verify that follows
+   * answers with the sentence a customer can act on, and failing the login here
+   * would replace it with a generic error. That argument holds for the SENTENCE and
+   * not for the EVIDENCE — so the sentence still comes from verify, and the cause is
+   * now written down once. Before this, creation could fail and the console said
+   * nothing at all, which is how a person looped back through the same code field
+   * with no artefact anywhere to say why.
+   *
+   * The wallet this creates is still only reachable here for the moment of sign-in;
+   * from then on the app resolves the account's own registered address instead
+   * (`lib/auth/account-wallet.ts`), so nothing depends on this ref surviving.
    */
   const ensureEmbeddedWallet = useCallback(async (): Promise<void> => {
     const existing = walletsRef.current.find((wallet) => wallet.walletClientType === 'privy');
@@ -110,9 +120,13 @@ function usePrivyEmailSignInImpl(): PrivyEmailSignIn {
     try {
       const wallet = await createWallet();
       createdAddressRef.current = wallet.address;
-    } catch {
-      // Left to the verify call to report: an account that ends up walletless gets
-      // the backend's own sentence, which is more useful than this stack.
+    } catch (error) {
+      // Once, and with the cause: a create that fails leaves the account walletless
+      // on this device, and the log line is the only record of why.
+      console.error(
+        '[auth] could not create an embedded wallet during sign-in:',
+        (error as Error | null)?.message ?? error
+      );
     }
   }, [createWallet]);
 

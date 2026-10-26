@@ -59,8 +59,19 @@ export const ONBOARDING_COPY = {
    * where a device without an embedded wallet gets one. The heading over a failed
    * claim is the claim's own (`Claim.constants.ts` → `errorTitle`), never a sentence
    * naming the name, because the name is often not what failed.
+   *
+   * Since #226 it is the FALLBACK rather than the first offer: `setUpWallet` gets a
+   * wallet onto this device without ending the session, and signing out is kept for
+   * the case where that has already been tried.
    */
   signInAgain: 'Sign in again',
+  /**
+   * The first offer on a wallet-less device: repair it here, in place.
+   *
+   * Two to four words, and it names the thing rather than the mechanism: the person
+   * wants a wallet, not a "refresh".
+   */
+  setUpWallet: 'Set up my wallet',
   finish: 'Go to Seti',
   finishing: 'Opening Seti…',
   /** Shown when a finished account reaches the wizard — no second name to claim. */

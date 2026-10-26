@@ -59,6 +59,12 @@ export const REFUSAL_BY_CODE: Record<string, string> = {
   // A person with no wallet that can sign, and a person whose wallet refused, need
   // different next steps, and the first cannot be fixed by pressing the same
   // button: that is why only one of them offers a retry anywhere.
+  //
+  // The sentence names a sign-in because that is the fix on every surface that
+  // renders it. Onboarding can do better and says so with its own control
+  // ("Set up my wallet", `components/onboarding/WalletRepairAction.tsx`), which is
+  // offered FIRST there; it does not need its own copy of this sentence to do that,
+  // because the meaning has not changed — there is still nothing here that signs.
   'wallet-missing':
     'There is no wallet on this device that can sign, so nothing was claimed. Sign in again to set one up.',
   'wallet-signing-failed':
@@ -67,6 +73,14 @@ export const REFUSAL_BY_CODE: Record<string, string> = {
   // honest thing to say is that pressing it again in a moment is fine.
   'wallet-not-ready':
     'Your wallet is still getting ready, so nothing was claimed. Try again in a moment.',
+  // Setting a wallet up IN PLACE failed (`useEmbeddedWallet` → `repair`). This is
+  // the one wallet failure whose cause is the app's own action rather than the
+  // device's state, so it says that and then names the fallback — pressing "set up
+  // my wallet" again would repeat the same failing call, which is why the surface
+  // stops offering it. Before #226 the cause was swallowed by an empty catch and
+  // the person saw the same sentence about a wallet that was never coming.
+  'wallet-create-failed':
+    'Setting up a wallet on this device failed, so nothing was claimed. Sign in again and Seti will create one when you do.',
 
   // A takedown acts on a NAME, not on money: these are the operator's refusals,
   // and they read as such.
