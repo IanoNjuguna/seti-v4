@@ -41,11 +41,11 @@ const ALLOWED = new Map([
   ['app/layout.tsx', 'page metadata keywords for search, never rendered'],
   [
     'components/receipt/Receipt.constants.ts',
-    'the receipt\'s symbol map, which the receipt UI must stop rendering (follow-up)',
+    'the receipt\'s symbol map: the one surface that names the token that moved (#238)',
   ],
   [
     'components/receipt/receipt.format.ts',
-    'the comment explaining how a stored label is printed (follow-up)',
+    'the comment explaining how a stored label is printed',
   ],
 ]);
 
