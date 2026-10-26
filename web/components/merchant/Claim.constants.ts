@@ -25,7 +25,8 @@ import type { ClaimCopy } from './ClaimForm.types';
  * free, not the mechanism that makes it free. And no sentence carries an em dash;
  * the two that did now end their clause and start the next instruction.
  */
-const RULE_HINT = "2–64 characters: letters, digits, spaces and . , ' & ( ) - _ +";
+const RULE_HINT =
+  'Your link keeps 2 to 24 letters, numbers, periods and underscores. Anything else is left out.';
 
 export const BUSINESS_CLAIM_COPY: ClaimCopy = {
   title: 'Claim a business name',
