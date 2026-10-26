@@ -80,6 +80,14 @@ export const REFUSAL_BY_CODE: Record<string, string> = {
   'no-active-wallet':
     'This account has no wallet for that token yet. Add money, then try again.',
   'insufficient-funds': 'Not enough to cover this payment. Add money, then try again.',
+  // Nothing is signed when the payment cannot come from ONE balance: the money is
+  // there, and a payment still spends a single asset (#223). So this sentence must
+  // not say "not enough" — that was true of the account and false of the figure
+  // beside it, which is the bug. It says where the money is instead, in the
+  // customer's currency and never in a token's name, because the screen shows the
+  // customer's currency: a balance is a balance, not a stablecoin.
+  'no-single-asset-covers':
+    'Your money is in more than one balance, and a payment can only come from a single one. Pay a smaller amount, or add money to one balance.',
   'merchant-no-payout-address': 'This merchant has no payout address yet, so it cannot be paid.',
   'send-requires-batch':
     'Sending is not available in this configuration, and nothing left your wallet.',

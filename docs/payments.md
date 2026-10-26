@@ -48,6 +48,23 @@ Every *response* field, by contrast, is in stablecoin units except the ones name
 Sign `total`. Signing `amount` underpays the merchant by the fee and the server
 will reject it as an amount mismatch — which is the intended failure.
 
+## Which asset pays
+
+Omit `asset` and the server picks one that can fund the amount on this network,
+preferring OUSD. Name one and it is honoured, but only if that asset alone covers
+the gross.
+
+A payment still spends **one** asset, so a preview that cannot name one is refused
+with `422 { "code": "no-single-asset-covers" }` **before anything is signed**: the
+`asset` you named holds less than the gross while another balance could cover it,
+or no single balance covers it and only their sum does. The server does not switch
+assets under you; a silent switch would have you sign a transfer denominated in a
+token you never chose.
+
+`hasEnoughBalance: false` is the different case and is not a refusal: there the
+account cannot afford the amount at all, the preview is still priced, and the
+customer is told they are short in their own currency.
+
 ## Fee semantics
 
 The fee is **attributed to the merchant but funded by the customer**: the customer
