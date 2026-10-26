@@ -19,6 +19,7 @@
     "check:pay-charge": "tsx scripts/check-pay-charge.mjs",
     "check:pay-states": "tsx scripts/check-pay-states.mjs",
     "check:claim-states": "tsx scripts/check-claim-states.mjs",
+    "check:pay-flags": "tsx scripts/check-pay-flags.mjs",
     "check:pay-tiers": "tsx scripts/check-pay-tiers.mjs",
     "check:activity-bands": "tsx scripts/check-activity-bands.mjs",
     "check:activity-retry": "tsx scripts/check-activity-retry.mjs",
