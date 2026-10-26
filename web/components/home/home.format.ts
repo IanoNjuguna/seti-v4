@@ -39,6 +39,34 @@ export function formatDelta(delta: number): string {
 }
 
 /**
+ * An asset's own units: `120.00`, `0.000027`. Two decimals at least, six at most.
+ *
+ * NO UNIT IS PRINTED BESIDE IT, deliberately. The row that prints this number carries
+ * the asset's name on the line above it, so `OUSD` / `120.00` already reads as one
+ * hundred and twenty OUSD, and repeating the name would set the same word twice in a
+ * 312px-wide card. This is why the function takes no asset, unlike the receipt's
+ * `formatAssetAmount`.
+ *
+ * The decimals come from the amount rather than a fixed two: a balance can genuinely
+ * be six figures of a token's smallest unit, and rounding `0.000027` to `0.00` prints
+ * money the customer holds as money they do not. A figure that cannot be read as a
+ * number is printed as it arrived — a blank where the ledger has a value is the one
+ * answer that is certainly wrong.
+ */
+export function formatAssetUnits(amount: string | undefined): string {
+  const value = Number(amount);
+
+  if (!Number.isFinite(value)) {
+    return amount ?? '';
+  }
+
+  return new Intl.NumberFormat('en-KE', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 6,
+  }).format(value);
+}
+
+/**
  * Shorten an address for display: `0x1234…abcd`.
  *
  * Only for prose. Never build a transfer from this — the full address is the
