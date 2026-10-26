@@ -1,9 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ApiError, refusalMessage } from '@/lib/api';
+import { ApiError, refusalMessage, refusalMessageFor } from '@/lib/api';
 import { claimHandle } from '@/lib/api/handles';
 import { fetchHandleStatus } from '@/lib/api/handles';
+import { reportClaimFailure } from '@/lib/claim/classify-claim-error';
 import { merchantHandle } from '@/lib/merchant-link';
 import { signHandleClaim } from '@/lib/pay/sign-handle-claim';
 import { useEmbeddedWallet } from './useEmbeddedWallet';
@@ -31,18 +32,27 @@ function toError(error: unknown): {
   code: string | null;
   requestId: string | null;
 } {
-  return {
-    message: refusalMessage(error, 'claim'),
-    code: errorCode(error),
-    // The server's correlation id, when the failure came from the server. It is
-    // what makes a reported sentence findable in the log.
-    requestId: error instanceof ApiError ? (error.requestId ?? null) : null,
-  };
-}
+  // A refusal means the server saw the claim and said no. Its code selects the
+  // sentence, and its request id is what finds the log line behind it.
+  if (error instanceof ApiError) {
+    return {
+      message: refusalMessage(error, 'claim'),
+      code: error.code ?? null,
+      // The server's correlation id, when the failure came from the server. It is
+      // what makes a reported sentence findable in the log.
+      requestId: error.requestId ?? null,
+    };
+  }
 
-/** The machine-readable refusal code, when the server sent one. */
-function errorCode(error: unknown): string | null {
-  return error instanceof ApiError ? (error.code ?? null) : null;
+  // No server answered, so the failure is the wallet's, and the wallet's own words
+  // never reach a customer. `classifyClaimError` decides which of the two shapes it
+  // is and writes the cause down: a claim that dies before the request leaves no
+  // row, no log line and no request id, so the console entry is the only evidence
+  // that will exist. This used to be the generic "Nothing was claimed. Try again."
+  // for every one of these, which read as a bad name and taught nobody anything.
+  const code = reportClaimFailure(error);
+
+  return { message: refusalMessageFor(code), code, requestId: null };
 }
 
 /**

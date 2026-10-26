@@ -53,6 +53,17 @@ export const REFUSAL_BY_CODE: Record<string, string> = {
   'purpose-mismatch': 'Your wallet signed for a different action. Try again.',
   'invalid-issued-at': 'Your wallet’s signature timestamp was rejected. Try signing again.',
 
+  // --- the signature that never happened ----------------------------------
+  // Both are reachable BEFORE any request: `lib/claim/classify-claim-error.ts`
+  // decides which one, and both used to read as "Nothing was claimed. Try again."
+  // A person with no wallet that can sign, and a person whose wallet refused, need
+  // different next steps, and the first cannot be fixed by pressing the same
+  // button: that is why only one of them offers a retry anywhere.
+  'wallet-missing':
+    'There is no wallet on this device that can sign, so nothing was claimed. Sign in again to set one up.',
+  'wallet-signing-failed':
+    'Your wallet did not sign the claim, so nothing was claimed. Try again, and allow the request if your wallet asks.',
+
   // A takedown acts on a NAME, not on money: these are the operator's refusals,
   // and they read as such.
   'handle-not-found': 'No name matches that handle. Nothing was changed.',
