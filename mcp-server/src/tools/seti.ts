@@ -162,24 +162,57 @@ export function registerSetiTools(server: McpServer): string[] {
   );
   registered.push('seti_get_transaction_status');
 
+  /**
+   * The balance read, which is `GET /users/:id/home` (#248).
+   *
+   * There is no `/users/:id/balance` route in `backend/src/routes/users.ts`, and there
+   * never was: this tool called one, so it could only ever answer 404, and docs
+   * described the same imaginary route. The home read is where the figure lives — the
+   * total and the per-asset rows are produced together by one chain read, so it is the
+   * only call that can answer "what do I have" without inventing a second figure.
+   *
+   * Three fields are kept and the rest of the home payload is dropped. `balance` is the
+   * whole balance in the customer's currency and is the SUM of the rows; a payment does
+   * NOT check it, because a payment needs one asset to cover the gross (the preview's
+   * `hasEnoughBalance` is that verdict). So the rows travel with the total rather than
+   * being summarised away: an agent told only "129554.70 KES" would conclude a 100 KES
+   * payment is affordable from an account whose spendable OUSD is zero. The dropped
+   * `monthToDateDelta` is a hardcoded placeholder, and `recentTransactions` has its own
+   * tool — returning either from a balance read would be a figure an agent can act on
+   * that nothing computed.
+   */
   server.registerTool(
     'seti_get_balance',
     {
       title: 'Get a wallet balance',
       description:
-        'Read the on-chain balance the Seti API reports for a user, in the payment asset. This is the ' +
-        'same figure the payment preview checks against the gross.',
+        "Read a user's money: the total in their own currency, plus one row per asset the " +
+        "network lists with that asset's amount and its value in that currency. `balance` is the " +
+        'SUM of the rows and is NOT the figure a payment checks — a payment needs a single asset ' +
+        'to cover the gross, so read `assets[].amount` for that, and treat seti_preview_payment ' +
+        "`hasEnoughBalance` as the authority. Zeros are rows: an asset the user does not hold " +
+        'still arrives with a zero amount, and a failed chain read reports 0.00 in `value` and ' +
+        '`balance` too, so a zero is not proof of an empty wallet. The id must be the token\'s own ' +
+        "account; another user's id is refused 403.",
       inputSchema: {
-        userId: z.string().describe('The Seti user id.'),
+        userId: z.string().describe('The Seti user id of the authenticated account.'),
       },
     },
     async ({ userId }) => {
       try {
-        const result = await setiRequest<unknown>({
+        const result = await setiRequest<{
+          balance: string;
+          currency: string;
+          assets: unknown[];
+        }>({
           method: 'GET',
-          path: `/users/${encodeURIComponent(userId)}/balance`,
+          path: `/users/${encodeURIComponent(userId)}/home`,
         });
-        return toolJson(result);
+        return toolJson({
+          balance: result.balance,
+          currency: result.currency,
+          assets: result.assets,
+        });
       } catch (error) {
         return toolError(error);
       }

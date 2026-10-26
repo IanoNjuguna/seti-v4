@@ -74,7 +74,7 @@ call (`"network": "mainnet"`) or via `TEMPO_CHAIN_ID=4217`.
 | `seti_resolve_merchant` | yes | Resolve a Seti QR payload to a merchant record. |
 | `seti_preview_payment` | yes | The server-computed fee, FX, gross and balance sufficiency. |
 | `seti_get_transaction_status` | yes | Status, tx hash and settlement timestamps. |
-| `seti_get_balance` | yes | The balance the API reports for a user. |
+| `seti_get_balance` | yes | The total in the customer's currency plus one row per asset, because the total is the sum and a payment needs one asset to cover it. |
 | `seti_list_transactions` | yes | Recent transactions, newest first. |
 | `seti_record_payment` | yes, **writes** | Record a settled payment. Registered only with `SETI_MCP_ALLOW_WRITES=true`. |
 
