@@ -1,6 +1,7 @@
 import type { ReceiptDocument, ReceiptLeg } from '@/lib/api';
 import { RECEIPT_COPY, RECEIPT_GENERIC_PAYEE, RECEIPT_MISSING_FIGURE } from './Receipt.constants';
 import {
+  assetName,
   formatAssetAmount,
   formatFiatValue,
   formatReceiptDateTime,
@@ -35,6 +36,33 @@ function assetFigure(receipt: ReceiptDocument): string {
   return leg
     ? formatAssetAmount(leg.amount, leg.asset)
     : formatAssetAmount(receipt.total.amount, receipt.total.asset);
+}
+
+/**
+ * The token that actually moved, or null when the document names none (#238).
+ *
+ * The payment leg is the transfer the customer made or received; `total` is the
+ * same token for the whole transaction and is only the fallback for a document
+ * whose legs carry none. A row written before the asset was recorded has neither,
+ * and null is what keeps that receipt rendering exactly as it did before the token
+ * was shown at all.
+ */
+function movedAsset(receipt: ReceiptDocument): string | null {
+  const asset = paymentLeg(receipt)?.asset ?? receipt.total.asset;
+  const trimmed = typeof asset === 'string' ? asset.trim() : '';
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+/**
+ * The line under the figure that names the token: `in USDT0`.
+ *
+ * Only when the figure is a fiat one. When it is not, the figure IS the token
+ * amount (`10,000.00 pathUSD`) and naming it again would print the symbol twice —
+ * so the token is named exactly once on every card, and never invented for a row
+ * that did not record one.
+ */
+function assetLineFor(asset: string | null): string | null {
+  return asset === null ? null : `${RECEIPT_COPY.assetPrefix} ${assetName(asset)}`;
 }
 
 /**
@@ -113,6 +141,10 @@ export function deriveReceiptCard(
     word: inbound ? RECEIPT_COPY.received : RECEIPT_COPY.paid,
     figure: fiat ?? assetFigure(receipt),
     currency: fiat === null ? null : currency,
+    // The token that moved, under a fiat figure. Absent — never a dash, never the
+    // word "undefined" — when the row recorded no asset or the figure already names
+    // one, so a legacy receipt reads exactly as it did before this line existed.
+    assetLine: fiat === null ? null : assetLineFor(movedAsset(receipt)),
     party: party(receipt),
     dateTime: formatReceiptDateTime(receipt.timestamp),
     status: {
@@ -147,6 +179,7 @@ export function buildReceiptText(receipt: ReceiptDocument, fallbackCurrency: str
     '',
     card.word,
     card.figure,
+    ...(card.assetLine ? [card.assetLine] : []),
     '',
     card.party.label,
     card.party.address,

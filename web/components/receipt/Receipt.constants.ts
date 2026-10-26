@@ -56,6 +56,12 @@ export const RECEIPT_COPY = {
   /* The one word above the figure: what the money did, from the customer's side. */
   paid: 'Paid',
   received: 'Received',
+  /**
+   * The way the figure is introduced when the next line names the token (#238):
+   * `in USDT0`. A preposition, not a label — a bare symbol under `KES 500.00`
+   * reads as if the two were the same thing, and "from" is only true one way round.
+   */
+  assetPrefix: 'in',
   /* The other side of the payment, when the document carries no name for them. */
   payeeFallback: 'the recipient',
   payerFallback: 'the sender',

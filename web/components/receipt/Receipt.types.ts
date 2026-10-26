@@ -32,6 +32,15 @@ export interface ReceiptCard {
   figure: string;
   /** The currency the figure is in, or null when it is a token amount. */
   currency: string | null;
+  /**
+   * The token that moved, as the line under the figure: `in USDT0`.
+   *
+   * Null in the two cases where a token line would be a lie or a repetition: the
+   * row recorded no asset, or the figure is already the token amount and so
+   * already names it. A card with no asset renders exactly as it did before this
+   * line existed.
+   */
+  assetLine: string | null;
   party: ReceiptParty;
   /** Date and time, on one line. */
   dateTime: string;
@@ -108,6 +117,12 @@ export interface UseReceiptLinkReturn {
 export interface ReceiptFigureProps {
   word: string;
   figure: string;
+  /**
+   * The token the money moved in, or null when there is none to name. Optional so
+   * a card built before #238 still type-checks; when it is null nothing is drawn
+   * and the header is exactly the word and the figure.
+   */
+  assetLine?: string | null;
   /** The dialog's accessible name points at the figure — it IS the receipt. */
   titleId: string;
 }
