@@ -12,13 +12,9 @@ import type { BalanceFigureProps } from './BalanceFigure.types';
 /**
  * The balance itself and the control that hides it.
  *
- * ONE figure, and there is deliberately no breakdown under it yet. While the account
- * settled into OUSD in the background, which token held the money was housekeeping
- * rather than information: a customer who holds KES 4,800 wants to know they hold
- * KES 4,800, and a disclosure listing OUSD, USDC.e and pathUSD turned that answer into
- * a crypto question with four parts. That settlement no longer runs (#222) — a bridged
- * balance stays bridged until the customer moves it — so the rows the API already
- * returns are the next surface's job, not this card's.
+ * ONE figure, and the breakdown under it is a SIBLING, not a part of this file: that is
+ * `BalanceTokens`, which owns the argument for showing the rows at all (#227). This file
+ * stays the total, and carries the `id` the check compares the rows against.
  *
  * The figure is EXACT and pinned to one line. It used to compact at a million
  * ("KES 4.8M"), which put a rounded figure where spendable money belongs and
@@ -34,9 +30,9 @@ import type { BalanceFigureProps } from './BalanceFigure.types';
  * app shell rather than here: held in this component it un-hid itself the moment a
  * customer tapped Pay and came back (#135).
  *
- * THE MOTION is the mask's (`MaskedAmount`): 160ms opacity, no movement, no reflow.
- * The glyph swaps on `--duration-instant` underneath, because the eye is a state
- * indicator and the fade of the number is what carries the change.
+ * THE MOTION is the mask's (`MaskedAmount`): 160ms opacity, no movement, no reflow. The
+ * glyph swaps on `--duration-instant` underneath: the eye is the indicator, the fade the
+ * change.
  */
 export function BalanceFigure({ data }: BalanceFigureProps) {
   const { hidden, toggle } = useAmountPrivacy();
@@ -54,7 +50,7 @@ export function BalanceFigure({ data }: BalanceFigureProps) {
 
         <div className="mt-2">
           <MaskedAmount hidden={hidden} variant={balanceVariant} color="inverse">
-            <Text variant={balanceVariant} tabular as="span" color="inverse" className="whitespace-nowrap">
+            <Text id="balance-figure" variant={balanceVariant} tabular as="span" color="inverse" className="whitespace-nowrap">
               {figure}
             </Text>
           </MaskedAmount>

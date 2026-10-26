@@ -2,6 +2,7 @@
 
 import { BalanceFigure } from './BalanceFigure';
 import { BalanceNote } from './BalanceNote';
+import { BalanceTokens } from './BalanceTokens';
 import type { BalanceCardProps } from './BalanceCard.types';
 
 /**
@@ -20,10 +21,15 @@ import type { BalanceCardProps } from './BalanceCard.types';
  * what the layer is positioned against.
  *
  * The card is the SURFACE and one of two bodies, which is the whole of this
- * file: a confirmed account gets its figure (`BalanceFigure`), everybody else
- * gets one sentence where the figure would be (`BalanceNote`). Splitting the
- * body out is what keeps the dark surface, the label and the place on the screen
- * identical in both — a visitor is shown the product, not a different card.
+ * file: a confirmed account gets its figure (`BalanceFigure`) and, under it, what that
+ * figure is made of (`BalanceTokens`); everybody else gets one sentence where the
+ * figure would be (`BalanceNote`). Splitting the body out is what keeps the dark
+ * surface, the label and the place on the screen identical in both — a visitor is shown
+ * the product, not a different card.
+ *
+ * The list is a SIBLING of the figure rather than a prop of it, because the figure is
+ * the sentence and the rows are the composition: one owns the label and the eye, the
+ * other owns the breakdown. Both inside this surface, so the card reads as one object.
  *
  * One thing, the balance. Pay and Receive — and the panels they open — are the two
  * buttons below, each on a page of its own. A hero that is also a menu is neither.
@@ -35,7 +41,14 @@ export function BalanceCard({ data, view }: BalanceCardProps) {
       className="relative overflow-hidden rounded-md bg-canvas-dark p-6 text-on-dark sm:p-8"
     >
       <div aria-hidden="true" className="surface-grain" />
-      {view === 'signed-in' ? <BalanceFigure data={data} /> : <BalanceNote view={view} />}
+      {view === 'signed-in' ? (
+        <>
+          <BalanceFigure data={data} />
+          <BalanceTokens assets={data?.assets} currency={data?.currency} />
+        </>
+      ) : (
+        <BalanceNote view={view} />
+      )}
     </section>
   );
 }
