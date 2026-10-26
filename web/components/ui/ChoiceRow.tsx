@@ -25,6 +25,7 @@ export function ChoiceRow({
   detail,
   onSelect,
   disabled,
+  selected = false,
   showChevron = false,
   className,
 }: ChoiceRowProps) {
@@ -33,7 +34,8 @@ export function ChoiceRow({
       type="button"
       onClick={onSelect}
       disabled={disabled}
-      className={cn(CHOICE_ROW_CLASS, className)}
+      aria-pressed={selected}
+      className={cn(CHOICE_ROW_CLASS, selected && 'border-ink bg-surface-soft', className)}
     >
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <Text as="span" variant="button">
@@ -46,7 +48,11 @@ export function ChoiceRow({
         ) : null}
       </span>
 
-      {showChevron ? (
+      {selected ? (
+        <span aria-hidden className="flex shrink-0 items-center self-center">
+          <Icon name="check" className="h-4 w-4 text-ink" />
+        </span>
+      ) : showChevron ? (
         <span aria-hidden className="flex shrink-0 items-center self-center">
           <Icon name="chevronRight" className="h-4 w-4 text-mute" />
         </span>
