@@ -21,7 +21,7 @@ import type { ActivityDayGroupProps } from './Activity.types';
  * (`HomeMerchants`).
  *
  * The rows rise 4px and settle, staggered 24ms and capped at six
- * (`app/app/motion.css`): the one thing a ledger list has to communicate is that
+ * (`app/(product)/app/motion.css`): the one thing a ledger list has to communicate is that
  * it is arriving, and that it ends. Because the animation lives on the `<li>` and
  * React keys them by transaction id, appending a page animates only the rows that
  * are new — the ones already read do not replay. Reduced motion makes the rows

@@ -51,7 +51,7 @@ export interface PaySuccessProps {
  *     money is entitled to verify it.
  *  3. **Nothing here counts up or re-plays.** The figure is rendered, not
  *     animated; the only motion is the check, once, on mount
- *     (`app/app/motion.css`, `--duration-slow`) — the single deliberate moment
+ *     (`app/(product)/app/motion.css`, `--duration-slow`) — the single deliberate moment
  *     `design/motion.md` reserves for the whole product. It is `transform` and
  *     `opacity`, it never re-runs on a re-render, and reduced motion shows it
  *     plainly.

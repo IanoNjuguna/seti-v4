@@ -70,7 +70,7 @@ console.log('every money figure on Home consults the flag:');
 
 console.log('the flag lives in the shell, and is not stored:');
 {
-  const layout = read('app/app/layout.tsx');
+  const layout = read('app/(product)/app/layout.tsx');
   check('the provider is mounted in the app layout', layout.includes('AmountPrivacyProvider'));
 
   const context = read('lib/privacy/amount-privacy.context.tsx');

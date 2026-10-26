@@ -5,7 +5,7 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 /**
  * Whether the money on screen is hidden, for the SESSION.
  *
- * Mounted once in `web/app/app/layout.tsx`, so the flag survives client-side
+ * Mounted once in `web/app/(product)/app/layout.tsx`, so the flag survives client-side
  * navigation between `/app` routes and resets on a reload. Nothing is written to
  * storage: the privacy notice states that no such preference is stored, and reading
  * one during render would differ between the server's markup and the client's.
