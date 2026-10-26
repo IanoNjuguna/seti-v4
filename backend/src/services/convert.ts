@@ -76,6 +76,30 @@ export const CONVERT_PAIRS: Record<Network, ReadonlyArray<readonly [SupportedAss
   testnet: [['ousd', 'pathusd']],
 };
 
+/**
+ * The word a client sends instead of a figure, meaning "everything this balance
+ * can spend on this swap".
+ *
+ * It exists because the amount a swap can actually SPEND is not the balance: gas
+ * is charged in the input token on Tempo, so a swap of the whole balance reverts
+ * on chain having spent nothing (found the hard way in #105, and the reason
+ * `planSettlement` deducts the fee before quoting). That subtraction is a money
+ * rule, so it belongs on the server; a client that did it itself would be
+ * computing an amount from UI state, and the two would drift.
+ */
+export const CONVERT_AMOUNT_MAX = 'max';
+
+/**
+ * What a swap offered from a BALANCE ROW converts into.
+ *
+ * OUSD is the asset to hold (see `SETTLE_TARGET` in `settlement.ts`, which is the
+ * same decision made for the same reason), so a row offers "turn this into OUSD"
+ * and never a pair picker. The ROUTE is general — any allowed pair, either
+ * direction — because a general route is what the ledger verifies; this constant
+ * only decides what the one control on a row asks for.
+ */
+export const CONVERT_ROW_TARGET: SupportedAsset = 'ousd';
+
 /** Why a convert cannot be quoted. Every one of these is a 422, not a 500. */
 export type ConvertFailureCode =
   | 'convert-amount-invalid'
@@ -142,6 +166,35 @@ function requireAsset(value: string, target: Network): SupportedAsset {
     );
   }
   return asset;
+}
+
+/**
+ * The two pair gates, in one place.
+ *
+ * `previewConvert` (an amount in the customer's currency) and `quoteConvert` (an
+ * amount in the input token's own units) are two doors into the same book, and the
+ * refusals behind them must not be able to drift: a pair one of them offers is
+ * offered by both, or a surface could show a swap the record path refuses.
+ */
+function assertConvertible(
+  assetIn: SupportedAsset,
+  assetOut: SupportedAsset,
+  target: Network
+): void {
+  if (assetIn === assetOut) {
+    throw new ConvertRefusalError(
+      'convert-same-asset',
+      `Both sides are ${assetIn}. Pick a different asset to convert into.`
+    );
+  }
+
+  if (!isAllowedPair(assetIn, assetOut, target)) {
+    throw new ConvertRefusalError(
+      'convert-pair-unavailable',
+      `No market for ${assetIn} → ${assetOut} on ${target}. ` +
+        `Available here: ${CONVERT_PAIRS[target].map(([a, b]) => `${a}↔${b}`).join(', ')}.`
+    );
+  }
 }
 
 /**
@@ -260,20 +313,7 @@ export async function previewConvert(input: ConvertPreviewInput): Promise<Conver
   const assetIn = requireAsset(input.assetIn, target);
   const assetOut = requireAsset(input.assetOut, target);
 
-  if (assetIn === assetOut) {
-    throw new ConvertRefusalError(
-      'convert-same-asset',
-      `Both sides are ${assetIn}. Pick a different asset to convert into.`
-    );
-  }
-
-  if (!isAllowedPair(assetIn, assetOut, target)) {
-    throw new ConvertRefusalError(
-      'convert-pair-unavailable',
-      `No market for ${assetIn} → ${assetOut} on ${target}. ` +
-        `Available here: ${CONVERT_PAIRS[target].map(([a, b]) => `${a}↔${b}`).join(', ')}.`
-    );
-  }
+  assertConvertible(assetIn, assetOut, target);
 
   const fiatCurrency = await resolveUserFiat(input.userId);
   const fx = await getFxQuote(fiatCurrency);
@@ -329,6 +369,252 @@ export async function previewConvert(input: ConvertPreviewInput): Promise<Conver
     fxRateStale: fx.stale,
     hasEnoughBalance,
     networkFeeFiat,
+    networkFeeSource: estimate.source,
+    quoteId,
+  };
+}
+
+/** A decimal figure and nothing else. `max` is handled before this is reached. */
+const DECIMAL_AMOUNT = /^\d+(\.\d+)?$/;
+
+/**
+ * The whole number and the fractional part, so the decimals can be counted.
+ *
+ * `parseUnits` is not enough on its own: it accepts more decimals than the token
+ * carries and TRUNCATES them, which would price an amount the customer did not
+ * type. One more decimal than the token has is a refusal, not a rounding.
+ */
+const DECIMAL_PARTS = /^(\d+)(?:\.(\d+))?$/;
+
+export interface ConvertAmountInput {
+  /** A decimal figure in the input token's own units, or {@link CONVERT_AMOUNT_MAX}. */
+  amountIn: string;
+  /** On-chain balance in the input token, in its own smallest units. */
+  balance: bigint;
+  /**
+   * The gas this swap will cost, in the input token's smallest units.
+   *
+   * Tempo charges gas in the token being spent, so the amount a balance can swap
+   * is `balance - gas`. Signing the whole balance reverts — with a perfectly good
+   * quote, and nothing in the logs but the revert (#105).
+   */
+  gas: bigint;
+}
+
+export type ConvertAmountResult =
+  | { ok: true; amountIn: bigint }
+  | { ok: false; code: ConvertFailureCode; message: string };
+
+/**
+ * What this balance can actually swap, or why it cannot.
+ *
+ * Pure, and separate from `quoteConvert` on purpose: this is the money rule — how
+ * much may be signed — and it has three ways to be wrong that all cost a customer
+ * a failed transaction. Proving it needs no chain, no database and no user.
+ *
+ *  - zero, negative, non-numeric or finer-than-decimals is `convert-amount-invalid`;
+ *  - `max` is the balance less gas, and a balance consumed by gas is
+ *    `convert-insufficient-balance` rather than a swap of nothing;
+ *  - anything that leaves no room for gas is also insufficient, because the
+ *    transaction would revert after the customer approved it.
+ */
+export function resolveConvertAmount(input: ConvertAmountInput): ConvertAmountResult {
+  const raw = input.amountIn.trim();
+
+  let amountIn: bigint;
+
+  if (raw.toLowerCase() === CONVERT_AMOUNT_MAX) {
+    // Gas is charged in this same token, so a balance that gas alone would eat has
+    // nothing to swap — and swapping "everything" here would revert on chain.
+    if (input.balance <= input.gas) {
+      return {
+        ok: false,
+        code: 'convert-insufficient-balance',
+        message: 'This balance does not cover the network fee, so there is nothing left to swap.',
+      };
+    }
+    amountIn = input.balance - input.gas;
+  } else {
+    const parts = DECIMAL_PARTS.exec(raw);
+    if (!parts) {
+      return {
+        ok: false,
+        code: 'convert-amount-invalid',
+        message: `"${input.amountIn}" is not an amount. Enter a figure, such as 10 or 10.50, or "max".`,
+      };
+    }
+
+    // More decimals than the token has: rounding them would move an amount the
+    // customer did not type, so it is refused instead of truncated.
+    if ((parts[2] ?? '').length > ASSET_DECIMALS) {
+      return {
+        ok: false,
+        code: 'convert-amount-invalid',
+        message: `"${input.amountIn}" has more decimal places than this token carries.`,
+      };
+    }
+
+    amountIn = parseUnits(raw, ASSET_DECIMALS);
+  }
+
+  if (amountIn <= BigInt(0)) {
+    return {
+      ok: false,
+      code: 'convert-amount-invalid',
+      message: 'Amount must be more than zero',
+    };
+  }
+
+  if (amountIn + input.gas > input.balance) {
+    return {
+      ok: false,
+      code: 'convert-insufficient-balance',
+      message: `This balance cannot cover ${input.amountIn} plus the network fee. Try a smaller amount.`,
+    };
+  }
+
+  return { ok: true, amountIn };
+}
+
+export interface ConvertQuoteInput {
+  userId: string;
+  /** The network the ACCOUNT is acting on. Decides the tokens, the pair list and the book. */
+  network?: Network;
+  /** Both sides named: a convert is a pair, and neither side is the server's to pick. */
+  assetIn: string;
+  assetOut: string;
+  /** The input amount in `assetIn`'s OWN units, or {@link CONVERT_AMOUNT_MAX}. */
+  amountIn: string;
+}
+
+export interface ConvertQuote {
+  network: Network;
+  assetIn: SupportedAsset;
+  assetOut: SupportedAsset;
+  /** What leaves the wallet, in `assetIn` units. */
+  amountIn: string;
+  /** What the book says arrives, in `assetOut` units. */
+  amountOut: string;
+  /** The floor to sign: the quote less {@link CONVERT_TOLERANCE_BPS}. */
+  minAmountOut: string;
+  toleranceBps: number;
+  /**
+   * Gas for the swap, in `assetIn` units — the asset the sender pays it in.
+   *
+   * Shown, and never signed: `amountIn` above is the entire amount that leaves,
+   * and gas rides on top of it out of the same balance.
+   */
+  networkFee: string;
+  fiatCurrency: string;
+  /** What `amountIn` is worth at the frozen rate. */
+  fiatAmountIn: string;
+  /** What the floor is worth, at the same rate. */
+  fiatAmountOut: string;
+  fxRate: string;
+  fxRateSource: string;
+  fxRateStale: boolean;
+  networkFeeFiat: string;
+  networkFeeSource: 'estimate' | 'reserve';
+  /** Signed frozen rate. The record path writes the ledger from THIS rate. */
+  quoteId: string;
+}
+
+/**
+ * Quote one swap for one account, from an amount in the INPUT TOKEN's units.
+ *
+ * This is the door a customer opens by choosing, and `previewConvert` is the door
+ * an amount in their own currency opens. They are separate because the figures are
+ * in different unit spaces: a token row holds `12.4023 USDC.e`, and converting that
+ * through a fiat rate and back would price an amount nobody typed, then fail on a
+ * balance that does cover what they asked for.
+ *
+ * ORDER OF OPERATIONS, and it is deliberate: every refusal that needs no chain read
+ * happens first, so a request that would be refused anyway costs nothing. Then the
+ * balance — a LOCAL fact about this account, checked before the book so a customer
+ * short of money is told that, rather than being told the book is empty. The book
+ * is asked LAST, and its refusal is `convert-no-liquidity`: a fact about the book
+ * at this size, at this moment, which is the answer that hides the control.
+ *
+ * Nothing is signed and nothing is written here. The quote id is a RATE promise the
+ * record path demands, and the amount is verified off the receipt afterwards —
+ * `recordConvert` still decides whether a row may exist.
+ */
+export async function quoteConvert(input: ConvertQuoteInput): Promise<ConvertQuote> {
+  const target = normalizeNetwork(input.network, servedNetwork);
+
+  // The shape of the amount, before anything is looked up: 'max' is the only word
+  // that survives to the balance step.
+  const raw = input.amountIn.trim();
+  const wantsMax = raw.toLowerCase() === CONVERT_AMOUNT_MAX;
+  if (!wantsMax && !DECIMAL_AMOUNT.test(raw)) {
+    throw new ConvertRefusalError(
+      'convert-amount-invalid',
+      `"${input.amountIn}" is not an amount. Enter a figure, such as 10 or 10.50, or "max".`
+    );
+  }
+
+  const assetIn = requireAsset(input.assetIn, target);
+  const assetOut = requireAsset(input.assetOut, target);
+
+  assertConvertible(assetIn, assetOut, target);
+
+  const fiatCurrency = await resolveUserFiat(input.userId);
+  const fx = await getFxQuote(fiatCurrency);
+  const fiatPerUsd = fx.fiatPerUsd;
+
+  // Gas first, because it decides how much of the balance is spendable, then the
+  // balance. Both are read on the network this quote is FOR rather than the one
+  // this process serves, for the same reason `previewConvert` does.
+  const estimate = await estimateNetworkFee(assetIn, target);
+  const gasInAsset = parseUnits(estimate.feeAsset, ASSET_DECIMALS);
+  const { balance } = await getUserBalance(input.userId, assetIn, target);
+  const balanceUnits = parseUnits(balance, ASSET_DECIMALS);
+
+  const resolved = resolveConvertAmount({
+    amountIn: wantsMax ? CONVERT_AMOUNT_MAX : raw,
+    balance: balanceUnits,
+    gas: gasInAsset,
+  });
+
+  if (!resolved.ok) {
+    throw new ConvertRefusalError(resolved.code, resolved.message);
+  }
+
+  const { amountIn } = resolved;
+
+  // The book. A revert here is the book's answer about this size, not a failure.
+  const { amountOut, minAmountOut } = await quoteDexConvert({
+    assetIn,
+    assetOut,
+    amountIn,
+    network: target,
+  });
+
+  const quoteId = issueQuote({
+    userId: input.userId,
+    fiatCurrency,
+    fiatPerUsd,
+    source: fx.source,
+    asOf: fx.asOf,
+    network: target,
+  });
+
+  return {
+    network: target,
+    assetIn,
+    assetOut,
+    amountIn: formatUnits(amountIn, ASSET_DECIMALS),
+    amountOut: formatUnits(amountOut, ASSET_DECIMALS),
+    minAmountOut: formatUnits(minAmountOut, ASSET_DECIMALS),
+    toleranceBps: CONVERT_TOLERANCE_BPS,
+    networkFee: estimate.feeAsset,
+    fiatCurrency,
+    fiatAmountIn: (Number(formatUnits(amountIn, ASSET_DECIMALS)) * fiatPerUsd).toFixed(2),
+    fiatAmountOut: (Number(formatUnits(minAmountOut, ASSET_DECIMALS)) * fiatPerUsd).toFixed(2),
+    fxRate: fx.fiatPerUsd.toString(),
+    fxRateSource: fx.source,
+    fxRateStale: fx.stale,
+    networkFeeFiat: (Number(estimate.feeAsset) * fiatPerUsd).toFixed(2),
     networkFeeSource: estimate.source,
     quoteId,
   };
