@@ -14,6 +14,17 @@ import type { TempoCall } from './build-transfer.types';
 export const STABLECOIN_DEX_ADDRESS: Address = '0xdec0000000000000000000000000000000000000';
 
 /**
+ * What the control on a balance row converts INTO.
+ *
+ * OUSD is the asset to hold, and that decision is made once: the backend's
+ * `CONVERT_ROW_TARGET` names the same one for the same reason (see
+ * `backend/src/services/convert.ts`, and `SETTLE_TARGET` in `settlement.ts`). The
+ * route is general — any allowed pair, either direction — but a row offers one
+ * action, not a pair picker.
+ */
+export const SWAP_TARGET_ASSET: SupportedAsset = 'ousd';
+
+/**
  * The one function settlement calls: "spend exactly `amountIn`, take no less than
  * `minAmountOut`".
  *
@@ -37,21 +48,22 @@ const STABLECOIN_DEX_SWAP_ABI = [
 ] as const;
 
 /**
- * The call settlement signs: ONE swap, with the server's floor in the calldata.
+ * The call a swap signs: ONE swap, with the server's floor in the calldata.
  *
  * Pure, so the decision about what gets signed is readable without a wallet. Both
- * figures come from the settlement plan — never from UI state, because there is no
- * UI: this runs while the customer has the app open and sees nothing.
+ * figures come from the server's quote — never from UI state, and never recomputed
+ * here from a balance: `amountIn` is what the quote priced and `minAmountOut` is the
+ * floor the customer was shown, so a book that moves between the quote and the
+ * signature reverts the transaction and the money stays in the wallet.
  *
- * The floor travelling INTO the calldata is the whole safety argument. If the book
- * moves between the plan and the signature, the transaction reverts and the
- * customer keeps their money; the alternative — signing an unbounded swap in the
- * background — is exactly the kind of convenience that loses someone's balance.
+ * The floor travelling INTO the calldata is the whole safety argument. Both callers
+ * need it for their own reason: the settlement pass has no UI and could sign anything
+ * if a planner mispriced, and the row control is a tap the customer has just made.
  *
- * A zero floor is refused here rather than trusted from upstream: an unbounded
- * background swap must not be reachable by a bug in the planner.
+ * A zero floor is refused here rather than trusted from upstream: an unbounded swap
+ * must not be reachable by a bug in either caller.
  */
-export function buildSettlementCall(input: {
+export function buildSwapCall(input: {
   assetIn: SupportedAsset;
   assetOut: SupportedAsset;
   amountIn: string;
@@ -85,4 +97,21 @@ export function buildSettlementCall(input: {
     }),
     value: BigInt(0),
   };
+}
+
+/**
+ * The settlement pass's name for the same call.
+ *
+ * One builder, two callers, so a swap signed by the background pass and a swap signed
+ * by the control on a row are the same bytes — the difference between them is only
+ * who decided, and what they decided it for.
+ */
+export function buildSettlementCall(input: {
+  assetIn: SupportedAsset;
+  assetOut: SupportedAsset;
+  amountIn: string;
+  minAmountOut: string;
+  network: Network;
+}): TempoCall {
+  return buildSwapCall(input);
 }

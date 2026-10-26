@@ -4,6 +4,10 @@
  * Run with:  npx tsx src/services/convert.check.ts
  * (or `npm run check:convert` from the repo root.)
  *
+ * Requires:  docker compose up -d  (the `seti-postgres` container) for the route
+ *            section, which authenticates through the development bypass and needs a
+ *            user row. The three sections before it need no database.
+ *
  * Four halves, and the split is the point:
  *
  *  1. HERMETIC. Every refusal that must happen before the chain or the database
@@ -33,6 +37,7 @@ import { parseUnits } from 'viem';
 import {
   CONVERT_AMOUNT_MAX,
   CONVERT_PAIRS,
+  CONVERT_ROW_TARGET,
   CONVERT_TOLERANCE_BPS,
   ConvertRefusalError,
   isAllowedPair,
@@ -44,6 +49,7 @@ import {
 import { STABLECOIN_DEX_ADDRESS, networkConfigFor, servedNetwork } from './chain.js';
 import { ASSET_DECIMALS, SUPPORTED_ASSETS } from '../config/assets.js';
 import { readQuote } from './quote.js';
+import { SETTLE_TARGET } from './settlement.js';
 import { prisma } from '../lib/prisma.js';
 import { apiErrorHandler } from '../server.js';
 import { transactionRoutes } from '../routes/transactions.js';
@@ -165,6 +171,15 @@ async function main(): Promise<void> {
     NETWORK === 'testnet'
       ? isAllowedPair('usdt0', 'pathusd', NETWORK) === false
       : isAllowedPair('usdt0', 'pathusd', NETWORK) === true
+  );
+
+  // The destination a balance row offers is the destination settlement aims at, because
+  // it is one product decision made once (OUSD is the asset to hold). If one of them is
+  // changed alone, a customer's row and the settlement pass would hold different assets.
+  check(
+    'the row target and the settlement target are the same asset',
+    CONVERT_ROW_TARGET === SETTLE_TARGET,
+    `${CONVERT_ROW_TARGET} vs ${SETTLE_TARGET}`
   );
 
   // -------------------------------------------------------------------------

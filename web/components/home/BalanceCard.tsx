@@ -34,7 +34,7 @@ import type { BalanceCardProps } from './BalanceCard.types';
  * One thing, the balance. Pay and Receive — and the panels they open — are the two
  * buttons below, each on a page of its own. A hero that is also a menu is neither.
  */
-export function BalanceCard({ data, view }: BalanceCardProps) {
+export function BalanceCard({ data, view, onSwapped }: BalanceCardProps) {
   return (
     <section
       aria-labelledby="balance-heading"
@@ -44,7 +44,7 @@ export function BalanceCard({ data, view }: BalanceCardProps) {
       {view === 'signed-in' ? (
         <>
           <BalanceFigure data={data} />
-          <BalanceTokens assets={data?.assets} currency={data?.currency} />
+          <BalanceTokens assets={data?.assets} currency={data?.currency} onSwapped={onSwapped} />
         </>
       ) : (
         <BalanceNote view={view} />

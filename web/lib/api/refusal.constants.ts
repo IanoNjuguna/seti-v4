@@ -147,6 +147,29 @@ export const REFUSAL_BY_CODE: Record<string, string> = {
   'fee-leg-unverified':
     'The fee transfer could not be verified on-chain, so nothing was recorded. Check your wallet before paying again.',
 
+  // --- a swap, before and after the signature (#240) ----------------------
+  // The five ways a convert quote is refused, plus the two ways its receipt is. These
+  // are read in a token row and in its confirm step, where a customer is one tap from
+  // signing, so each says whether anything moved: the quote refusals moved nothing, the
+  // receipt refusals did and could not be written up. None of them names a stablecoin,
+  // because the row's name is already on screen beside the sentence.
+  'convert-amount-invalid':
+    'You entered an amount this balance cannot swap. Enter a figure again, or swap the whole balance.',
+  'convert-unknown-asset':
+    'You cannot swap that balance in this build. Reload the page and try again.',
+  'convert-same-asset':
+    'You picked the same balance on both sides, so nothing would move. Start the swap again.',
+  'convert-pair-unavailable':
+    'You cannot swap between those two balances, so nothing was swapped.',
+  'convert-no-liquidity':
+    'There is no market for your swap at this size right now. Nothing was swapped. Try a smaller amount later.',
+  'convert-insufficient-balance':
+    'Your balance cannot cover the swap plus the network fee. Try a smaller amount.',
+  'convert-leg-unverified':
+    'The swap could not be verified on-chain, so nothing was recorded. Check your balance before trying again.',
+  'convert-below-floor':
+    'The swap paid less than the figure you approved, so nothing was recorded. Check your balance before trying again.',
+
   // --- account, session, configuration ------------------------------------
   unauthorized: 'Your session has ended. Sign in again to continue.',
   'bad-request': 'Something about that request was incomplete. Check the details and try again.',

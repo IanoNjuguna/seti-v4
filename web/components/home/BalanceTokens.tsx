@@ -31,7 +31,7 @@ import type { BalanceTokensProps } from './BalanceTokens.types';
  * The hairline is `hairline-dark`, the system's own divider inside a dark region: it
  * separates the total from its parts without drawing a second surface inside the card.
  */
-export function BalanceTokens({ assets, currency }: BalanceTokensProps) {
+export function BalanceTokens({ assets, currency, onSwapped }: BalanceTokensProps) {
   const rows = useBalanceTokens(assets);
 
   if (rows.length === 0 || !currency) return null;
@@ -44,7 +44,7 @@ export function BalanceTokens({ assets, currency }: BalanceTokensProps) {
 
       <ul className="mt-1 flex flex-col">
         {rows.map((row) => (
-          <BalanceTokenRow key={row.asset} row={row} currency={currency} />
+          <BalanceTokenRow key={row.asset} row={row} currency={currency} onSwapped={onSwapped} />
         ))}
       </ul>
     </div>
