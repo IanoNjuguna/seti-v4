@@ -1,14 +1,14 @@
 import { tempoChain } from '@/lib/chain';
 import type { HandleKind } from '@/lib/api/handles.types';
 import type {
+  BuildHandleClaimInput,
   HandleClaimMessage,
+  HandleClaimTypes,
   HandleClaimTypedData,
-  SignHandleClaimInput,
-  SignHandleClaimResult,
 } from './sign-handle-claim.types';
 
 /**
- * The handle claim, signed as EIP-712 typed data.
+ * The handle claim's BYTES — EIP-712 typed data, built here and signed elsewhere.
  *
  * ## Why typed data and not a plain personal_sign
  *
@@ -32,6 +32,17 @@ import type {
  * field order and field types. A signature over a different domain recovers to a
  * different address and the backend refuses it — which is the correct, safe
  * failure, but it means these two files move together.
+ *
+ * ## Why the SIGNING is not in this file
+ *
+ * It used to be: `wallet.getEthereumProvider()` and a hand-rolled
+ * `eth_signTypedData_v4`. That made the claim the last signer in the app on a raw
+ * EIP-1193 provider, while every payment goes through Privy's hooks, and it is why
+ * a new account could not claim a name at all: inside Privy's embedded provider
+ * that request fails in at least six different places, each a plain `Error` with no
+ * code, all of them landing in one catch. `useSignHandleClaim` signs through
+ * Privy's own `useSignTypedData` instead, and this module keeps the bytes, which is
+ * the part that must never change.
  *
  * ## Not a transaction
  *
@@ -60,7 +71,7 @@ export const HANDLE_CLAIM_TYPES = {
     { name: 'issuedAt', type: 'string' },
     { name: 'nonce', type: 'string' },
   ],
-} as const;
+} satisfies HandleClaimTypes;
 
 export function buildHandleClaim(message: HandleClaimMessage): HandleClaimTypedData {
   return {
@@ -97,10 +108,14 @@ export function normalizeHandleName(name: string): string {
   return name.trim().replace(/\s+/g, ' ');
 }
 
-export async function signHandleClaim(
-  input: SignHandleClaimInput
-): Promise<SignHandleClaimResult> {
-  const message: HandleClaimMessage = {
+/**
+ * The message a claim signs, with the one-time fields filled in.
+ *
+ * The ONLY place those fields are decided. Signing takes this message as given, so
+ * what the wallet covers and what the app posts back cannot drift apart.
+ */
+export function buildHandleClaimMessage(input: BuildHandleClaimInput): HandleClaimMessage {
+  return {
     // Normalised BEFORE signing: the signature must cover exactly the string the
     // backend will store and re-derive from.
     name: normalizeHandleName(input.name),
@@ -110,19 +125,4 @@ export async function signHandleClaim(
     issuedAt: new Date().toISOString(),
     nonce: claimNonce(),
   };
-
-  const signature = (await input.provider.request({
-    method: 'eth_signTypedData_v4',
-    // EIP-1193 form: [address, serialised typed data]. `types` deliberately omits
-    // EIP712Domain — the wallet derives it from `domain`, and shipping our own
-    // copy is what makes some wallets reject the request outright. Signature
-    // requests are not transactions: this does not broadcast anything.
-    params: [input.address, JSON.stringify(buildHandleClaim(message))],
-  })) as string;
-
-  if (!signature || typeof signature !== 'string') {
-    throw new Error('The wallet returned no signature for the claim.');
-  }
-
-  return { message, signature };
 }

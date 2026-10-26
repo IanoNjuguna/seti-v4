@@ -17,6 +17,13 @@ import type { IntentOptionProps } from './Onboarding.types';
  * The description is wired with `aria-describedby` so the label a screen reader
  * announces carries the consequence ("your link is seti.live/m/<name>") and not
  * just the word "Business" — which is the part the person is choosing between.
+ *
+ * ## `disabled` is not "busy"
+ *
+ * `busy` means "a signature is in flight"; `disabled` means "there is nothing on
+ * this device that can sign, so this control cannot complete". Both stop the tap,
+ * and only one of them is temporary — which is why the caller says which, and why
+ * the reason is rendered beside the options rather than hidden in an attribute.
  */
 export function IntentOption({
   intent,
@@ -25,6 +32,7 @@ export function IntentOption({
   action,
   pending,
   busy,
+  disabled = false,
   onChoose,
 }: IntentOptionProps) {
   const descriptionId = useId();
@@ -34,7 +42,7 @@ export function IntentOption({
     <button
       type="button"
       onClick={() => onChoose(intent)}
-      disabled={busy}
+      disabled={busy || disabled}
       aria-describedby={descriptionId}
       aria-busy={isSigning}
       className="min-touch w-full rounded-md border border-hairline-light bg-surface-card p-5 text-left transition-colors duration-(--duration-quick) ease-out hover:border-primary active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-light disabled:cursor-not-allowed disabled:opacity-60"

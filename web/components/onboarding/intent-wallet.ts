@@ -1,0 +1,82 @@
+import { claimErrorView } from '@/components/merchant/Claim.error';
+import { refusalMessageFor } from '@/lib/api/refusal.constants';
+import type { ClaimFailure } from '@/components/merchant/Claim.error';
+import type { EmbeddedWalletStatus } from '@/hooks/useEmbeddedWallet.types';
+
+/**
+ * What step three of onboarding may offer, and what it must say.
+ *
+ * ## Why this is not decided in the component
+ *
+ * The rule is a precedence, and a precedence written inline is a rule nobody can
+ * test: the render is checked by reading markup, but "does a claim's own refusal
+ * outrank the wallet's absence" is a question about the decision, not the pixels.
+ *
+ * ## The precedence
+ *
+ *  1. **A claim that failed.** The person acted; what happened to that action is
+ *     what they are owed, even on a device where the wallet has since gone away.
+ *  2. **No wallet at all.** Nothing was attempted and nothing can be, so the step
+ *     says so BEFORE it offers a tap that cannot complete, and carries the sign-in
+ *     that fixes it. This is the case that walled a new account out: the options
+ *     were offered, the tap failed, and the failure was blamed on the name.
+ *  3. **A wallet still loading.** A moment, not a fault. Same treatment, a sentence
+ *     that promises nothing more than "in a moment".
+ *
+ * An option is only offerable when there is a wallet that can sign: `canChoose` is
+ * exactly that, and the surface disables rather than hides, so the step keeps its
+ * shape on a device where the answer is no.
+ */
+export interface IntentWalletState {
+  /** False when tapping an option would start something that cannot finish. */
+  canChoose: boolean;
+  /** The failure to render under the options, or null when there is none. */
+  failure: {
+    blockError: string;
+    reference: string | null;
+    /** True only when the fix is a sign-in, which is the one non-retryable case. */
+    needsSignIn: boolean;
+  } | null;
+}
+
+export function intentWalletState(
+  walletStatus: EmbeddedWalletStatus,
+  claim: ClaimFailure
+): IntentWalletState {
+  const view = claimErrorView(claim);
+
+  if (view.blockError) {
+    return {
+      canChoose: walletStatus === 'ready',
+      failure: {
+        blockError: view.blockError,
+        reference: view.reference,
+        needsSignIn: claim.errorCode === 'wallet-missing',
+      },
+    };
+  }
+
+  if (walletStatus === 'missing') {
+    return {
+      canChoose: false,
+      failure: {
+        blockError: refusalMessageFor('wallet-missing'),
+        reference: null,
+        needsSignIn: true,
+      },
+    };
+  }
+
+  if (walletStatus === 'loading') {
+    return {
+      canChoose: false,
+      failure: {
+        blockError: refusalMessageFor('wallet-not-ready'),
+        reference: null,
+        needsSignIn: false,
+      },
+    };
+  }
+
+  return { canChoose: true, failure: null };
+}

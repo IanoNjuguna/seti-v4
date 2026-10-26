@@ -63,6 +63,10 @@ export const REFUSAL_BY_CODE: Record<string, string> = {
     'There is no wallet on this device that can sign, so nothing was claimed. Sign in again to set one up.',
   'wallet-signing-failed':
     'Your wallet did not sign the claim, so nothing was claimed. Try again, and allow the request if your wallet asks.',
+  // The wallet exists and is on its way, which is a second, not a fault: the only
+  // honest thing to say is that pressing it again in a moment is fine.
+  'wallet-not-ready':
+    'Your wallet is still getting ready, so nothing was claimed. Try again in a moment.',
 
   // A takedown acts on a NAME, not on money: these are the operator's refusals,
   // and they read as such.
