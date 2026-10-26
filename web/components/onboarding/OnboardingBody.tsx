@@ -40,6 +40,7 @@ export function OnboardingBody({ wizard }: OnboardingBodyProps) {
         busy={claim.isBusy}
         claim={claim}
         walletStatus={wizard.wallet.status}
+        canSign={wizard.wallet.canSign}
         walletRepair={{
           canRepair: wizard.wallet.canRepair,
           repairing: wizard.wallet.repairing,

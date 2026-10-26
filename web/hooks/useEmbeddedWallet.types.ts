@@ -25,6 +25,26 @@ export interface SigningWallet {
 
 export interface EmbeddedWalletValue {
   status: EmbeddedWalletStatus;
+  /**
+   * Whether THIS DEVICE can produce a signature right now.
+   *
+   * A different question from {@link status}, and the reason this field exists:
+   * `status` answers "do we know an address to bind", and since #226 that address
+   * can come from the ACCOUNT (`GET /users/:id/wallets`) rather than from the wallet
+   * list. An account's registered address is a fact about the account; it is not
+   * evidence that a key for it is on this browser. So `ready` with
+   * `canSign === false` is an ordinary state — signed in, wallet registered, nothing
+   * here that can sign — and only this field may gate a control that asks for a
+   * signature.
+   *
+   * The definitions live in `useEmbeddedWallet` rather than in the decision that
+   * reads them, so the two questions cannot be re-derived by accident.
+   *
+   * This is additive on purpose. `status` keeps its meaning for the five surfaces
+   * that already read it (payments, save, send, claim, onboarding); tightening one
+   * of them must not flip the other four (#233).
+   */
+  canSign: boolean;
   /** The embedded wallet's address, or null when there is none yet. */
   address: Address | null;
   /**

@@ -134,6 +134,10 @@ export function useOnboarding(): UseOnboardingReturn {
     claim,
     wallet: {
       status: wallet.status,
+      // The second answer, taken from the hook rather than re-derived from the
+      // first: this page offers the two intents, and `status` cannot tell it
+      // whether the tap would finish (#233).
+      canSign: wallet.canSign,
       repairing: wallet.repairing,
       failureCode: wallet.repairFailure,
       canRepair: wallet.canRepair,

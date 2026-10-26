@@ -77,11 +77,11 @@ export function useMerchantClaim(initialKind: HandleKind = 'business'): UseMerch
   const [previewFailed, setPreviewFailed] = useState(false);
   /**
    * The signature, from Privy's own typed-data hook — the same supported path every
-   * payment already uses for its transaction. `status` is whether anything on this
-   * device can sign at all, which is what stops a claim being started that cannot
-   * finish.
+   * payment already uses for its transaction. `status` picks the sentence and
+   * `canSign` is the guard: whether anything on THIS DEVICE can sign at all, which is
+   * what stops a claim being started that cannot finish (#233).
    */
-  const { status: walletStatus, sign } = useSignHandleClaim();
+  const { status: walletStatus, canSign: walletCanSign, sign } = useSignHandleClaim();
 
   const setPartial = useCallback((partial: Partial<MerchantClaimState>) => {
     setState((prev) => ({ ...prev, ...partial }));
@@ -161,7 +161,13 @@ export function useMerchantClaim(initialKind: HandleKind = 'business'): UseMerch
     // BEFORE the wallet is touched: the point is not a better error, it is not
     // starting something that cannot finish. A wallet still loading is a moment,
     // not a dead end, and gets the sentence that says so.
-    if (walletStatus !== 'ready') {
+    //
+    // The guard is `canSign`, not `status === 'ready'` (#233). `status` is `ready`
+    // for an address read from the ACCOUNT too, and that address can be a wallet
+    // whose key is on another device — so `ready` let a tap start on a device that
+    // could not produce the signature, and the person met `wallet-missing` one
+    // Privy throw later instead of being told before they tapped.
+    if (!walletCanSign) {
       const code = walletStatus === 'loading' ? 'wallet-not-ready' : 'wallet-missing';
       setPartial({
         step: 'error',
@@ -185,7 +191,7 @@ export function useMerchantClaim(initialKind: HandleKind = 'business'): UseMerch
       const { message, code, requestId } = toError(error);
       setPartial({ step: 'error', error: message, errorCode: code, errorRequestId: requestId });
     }
-  }, [state.name, state.kind, walletStatus, sign, setPartial]);
+  }, [state.name, state.kind, walletCanSign, walletStatus, sign, setPartial]);
 
   const reset = useCallback(() => {
     setState({ ...INITIAL, kind: initialKind });
@@ -210,5 +216,6 @@ export function useMerchantClaim(initialKind: HandleKind = 'business'): UseMerch
     preview: appliedPreview,
     previewLoading,
     walletStatus,
+    walletCanSign,
   };
 }

@@ -34,6 +34,17 @@ import {
  * first, the account's registered one second — and the surface stops refusing a
  * session the server itself calls wallet-holding.
  *
+ * ## Two questions, and #233 is what happens when one answers both
+ *
+ * `ready` means "an address is known to bind". It does NOT mean "this device can
+ * sign", because the second source is the account and its key may be elsewhere. For
+ * a while `status` was read as if it meant both, and the claim offered its two
+ * intents on a device with nothing to sign with: one tap, one Privy throw, one
+ * `wallet-missing` classification, and the repair appearing only AFTER the failure it
+ * was supposed to pre-empt. So the hook answers both questions separately — `status`
+ * for knowledge, `canSign` for capability — and `status` keeps the meaning the other
+ * four surfaces already rely on (#233).
+ *
  * ## Why a repair refreshes before it creates
  *
  * `refreshUser()` re-reads the user from Privy and is what makes the list catch up;
@@ -75,6 +86,21 @@ function usePrivyEmbeddedWallet(): EmbeddedWalletValue {
    * this time, somewhere the app can still read it.
    */
   const [accountAddress, setAccountAddress] = useState<Address | null>(null);
+  /**
+   * The address a repair CREATED in this browser, or null.
+   *
+   * Kept apart from `accountAddress` because the two are different evidence, and
+   * #233 exists because one address was being read as both: the account's rows name
+   * a wallet the account holds, which may be a key on another device; a wallet
+   * `createWallet()` just made here is a key this browser has. Only the second is
+   * proof that this device can sign (#233).
+   *
+   * State rather than a flag on the repair's result, because the fact outlives the
+   * one render that created it: Privy's list catches up a render or more later, and
+   * for that window the wallet exists and can sign while `wallets` still says it
+   * does not.
+   */
+  const [createdAddress, setCreatedAddress] = useState<Address | null>(null);
   const [repairing, setRepairing] = useState(false);
   const [repairFailure, setRepairFailure] = useState<WalletRepairFailureCode | null>(null);
 
@@ -110,6 +136,29 @@ function usePrivyEmbeddedWallet(): EmbeddedWalletValue {
     privyAddress,
     accountAddress,
   });
+
+  /**
+   * Whether a control may ask for a signature — and NOT `status === 'ready'`, which
+   * is the bug #233 fixes.
+   *
+   * `resolveEmbeddedWallet` answers a question about ADDRESSES, and since #226 it
+   * says `ready` for an address it read from the account. That address is inside the
+   * signed bytes but its key may be on a different device, so `ready` on its own
+   * cannot tell a surface that a tap will finish. This can:
+   *
+   *  - a wallet Privy lists. It is a signing provider, so it signs;
+   *  - a wallet the repair created HERE, through the second term, for the render or
+   *    two before Privy's list catches up. It is the same key the list is about to
+   *    report, and it is in this browser, so it signs. Without that term the claim
+   *    would disable its own two options again the instant a successful repair
+   *    returned — the control going dead under the finger that had just fixed it —
+   *    and re-offer the repair it had already spent.
+   *
+   * What is deliberately NOT a term: `accountAddress`. An account's registered
+   * address is a fact about the account, and treating it as proof of a local key is
+   * exactly what made row two of #233 offer a tap that could not complete.
+   */
+  const canSign = privyAddress !== null || createdAddress !== null;
 
   /**
    * The one automatic catch-up attempt, per address.
@@ -183,13 +232,19 @@ function usePrivyEmbeddedWallet(): EmbeddedWalletValue {
       // Genuinely none. This is the one case where creating is right, and the key
       // is made here because the browser is the only party that may hold it.
       const created = await createWallet();
-      const createdAddress = created.address as Address;
-      setAccountAddress(createdAddress);
+      const newAddress = created.address as Address;
+
+      // Written to accountAddress for the address `status` binds, and to
+      // createdAddress because THIS key is in this browser — the one fact that lets
+      // `canSign` stay true while Privy's list catches up, so the claim's two
+      // options come back on the next render instead of waiting for a reload (#233).
+      setCreatedAddress(newAddress);
+      setAccountAddress(newAddress);
 
       // Recorded, because a claim binds a name to an ADDRESS the account holds and
       // the backend refuses one it has no row for. If this fails the wallet exists
       // but cannot be claimed with, so it is a create failure, not a silent one.
-      if (userId) await registerAccountWallet(userId, createdAddress);
+      if (userId) await registerAccountWallet(userId, newAddress);
     } catch (error) {
       setRepairFailure('wallet-create-failed');
       // Logged ONCE, with the cause: this used to fail into an empty catch, so a
@@ -205,6 +260,7 @@ function usePrivyEmbeddedWallet(): EmbeddedWalletValue {
 
   return {
     status,
+    canSign,
     address,
     getSigningWallet,
     repair,
@@ -234,6 +290,9 @@ function useNoEmbeddedWallet(): EmbeddedWalletValue {
 
   return {
     status: 'missing',
+    // Nothing here can sign, and not merely "no address is known": there is no SDK
+    // to sign with at all, so the two are the same answer in this build.
+    canSign: false,
     address: null,
     getSigningWallet,
     repair,

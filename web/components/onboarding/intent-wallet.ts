@@ -30,6 +30,23 @@ import type {
  * exactly that, and the surface disables rather than hides, so the step keeps its
  * shape on a device where the answer is no.
  *
+ * ## Knowledge is not capability, and #233 is the gap between them
+ *
+ * `canChoose` used to be `status === 'ready'`, which was the same thing only while
+ * `ready` meant "Privy lists a wallet". Since #226 `ready` also covers an address
+ * read from the ACCOUNT, and that address can be a wallet whose key lives on another
+ * device — so the step offered its two intents there, the tap reached Privy, Privy
+ * threw, and the repair appeared only AFTER the failure it exists to pre-empt. One
+ * failed tap per person, for most of the people the report was about.
+ *
+ * So the decision takes two facts now and reads one for each question: `status`,
+ * which says whether an address is KNOWN and picks the sentence (`loading` is a
+ * moment, `missing` is a dead end), and `canSign`, which says whether this device
+ * can produce the signature and alone decides `canChoose`. A device that knows an
+ * address it cannot sign with is therefore not a `ready` state at all here: it gets
+ * the `wallet-missing` sentence, the two intents disabled, and the repair offered on
+ * arrival. `status` itself is untouched, because four other surfaces read it.
+ *
  * ## Signing out is the FALLBACK, never the first offer (#226)
  *
  * `wallet-missing` used to carry one control, "Sign in again", because the app had
@@ -68,6 +85,23 @@ export interface IntentWalletState {
 }
 
 /**
+ * What the wallet contributes to the decision, as two answers and not one.
+ *
+ *  - `status` — whether an address is KNOWN. Decides the sentence: `loading` is a
+ *    moment ("still getting ready"), `missing` is a dead end (`wallet-missing`).
+ *  - `canSign` — whether THIS DEVICE can produce the signature. Decides
+ *    `canChoose`, and nothing else does.
+ *
+ * Both are fields of one object rather than two positional arguments because
+ * `ready` and `canSign` are `boolean`-adjacent facts that were collapsed into one and
+ * must not be able to swap places at a call site (#233).
+ */
+export interface IntentWalletFacts {
+  status: EmbeddedWalletStatus;
+  canSign: boolean;
+}
+
+/**
  * What an untouched wallet looks like: nothing has been tried, so a repair is
  * still on the table and no cause is known.
  */
@@ -78,7 +112,7 @@ export const WALLET_UNREPAIRED: WalletRepairState = {
 };
 
 export function intentWalletState(
-  walletStatus: EmbeddedWalletStatus,
+  wallet: IntentWalletFacts,
   claim: ClaimFailure,
   repair: WalletRepairState = WALLET_UNREPAIRED
 ): IntentWalletState {
@@ -91,7 +125,7 @@ export function intentWalletState(
     const walletFailed = claim.errorCode === 'wallet-missing';
 
     return {
-      canChoose: walletStatus === 'ready',
+      canChoose: wallet.canSign,
       failure: {
         blockError: view.blockError,
         reference: view.reference,
@@ -101,7 +135,28 @@ export function intentWalletState(
     };
   }
 
-  if (walletStatus === 'missing') {
+  // The LOADING sentence is checked first, because a list that has not arrived yet
+  // cannot sign either: the second branch below would otherwise claim a device that
+  // is a moment away is a dead end, and take its repair offer with it. This is an
+  // ordering of answer, not of blame: nothing is wrong, something is late.
+  if (wallet.status === 'loading') {
+    return {
+      canChoose: false,
+      failure: {
+        blockError: refusalMessageFor('wallet-not-ready'),
+        reference: null,
+        needsSignIn: false,
+        canRepair: false,
+      },
+    };
+  }
+
+  // Nothing on this device can sign. Reached for `missing`, and for `ready` whose
+  // address came from the account rather than from a wallet Privy lists — the case
+  // in #233, where `ready` was read as "a tap will finish" and was wrong. The
+  // sentence is the same because the fact is: the address is known, the signature is
+  // not producible here.
+  if (!wallet.canSign) {
     return {
       canChoose: false,
       failure: {
@@ -112,18 +167,6 @@ export function intentWalletState(
         reference: null,
         needsSignIn: true,
         canRepair,
-      },
-    };
-  }
-
-  if (walletStatus === 'loading') {
-    return {
-      canChoose: false,
-      failure: {
-        blockError: refusalMessageFor('wallet-not-ready'),
-        reference: null,
-        needsSignIn: false,
-        canRepair: false,
       },
     };
   }

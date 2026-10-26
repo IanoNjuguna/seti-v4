@@ -29,6 +29,14 @@ export interface UseOnboardingReturn {
    */
   wallet: {
     status: EmbeddedWalletStatus;
+    /**
+     * Whether THIS DEVICE can sign, which is what the intent step gates on (#233).
+     *
+     * Carried beside `status` rather than derived here: an address read from the
+     * account is `ready` and cannot produce a signature, and the step that offers the
+     * two intents must not learn that one fact by asking the other question.
+     */
+    canSign: boolean;
     repairing: boolean;
     failureCode: WalletRepairFailureCode | null;
     canRepair: boolean;
@@ -79,6 +87,15 @@ export interface OnboardingIntentProps {
    * account came to be told its name was wrong.
    */
   walletStatus: EmbeddedWalletStatus;
+  /**
+   * Whether THIS device can produce the signature, which is what enables the two
+   * options (#233).
+   *
+   * Passed separately from `walletStatus` on purpose. `ready` says an address is
+   * known — possibly one the account holds and this browser does not — so the step
+   * would otherwise offer both intents on a device where the tap cannot finish.
+   */
+  canSign: boolean;
   /**
    * What the repair can do about a missing wallet, and why it may have stopped
    * being offered. A decision input, not a cosy prop: see `intent-wallet.ts`.

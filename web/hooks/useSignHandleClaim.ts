@@ -50,7 +50,7 @@ function usePrivySignHandleClaim(): SignHandleClaimValue {
   // One wallet-selection rule for the claim, the payment and the save flow:
   // `walletClientType === 'privy'`. Never `wallets[0]`, which can be an external
   // wallet or an older HD index.
-  const { status, address } = useEmbeddedWallet();
+  const { status, canSign, address } = useEmbeddedWallet();
   const { signTypedData } = useSignTypedData();
 
   const sign = useCallback(
@@ -74,7 +74,7 @@ function usePrivySignHandleClaim(): SignHandleClaimValue {
     [address, signTypedData]
   );
 
-  return { status, sign };
+  return { status, canSign, sign };
 }
 
 /** With no Privy app there is no embedded wallet and no hook to sign with. */
@@ -83,7 +83,7 @@ function useNoSignHandleClaim(): SignHandleClaimValue {
     throw new NoEmbeddedWalletError();
   }, []);
 
-  return { status: 'missing', sign };
+  return { status: 'missing', canSign: false, sign };
 }
 
 /**
