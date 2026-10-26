@@ -37,7 +37,7 @@ both are pasted into other people's code:
 
 ```bash
 curl -s -H "Authorization: Bearer $SETI_API_TOKEN" \
-  http://localhost:4000/users/<userId>/balance
+  http://localhost:4000/users/<userId>/home
 ```
 
 The middleware rejects a malformed header with **401** and a missing local user

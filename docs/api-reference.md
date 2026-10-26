@@ -1054,13 +1054,17 @@ Rows are reported, not converted. See
 [Nothing converts a balance for you](./payments.md#nothing-converts-a-balance-for-you):
 a balance that arrived as USDC.e stays USDC.e until the customer acts on it.
 
-### `GET /users/:id/balance`
+#### There is no separate balance route
 
-```json
-{ "asset": "ousd", "balance": "0.00", "currency": "OUSD" }
-```
+`GET /users/:id/home` **is** the balance read. A `GET /users/:id/balance` used to be
+documented here, with a sample response that set `"currency": "OUSD"` — `currency` is the
+customer's fiat currency, and an asset is a different field. No such route is registered
+in `backend/src/routes/users.ts`, so a request against it answers `404`; it was removed
+from this reference and from the `docs/authentication.md` curl example rather than
+implemented. The total and the breakdown arrive together, above; there is no second call
+that reports only a number.
 
-A balance is read from the chain; if the read fails the API returns `0.00` rather
+A balance is read from the chain; if the read fails the API reports `0.00` rather
 than an error, so **do not treat `0.00` as proof of an empty wallet**.
 
 ## Wallets
