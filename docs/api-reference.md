@@ -977,8 +977,82 @@ Returns the user with their wallets. `403` if `:id` is not the authenticated use
 
 ### `GET /users/:id/home`
 
-Home dashboard: `balance` (KES), `currency`, `monthToDateDelta`, and the ten most
-recent transactions.
+The home card: one money figure, what that figure is made of, and the ten most
+recent transactions. `403` if `:id` is not the authenticated user, `404` if the
+user does not exist. Read on the **session's** network, never on one named in the
+query or the body.
+
+```json
+{
+  "balance": "129554.70",
+  "currency": "KES",
+  "assets": [
+    { "asset": "usdt0", "symbol": "USDT0", "amount": "1000.0", "value": "129000.00" },
+    { "asset": "ousd", "symbol": "OUSD", "amount": "4.3", "value": "554.70" },
+    { "asset": "pathusd", "symbol": "pathUSD", "amount": "0.00", "value": "0.00" },
+    { "asset": "usdc.e", "symbol": "USDC.e", "amount": "0.00", "value": "0.00" }
+  ],
+  "monthToDateDelta": 0,
+  "recentTransactions": []
+}
+```
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `balance` | string, 2dp | the whole balance in `currency`. **The sum of every `assets[].value`**, not a second figure computed another way. |
+| `currency` | string | the customer's own currency, `KES` in v1. Stated once, here, and implied for every `value`. |
+| `assets` | array | what the balance is made of. One row per asset the network lists, and never an empty array. |
+| `assets[].asset` | string | the label: `ousd`, `pathusd`, `usdt0`, `usdc.e` |
+| `assets[].symbol` | string | the registry's spelling of that label: `OUSD`, `pathUSD`, `USDT0`, `USDC.e` |
+| `assets[].amount` | string | the amount in the asset's own units, as the chain read reports it |
+| `assets[].value` | string, 2dp | that amount in `currency`, at the same rate `balance` uses |
+| `monthToDateDelta` | number | a fraction. Always `0` in the current build. |
+| `recentTransactions` | array | the ten most recent, newest first, in the same row shape `GET /transactions` returns |
+
+`monthToDateDelta` is a placeholder: the month-on-month comparison is not computed,
+so the value is `0` rather than a stale figure. Do not render a trend from it yet.
+
+#### One row per asset the NETWORK lists
+
+The rows are the asset list of the chain the session is on, not the product's list
+of supported assets, and the count is a property of the network rather than of the
+customer:
+
+| Network | Assets, in display order | Rows |
+| --- | --- | --- |
+| mainnet (chain 4217) | OUSD, pathUSD, USDT0, USDC.e | 4 |
+| practice (chain 42431) | OUSD, pathUSD, USDC.e | 3 |
+
+USDT0 is the difference. Tempo's registry does not list it on practice, so the
+practice chain has no address for it and the payload does not claim one. Do not
+assume four rows; render what arrives.
+
+**Zeros are rows.** An asset the customer does not hold is still reported, with
+`amount` and `value` at `0.00`. An account with no registered wallet yet gets one
+row per listed asset, all zeros, and `balance` of `"0.00"`, never an empty array.
+Rows come back largest `amount` first with the zeros last, and two equal balances keep
+the display order above, so the ordering is predictable rather than incidental.
+
+#### The sum rule
+
+`balance` is the sum of the `value` strings that are in the same response, in one
+currency at one rate. Three things follow, and none of them is optional:
+
+1. **Every supported asset is 1:1 USD**, so the conversion is one multiplication
+   by the rate on the same quote the pay screen uses. There is no per-asset price,
+   and no second rate for the total.
+2. **Each row is rounded to a cent first**, then the rows are added. That is why
+   the figure on top can be reproduced by adding the breakdown under it. Adding
+   the `amount` fields yourself and converting the total can land a cent away from
+   `balance`, and `balance` is the correct one.
+3. **A read that failed is `0.00`**, the same as a read that found nothing, so a
+   zero row is not proof the customer holds none of that asset. `NaN` appears
+   instead when a read returns something that is not a number; treat it as a fault
+   to surface, never as zero, because counting it as zero hides real money.
+
+Rows are reported, not converted. See
+[Nothing converts a balance for you](./payments.md#nothing-converts-a-balance-for-you):
+a balance that arrived as USDC.e stays USDC.e until the customer acts on it.
 
 ### `GET /users/:id/balance`
 
@@ -993,14 +1067,41 @@ than an error, so **do not treat `0.00` as proof of an empty wallet**.
 
 ### `GET /users/:id/wallets`
 
-Lists the registered wallets for the user.
+Lists the registered wallets for the user, as `{ wallets: [...] }`, scoped to the
+session's network. A practice row and a live row are two addresses on two chains,
+so a list read on one network says nothing about the other.
 
 ### `POST /users/:id/wallets`
 
-Registers a wallet. Body: `{ chain?, asset?, address, keyId? }`. The address must
-match `/^0x[a-fA-F0-9]{40}$/` — a **regex only**, so a mixed-case address whose
-EIP-55 checksum is wrong is accepted here and stored, even though a viem-based
-client will refuse to build a transfer to it.
+Registers a wallet. Body: `{ chain?, asset?, address, keyId? }`. `chain` defaults
+to `tempo`, `asset` defaults to the primary asset (OUSD today), and `keyId` is
+optional and stored with the row. Answers `201 { wallet }`.
+
+The address is validated on its **EIP-55 checksum**, not its shape: `viem.isAddress`,
+whose acceptance set is exactly what a client's transfer encoder accepts. An
+all-lowercase address is fine, because there is no checksum to be wrong. A mixed-case
+address with a bad checksum is refused `400`, and the reason is the useful part: it
+names the offending address, says the checksum failed, and offers the corrected form.
+
+The row is registered on the **session's** network, and it becomes the account's
+active wallet for that network: the previous active row on the same network stands
+down, and the row on the other network is untouched.
+
+#### If the account has no wallet row
+
+An account can hold no wallet row at all, for instance a login that could not
+register one or an account created before wallets were scoped per network. Every
+balance then reads `0.00` per asset and the home rows are all zero, because there is
+no address to ask the chain about. The repair is three calls, all of them the ones
+above:
+
+1. `GET /account` for the caller's own account. Each claimed handle carries the
+   `address` it was claimed for, which is where the account's money arrives.
+2. Make sure the address is one the customer's own wallet controls. Seti never
+   creates or signs with a key, so a repair with an address the customer cannot sign
+   for only moves the zero.
+3. `POST /users/:id/wallets` with that `address`, and the home read reports that
+   address's balances from the next request.
 
 > Both wallet routes are declared as `/users/:id/wallets` inside a router that was
 > once mounted under a `/wallets` prefix, producing `/wallets/users/:id/wallets`.
