@@ -71,9 +71,20 @@ export interface UseMerchantClaimReturn extends MerchantClaimState {
   /**
    * Whether anything on this device can sign: `loading`, `ready` or `missing`.
    *
-   * Read by the surfaces that ASK for a signature, so an option that cannot
-   * complete is never offered. The claim itself refuses before signing when this is
-   * not `ready`, which covers every caller including the ones that forgot to check.
+   * `ready` means an address is KNOWN — it may have been read from the account, whose
+   * key can be on another device — so this is the field the sentences key off, never
+   * the one a signature is gated on. `loading` is a moment and `missing` is a dead
+   * end; the guard is {@link walletCanSign} (#233).
    */
   walletStatus: EmbeddedWalletStatus;
+  /**
+   * Whether THIS device can produce the signature, which is what `claim` refuses on.
+   *
+   * Distinct from `walletStatus`, and the distinction is the whole of #233: a
+   * signed-in account with a registered wallet and no Privy wallet is `ready` and
+   * cannot sign, and the claim used to start a tap there that Privy then threw out
+   * of. Exposed beside the status so a surface that asks for a signature has one
+   * answer to read instead of re-deriving it.
+   */
+  walletCanSign: boolean;
 }

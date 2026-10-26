@@ -101,13 +101,23 @@ const REPAIR_FAILED = { canRepair: true, repairing: false, failureCode: 'wallet-
 /** A build with no Privy app, where there is nothing to create. */
 const NOT_REPAIRABLE = { canRepair: false, repairing: false, failureCode: null };
 
-function render(claim, walletStatus = 'ready', walletRepair = REPAIRABLE) {
+/**
+ * A wallet that can sign, which is what the step opens on in the ordinary case.
+ *
+ * Both facts are named at every call site rather than defaulted: `status` says an
+ * address is known and `canSign` says this device can sign with one, and a default
+ * for either is how #233 came to be offered a tap that could not finish.
+ */
+const SIGNING = { status: 'ready', canSign: true };
+
+function render(claim, wallet = SIGNING, walletRepair = REPAIRABLE) {
   return renderToStaticMarkup(
     createElement(OnboardingIntent, {
       pending: null,
       busy: false,
       claim,
-      walletStatus,
+      walletStatus: wallet.status,
+      canSign: wallet.canSign,
       walletRepair,
       onChoose: NOOP,
       onRepair: NOOP,
@@ -163,13 +173,13 @@ const html = {
   refused: render(refused),
   taken: render(taken),
   offline: render(offline),
-  loading: render(NOTHING_FAILED, 'loading'),
+  loading: render(NOTHING_FAILED, { status: 'loading', canSign: false }),
   /** The wall itself: a device with no wallet, and no claim attempted yet. */
-  walletGone: render(NOTHING_FAILED, 'missing'),
+  walletGone: render(NOTHING_FAILED, { status: 'missing', canSign: false }),
   /** A repair was tried and its create call failed: the cause must be on screen. */
-  repairFailed: render(NOTHING_FAILED, 'missing', REPAIR_FAILED),
+  repairFailed: render(NOTHING_FAILED, { status: 'missing', canSign: false }, REPAIR_FAILED),
   /** A build with no Privy app: nothing can be created, so only the sign-in is left. */
-  noRepair: render(NOTHING_FAILED, 'missing', NOT_REPAIRABLE),
+  noRepair: render(NOTHING_FAILED, { status: 'missing', canSign: false }, NOT_REPAIRABLE),
 };
 
 for (const [name, body] of Object.entries({
@@ -203,25 +213,31 @@ check('a server refusal prints its reference', html.taken.includes('req_8f2c1a4e
 check('a pre-server failure prints no reference', !html.missing.includes('Reference'));
 
 // --- 4. an option that cannot complete is not offered --------------------
-const readyMarkup = render(NOTHING_FAILED, 'ready');
+const readyMarkup = render(NOTHING_FAILED, SIGNING);
 check('with a ready wallet and no failure, nothing is refused', !readyMarkup.includes('disabled=""'));
 check('with no wallet, both options are disabled', (html.walletGone.match(/disabled=""/g) ?? []).length >= 2);
 check('while the wallet loads, both options are disabled', (html.loading.match(/disabled=""/g) ?? []).length >= 2);
 check('the wall says why, and offers the sign-in', html.walletGone.includes('Sign in again') && html.walletGone.includes('There is no wallet'));
 
-check('the decision offers nothing while there is no wallet', intentWalletState('missing', NOTHING_FAILED).canChoose === false);
-check('the decision offers both options once the wallet is ready', intentWalletState('ready', NOTHING_FAILED).canChoose === true);
+check(
+  'the decision offers nothing while there is no wallet',
+  intentWalletState({ status: 'missing', canSign: false }, NOTHING_FAILED).canChoose === false
+);
+check(
+  'the decision offers both options once the wallet is ready',
+  intentWalletState({ status: 'ready', canSign: true }, NOTHING_FAILED).canChoose === true
+);
 check(
   'a claim that already failed outranks the wallet state',
   (() => {
-    const state = intentWalletState('missing', taken);
+    const state = intentWalletState({ status: 'missing', canSign: false }, taken);
     return state.failure?.blockError === taken.error && state.failure?.needsSignIn === false;
   })()
 );
 check(
   'a missing wallet on the claim becomes the sign-in case',
   (() => {
-    const state = intentWalletState('ready', failureFrom(noWallet));
+    const state = intentWalletState({ status: 'ready', canSign: true }, failureFrom(noWallet));
     return state.failure?.needsSignIn === true && state.failure?.blockError === REFUSAL_BY_CODE['wallet-missing'];
   })()
 );
@@ -358,7 +374,7 @@ console.log('\na wallet the browser cannot see is repaired in place, not signed 
   check(
     'a claim refused for a missing wallet offers the repair too, not only a sign-out',
     (() => {
-      const state = intentWalletState('ready', failureFrom(noWallet), REPAIRABLE);
+      const state = intentWalletState({ status: 'ready', canSign: true }, failureFrom(noWallet), REPAIRABLE);
       return state.failure?.canRepair === true && state.failure?.needsSignIn === true;
     })()
   );
@@ -414,6 +430,160 @@ console.log('\na wallet the browser cannot see is repaired in place, not signed 
     readSource('../lib/auth/privy-email-sign-in.ts').includes(
       'could not create an embedded wallet during sign-in'
     )
+  );
+}
+
+// --- 9. the matrix: an option is offered only when this device can sign (#233)
+//
+// The table the issue writes out, four rows, each one a fact about the browser
+// rather than a preference:
+//
+//   privy  account  created  status   canSign  canChoose  what happens
+//   yes    yes      -        ready    true     true       signs
+//   no     yes      -        ready    false    false      repair offered on arrival
+//   no     no       -        missing  false    false      repair offered on arrival
+//   no     yes      yes      ready    true     true       repaired here, offered again
+//
+// Column one and two are what `useWallets()` and `GET /users/:id/wallets` answer,
+// `created` is a wallet `repair` made in THIS browser, `status` is what
+// `resolveEmbeddedWallet` makes of the first two, and `canSign` is the hook's rule —
+// `privyAddress !== null || createdAddress !== null` — which is asserted against the
+// hook's own source at the end of this block so the column cannot drift into being
+// this check's private opinion.
+//
+// Row two is the bug. It was `canChoose: true`, and the tap it offered ended in a
+// Privy throw classified `wallet-missing`: the sentence the step could have printed
+// BEFORE the tap, printed after it instead, with the repair only then appearing.
+console.log('\n an option is offered only when this device can sign (#233):');
+{
+  const PRIVY_WALLET = '0x5c1F7d3a2E9bB80d6C4aF1e7D2b3A4c5E6f70819';
+  const ACCOUNT_WALLET = ADDRESS;
+
+  const MATRIX = [
+    {
+      label: 'a wallet Privy lists and one the account holds',
+      privy: PRIVY_WALLET,
+      account: ACCOUNT_WALLET,
+      created: null,
+      status: 'ready',
+      canSign: true,
+      canChoose: true,
+      sentence: null,
+      repair: false,
+    },
+    {
+      label: 'an account wallet and no Privy wallet: row two, the bug',
+      privy: null,
+      account: ACCOUNT_WALLET,
+      created: null,
+      status: 'ready',
+      canSign: false,
+      canChoose: false,
+      // The word for "nothing here can sign", which is true of a known address
+      // whose key is on another device.
+      sentence: 'wallet-missing',
+      repair: true,
+    },
+    {
+      label: 'neither an account wallet nor a Privy one',
+      privy: null,
+      account: null,
+      created: null,
+      status: 'missing',
+      canSign: false,
+      canChoose: false,
+      sentence: 'wallet-missing',
+      repair: true,
+    },
+    {
+      label: 'a wallet the repair created here, before the list catches up',
+      privy: null,
+      account: ACCOUNT_WALLET,
+      created: ACCOUNT_WALLET,
+      status: 'ready',
+      canSign: true,
+      canChoose: true,
+      sentence: null,
+      repair: false,
+    },
+  ];
+
+  for (const row of MATRIX) {
+    const { status } = resolveEmbeddedWallet({
+      ready: true,
+      signedIn: true,
+      privyAddress: row.privy,
+      accountAddress: row.account,
+    });
+    // The hook's rule, term by term: a wallet Privy lists, or one a repair created
+    // in this browser. Never the account's address on its own.
+    const canSign = row.privy !== null || row.created !== null;
+    const state = intentWalletState({ status, canSign }, NOTHING_FAILED, REPAIRABLE);
+    const markup = render(NOTHING_FAILED, { status, canSign });
+
+    check(`${row.label}: status is ${row.status}, which is about knowledge`, status === row.status, status);
+    check(
+      `${row.label}: this device ${row.canSign ? 'can' : 'cannot'} sign, so the options are ${row.canChoose ? 'offered' : 'refused'}`,
+      canSign === row.canSign && state.canChoose === row.canChoose,
+      `canSign ${canSign}, canChoose ${state.canChoose}`
+    );
+
+    if (row.canChoose) {
+      check(`${row.label}: nothing is refused on arrival`, state.failure === null && !markup.includes('disabled=""'));
+      continue;
+    }
+
+    check(
+      `${row.label}: the sentence is ${row.sentence}, and the repair is offered ${row.repair ? 'on arrival' : 'not at all'}`,
+      state.failure?.blockError === REFUSAL_BY_CODE[row.sentence] &&
+        state.failure?.needsSignIn === true &&
+        state.failure?.canRepair === row.repair,
+      `blockError ${state.failure?.blockError === REFUSAL_BY_CODE[row.sentence]}, canRepair ${state.failure?.canRepair}`
+    );
+    check(
+      `${row.label}: both options are disabled in the markup, before any tap`,
+      (markup.match(/disabled=""/g) ?? []).length >= 2
+    );
+    check(`${row.label}: the repair control is on the page`, markup.includes('Set up my wallet'));
+  }
+
+  /**
+   * The post-repair transition, which is the part that is easy to get wrong in the
+   * other direction: `createWallet()` puts a key in this browser while Privy's list
+   * still reports the old one for a render or two, so a rule keyed on the LIST alone
+   * would disable the two options again the instant a successful repair returned —
+   * the control going dead under the finger that had just fixed it, and the repair
+   * it had spent offered a second time.
+   */
+  const walletSource = stripComments(readSource('../hooks/useEmbeddedWallet.ts'));
+  check(
+    'canSign is defined in the hook, from the wallet Privy lists or one the repair created HERE',
+    walletSource.includes('const canSign = privyAddress !== null || createdAddress !== null;')
+  );
+  check(
+    'the account address alone is NOT what canSign is made of',
+    !/const canSign = [^;]*accountAddress/.test(walletSource),
+    'canSign must not be derived from the account read'
+  );
+  check(
+    'a created wallet is recorded after creation, which is what carries canSign through the catch-up window',
+    walletSource.indexOf('setCreatedAddress(newAddress)') !== -1 &&
+      walletSource.indexOf('await createWallet()') < walletSource.indexOf('setCreatedAddress(newAddress)')
+  );
+  check(
+    'repair no longer hands the created address to the account state alone',
+    walletSource.includes('setAccountAddress(newAddress)')
+  );
+  // And the two consumers of the claim, by name: the guard and the decision.
+  const claimSource = stripComments(readSource('../hooks/useMerchantClaim.ts'));
+  check(
+    'the claim refuses on canSign, not on status',
+    claimSource.includes('if (!walletCanSign)') && !claimSource.includes("if (walletStatus !== 'ready')")
+  );
+  const decisionSource = stripComments(readSource('../components/onboarding/intent-wallet.ts'));
+  check(
+    'the step decides canChoose on canSign, not on status',
+    decisionSource.includes('canChoose: wallet.canSign') && decisionSource.includes('if (!wallet.canSign)')
   );
 }
 
