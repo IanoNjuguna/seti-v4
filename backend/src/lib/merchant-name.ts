@@ -23,11 +23,27 @@ export const MERCHANT_NAME_MIN = 2;
 export const MERCHANT_NAME_MAX = 64;
 
 /**
+ * A HANDLE's limits, which are not a name's.
+ *
+ * The TikTok username rule, and the point of using a rule people already know: a
+ * handle is typed from memory, printed on a sticker and read out loud, so the rule
+ * has to fit in a head. Letters, numbers, periods and underscores, 2 to 24 of them,
+ * no period at either end.
+ *
+ * The NAME keeps its own wider rule above (spaces, apostrophes, ampersands and
+ * brackets, up to 64 characters), because a business has to be able to type its own
+ * name. What it cannot do is print a link with an apostrophe in it, and today the
+ * hint under the field promised characters the handle rule silently removed.
+ */
+export const HANDLE_MIN = 2;
+export const HANDLE_MAX = 24;
+
+/**
  * The strings Seti keeps for itself.
  *
  * Enforced at CLAIM TIME, so no one can squat the product's own brand before
  * merchants print a sticker, or before a user pastes `seti.live/u/pay` into a
- * chat. Compared against the derived HANDLE (lowercased, `[a-z0-9._-]`), not the
+ * chat. Compared against the derived HANDLE (lowercased, `[a-z0-9._]`), not the
  * raw name, because `Seti`, `seti` and `s e t i` all reduce to the same string a
  * customer would type. `seti` is already held by the merchant that claimed it;
  * the list also refuses it as a NEW claim, so the reservation survives the row.
@@ -63,6 +79,12 @@ export function merchantNameKey(name: string): string {
  * The handle: the name lowercased with everything that cannot appear in a link
  * removed. `Java House` → `javahouse`, `Ian` → `ian`.
  *
+ * The characters that SURVIVE are `a–z`, `0–9`, `.` and `_`: the TikTok username
+ * rule, chosen because it is one people already know. Everything else is dropped
+ * rather than escaped or hyphenated — an escaped handle in a printed link is
+ * unusable (`%2C` on a sticker is not a handle), and a hyphen inserted by us would
+ * make `Java House` and `Java-House` two different links for one name.
+ *
  * This is the `<handle>` in the link a customer is given — `seti.live/m/<handle>`
  * for a business, `seti.live/u/<handle>` for a person. It is a STORED, UNIQUE
  * column (`Handle.handle`), because the handle is not the unique thing by itself:
@@ -82,7 +104,7 @@ export function merchantNameKey(name: string): string {
  * two agree, so a drift fails the gate rather than shipping.
  */
 export function merchantHandle(name: string): string {
-  return normalizeMerchantName(name).toLowerCase().replace(/[^a-z0-9._-]/g, '');
+  return normalizeMerchantName(name).toLowerCase().replace(/[^a-z0-9._]/g, '');
 }
 
 /** The same rule, under the name that reads for a person's username too. */
@@ -92,16 +114,42 @@ export const handleOf = merchantHandle;
  * `null` when the name yields a usable handle, or a reason when it does not.
  *
  * A name can be valid and still make no link: the name rule accepts letters in
- * any script, but the handle rule keeps only `a–z`, `0–9`, `.`, `_`, `-`. A name
+ * any script, but the handle rule keeps only `a–z`, `0–9`, `.` and `_`. A name
  * with no such character (`東京`) would produce an empty handle — a link to
  * `seti.live/…/` that names nobody — so it is refused here with the fix.
+ *
+ * The LENGTH and EDGE rules are the handle's, not the name's, and they are checked
+ * here because this is the only place both the name and the string it reduces to
+ * are known. A 64 character name is a legitimate name; a 64 character handle is a
+ * link nobody will type, and it is not what the field's hint says the person is
+ * choosing.
  */
 export function describeMerchantHandle(name: string): string | null {
-  if (merchantHandle(name).length === 0) {
+  const handle = merchantHandle(name);
+
+  if (handle.length === 0) {
     return (
       `"${normalizeMerchantName(name)}" cannot make a link: it has no letters a–z or digits. ` +
       'Add at least one so the name can appear in a seti.live link.'
     );
+  }
+
+  if (handle.length < HANDLE_MIN) {
+    return (
+      `"${normalizeMerchantName(name)}" is too short for a link: a handle is ` +
+      `${HANDLE_MIN} to ${HANDLE_MAX} letters, numbers, periods or underscores.`
+    );
+  }
+
+  if (handle.length > HANDLE_MAX) {
+    return (
+      `"${handle}" is too long for a link: a handle is ${HANDLE_MIN} to ${HANDLE_MAX} ` +
+      'letters, numbers, periods or underscores. Shorten the name.'
+    );
+  }
+
+  if (handle.startsWith('.') || handle.endsWith('.')) {
+    return `"${handle}" cannot start or end with a period.`;
   }
 
   return null;

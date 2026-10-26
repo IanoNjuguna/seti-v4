@@ -33,7 +33,7 @@ export const REFUSAL_BY_CODE: Record<string, string> = {
   'recipient-is-self': 'That is this account’s own address. Enter someone else’s.',
   'invalid-address': 'That address is not valid on this network. Check it and try again.',
   'invalid-handle-name':
-    'That name is not one Seti can issue. Use 2–64 letters, digits, spaces or . , & ( ) - _ +',
+    'That name is not one Seti can issue. Use 2 to 24 letters, numbers, periods or underscores, not starting or ending with a period.',
   'handle-taken': 'That name is already taken. Choose another one.',
   'reserved-handle': 'That name is reserved. Choose another one.',
   'merchant-not-found':

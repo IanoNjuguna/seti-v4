@@ -1,13 +1,20 @@
 /**
  * A merchant's handle, and the link a customer follows.
  *
- * The handle is the name in lowercase with everything outside `[a-z0-9._-]`
- * removed: `Java House` → `javahouse`. Lowercase because a link a merchant
- * prints on a sticker must not be case-sensitive to retype, and because it is
- * matched against a key the backend lowercases. Characters outside that set are
- * removed rather than hyphenated so the common case reads as a word
- * (`javahouse`, not `java-house`) and so a name that legitimately contains a
- * hyphen cannot collide with a name that contains a space.
+ * The handle is the name in lowercase with everything outside `[a-z0-9._]`
+ * removed: `Java House` → `javahouse`. Lowercase because a link a merchant prints
+ * on a sticker must not be case-sensitive to retype, and because it is matched
+ * against a key the backend lowercases. Characters outside that set are removed
+ * rather than hyphenated so the common case reads as a word (`javahouse`, not
+ * `java-house`) and so `Java House` and `Java-House` do not become two links for
+ * one name.
+ *
+ * `[a-z0-9._]` is the TikTok username rule, and that is the reason for it: a handle
+ * is typed from memory, printed on a sticker and read out loud, so the rule has to
+ * be one people already know. It is also why the length limit is 2 to 24 and a
+ * handle may not start or end with a period, both enforced on the backend in
+ * `describeMerchantHandle` — the field's hint says this rule, and the preview under
+ * it must not quietly do something else.
  *
  * THIS FILE IS A MIRROR. The rule is the backend's, in
  * `backend/src/lib/merchant-name.ts` → `merchantHandle`, which is what the
@@ -26,7 +33,7 @@
 const HOST = 'seti.live';
 
 /**
- * The handle for a name: lowercase, no characters outside `[a-z0-9._-]`.
+ * The handle for a name: lowercase, no characters outside `[a-z0-9._]`.
  *
  * Non-URL-safe characters are dropped rather than escaped, because an escaped handle
  * in a printed link is unusable — `%2C` on a sticker is not a handle.
@@ -35,7 +42,7 @@ export function merchantHandle(name: string): string {
   return name
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9._-]/g, '');
+    .replace(/[^a-z0-9._]/g, '');
 }
 
 /** The link a business hands to a customer. */
