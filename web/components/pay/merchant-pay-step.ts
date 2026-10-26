@@ -24,11 +24,17 @@ export function merchantPayStepFlags(payment: UsePayMerchantReturn): MerchantPay
   // the field; a wallet/config/rejection failure is not an amount problem.
   const amountError =
     payment.errorKind === 'insufficient-funds' ? (payment.error ?? undefined) : undefined;
-  // `no-single-asset-covers` is the one refusal the step does NOT report (#228): the
-  // token selector owns that sentence, because beside it sits the balance that can
-  // pay it. Drawing it here too would put the same sentence twice on one screen, the
-  // second time with no way out.
-  const drawnBySelector = payment.errorCode === COVERAGE_REFUSAL;
+  // `no-single-asset-covers` is drawn by the token selector, because beside it sits
+  // the balance that can pay it (#228). But the selector draws it in ONE of the
+  // refusal's two cases: a pinned token that cannot cover, while another balance can.
+  // When no single balance covers, there is nothing to offer, and `buildTokenSelector`
+  // says so in its own rule 3 ("the sentence is shown on its own by the step").
+  // Suppressing on the CODE alone therefore dropped the sentence in that case and left
+  // a pressable `Pay` with no reason above it (#235), so this asks whether the
+  // selector is actually drawing something, not whether the code matches. Send solved
+  // the same problem the same way (`sendFormFlags`, #232).
+  const drawnBySelector =
+    payment.errorCode === COVERAGE_REFUSAL && payment.tokenSelector.refusal !== null;
   const blockError = payment.error && !amountError && !drawnBySelector ? payment.error : null;
 
   return { canPay, amountError, blockError };
