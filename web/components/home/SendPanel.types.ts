@@ -1,5 +1,7 @@
 import type { EmbeddedWalletStatus } from '@/hooks/useEmbeddedWallet.types';
 import type { HandleIdentity, SendPreview } from '@/lib/api';
+import type { SupportedAsset } from '@/lib/chain';
+import type { TokenSelectorModel } from '@/components/token-selector/TokenSelector.types';
 
 export interface SendPanelProps {
   /**
@@ -57,10 +59,28 @@ export interface SendPanelState {
   recipient: string;
   /** The customer's currency — the same unit the pay screen takes, so both read alike. */
   amountFiat: string;
+  /**
+   * The balance the customer chose to spend from (#232), or null while the server
+   * chooses the row that covers.
+   *
+   * A pin, not a preference: it rides on every quote, so the amount priced, the fee
+   * line and the recorded asset are all for the token they picked. A pin that cannot
+   * cover is REFUSED by the server (#223) rather than quietly swapped, which is what
+   * makes letting a person choose safe at all.
+   */
+  asset: SupportedAsset | null;
   /** The last resolution the server returned, tagged with what it was for. */
   resolution: ResolvedRecipient | null;
   /** The server's quote. Both signed amounts come from here, not from the fields. */
   preview: SendPreview | null;
+  /**
+   * The token the server said WOULD cover this amount, after a refused pin (#223).
+   *
+   * Read, never worked out: the unpinned quote answers with the row the server
+   * would spend. Null when no single balance covers, and then there is no offer to
+   * make and #223's sentence stands alone.
+   */
+  coverOffer: SupportedAsset | null;
   /**
    * Field errors are kept apart from `formError` because only these two are the
    * customer's entry. A wallet, chain or server failure is not an amount problem,
@@ -70,6 +90,8 @@ export interface SendPanelState {
   recipientError: string | null;
   amountError: string | null;
   formError: string | null;
+  /** The refusal code behind `formError`, so a sentence is never drawn twice. */
+  formErrorCode: string | null;
   sent: SentTransfer | null;
 }
 
@@ -88,8 +110,15 @@ export interface UseSendPanelReturn extends SendPanelState {
   isBusy: boolean;
   /** True while the debounced quote for what is typed is still in flight. */
   previewLoading: boolean;
+  /**
+   * Which balance pays, derived once from the quote and the commit (#232) — the
+   * SAME model the pay step mounts, so the two flows cannot answer differently.
+   */
+  tokenSelector: TokenSelectorModel;
   setRecipient: (value: string) => void;
   setAmountKes: (value: string) => void;
+  /** Pin a balance, or null to hand the choice back to the server. */
+  setAsset: (asset: string | null) => void;
   submit: () => void;
   reset: () => void;
 }
@@ -124,8 +153,12 @@ export interface SendFormProps {
   recipientError: string | null;
   amountError: string | null;
   formError: string | null;
+  /** The refusal code behind `formError`. `sendFormFlags` is what decides its fate. */
+  formErrorCode: string | null;
   /** The resolved identity, when the typed recipient is a username. */
   resolved: HandleIdentity | null;
+  /** Which balance pays (#232): the model the pay step mounts, from the same helper. */
+  tokenSelector: TokenSelectorModel;
   preview: SendPreview | null;
   previewLoading: boolean;
   /** The step, so the submit row can narrate what is being waited on. */
@@ -135,7 +168,36 @@ export interface SendFormProps {
   focusAmount: boolean;
   onRecipientChange: (value: string) => void;
   onAmountChange: (value: string) => void;
+  /** Pin a balance, or null to hand the choice back to the server. */
+  onChooseAsset: (asset: string | null) => void;
   onSubmit: () => void;
+}
+
+/**
+ * The amount, the balance it comes from, and the price of that answer — in that
+ * order, which is the order the customer answers them (#232).
+ */
+export interface SendAmountSectionProps {
+  /** The amount field's label, with the customer's currency in it. */
+  amountLabel: string;
+  amountFiat: string;
+  amountError: string | null;
+  preview: SendPreview | null;
+  previewLoading: boolean;
+  tokenSelector: TokenSelectorModel;
+  busy: boolean;
+  focusAmount: boolean;
+  onAmountChange: (value: string) => void;
+  onChooseAsset: (asset: string | null) => void;
+}
+
+/**
+ * What the FORM itself still has to say, after the screen's other surfaces have
+ * said what is theirs. One pure function, so the rule is testable without a render.
+ */
+export interface SendFormFlags {
+  /** The line the form draws, or null when nothing is left for it to say. */
+  formError: string | null;
 }
 
 export interface SendSubmitProps {

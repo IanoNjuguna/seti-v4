@@ -3,15 +3,16 @@
 import type { FormEvent } from 'react';
 import { Text } from '@/components/ui';
 import { PracticeNote } from '@/components/app/PracticeNote';
-import { FeeQuote } from '@/components/money/FeeQuote';
 import { SEND_COPY } from './SendPanel.constants';
+import { SendAmountSection } from './SendAmountSection';
 import { SendField } from './SendField';
 import { SendResolvedRecipient } from './SendResolvedRecipient';
 import { SendSubmit } from './SendSubmit';
+import { sendFormFlags } from './send-panel-step';
 import type { SendFormProps } from './SendPanel.types';
 
 /**
- * The three things a send needs: who, how much, and what it costs.
+ * The things a send needs: who, how much, from which balance, and what it costs.
  *
  * Both fields are validated before anything is built (`validate-transfer.ts`), so
  * a typo is answered here and never reaches a wallet prompt, and the quote comes
@@ -20,6 +21,11 @@ import type { SendFormProps } from './SendPanel.types';
  * A username recipient is RESOLVED between the two fields: once the server has
  * answered, the name AND the address are shown together — the username is only
  * how the customer found the person, and the address is what gets signed.
+ *
+ * Which balance pays sits with the amount, in `SendAmountSection`, because it is
+ * what the fee line is a function of — the same control, in the same place, as the
+ * pay step (#232). It is ONE component for both flows; a second picker is how an
+ * app grows two mental models of its own money.
  *
  * The fee line is not decoration: the customer funds the 2%, so showing it after
  * they sign would be charging them for something they never saw.
@@ -31,7 +37,9 @@ export function SendForm({
   recipientError,
   amountError,
   formError,
+  formErrorCode,
   resolved,
+  tokenSelector,
   preview,
   previewLoading,
   step,
@@ -39,12 +47,17 @@ export function SendForm({
   focusAmount,
   onRecipientChange,
   onAmountChange,
+  onChooseAsset,
   onSubmit,
 }: SendFormProps) {
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     if (!busy) onSubmit();
   };
+
+  // `no-single-asset-covers` is drawn by the selector, beside the balance that can
+  // pay it; the form draws only what the selector leaves unsaid (`send-panel-step`).
+  const flags = sendFormFlags({ formError, formErrorCode, tokenSelector });
 
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
@@ -60,18 +73,18 @@ export function SendForm({
 
       {resolved ? <SendResolvedRecipient recipient={resolved} /> : null}
 
-      <SendField
-        label={amountLabel}
-        hint={SEND_COPY.amountHint}
-        error={amountError}
-        value={amountFiat}
-        onChange={onAmountChange}
-        inputMode="decimal"
-        disabled={busy}
-        autoFocus={focusAmount}
+      <SendAmountSection
+        amountLabel={amountLabel}
+        amountFiat={amountFiat}
+        amountError={amountError}
+        preview={preview}
+        previewLoading={previewLoading}
+        tokenSelector={tokenSelector}
+        busy={busy}
+        focusAmount={focusAmount}
+        onAmountChange={onAmountChange}
+        onChooseAsset={onChooseAsset}
       />
-
-      <FeeQuote preview={preview} loading={previewLoading} tone="dark" subject="send" />
 
       {/* What the money in the table above IS. On practice it is the one line on
           this screen that says the figures are not real, and it is directly under
@@ -86,9 +99,9 @@ export function SendForm({
           not rendered on a field — and it names what failed, not just that it did.
           `role="alert"` makes it a live region; `color="alert"` is the token role,
           not a hand-copied class. */}
-      {formError ? (
+      {flags.formError ? (
         <Text variant="micro" color="alert" as="p" role="alert">
-          {formError}
+          {flags.formError}
         </Text>
       ) : null}
 

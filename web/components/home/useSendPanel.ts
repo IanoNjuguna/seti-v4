@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ASSET_DECIMALS, PRIMARY_ASSET, type SupportedAsset } from '@/lib/chain';
 import { useAppNetwork } from '@/components/app/useAppNetwork';
+import { buildTokenSelector } from '@/components/token-selector/token-selector.model';
+import { useSession } from '@/lib/auth';
 import {
   ApiError,
   previewSend,
@@ -13,10 +15,14 @@ import {
   type SendPreview,
 } from '@/lib/api';
 import { classifyPaymentError } from '@/lib/pay/classify-payment-error';
+import { coveringSendAsset } from '@/lib/pay/covering-asset';
+import { COVERAGE_REFUSAL, pinAsset } from '@/lib/pay/quote-asset';
+import { resolvedAsset } from '@/lib/pay/resolved-asset';
 import { signSend } from '@/lib/pay/sign-transfer';
 import { looksLikeAddress, validateAmount, validateRecipient } from '@/lib/pay/validate-transfer';
 import { quoteArrived } from '@/lib/feedback';
 import { useEmbeddedWallet } from '@/hooks/useEmbeddedWallet';
+import { useSpendAssetRows } from '@/hooks/useSpendAssetRows';
 import { useTempoSender } from '@/hooks/useTempoSender';
 import type { ResolvedRecipient, SendPanelState, UseSendPanelReturn } from './SendPanel.types';
 
@@ -30,24 +36,6 @@ import type { ResolvedRecipient, SendPanelState, UseSendPanelReturn } from './Se
  */
 const AMOUNT_DECIMALS = ASSET_DECIMALS[PRIMARY_ASSET];
 
-/**
- * The asset the server resolved for a quote.
- *
- * The client no longer chooses. A customer whose money arrived as USDT0 has a
- * zero OUSD balance, so signing OUSD regardless refused a send they could afford;
- * the server picks from what they actually hold and this reads its answer. The
- * cast is guarded rather than asserted: an unrecognised label means the two
- * builds disagree about the asset set, which must fail loudly and not sign.
- */
-function resolvedAsset(preview: { asset: string }): SupportedAsset {
-  if (!(preview.asset in ASSET_DECIMALS)) {
-    throw new Error(
-      `The quote named an asset this build does not support (${preview.asset}). ` +
-        'Update the app before sending.'
-    );
-  }
-  return preview.asset as SupportedAsset;
-}
 /** A label, not a token name: the customer is sending dollars — which stablecoin
  * backs it is an implementation detail they should never have to reason about. */
 const ASSET_LABEL = 'USD';
@@ -61,13 +49,21 @@ const INITIAL: SendPanelState = {
   step: 'idle',
   recipient: '',
   amountFiat: '',
+  asset: null,
   resolution: null,
   preview: null,
+  coverOffer: null,
   recipientError: null,
   amountError: null,
   formError: null,
+  formErrorCode: null,
   sent: null,
 };
+
+/** The server's machine-readable cause, when it sent one. Null for anything else. */
+function codeOf(error: unknown): string | null {
+  return error instanceof ApiError ? (error.code ?? null) : null;
+}
 
 function toErrorMessage(error: unknown, fallback: string): string {
   // An `ApiError` is mapped from its code to our own copy; anything else (a wallet
@@ -144,6 +140,14 @@ function destinationFor(
  *    Activity is evidence rather than a claim.
  * 4. **A recipient may be a username.** It is resolved by the server to a name and
  *    an address, both are shown, and the ADDRESS is what is signed.
+ * 5. **Which token pays is the customer's to choose (#232).** `asset` is a PIN: absent
+ *    until they pick a balance, then carried on the debounced quote, on the one that
+ *    is signed, and on the re-quote after an expired price — so the amount priced,
+ *    the fee line and the recorded asset are all for the token they picked. A pin
+ *    that cannot cover is refused by the server (#223) before any signature, never
+ *    quietly swapped, and then one more question is asked with no pin so the refusal
+ *    can offer the balance that CAN pay. This is the same rule the pay flow follows,
+ *    through the same components and the same helpers.
  *
  * `initialRecipient` is how `seti.live/u/<handle>`'s Send action lands with the
  * person already chosen (`/app/send?to=<handle>`): it is the same string a typed
@@ -151,6 +155,13 @@ function destinationFor(
  */
 export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
   const [state, setState] = useState<SendPanelState>({ ...INITIAL, recipient: initialRecipient });
+  /**
+   * The account whose balances can pay. Read here rather than handed in, because
+   * this hook is only ever mounted behind `SendPanel`'s session gate and the balance
+   * rows below are the same read home drew a screen ago.
+   */
+  const session = useSession();
+  const userId = session.user?.id ?? null;
   /**
    * The network the ACCOUNT is acting on — the chain this send will be signed on.
    * Read here (a hook can read it, a plain module cannot) and handed to `signSend`,
@@ -164,6 +175,8 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
    * it is reset only where the figure is cleared.
    */
   const quoted = useRef(false);
+  /** The balances the selector draws: one read, from the account's own home payload. */
+  const spendRows = useSpendAssetRows(userId ?? undefined);
   const { address, status } = useEmbeddedWallet();
   const { sendTempoTransaction } = useTempoSender();
 
@@ -175,12 +188,64 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
   // Editing a field clears that field's error, so a message cannot outlive the
   // value it was about — or be read as a comment on what the user just typed.
   const setRecipient = useCallback(
-    (recipient: string) => patch({ recipient, recipientError: null, formError: null }),
+    (recipient: string) =>
+      patch({ recipient, recipientError: null, formError: null, formErrorCode: null, coverOffer: null }),
     [patch]
   );
   const setAmountKes = useCallback(
-    (amountFiat: string) => patch({ amountFiat, amountError: null, formError: null }),
+    (amountFiat: string) =>
+      patch({ amountFiat, amountError: null, formError: null, formErrorCode: null, coverOffer: null }),
     [patch]
+  );
+
+  /**
+   * Which balance pays (#232).
+   *
+   * The price is DROPPED rather than kept: the fee is charged in the spent token, so
+   * the figures for the previous one are figures for a transfer nobody is about to
+   * sign. Clearing it puts the fee line back into its pricing shape, which makes the
+   * change read as repricing rather than as a jump — and the quote that lands is
+   * pinned to the token just chosen.
+   *
+   * The refusal and its offer clear with it: both were about the balance the
+   * customer is no longer spending from.
+   */
+  const setAsset = useCallback(
+    (asset: string | null) => {
+      patch({
+        // The label comes from a balance row, so it is guarded the same way a quote's
+        // own answer is: an asset this build has no contract for must fail loudly
+        // here rather than be pinned and signed.
+        asset: asset === null ? null : resolvedAsset(asset),
+        preview: null,
+        recipientError: null,
+        amountError: null,
+        formError: null,
+        formErrorCode: null,
+        coverOffer: null,
+      });
+    },
+    [patch]
+  );
+
+  /**
+   * Which single token COULD cover this send, asked of the server after a refusal.
+   *
+   * Only ever called for a PINNED quote that was refused: an unpinned refusal is the
+   * money being spread, and there is no token to offer. See `coveringSendAsset` — the
+   * unpinned quote is the server's own answer to "which one, then".
+   */
+  const offerFor = useCallback(
+    async (
+      pinned: SupportedAsset | null,
+      amountFiat: string,
+      recipient: string
+    ): Promise<SupportedAsset | null> => {
+      if (!pinned) return null;
+      const alternative = await coveringSendAsset({ amountFiat, recipient });
+      return alternative !== null && alternative !== pinned ? alternative : null;
+    },
+    []
   );
 
   /**
@@ -228,6 +293,10 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
    * `active` stops a slow response writing to state after either field changed
    * again. State is written only in the timer's callbacks, never in the effect
    * body — `react-hooks/set-state-in-effect` is an error in this package.
+   *
+   * The quote carries the customer's pin (#232), so the figure on screen is the price
+   * of the token they chose. Unpinned, it carries nothing and the server picks the row
+   * that covers — which is what the selector then reads as its own answer.
    */
   useEffect(() => {
     const amount = state.amountFiat;
@@ -239,10 +308,12 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
     const { address: destination } = destinationFor(state.recipient, address, resolved);
     if (!destination) return;
 
+    /** The customer's own token choice, captured with the send it was made for. */
+    const pinned = state.asset;
     let active = true;
 
     const timer = setTimeout(() => {
-      previewSend({ amountFiat: amount, recipient: destination })
+      previewSend({ amountFiat: amount, recipient: destination, ...pinAsset(pinned) })
         .then(({ preview }) => {
           if (!active) return;
           // The quote landing is the moment the figure stops moving and becomes what
@@ -252,14 +323,29 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
             quoted.current = true;
             quoteArrived();
           }
-          patch({ preview, formError: null });
+          patch({ preview, formError: null, formErrorCode: null, coverOffer: null });
         })
         .catch((error: unknown) => {
           if (!active) return;
           // A failed quote clears the figure, so the next one that lands is an
           // arrival again and may pulse.
           quoted.current = false;
-          patch({ preview: null, formError: toErrorMessage(error, 'Could not price this send.') });
+          patch({
+            preview: null,
+            formError: toErrorMessage(error, 'Could not price this send.'),
+            formErrorCode: codeOf(error),
+            coverOffer: null,
+          });
+
+          /**
+           * #223's refusal, made actionable (#232): the pinned balance is short and
+           * the money exists elsewhere, so ask the server which ONE token covers it.
+           * It refuses again when nothing does, and then there is no offer to make.
+           */
+          if (codeOf(error) !== COVERAGE_REFUSAL) return;
+          void offerFor(pinned, amount, destination).then((alternative) => {
+            if (active) patch({ coverOffer: alternative });
+          });
         });
     }, PREVIEW_DEBOUNCE_MS);
 
@@ -267,7 +353,7 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
       active = false;
       clearTimeout(timer);
     };
-  }, [state.recipient, state.amountFiat, address, resolved, patch]);
+  }, [state.recipient, state.amountFiat, state.asset, address, resolved, patch, offerFor]);
 
   const submit = useCallback(() => {
     const value = validateAmount(state.amountFiat, AMOUNT_DECIMALS);
@@ -293,9 +379,18 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
      * correct, because an address cannot be resolved back to a name (#119).
      */
     const payee = appliedTo(state.recipient, state.resolution);
+    /** The customer's token choice, captured before anything is awaited (#232). */
+    const pinned = state.asset;
 
     void (async () => {
-      patch({ step: 'previewing', recipientError: null, amountError: null, formError: null });
+      patch({
+        step: 'previewing',
+        recipientError: null,
+        amountError: null,
+        formError: null,
+        formErrorCode: null,
+        coverOffer: null,
+      });
 
       // The wallet that will sign has to be known BEFORE anything is signed: its
       // address is what the server binds the recorded transfer to, and a record
@@ -310,15 +405,28 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
 
       let preview: SendPreview;
       try {
-        // Fresh, authoritative quote — the displayed one may be seconds old.
-        ({ preview } = await previewSend({ amountFiat, recipient }));
+        // Fresh, authoritative quote — the displayed one may be seconds old, and it
+        // is pinned to the balance the customer chose, exactly like the display.
+        ({ preview } = await previewSend({ amountFiat, recipient, ...pinAsset(pinned) }));
         patch({ preview });
       } catch (error) {
         patch({
           step: 'idle',
           preview: null,
           formError: toErrorMessage(error, 'Could not price this send. Try again.'),
+          formErrorCode: codeOf(error),
         });
+
+        /**
+         * The refusal the customer can act on (#232): the balance they picked is short
+         * while another covers. The offer is the server's own answer to the same
+         * question asked without a pin, and it is what the selector draws beside
+         * #223's sentence. Nothing is signed on this path — the throw above is where
+         * it stopped.
+         */
+        if (codeOf(error) === COVERAGE_REFUSAL) {
+          patch({ coverOffer: await offerFor(pinned, amountFiat, recipient) });
+        }
         return;
       }
 
@@ -336,9 +444,10 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
         // the treasury. Atomic, so the fee cannot go missing.
         const { txHash } = await signSend({
           preview,
-          // The asset the SERVER priced this send in — both legs (principal and
-          // fee) ride in it, so the whole batch is one token.
-          asset: resolvedAsset(preview),
+          // The asset THIS quote priced — the customer's pin when they made one, the
+          // row the server chose when they did not. Both legs (principal and fee) ride
+          // in it, so the whole batch is one token.
+          asset: resolvedAsset(preview.asset),
           sendTempoTransaction,
           network: appNetwork,
         });
@@ -348,7 +457,7 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
         const record = (quoteId: string) =>
           recordSend({
             amount: preview.amount,
-            asset: resolvedAsset(preview),
+            asset: resolvedAsset(preview.asset),
             recipient: preview.recipient,
             recipientHandle: payee?.handle,
             txHash,
@@ -361,7 +470,13 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
         } catch (error) {
           // The quote aged out between the preview and the record. Re-quote once.
           if (error instanceof ApiError && error.code === 'quote-expired') {
-            const { preview: fresh } = await previewSend({ amountFiat, recipient });
+            // The same pin as the figure that was signed: a re-quote in a different
+            // token would be a different transfer (#232).
+            const { preview: fresh } = await previewSend({
+              amountFiat,
+              recipient,
+              ...pinAsset(pinned),
+            });
             patch({ preview: fresh });
 
             if (fresh.totalFiat !== preview.totalFiat) {
@@ -399,15 +514,46 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
         });
       } catch (error) {
         const { message } = classifyPaymentError(error);
-        patch({ step: 'idle', formError: message.replace('{ASSET}', ASSET_LABEL) });
+        patch({
+          step: 'idle',
+          formError: message.replace('{ASSET}', ASSET_LABEL),
+          formErrorCode: codeOf(error),
+        });
       }
     })();
-  }, [state.recipient, state.amountFiat, state.resolution, address, resolved, sendTempoTransaction, appNetwork, patch]);
+  }, [
+    state.recipient,
+    state.amountFiat,
+    state.asset,
+    state.resolution,
+    address,
+    resolved,
+    sendTempoTransaction,
+    appNetwork,
+    patch,
+    offerFor,
+  ]);
 
   const reset = useCallback(() => setState(INITIAL), []);
 
   const amountIsQuotable =
     state.recipient !== '' && state.amountFiat !== '' && validateAmount(state.amountFiat, AMOUNT_DECIMALS).ok;
+
+  /**
+   * The selector's whole state, derived: the balances, the token the quote named,
+   * the customer's pin, and #223's refusal when the pin is short while another
+   * balance covers. The same derivation the pay step uses, so the two flows cannot
+   * answer "which token" differently.
+   */
+  const tokenSelector = buildTokenSelector({
+    rows: spendRows.rows,
+    currency: spendRows.currency,
+    loading: spendRows.loading,
+    unavailable: spendRows.unavailable,
+    priced: state.preview?.asset ?? null,
+    pinned: state.asset,
+    offer: state.coverOffer,
+  });
 
   return {
     ...state,
@@ -415,8 +561,10 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
     walletStatus: status,
     isBusy: state.step !== 'idle',
     previewLoading: amountIsQuotable && !state.preview,
+    tokenSelector,
     setRecipient,
     setAmountKes,
+    setAsset,
     submit,
     reset,
   };
