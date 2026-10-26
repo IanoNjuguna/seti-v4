@@ -39,8 +39,14 @@ export function OnboardingBody({ wizard }: OnboardingBodyProps) {
         pending={pending}
         busy={claim.isBusy}
         claim={claim}
-        walletStatus={claim.walletStatus}
+        walletStatus={wizard.wallet.status}
+        walletRepair={{
+          canRepair: wizard.wallet.canRepair,
+          repairing: wizard.wallet.repairing,
+          failureCode: wizard.wallet.failureCode,
+        }}
         onChoose={(intent) => void choose(intent)}
+        onRepair={() => void wizard.wallet.repair()}
         onSignIn={() => void signInAgain()}
       />
     );

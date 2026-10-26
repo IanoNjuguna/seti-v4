@@ -28,6 +28,13 @@
  *     the claim path is asserted to hold no EIP-1193 request at all.
  *  6. **The form keeps its split.** A name problem still belongs on the field, so the
  *     intent step must not print it as a block message about the claim.
+ *  7. **A wallet the browser cannot see is repaired here, not signed out (#226).**
+ *     Three states are pinned, because they are the three a person can be in:
+ *     signed in with the server holding a wallet the client cannot see (the address
+ *     comes from the account), genuinely absent (creation is offered), and creation
+ *     that failed (the cause is named and the repair is no longer offered). Signing
+ *     out stays reachable in all three, and is never the only control while a
+ *     repair is still possible.
  *
  * Run from `web/`: npm run check:claim-states (part of the root `verify` gate).
  */
@@ -38,6 +45,7 @@ import { OnboardingIntent } from '../components/onboarding/OnboardingIntent.tsx'
 import { intentWalletState } from '../components/onboarding/intent-wallet.ts';
 import { claimErrorView } from '../components/merchant/Claim.error.ts';
 import { classifyClaimError } from '../lib/claim/classify-claim-error.ts';
+import { registeredWalletAddress, resolveEmbeddedWallet } from '../lib/auth/account-wallet.ts';
 import { REFUSAL_BY_CODE, REFUSAL_UNKNOWN, refusalMessageFor } from '../lib/api/refusal.constants.ts';
 
 /**
@@ -79,14 +87,30 @@ const ERROR_TITLE = 'Name not claimed';
 /** The callbacks the step needs; the check is about words and states, not clicks. */
 const NOOP = () => {};
 
-function render(claim, walletStatus = 'ready') {
+/**
+ * A wallet nothing has tried to repair yet, which is the state a page opens in.
+ *
+ * A repair is still on the table, so both controls are offered: `Set up my wallet`
+ * first, `Sign in again` beside it.
+ */
+const REPAIRABLE = { canRepair: true, repairing: false, failureCode: null };
+
+/** The same, after a repair whose create call failed: the repair is spent. */
+const REPAIR_FAILED = { canRepair: true, repairing: false, failureCode: 'wallet-create-failed' };
+
+/** A build with no Privy app, where there is nothing to create. */
+const NOT_REPAIRABLE = { canRepair: false, repairing: false, failureCode: null };
+
+function render(claim, walletStatus = 'ready', walletRepair = REPAIRABLE) {
   return renderToStaticMarkup(
     createElement(OnboardingIntent, {
       pending: null,
       busy: false,
       claim,
       walletStatus,
+      walletRepair,
       onChoose: NOOP,
+      onRepair: NOOP,
       onSignIn: NOOP,
     })
   );
@@ -142,6 +166,10 @@ const html = {
   loading: render(NOTHING_FAILED, 'loading'),
   /** The wall itself: a device with no wallet, and no claim attempted yet. */
   walletGone: render(NOTHING_FAILED, 'missing'),
+  /** A repair was tried and its create call failed: the cause must be on screen. */
+  repairFailed: render(NOTHING_FAILED, 'missing', REPAIR_FAILED),
+  /** A build with no Privy app: nothing can be created, so only the sign-in is left. */
+  noRepair: render(NOTHING_FAILED, 'missing', NOT_REPAIRABLE),
 };
 
 for (const [name, body] of Object.entries({
@@ -263,6 +291,125 @@ check(
     /nothing was claimed/i.test(REFUSAL_BY_CODE[code])
   )
 );
+
+// --- 8. a wallet the browser cannot see, and the repair for it (#226) ----
+//
+// Three states, because a person can be in any of them and each needs a different
+// sentence and a different set of controls. Before #226 all three collapsed into
+// one: `useWallets()` was empty, so the app said "sign in again" and ended a
+// session it could have repaired.
+console.log('\na wallet the browser cannot see is repaired in place, not signed out:');
+{
+  const reported = '0x5c1F7d3a2E9bB80d6C4aF1e7D2b3A4c5E6f70819';
+
+  // The state the issue is about: signed in, the server records a wallet, the
+  // browser's own list is empty. The address is a fact, so it comes from the account.
+  const fromAccount = resolveEmbeddedWallet({
+    ready: true,
+    signedIn: true,
+    privyAddress: null,
+    accountAddress: ADDRESS,
+  });
+  check(
+    'signed in, the account knows a wallet and the browser does not: the address comes from the account',
+    fromAccount.status === 'ready' && fromAccount.address === ADDRESS,
+    fromAccount.status
+  );
+  check(
+    'a wallet the browser DOES hold is never overruled by the account read',
+    resolveEmbeddedWallet({ ready: true, signedIn: true, privyAddress: reported, accountAddress: ADDRESS })
+      .address === reported
+  );
+  check(
+    'no session, no server address: nothing is signed for an account nobody confirmed',
+    resolveEmbeddedWallet({ ready: true, signedIn: false, privyAddress: null, accountAddress: ADDRESS })
+      .status === 'missing'
+  );
+  check(
+    'genuinely absent stays missing, which is the state creation is for',
+    resolveEmbeddedWallet({ ready: true, signedIn: true, privyAddress: null, accountAddress: null })
+      .status === 'missing'
+  );
+  check(
+    'a list still loading is a moment, not a missing wallet',
+    resolveEmbeddedWallet({ ready: false, signedIn: true, privyAddress: null, accountAddress: ADDRESS })
+      .status === 'loading'
+  );
+  check(
+    'the account read prefers the active row',
+    registeredWalletAddress([
+      { status: 'deprecated', address: reported },
+      { status: 'active', address: ADDRESS },
+    ]) === ADDRESS
+  );
+  check(
+    'a deprecated row still names an address the account holds, so it is used rather than ignored',
+    registeredWalletAddress([{ status: 'deprecated', address: reported }]) === reported
+  );
+
+  // The surface: the repair is the first offer, and the sign-in is never taken away.
+  check('a device with no wallet offers to set one up', html.walletGone.includes('Set up my wallet'));
+  check('and keeps the sign-in reachable beside it', html.walletGone.includes('Sign in again'));
+  check(
+    'the repair is offered BEFORE the sign-in, which is the fallback',
+    html.walletGone.indexOf('>Set up my wallet<') !== -1 &&
+      html.walletGone.indexOf('>Set up my wallet<') < html.walletGone.indexOf('>Sign in again<')
+  );
+  check(
+    'a claim refused for a missing wallet offers the repair too, not only a sign-out',
+    (() => {
+      const state = intentWalletState('ready', failureFrom(noWallet), REPAIRABLE);
+      return state.failure?.canRepair === true && state.failure?.needsSignIn === true;
+    })()
+  );
+
+  // Creation failed: the cause is on the page, and the same tap is not offered again.
+  check(
+    'a failed create names what happened rather than repeating the missing-wallet line',
+    html.repairFailed.includes(escapeHtml(REFUSAL_BY_CODE['wallet-create-failed'])) &&
+      !html.repairFailed.includes(escapeHtml(REFUSAL_BY_CODE['wallet-missing']))
+  );
+  check(
+    'a failed create does not offer the repair again',
+    !html.repairFailed.includes('Set up my wallet')
+  );
+  check('a failed create leaves the sign-in, which is the remaining way out', html.repairFailed.includes('Sign in again'));
+  const createSentence = REFUSAL_BY_CODE['wallet-create-failed'];
+  check(
+    'the create failure has a sentence of its own, in the voice the wallet states use',
+    typeof createSentence === 'string' &&
+      createSentence !== REFUSAL_UNKNOWN &&
+      !/[—!?]/.test(createSentence) &&
+      /nothing was claimed/i.test(createSentence) &&
+      /\bseti\b/i.test(createSentence),
+    String(createSentence)
+  );
+
+  // A build with no Privy app cannot create anything, so it must not offer to.
+  check(
+    'with no wallet to create, only the sign-in is offered',
+    !html.noRepair.includes('Set up my wallet') && html.noRepair.includes('Sign in again')
+  );
+
+  // And the code behind the controls: where the address comes from, and the order
+  // the repair runs in. Markup cannot show either.
+  const walletSource = stripComments(readSource('../hooks/useEmbeddedWallet.ts'));
+  /** The repair's own read, and the only line in the hook shaped like it. */
+  const accountRead = 'const accountWallet = registeredWalletAddress(rows);';
+  check(
+    'the signing address is not taken from the wallet list alone',
+    walletSource.includes('fetchAccountWallets') && walletSource.includes('resolveEmbeddedWallet')
+  );
+  check(
+    'a wallet is created only after the account itself was read',
+    walletSource.includes(accountRead) &&
+      walletSource.indexOf(accountRead) < walletSource.indexOf('createWallet()')
+  );
+  check(
+    'a failed create is logged with its cause, not swallowed',
+    walletSource.includes('could not set up a wallet') && /catch \(error\)/.test(walletSource)
+  );
+}
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);

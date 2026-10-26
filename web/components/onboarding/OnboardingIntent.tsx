@@ -1,10 +1,11 @@
 'use client';
 
-import { Button, Text } from '@/components/ui';
+import { Text } from '@/components/ui';
 import { ClaimFormStatus } from '@/components/merchant/ClaimFormStatus';
 import { ONBOARDING_NAME_COPY } from '@/components/merchant/Claim.constants';
-import { INTENT_OPTIONS, ONBOARDING_COPY } from './Onboarding.constants';
 import { IntentOption } from './IntentOption';
+import { INTENT_OPTIONS, ONBOARDING_COPY } from './Onboarding.constants';
+import { WalletRepairAction } from './WalletRepairAction';
 import { intentWalletState } from './intent-wallet';
 import type { OnboardingIntentProps } from './Onboarding.types';
 
@@ -28,7 +29,14 @@ import type { OnboardingIntentProps } from './Onboarding.types';
  * So the failure is rendered by `claimErrorView`, the same view the claim form
  * uses: one decision about what goes where, two renderers. A name problem is a name
  * problem, a server refusal prints its reason and its reference, and a missing
- * wallet carries the one control that can fix it.
+ * wallet carries the controls that can fix it.
+ *
+ * ## Which controls the wallet carries is a decision, not a condition (#226)
+ *
+ * `intentWalletState` says whether the app can repair the wallet here and whether a
+ * sign-in is still a way out; `WalletRepairAction` draws them in that order. Neither
+ * answer is computed in this file, because "is the repair still worth offering" is
+ * the kind of rule that silently rots in markup.
  *
  * A refusal from the previous attempt is shown HERE rather than back on the name
  * field: a name that was taken while the wallet was open is not the person's
@@ -46,12 +54,14 @@ export function OnboardingIntent({
   busy,
   claim,
   walletStatus,
+  walletRepair,
   onChoose,
+  onRepair,
   onSignIn,
 }: OnboardingIntentProps) {
   // Asking for a signature needs something that can sign. The decision is a
   // precedence with a test of its own (`intent-wallet.ts`), not a condition here.
-  const { canChoose, failure } = intentWalletState(walletStatus, claim);
+  const { canChoose, failure } = intentWalletState(walletStatus, claim, walletRepair);
 
   return (
     <div className="flex flex-col gap-4">
@@ -90,10 +100,14 @@ export function OnboardingIntent({
         errorTitle={ONBOARDING_NAME_COPY.errorTitle}
         reference={failure?.reference ?? null}
         action={
-          failure?.needsSignIn ? (
-            <Button variant="secondary" onClick={onSignIn}>
-              {ONBOARDING_COPY.signInAgain}
-            </Button>
+          failure ? (
+            <WalletRepairAction
+              showRepair={failure.canRepair}
+              showSignIn={failure.needsSignIn}
+              repairing={walletRepair.repairing}
+              onRepair={onRepair}
+              onSignIn={onSignIn}
+            />
           ) : null
         }
       />
