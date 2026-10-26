@@ -45,6 +45,7 @@ import {
   type HandleKind,
 } from './handle-claims.js';
 import { findHandleByHandle } from './handles.js';
+import { describeMerchantHandle } from '../lib/merchant-name.js';
 import { servedNetwork } from './chain.js';
 import { handleRoutes } from '../routes/handles.js';
 import { publicHandleRoutes } from '../routes/public-handles.js';
@@ -202,6 +203,14 @@ async function main() {
     ['@ian', 'ian'],
     ['Café 29', 'caf29'],
     ['co.op', 'co.op'],
+    // The TikTok username rule, which is `[a-z0-9._]`: a hyphen is dropped rather
+    // than kept, so `Java-House` and `Java House` are one handle and the second
+    // claim is refused as taken. A `+`, which the field's hint used to promise, is
+    // dropped the same way.
+    ['Java-House', 'javahouse'],
+    ['Lou.ron212', 'lou.ron212'],
+    ['Lou.ron212+', 'lou.ron212'],
+    ['co_op', 'co_op'],
   ];
   for (const [name, expected] of RULE_CASES) {
     check(`backend("${name}")`, merchantHandle(name), expected);
@@ -222,6 +231,31 @@ async function main() {
   );
   check('both rules agree on the collision pair', merchantHandle(NAME_FIRST), HANDLE_COLLISION);
   check('both rules agree on the colliding name', merchantHandle(NAME_COLLIDING), HANDLE_COLLISION);
+
+  // ---------------------------------------------------------------------------
+  // The handle's OWN limits, which are not a name's
+  // ---------------------------------------------------------------------------
+  //
+  // A 64 character business name is a legitimate name; the link it reduces to is
+  // what has to stay typable, which is why the limits live on the handle and are
+  // checked where both strings are known. The leading period is unreachable through
+  // the name rule (a name must start with a letter or digit) and is asserted anyway:
+  // this function is the last word on what a handle may be, and it should not depend
+  // on a caller having run the other rule first.
+  const limitCases: [string, boolean][] = [
+    ['ab', true],
+    ['a'.repeat(24), true],
+    ['a'.repeat(25), false],
+    ['co.op.', false],
+    ['.co.op', false],
+  ];
+  for (const [name, expected] of limitCases) {
+    check(
+      `handle limit: "${name.length > 12 ? `${name.slice(0, 6)}…(${name.length})` : name}" is ${expected ? 'usable' : 'refused'}`,
+      describeMerchantHandle(name) === null,
+      expected
+    );
+  }
 
   // ---------------------------------------------------------------------------
   // (d) every merchant profile is behind a handle, on rows this suite owns
