@@ -39,6 +39,7 @@ export function OnboardingBody({ wizard }: OnboardingBodyProps) {
         pending={pending}
         busy={claim.isBusy}
         claim={claim}
+        walletStatus={claim.walletStatus}
         onChoose={(intent) => void choose(intent)}
         onSignIn={() => void signInAgain()}
       />

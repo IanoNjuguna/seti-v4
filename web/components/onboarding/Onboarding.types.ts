@@ -1,5 +1,6 @@
 import type { AccountIntent } from '@/lib/api';
 import type { ClaimFailure } from '@/components/merchant/Claim.error';
+import type { EmbeddedWalletStatus } from '@/hooks/useEmbeddedWallet.types';
 import type { UseMerchantClaimReturn } from '@/hooks/useMerchantClaim.types';
 
 /**
@@ -50,6 +51,14 @@ export interface OnboardingIntentProps {
    * claim form.
    */
   claim: ClaimFailure;
+  /**
+   * Whether anything on the device can sign.
+   *
+   * The step needs it for a reason that is not cosmetic: an option offered with no
+   * wallet to sign with is a control that fails, and that failure is how a new
+   * account came to be told its name was wrong.
+   */
+  walletStatus: EmbeddedWalletStatus;
   onChoose: (intent: AccountIntent) => void;
   /**
    * Leave for `/signin` and come back with a wallet.
@@ -69,6 +78,11 @@ export interface IntentOptionProps {
   /** The option currently signing, or null. */
   pending: AccountIntent | null;
   busy: boolean;
+  /**
+   * True when this control cannot complete at all, because nothing on the device
+   * can sign. Distinct from `busy`: that one ends, this one needs a sign-in.
+   */
+  disabled?: boolean;
   onChoose: (intent: AccountIntent) => void;
 }
 

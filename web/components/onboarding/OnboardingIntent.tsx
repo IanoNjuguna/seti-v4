@@ -2,10 +2,10 @@
 
 import { Button, Text } from '@/components/ui';
 import { ClaimFormStatus } from '@/components/merchant/ClaimFormStatus';
-import { claimErrorView } from '@/components/merchant/Claim.error';
 import { ONBOARDING_NAME_COPY } from '@/components/merchant/Claim.constants';
 import { INTENT_OPTIONS, ONBOARDING_COPY } from './Onboarding.constants';
 import { IntentOption } from './IntentOption';
+import { intentWalletState } from './intent-wallet';
 import type { OnboardingIntentProps } from './Onboarding.types';
 
 /**
@@ -41,12 +41,17 @@ import type { OnboardingIntentProps } from './Onboarding.types';
  * how a person learns that the app is not one thing. The options are objects and
  * keep their own borders; the words are the page's.
  */
-export function OnboardingIntent({ pending, busy, claim, onChoose, onSignIn }: OnboardingIntentProps) {
-  const { blockError, reference } = claimErrorView(claim);
-
-  // The one refusal a retry cannot fix: nothing on this device can sign, so the
-  // next step is a sign-in that materialises a wallet, not the same tap again.
-  const needsSignIn = claim.errorCode === 'wallet-missing';
+export function OnboardingIntent({
+  pending,
+  busy,
+  claim,
+  walletStatus,
+  onChoose,
+  onSignIn,
+}: OnboardingIntentProps) {
+  // Asking for a signature needs something that can sign. The decision is a
+  // precedence with a test of its own (`intent-wallet.ts`), not a condition here.
+  const { canChoose, failure } = intentWalletState(walletStatus, claim);
 
   return (
     <div className="flex flex-col gap-4">
@@ -69,6 +74,7 @@ export function OnboardingIntent({ pending, busy, claim, onChoose, onSignIn }: O
             action={option.action}
             pending={pending}
             busy={busy}
+            disabled={!canChoose}
             onChoose={onChoose}
           />
         ))}
@@ -80,11 +86,11 @@ export function OnboardingIntent({ pending, busy, claim, onChoose, onSignIn }: O
 
       <ClaimFormStatus
         progress={null}
-        error={blockError}
+        error={failure?.blockError ?? null}
         errorTitle={ONBOARDING_NAME_COPY.errorTitle}
-        reference={reference}
+        reference={failure?.reference ?? null}
         action={
-          needsSignIn ? (
+          failure?.needsSignIn ? (
             <Button variant="secondary" onClick={onSignIn}>
               {ONBOARDING_COPY.signInAgain}
             </Button>
