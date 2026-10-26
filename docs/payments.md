@@ -118,6 +118,47 @@ Consequences for an integrator:
 | `Merchant has no payout address…` | The merchant cannot receive; nothing was recorded. |
 | `HTTP 401` | Missing/expired bearer token, or a token with no local user. |
 
+## Nothing converts a balance for you
+
+All four supported stablecoins are 1:1 USD, so the home read reports them as one
+figure plus a breakdown of rows (`GET /users/:id/home`). What it does not do is turn
+one into another.
+
+There used to be a settlement pass. A few seconds after the app opened, the client
+fetched a plan and asked the customer's own wallet to swap any bridged stablecoin
+into OUSD. That pass is no longer mounted anywhere: it moved money nobody had
+instructed it to move, and once the home card lists each asset it bought no
+invisibility either. So nothing converts a balance on its own today. Money that
+arrives as USDC.e stays USDC.e until the customer converts it, and a balance can sit
+in two or three assets indefinitely.
+
+Three things do remain:
+
+- **The planner answers on request.** `GET /transactions/settle/plan` returns
+  `{ plan }` with `network`, `target` (`ousd`), a frozen `quoteId` to hand back with
+  the hash (null when there is nothing to do), an `items` array of what is worth
+  converting now (`assetIn`, `assetOut`, `amountIn`, `amountOut`, `minAmountOut`,
+  `spreadBps`), and a `skipped` array carrying a reason per asset: `already-target`,
+  `below-threshold` (dust, under 5 units), `no-market`, `spread-too-wide`, or
+  `not-listed`. It is a GET and it writes nothing; the customer's wallet signs each
+  item, one transaction each.
+- **The record path still validates.** `POST /convert` takes the hash, the pair, the
+  amount in and the floor that was signed, and refuses what it cannot prove: an
+  unsupported or identical pair (`convert-pair-unavailable`, `convert-same-asset`), a
+  pair with no market on this network, a non-positive amount or floor
+  (`amount-invalid`), a quote id that is missing, unreadable, expired or another
+  account's (`quote-missing`, `quote-invalid`, `quote-expired`, `quote-not-yours`), a
+  signing wallet the account does not hold, a receipt with no input leg to the book or
+  no output leg back to that wallet (`convert-leg-unverified`), an input more than 1%
+  away from the claim (`amount-mismatch`), or an output below the floor
+  (`convert-below-floor`).
+- **A convert records no fee.** `feeAmount` is null rather than zero, because the 2%
+  is attributed to a merchant payment and a convert has no merchant. The row names
+  what arrived, so the ledger says what the customer holds afterwards.
+
+A payment still spends exactly ONE asset (see "Which asset pays" above). The sum is
+what the home card shows; one balance is what a transfer spends.
+
 ## Non-custodial, and what that means for you
 
 Seti never holds the principal and never signs for the customer. In v1 there is
