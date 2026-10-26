@@ -1,3 +1,4 @@
+import { COVERAGE_REFUSAL } from '@/lib/pay/quote-asset';
 import type { UsePayMerchantReturn } from '@/hooks/usePayMerchant.types';
 import type { MerchantPayStepFlags } from './MerchantPayStep.types';
 
@@ -23,7 +24,12 @@ export function merchantPayStepFlags(payment: UsePayMerchantReturn): MerchantPay
   // the field; a wallet/config/rejection failure is not an amount problem.
   const amountError =
     payment.errorKind === 'insufficient-funds' ? (payment.error ?? undefined) : undefined;
-  const blockError = payment.error && !amountError ? payment.error : null;
+  // `no-single-asset-covers` is the one refusal the step does NOT report (#228): the
+  // token selector owns that sentence, because beside it sits the balance that can
+  // pay it. Drawing it here too would put the same sentence twice on one screen, the
+  // second time with no way out.
+  const drawnBySelector = payment.errorCode === COVERAGE_REFUSAL;
+  const blockError = payment.error && !amountError && !drawnBySelector ? payment.error : null;
 
   return { canPay, amountError, blockError };
 }

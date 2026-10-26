@@ -13,37 +13,20 @@ import {
 } from '@/lib/api';
 import { classifyPaymentError } from '@/lib/pay/classify-payment-error';
 import { signPayment } from '@/lib/pay/sign-payment';
-import { ASSET_DECIMALS } from '@/lib/chain';
+import { COVERAGE_REFUSAL, pinAsset } from '@/lib/pay/quote-asset';
+import { coveringAsset } from '@/lib/pay/covering-asset';
+import { resolvedAsset } from '@/lib/pay/resolved-asset';
 import { quoteArrived } from '@/lib/feedback';
 import { useEmbeddedWallet } from '@/hooks/useEmbeddedWallet';
+import { useSpendAssetRows } from '@/hooks/useSpendAssetRows';
 import { useTempoSender } from '@/hooks/useTempoSender';
 import { useAppNetwork } from '@/components/app/useAppNetwork';
+import { buildTokenSelector } from '@/components/token-selector/token-selector.model';
 import type { PayState, UsePayMerchantReturn } from './usePayMerchant.types';
 
-/**
- * The asset the server resolved for a quote.
- *
- * The client no longer chooses one. A customer whose money arrived as USDT0 has a
- * zero OUSD balance, so signing OUSD regardless refused a payment they could
- * afford — the bug a bridged deposit exposed. The server picks from what they
- * hold (`pickSpendAsset`) and this reads its answer, so the principal leg, the fee
- * leg and the recorded label are all the same token.
- *
- * The cast is guarded rather than asserted: an unrecognised label means this build
- * and the backend disagree about the asset set, which must fail loudly instead of
- * signing a transfer against a contract this build has no address for.
- */
-function resolvedAsset(value: string): SupportedAsset {
-  if (!(value in ASSET_DECIMALS)) {
-    throw new Error(
-      `The quote named an asset this build does not support (${value}). ` +
-        'Update the app before paying.'
-    );
-  }
-  return value as SupportedAsset;
-}
 /** Human-facing label only. Users are paying in dollars — the token behind it is
- * an implementation detail they should never have to reason about. */
+ * an implementation detail they should never have to reason about, except in the
+ * selector, where the choice of balance is the customer's own (#228). */
 const ASSET_LABEL = 'USD';
 
 /** How long to wait after the last keystroke before quoting the fee. */
@@ -53,11 +36,19 @@ const INITIAL: PayState = {
   step: 'idle',
   merchant: null,
   amount: '',
+  asset: null,
   preview: null,
+  coverOffer: null,
   txHash: null,
   error: null,
   errorKind: null,
+  errorCode: null,
 };
+
+/** The server's machine-readable cause, when it sent one. Null for anything else. */
+function codeOf(error: unknown): string | null {
+  return error instanceof ApiError ? (error.code ?? null) : null;
+}
 
 /**
  * The sentence for a failed step.
@@ -94,12 +85,23 @@ function toErrorMessage(
  *    Pay action (`/app/pay?handle=<handle>`) lands with the merchant already
  *    chosen: the value is the same string a pasted code would be, handed to the
  *    same `resolveHandle` the manual entry uses.
+ * 4. **The token is the customer's to choose, and pinned on every quote (#228).**
+ *    `asset` is a pin: absent until they pick a balance, then sent on both the
+ *    debounced quote and the one that is signed, so the price, the fee line and the
+ *    recorded asset are all for the token they chose. A pin that cannot cover is
+ *    refused by the server (#223) — never quietly swapped — and the hook asks once
+ *    more, unpinned, to learn which single token WOULD cover, so the refusal can
+ *    offer it. Nothing is signed on the refused path.
  */
 export function usePayMerchant(userId?: string, initialPayload?: string): UsePayMerchantReturn {
   const [state, setState] = useState<PayState>(INITIAL);
 
   /** See useSendPanel: the arrival pulse fires once per flow, on the first quote. */
   const quoted = useRef(false);
+  /** The balances the selector draws. One read, from the account's own home payload.
+   *  Read on mount rather than on the amount step, so the line is drawn with real
+   *  balances the moment a step opens instead of flashing a skeleton at the customer. */
+  const spendRows = useSpendAssetRows(userId);
   const { getSigningWallet } = useEmbeddedWallet();
   const { sendTempoTransaction } = useTempoSender();
   /**
@@ -115,9 +117,59 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
 
   const setAmount = useCallback(
     (amount: string) => {
-      setPartial({ amount, error: null, errorKind: null });
+      // A refusal and its offer were about the amount on screen a keystroke ago, so
+      // neither outlives the figure they were computed for (#228).
+      setPartial({ amount, error: null, errorKind: null, errorCode: null, coverOffer: null });
     },
     [setPartial]
+  );
+
+  /**
+   * Choose which balance pays (#228).
+   *
+   * The price is DROPPED rather than kept: the fee line is the quote's, and holding
+   * the previous token's figures under a newly chosen token is a figure for a
+   * transfer nobody is about to sign. Clearing it also puts the fee well back into
+   * its pricing shape, so the change reads as repricing rather than as a jump.
+   *
+   * The refusal clears with it: the sentence was about the token the customer is no
+   * longer spending from.
+   */
+  const setAsset = useCallback(
+    (asset: string | null) => {
+      setPartial({
+        // The label comes from a balance row, so it is cast the same guarded way the
+        // quote's own answer is: an asset this build has no contract for must fail
+        // loudly here rather than be pinned and signed.
+        asset: asset === null ? null : resolvedAsset(asset),
+        preview: null,
+        error: null,
+        errorKind: null,
+        errorCode: null,
+        coverOffer: null,
+      });
+    },
+    [setPartial]
+  );
+
+  /**
+   * Which single token COULD cover this amount, asked of the server after a refusal.
+   *
+   * Only ever called for a PINNED quote that was refused: an unpinned refusal is the
+   * money being spread, and there is no token to offer. See `coveringAsset` — the
+   * unpinned quote is the server's own answer to "which one, then".
+   */
+  const offerFor = useCallback(
+    async (
+      pinned: SupportedAsset | null,
+      amountFiat: string,
+      merchantId: string
+    ): Promise<SupportedAsset | null> => {
+      if (!userId || !pinned) return null;
+      const alternative = await coveringAsset({ userId, amountFiat, merchantId });
+      return alternative !== null && alternative !== pinned ? alternative : null;
+    },
+    [userId]
   );
 
   /**
@@ -136,10 +188,12 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
     const merchant = state.merchant;
     const merchantId = merchant.merchantId as string;
     const amount = state.amount;
+    /** The customer's own token choice, captured with the amount it was made for. */
+    const pinned = state.asset;
     let active = true;
 
     const timer = setTimeout(() => {
-      previewPayment({ userId, amountFiat: amount, merchantId })
+      previewPayment({ userId, amountFiat: amount, merchantId, ...pinAsset(pinned) })
         .then(({ preview }) => {
           if (!active) return;
           // The arrival pulse, same moment as the send panel: the figure has landed
@@ -148,7 +202,7 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
             quoted.current = true;
             quoteArrived();
           }
-          setPartial({ preview, error: null, errorKind: null });
+          setPartial({ preview, error: null, errorKind: null, errorCode: null, coverOffer: null });
         })
         .catch((error: unknown) => {
           if (!active) return;
@@ -158,6 +212,18 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
             preview: null,
             error: toErrorMessage(error, 'Could not price this payment. Try again.'),
             errorKind: 'unknown',
+            errorCode: codeOf(error),
+            coverOffer: null,
+          });
+
+          /**
+           * #223's refusal, made actionable (#228): the pinned balance is short and
+           * the money exists elsewhere, so ask the server which ONE token covers it.
+           * It refuses again when nothing does, and then there is no offer to make.
+           */
+          if (codeOf(error) !== COVERAGE_REFUSAL) return;
+          void offerFor(pinned, amount, merchantId).then((alternative) => {
+            if (active) setPartial({ coverOffer: alternative });
           });
         });
     }, PREVIEW_DEBOUNCE_MS);
@@ -166,11 +232,11 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
       active = false;
       clearTimeout(timer);
     };
-  }, [userId, state.merchant, state.amount, setPartial]);
+  }, [userId, state.merchant, state.amount, state.asset, setPartial, offerFor]);
 
   const resolve = useCallback(
     async (qrPayload: string) => {
-      setPartial({ step: 'resolving', error: null, errorKind: null, preview: null, merchant: null, txHash: null });
+      setPartial({ step: 'resolving', error: null, errorKind: null, errorCode: null, coverOffer: null, preview: null, merchant: null, txHash: null });
       try {
         const { handle, suggestedAmount } = await resolveHandle(qrPayload);
         setPartial({ merchant: handle, amount: suggestedAmount ?? '', step: 'idle' });
@@ -223,7 +289,7 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
   }, [userId, initialPayload, setPartial]);
 
   const pay = useCallback(async () => {
-    const { merchant, amount } = state;
+    const { merchant, amount, asset: pinned } = state;
 
     if (!userId) {
       setPartial({ step: 'error', error: 'You must be signed in to make a payment.', errorKind: 'unknown' });
@@ -254,16 +320,20 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
 
     const merchantId = merchant.merchantId;
 
-    setPartial({ step: 'previewing', error: null, errorKind: null });
+    setPartial({ step: 'previewing', error: null, errorKind: null, errorCode: null, coverOffer: null });
 
     let preview: PaymentPreview;
     try {
       // Fresh, authoritative quote. The displayed one may be seconds old, and
       // these figures are what gets signed and then reconciled against the chain.
+      // The customer's pin rides on it: the token that is PRICED is the token that
+      // is signed and the token the receipt records, so there is no window where
+      // the choice and the transfer disagree (#228).
       ({ preview } = await previewPayment({
         userId,
         amountFiat: amount,
         merchantId,
+        ...pinAsset(pinned),
       }));
       setPartial({ preview });
     } catch (error) {
@@ -271,7 +341,16 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
         step: 'error',
         error: toErrorMessage(error, 'Could not price this payment. Try again.'),
         errorKind: 'unknown',
+        errorCode: codeOf(error),
+        coverOffer: null,
       });
+      // A pinned token that cannot cover is #223's refusal, and the way out is the
+      // token the server would spend — asked here too, because the amount may have
+      // changed since the last debounced quote.
+      if (codeOf(error) === COVERAGE_REFUSAL) {
+        const alternative = await offerFor(pinned, amount, merchantId);
+        setPartial({ coverOffer: alternative });
+      }
       return;
     }
 
@@ -353,6 +432,7 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
             userId,
             amountFiat: amount,
             merchantId,
+            ...pinAsset(pinned),
           });
           setPartial({ preview: fresh });
 
@@ -389,7 +469,7 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
         errorKind: kind,
       });
     }
-  }, [state, userId, setPartial, getSigningWallet, sendTempoTransaction, network]);
+  }, [state, userId, setPartial, getSigningWallet, sendTempoTransaction, network, offerFor]);
 
   const reset = useCallback(() => setState(INITIAL), []);
 
@@ -403,5 +483,20 @@ export function usePayMerchant(userId?: string, initialPayload?: string): UsePay
     state.step !== 'insufficient-gas' &&
     state.step !== 'done';
 
-  return { ...state, setAmount, resolve, pay, reset, previewLoading, isBusy };
+  /**
+   * The selector's whole state, derived: the balances, the token the price named,
+   * the customer's pin, and #223's refusal when the pin is short while another
+   * balance is not. One derivation, so the screen and the quote cannot disagree.
+   */
+  const tokenSelector = buildTokenSelector({
+    rows: spendRows.rows,
+    currency: spendRows.currency,
+    loading: spendRows.loading,
+    unavailable: spendRows.unavailable,
+    priced: state.preview?.asset ?? null,
+    pinned: state.asset,
+    offer: state.coverOffer,
+  });
+
+  return { ...state, setAmount, setAsset, resolve, pay, reset, previewLoading, isBusy, tokenSelector };
 }
