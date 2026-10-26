@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { StateMessage, Text } from '@/components/ui';
 
 export interface ClaimFormStatusProps {
@@ -17,6 +18,14 @@ export interface ClaimFormStatusProps {
    * on the exact log line.
    */
   reference?: string | null;
+  /**
+   * What to do about it, when the refusal has a next step that is NOT this button.
+   *
+   * A wallet that is not on this device cannot be found by pressing the claim
+   * control again, so that one refusal carries a sign-in instead of a retry. Null
+   * for every refusal a retry fixes, which is most of them.
+   */
+  action?: ReactNode;
 }
 
 /**
@@ -33,7 +42,7 @@ export interface ClaimFormStatusProps {
  * it changed. The button below already carries the spinner, so this line carries
  * the words and not a second indicator.
  */
-export function ClaimFormStatus({ progress, error, errorTitle, reference }: ClaimFormStatusProps) {
+export function ClaimFormStatus({ progress, error, errorTitle, reference, action }: ClaimFormStatusProps) {
   return (
     <>
       {progress ? (
@@ -44,7 +53,7 @@ export function ClaimFormStatus({ progress, error, errorTitle, reference }: Clai
 
       {error ? (
         <div className="space-y-2">
-          <StateMessage variant="failure" title={errorTitle} body={error} />
+          <StateMessage variant="failure" title={errorTitle} body={error} action={action} />
           {reference ? (
             <Text variant="micro" as="p" color="secondary" className="break-all">
               {reference}

@@ -1,6 +1,9 @@
 'use client';
 
-import { StateMessage, Text } from '@/components/ui';
+import { Button, Text } from '@/components/ui';
+import { ClaimFormStatus } from '@/components/merchant/ClaimFormStatus';
+import { claimErrorView } from '@/components/merchant/Claim.error';
+import { ONBOARDING_NAME_COPY } from '@/components/merchant/Claim.constants';
 import { INTENT_OPTIONS, ONBOARDING_COPY } from './Onboarding.constants';
 import { IntentOption } from './IntentOption';
 import type { OnboardingIntentProps } from './Onboarding.types';
@@ -13,6 +16,20 @@ import type { OnboardingIntentProps } from './Onboarding.types';
  * signature made for the other purpose — so asking for the signature here, after
  * the choice, is what makes the purpose unambiguous rather than a guess.
  *
+ * ## The refusal is the CLAIM's to render, not this step's
+ *
+ * This step used to carry its own heading, "That name could not be claimed", for
+ * every failure. That sentence is true only of a name the backend refused. A wallet
+ * that was never there to sign, a provider that would not sign, and a request that
+ * never left the browser all arrived under it: a new account was told its name was
+ * at fault for a failure that had nothing to do with the name, and retried the same
+ * tap three times.
+ *
+ * So the failure is rendered by `claimErrorView`, the same view the claim form
+ * uses: one decision about what goes where, two renderers. A name problem is a name
+ * problem, a server refusal prints its reason and its reference, and a missing
+ * wallet carries the one control that can fix it.
+ *
  * A refusal from the previous attempt is shown HERE rather than back on the name
  * field: a name that was taken while the wallet was open is not the person's
  * mistake, and sending them back to rewrite a name that was fine is the wrong fix.
@@ -24,7 +41,13 @@ import type { OnboardingIntentProps } from './Onboarding.types';
  * how a person learns that the app is not one thing. The options are objects and
  * keep their own borders; the words are the page's.
  */
-export function OnboardingIntent({ pending, busy, error, onChoose }: OnboardingIntentProps) {
+export function OnboardingIntent({ pending, busy, claim, onChoose, onSignIn }: OnboardingIntentProps) {
+  const { blockError, reference } = claimErrorView(claim);
+
+  // The one refusal a retry cannot fix: nothing on this device can sign, so the
+  // next step is a sign-in that materialises a wallet, not the same tap again.
+  const needsSignIn = claim.errorCode === 'wallet-missing';
+
   return (
     <div className="flex flex-col gap-4">
       <div>
@@ -55,9 +78,19 @@ export function OnboardingIntent({ pending, busy, error, onChoose }: OnboardingI
         {ONBOARDING_COPY.intentReversible}
       </Text>
 
-      {error ? (
-        <StateMessage variant="failure" title={ONBOARDING_COPY.intentError} body={error} />
-      ) : null}
+      <ClaimFormStatus
+        progress={null}
+        error={blockError}
+        errorTitle={ONBOARDING_NAME_COPY.errorTitle}
+        reference={reference}
+        action={
+          needsSignIn ? (
+            <Button variant="secondary" onClick={onSignIn}>
+              {ONBOARDING_COPY.signInAgain}
+            </Button>
+          ) : null
+        }
+      />
     </div>
   );
 }
