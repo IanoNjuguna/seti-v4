@@ -50,7 +50,7 @@ A typical host configuration:
 | `seti_resolve_merchant` | yes | Resolve a Seti QR payload to a merchant. |
 | `seti_preview_payment` | yes | Server-computed fee, FX, gross and balance sufficiency. |
 | `seti_get_transaction_status` | yes | Status, tx hash and settlement timestamps. |
-| `seti_get_balance` | yes | The balance the API reports for a user. |
+| `seti_get_balance` | yes | The total in the customer's currency, plus one row per asset with its amount and value. |
 | `seti_list_transactions` | yes | Recent transactions, newest first. |
 | `seti_record_payment` | yes, **writes** | Record a settled payment. Registered only when `SETI_MCP_ALLOW_WRITES=true`. |
 
