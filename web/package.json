@@ -36,7 +36,8 @@
     "check:activity-search": "tsx scripts/check-activity-search.mjs",
     "check:repeat-send": "tsx scripts/check-repeat-send.mjs",
     "check:memo-always": "tsx scripts/check-memo-always.mjs",
-    "check:privy-mount": "node scripts/check-privy-mount.mjs"
+    "check:privy-mount": "node scripts/check-privy-mount.mjs",
+    "check:privy-token-guard": "node scripts/check-privy-token-guard.mjs"
   },
   "dependencies": {
     "@privy-io/react-auth": "^3.48.1",
