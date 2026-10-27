@@ -477,6 +477,19 @@ export interface NetworkFeeEstimate {
   feeAsset: string;
   /** Where the figure came from, so a UI can be honest about it. */
   source: 'estimate' | 'reserve';
+  /**
+   * The gas price this figure was computed at, in wei.
+   *
+   * It travels WITH the figure because the two are one calculation: `feeAsset` is
+   * `MEASURED_BATCH_GAS × this`. A caller that wants to verify the arithmetic
+   * against the chain has to re-read the price otherwise, and a re-read races the
+   * estimate: priced at one instant, checked at another, and 1.5% of drift fails the
+   * gate on unchanged code (#253). Carrying the input removes the second read.
+   *
+   * Never serialised to a client: consumers read `feeAsset` and `source`, and this
+   * exists for the check that proves the estimate is our own gas figure times a price.
+   */
+  gasPriceWei: string;
 }
 
 /**
@@ -501,6 +514,7 @@ export async function estimateNetworkFee(
     return {
       feeAsset: formatUnits(feeWei / GAS_WEI_PER_TOKEN_UNIT, assetDecimals[asset]),
       source: 'estimate',
+      gasPriceWei: gasPrice.toString(),
     };
   } catch {
     return reserveNetworkFee(asset);
@@ -522,5 +536,6 @@ export function reserveNetworkFee(asset: SupportedAsset): NetworkFeeEstimate {
   return {
     feeAsset: formatUnits(feeWei / GAS_WEI_PER_TOKEN_UNIT, assetDecimals[asset]),
     source: 'reserve',
+    gasPriceWei: RESERVE_GAS_PRICE_WEI.toString(),
   };
 }

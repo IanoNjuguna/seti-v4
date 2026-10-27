@@ -1047,21 +1047,18 @@ async function main(): Promise<void> {
         `measured ${measured} vs receipt ${charged} (${ratio(measured, charged)}x)`
       );
 
-      // The arithmetic, against a price read in the same breath as the estimate. The
-      // second read exists because the price can move between the estimator's read and
-      // ours, and one extra call is the difference between reporting that and reporting
-      // a flake.
-      const priceBefore = await anchorPublicClient.getGasPrice();
-      const priceAfter = estimateIsMeasuredAt(anchor.asset, live.feeAsset, measured, priceBefore)
-        ? priceBefore
-        : await anchorPublicClient.getGasPrice();
+      // The arithmetic, against the price the ESTIMATE was computed at, which now
+      // travels with the estimate. Re-reading the chain here was a race: the estimate
+      // priced at one instant and the assertion read the live price at another, so
+      // 1.5% of drift failed the gate on unchanged code, twice in one day (#253). There
+      // is no second read any more, so there is nothing to race.
+      const pricedAt = BigInt(live.gasPriceWei);
 
       check(
-        'the estimate is the measured gas at the gas price of this moment',
+        'the estimate is the measured gas at the price the estimate was priced at',
         live.source === 'estimate' &&
-          (estimateIsMeasuredAt(anchor.asset, live.feeAsset, measured, priceBefore) ||
-            estimateIsMeasuredAt(anchor.asset, live.feeAsset, measured, priceAfter)),
-        `estimate ${live.feeAsset} (${live.source}) vs measured x price ${expectedFee(anchor.asset, measured, priceBefore)} at ${priceBefore} wei`
+          live.feeAsset === expectedFee(anchor.asset, measured, pricedAt),
+        `estimate ${live.feeAsset} (${live.source}) vs measured x price ${expectedFee(anchor.asset, measured, pricedAt)} at ${pricedAt} wei`
       );
 
       // --- The one bound about money, and it is about a ticket, not a receipt ---
@@ -1077,7 +1074,7 @@ async function main(): Promise<void> {
 
       // The property #107 is about, made executable: the same measured gas at ten times
       // the price still clears the same bound, so a spike cannot turn this red.
-      const spiked = (measured * priceBefore * BigInt(10)) / GAS_WEI_PER_TOKEN_UNIT;
+      const spiked = (measured * pricedAt * BigInt(10)) / GAS_WEI_PER_TOKEN_UNIT;
       check(
         'and it would still hold if the gas price were ten times higher',
         withinTicketBound(spiked, ceiling),
@@ -1099,11 +1096,11 @@ async function main(): Promise<void> {
         'an estimate priced at a stale price is refused',
         !estimateIsMeasuredAt(
           anchor.asset,
-          expectedFee(anchor.asset, measured, priceBefore * BigInt(4)),
+          expectedFee(anchor.asset, measured, pricedAt * BigInt(4)),
           measured,
-          priceBefore
+          pricedAt
         ),
-        'the same gas priced at 4x the live price, checked against the live one'
+        'the same gas priced at 4x the price it was priced at, checked against that one'
       );
       check(
         'an estimate above the ticket bound is refused',
