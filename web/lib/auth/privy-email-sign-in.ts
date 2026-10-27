@@ -32,7 +32,7 @@
  * on every render.
  */
 
-import { useCreateWallet, useLoginWithEmail, usePrivy, useWallets } from '@privy-io/react-auth';
+import { useAcceptTerms, useCreateWallet, useLoginWithEmail, usePrivy, useWallets } from '@privy-io/react-auth';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { readPrivyAccessToken } from './privy-access-token';
 
@@ -64,6 +64,7 @@ function usePrivyEmailSignInImpl(): PrivyEmailSignIn {
   const { getAccessToken, authenticated } = usePrivy();
   const { wallets } = useWallets();
   const { createWallet } = useCreateWallet();
+  const { acceptTerms } = useAcceptTerms();
 
   /**
    * The address of a wallet created on THIS login, before React has re-rendered
@@ -130,12 +131,63 @@ function usePrivyEmailSignInImpl(): PrivyEmailSignIn {
     }
   }, [createWallet]);
 
+  /**
+   * Record the terms acceptance the person has ALREADY given, in Privy's words.
+   *
+   * ## Why this exists (#252)
+   *
+   * Seti's own sign-in page has the consent checkbox — "I am 18 or over, and I
+   * accept Seti's Terms of Use" — and the Continue button is disabled until it is
+   * ticked, so every person who reaches this code has accepted `seti.live/terms`
+   * before Privy ever sees them. But the Privy app is configured with
+   * `require_users_accept_terms: true`, and this app signs people in HEADLESS:
+   * `loginWithCode` never routes through Privy's own terms screen, so the user's
+   * `hasAcceptedTerms` stayed false for ever.
+   *
+   * Privy's SDK checks that flag on every boot, in its hydration path:
+   *
+   *     o.legal.requireUsersAcceptTerms && i && !i.hasAcceptedTerms
+   *       ? (await a.logout(), …)          // session revoked, client-side
+   *       : …
+   *
+   * So EVERY page reload logged the account out of Privy — revoking the refresh
+   * token server-side, 200 on `POST /api/v1/sessions/logout` — while Seti's own
+   * session survived. The app looked signed in and could no longer sign: a claim
+   * made after a reload failed with "your wallet session expired". The reload did
+   * not need to touch a token read; Privy revoked the session by itself.
+   *
+   * `useAcceptTerms` is the SDK's documented answer for exactly this shape —
+   * "whitelabel integrations where the user has accepted your terms outside of
+   * the Privy modal (e.g. a custom checkbox during signup)". Calling it here makes
+   * `hasAcceptedTerms` true, so no restore has a reason to log anybody out again.
+   *
+   * ## Failure is logged, never fatal
+   *
+   * The session is already established at this point, and refusing the sign-in
+   * over a missed preference would strand the person at the code field with a
+   * perfectly good session. The cost of a failure is stated instead: the next
+   * reload signs them out of Privy, which is the bug this call removes. It is
+   * retried on every sign-in, so a transient failure repairs itself next time.
+   */
+  const recordTermsAcceptance = useCallback(async (): Promise<void> => {
+    try {
+      await acceptTerms();
+    } catch (error) {
+      console.error(
+        '[auth] could not record terms acceptance with Privy:',
+        (error as Error | null)?.message ?? error
+      );
+    }
+  }, [acceptTerms]);
+
   const submit = useCallback(
     async (code: string) => {
       await loginWithCode({ code });
+      // Before the wallet: this is what keeps the session alive across reloads.
+      await recordTermsAcceptance();
       await ensureEmbeddedWallet();
     },
-    [loginWithCode, ensureEmbeddedWallet]
+    [loginWithCode, recordTermsAcceptance, ensureEmbeddedWallet]
   );
 
   const accessToken = useCallback(
