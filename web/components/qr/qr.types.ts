@@ -1,3 +1,5 @@
+import type { BrandCanvas } from '@/components/ui/BrandMark.types';
+
 /** What a code's download control needs to say, and what file it writes. */
 export interface QrDownload {
   /** The file it writes, without a path: `seti-ian-qr.png`. */
@@ -8,6 +10,36 @@ export interface QrDownload {
   working: string;
   /** Shown when the browser refused — a download the customer cannot see. */
   failed: string;
+}
+
+/**
+ * Which way round a code is drawn: ink on a white field, or white on the page's own
+ * dark canvas.
+ *
+ * Both are the SAME code — same modules, same quiet zone, same level H, same mark — so
+ * a tone is a surface's choice and never a second symbol. `light` is the printed
+ * article (and the one a download writes); `dark` is for a band that is already black,
+ * where a white card in the middle of the hero is the loudest object on the page.
+ */
+export type QrToneName = 'light' | 'dark';
+
+/** The colours one tone needs. */
+export interface QrTone {
+  /** The ink the modules and finder patterns are drawn in. */
+  modules: string;
+  /** The field the code stands on, in the DOM and in an exported PNG. */
+  background: string;
+  /**
+   * Whether the code stands ON the surface rather than in a field of its own.
+   *
+   * A flushed tone paints no background in the SVG: the band behind the code shows
+   * through the quiet zone and the cut-outs, which is what lets a white code sit on a
+   * black hero without a card. The field is kept anyway, because the export fills a PNG
+   * and a transparent PNG of white modules prints as a blank page.
+   */
+  flush: boolean;
+  /** Which colourway of the mark fills the well: the same colour as the modules. */
+  mark: BrandCanvas;
 }
 
 export interface QrPlateProps {
@@ -40,6 +72,11 @@ export interface QrPlateProps {
    * beside the hero's code was silently deciding the code's width.
    */
   width?: string;
+  /**
+   * Which way round to draw it. `light` (the default) is ink on the plate; `dark` is
+   * white on the surface, with no plate of its own at all.
+   */
+  tone?: QrToneName;
   /** Extra classes for the plate, merged onto the shared geometry. */
   className?: string;
 }
@@ -100,7 +137,7 @@ export interface QrGeometry {
   /** Dark runs, already merged along a row, so the DOM stays in the low hundreds. */
   runs: QrRect[];
   finders: QrFinder[];
-  /** The white well: modules are erased under it and the plate shows through. */
+  /** The light well: the ink is cut away under it and the surface shows through. */
   well: QrRect;
   /** The mark's own square, centred in the well. */
   mark: QrRect;
@@ -118,6 +155,8 @@ export interface QrGeometry {
 export interface QrRegistration {
   svg: SVGSVGElement;
   geometry: QrGeometry;
+  /** The tone it was drawn in, so the export fills the field the code expects. */
+  tone: QrTone;
 }
 
 /** The vector itself: one `<svg>` carrying the whole code, quiet zone included. */
@@ -127,10 +166,14 @@ export interface QrCodeSvgProps {
   /** The SVG's own `<title>`, and the accessible name when it stands alone. */
   title: string;
   geometry: QrGeometry;
+  /** The ink, the field and the mark's colourway, for this surface. */
+  tone: QrTone;
 }
 
 /** The mark in the middle: a raster, so only its width comes from the geometry. */
 export interface QrPlateMarkProps {
   /** A CSS percentage of the box the code is drawn in. */
   width: string;
+  /** The colourway that matches the ink around it. */
+  canvas: BrandCanvas;
 }

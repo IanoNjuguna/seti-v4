@@ -2,8 +2,9 @@
 
 import { useCallback, useState } from 'react';
 import { BRAND_MARK_SRC } from '@/components/ui/BrandMark.constants';
-import { QR_COLOURS, QR_EXPORT_PX } from './qr.constants';
+import { QR_EXPORT_PX } from './qr.constants';
 import { readQrCode } from './qr.register';
+import type { BrandCanvas } from '@/components/ui/BrandMark.types';
 import type { QrGeometry } from './qr.types';
 
 export type QrDownloadState = 'idle' | 'busy' | 'failed';
@@ -12,10 +13,12 @@ export type QrDownloadState = 'idle' | 'busy' | 'failed';
  * Saves the code the plate registered as a PNG, drawn from the vector.
  *
  * The SVG is serialized and re-drawn through an `Image` onto a square canvas at
- * `QR_EXPORT_PX`. Everything a code needs is INSIDE that SVG — the white plate, the
- * four-module quiet zone, the rounded modules, the white well — because the moment a
- * code leaves the page it loses the page's CSS, and a code that arrives with no margin
- * and a transparent background has handed its contrast to the printer. The ONE thing
+ * `QR_EXPORT_PX`. Everything a code needs is INSIDE that SVG — the four-module quiet
+ * zone, the rounded modules, the cut-out well, and the field when the tone carries one —
+ * because the moment a code leaves the page it loses the page's CSS, and a code that
+ * arrives with no margin and a transparent background has handed its contrast to the
+ * printer. A flushed (dark) tone carries no field in the SVG, so the PNG gets one from
+ * `tone.background` here: white modules on nothing print as a blank page. The ONE thing
  * that cannot live in a serialized vector is the mark: an SVG loaded as an image
  * fetches nothing, so an `<image href>` inside it would arrive empty. It is drawn here
  * instead, from the same asset the page shows, sized from the same geometry
@@ -63,12 +66,12 @@ export function useDownloadQr(filename: string, value?: string) {
       const context = canvas.getContext('2d');
       if (!context) throw new Error('no 2d context');
 
-      context.fillStyle = QR_COLOURS.plate;
+      context.fillStyle = registration.tone.background;
       context.fillRect(0, 0, QR_EXPORT_PX, QR_EXPORT_PX);
       context.drawImage(image, 0, 0, QR_EXPORT_PX, QR_EXPORT_PX);
       URL.revokeObjectURL(svgUrl);
 
-      await drawMark(context, registration.geometry);
+      await drawMark(context, registration.geometry, registration.tone.mark);
 
       const png = await new Promise<Blob | null>((resolve) =>
         canvas.toBlob(resolve, 'image/png')
@@ -99,8 +102,12 @@ export function useDownloadQr(filename: string, value?: string) {
  * slot: drawing that at 225px in a 1024px PNG would upscale a raster the printer is
  * about to read.
  */
-async function drawMark(context: CanvasRenderingContext2D, geometry: QrGeometry): Promise<void> {
-  const mark = await loadMark();
+async function drawMark(
+  context: CanvasRenderingContext2D,
+  geometry: QrGeometry,
+  canvas: BrandCanvas
+): Promise<void> {
+  const mark = await loadMark(canvas);
   if (!mark) return;
 
   const scale = QR_EXPORT_PX / geometry.size;
@@ -113,12 +120,12 @@ async function drawMark(context: CanvasRenderingContext2D, geometry: QrGeometry)
   );
 }
 
-/** The mark as a drawable image, or nothing if it will not load. */
-function loadMark(): Promise<HTMLImageElement | null> {
+/** The mark as a drawable image, in the tone's own colourway, or nothing if it will not load. */
+function loadMark(canvas: BrandCanvas): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const image = new Image();
     image.onload = () => resolve(image);
     image.onerror = () => resolve(null);
-    image.src = BRAND_MARK_SRC.neutral.code;
+    image.src = BRAND_MARK_SRC.neutral[canvas];
   });
 }

@@ -1,39 +1,40 @@
 /**
- * The one code plate: a branded QR, drawn here as vector, on a light canvas.
+ * The one code, in two tones: ink on a white plate, or white on the dark canvas.
  *
  * Every QR this app draws for a person to scan is a code READ by a machine, so three
  * things decide whether it works — contrast, the quiet zone, and how much of the
  * symbol is left intact. All three are geometry. The brand is a fourth, and it is
  * spent out of the first three rather than painted over them.
  *
- *  - **Contrast is INK, and it is the maximum a code can have.** `#000000` is
- *    `--color-canvas-dark` (`web/app/globals.css`); a literal here because this colour
- *    goes into an SVG attribute a machine reads, not into a class a person styles. Black
- *    on the white plate is **21.00:1**: the symbol contrast is 1.00 against the 0.20 a
- *    scanner needs. The plate drew in cobalt-violet for a while, at 6.06:1 — 0.88 of
- *    this, by definition — and the traded margin bought nothing a reader could see on a
- *    surface this small. Cobalt is the brand accent and the design system keeps it
- *    scarce on marketing surfaces; a code is a document, and its ink is not decoration.
+ *  - **Contrast is the maximum both tones can have.** Ink `#000000` on the white plate
+ *    is `--color-canvas-dark` against `--color-canvas-light`; `#ffffff` on the dark
+ *    canvas is the same pair the other way round. Both are **21.00:1**, a symbol
+ *    contrast of 1.00 against the 0.20 a scanner needs. The literal lives here because
+ *    it goes into an SVG attribute a machine reads, not into a class a person styles.
+ *    The plate drew in cobalt-violet for a while, at 6.06:1 — 0.88 of this, by
+ *    definition — and the traded margin bought nothing a reader could see on a surface
+ *    this small: cobalt is the brand accent, and a code is a document.
  *    Every module keeps its FULL dark area too — corners rounded, module not shrunk to
- *    a dot, and neighbours overlapping by 3% so no white seam grows between them. A
- *    "pretty" code of 70% dots throws away a third of the dark area the contrast was
- *    measured on; this one throws away none of it.
+ *    a dot, and neighbours overlapping by 3% so no seam grows between them. A "pretty"
+ *    code of 70% dots throws away a third of the dark area the contrast was measured
+ *    on; this one throws away none of it.
  *  - **The quiet zone travels inside the SVG.** Four clean modules, in the viewBox. That
  *    is the difference that matters: the download rasterises the SVG on its own, where
  *    CSS padding does not exist, and a printed code with no margin is a code a scanner
- *    cannot find. The plate adds NO padding of its own — the white around the modules in
- *    a Seti code is exactly the four modules ISO 18004 requires, so the code fills the
- *    plate instead of floating in a second, decorative margin.
+ *    cannot find. Neither tone adds padding of its own — the light around the modules is
+ *    exactly the four modules ISO 18004 requires, so the code fills whatever it stands
+ *    in instead of floating in a second, decorative margin.
  *  - **Error correction is H (30%)** because the mark sits in the middle of the
  *    symbol and the well under it erases real modules. At 26% of the code's own width
  *    the mark is 8, 9 or 11 modules across as the payload grows (29, 33, 41 modules at
  *    level H), the well around it is two modules wider, and the erased area is 11.9%,
  *    11.1% or 10.1% of the symbol — a third of what H can correct. The decodes in the
  *    PR are the evidence; this arithmetic only says where to look.
- *  - **The mark is ink too**, from the design kit's own generator
- *    (`design-kit/seti.live/marks/`), because the cream mark is 1.3:1 on a white well
- *    and reads as two eyes with no head. Mark and modules being one ink is what makes
- *    the code a brand object rather than a logo stuck on a QR code.
+ *  - **The mark takes the modules' colour**, from the design kit's own generator
+ *    (`design-kit/seti.live/marks/`): the cream mark is 1.3:1 on a white well and reads
+ *    as two eyes with no head, and the white one is invisible there. Mark and modules
+ *    being one colour is what makes the code a brand object rather than a logo stuck on
+ *    a QR code, and it is why each tone names its colourway.
  *
  * The arithmetic, at the one plate size (a 320px plate, with the code filling it) and at
  * the size a download writes:
@@ -49,15 +50,29 @@
  * holds one size, ~70px, whatever the payload: it scales with the module COUNT while
  * the module itself shrinks.
  */
-export const QR_COLOURS = {
+export const QR_TONES = {
   /**
-   * `--color-canvas-dark`. Modules, finder patterns and the mark are one ink, and it is
-   * the darkest the system has: a code is read at 21.00:1 here, which is the whole
-   * margin a camera gets to lose.
+   * A printed article: ink modules on a white card. The tone every code the app hands a
+   * merchant is drawn in, and the one a download writes.
    */
-  modules: '#000000',
-  /** The plate, and the quiet zone around the code. */
-  plate: '#ffffff',
+  light: {
+    modules: '#000000',
+    background: '#ffffff',
+    flush: false,
+    mark: 'code',
+  },
+  /**
+   * The same code on a band that is already black: white modules, no card of its own,
+   * and the mark in the dark colourway. This is what the landing hero holds — a white
+   * square in the middle of the hero is the loudest object on the page, and the code
+   * does not need one to be found.
+   */
+  dark: {
+    modules: '#ffffff',
+    background: '#000000',
+    flush: true,
+    mark: 'dark',
+  },
 } as const;
 
 export const QR_GEOMETRY = {
@@ -87,20 +102,22 @@ export const QR_GEOMETRY = {
 
 export const QR_PLATE = {
   /**
-   * A light canvas at the ONE surface radius, with the quiet zone already inside the
-   * SVG — and NO padding of its own. The white a reader sees around the modules is the
-   * four modules ISO 18004 requires, exactly, so the code fills the plate instead of
-   * sitting inside a second, decorative margin nobody can justify. `overflow-hidden`
-   * is what lets the plate's 12px corner round the SVG's own white background while
-   * the quiet zone (26px at the smallest payload) keeps every corner module clear of
-   * the arc.
+   * The plate each tone stands on. The light one is a white card at the ONE surface
+   * radius, with the quiet zone already inside the SVG and NO padding of its own:
+   * `overflow-hidden` lets its 12px corner round the SVG's white background while the
+   * quiet zone (26px at the smallest payload) keeps every corner module clear of the
+   * arc. The dark tone has no card — the band behind it is the field, so there is
+   * nothing to draw and nothing to clip.
    *
-   * The plate's WIDTH is set on the element from `QrPlate`'s `width` prop (20rem by
-   * default, capped at `max-width: 100%`), so a surface can hold the same plate at its
-   * own size instead of styling a second one, and a 320px phone clamps it rather than
+   * The WIDTH is set on the element from `QrPlate`'s `width` prop (20rem by default,
+   * capped at `max-width: 100%`), so a surface can hold the same code at its own size
+   * instead of styling a second one, and a 320px phone clamps it rather than
    * overflowing.
    */
-  plate: 'overflow-hidden rounded-md bg-canvas-light',
+  plate: {
+    light: 'overflow-hidden rounded-md bg-canvas-light',
+    dark: '',
+  },
   /** The width every surface gets unless it asks for another one. */
   width: '20rem',
   /** The plate positions the mark; the mark's WIDTH comes from the geometry. */
