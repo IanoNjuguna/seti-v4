@@ -15,6 +15,11 @@ import { HERO_MERCHANT_NAME } from './HeroPaymentQr.constants';
  * one opens a named merchant's payment page, which is a different thing from a wallet
  * address to push funds at.
  *
+ * ONE CLAUSE, VERB FIRST, NO DASH (#274). It read "Payment link for Ianllc — opens their
+ * Seti payment page": a label with an aside in it, which a screen reader voices as a
+ * pause in the middle of a sentence, and which called the object a link when it is a
+ * code. What it does is open a page, so that is what it says.
+ *
  * THE HANDLE IS NOT PRINTED ANY MORE, so the only name in this file is the merchant's
  * own, used in words rather than as a handle: `Ianllc` is how the merchant is named and
  * `ianllc` is the handle the URL carries, and neither is spelled with an `@` — the app
@@ -22,5 +27,5 @@ import { HERO_MERCHANT_NAME } from './HeroPaymentQr.constants';
  */
 export const HERO_QR_COPY = {
   /** The code's accessible name; also the SVG's own `<title>`. */
-  title: `Payment link for ${HERO_MERCHANT_NAME} — opens their Seti payment page`,
+  title: `Scan to open ${HERO_MERCHANT_NAME}'s Seti payment page`,
 } as const;
