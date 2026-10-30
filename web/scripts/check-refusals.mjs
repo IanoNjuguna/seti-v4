@@ -1,42 +1,42 @@
 /**
- * `npm run check:refusals` — the three things Seti says it will not do (#133).
+ * `npm run check:refusals` — the refusals the product still makes, and the money
+ * invariant behind them (#133, trimmed by #267).
  *
- * A refusal is a promise in the negative, which makes it the one kind of
- * marketing claim a customer can test: hold a payment and see whether Seti sits
- * in the middle, try to be paid with no account, try to top up with a card. So
- * the sentences have to be true of the CODE, not of intent, and this script is
- * where that is decided. It does four jobs.
+ * This began as the gate over a landing band that said what Seti will not do. That
+ * band is gone (#267): its copy, its component and the two navigation entries that
+ * reached it went together, and every assertion here that read them went with them —
+ * a list of exactly three rows, a heading whose word "Three" counted them, the markup
+ * the band rendered, the band's place on the landing page, and whether the nav and
+ * the ⌘K palette reached its anchor. There is no longer copy to hold to a rule, and
+ * asserting that a deleted component renders would be asserting nothing. What is left
+ * is the half that was never about a band, and it is the half that bites when the
+ * PRODUCT changes rather than the copy. It does four jobs.
  *
- *  1. **The copy is one list of three.** `REFUSAL_ROWS` has exactly three rows,
- *     named by id, and the heading that says "Three" counts them. A fourth
- *     refusal, a missing one, or a row swapped for a different one fails here.
+ *  1. **The backend holds no key that could move a customer's money.** No file under
+ *     `backend/src/services` or `backend/src/routes` builds a signing client; the
+ *     balance the app shows is read off the chain at the account's own wallet;
+ *     settlement plans a swap and says the backend cannot sign it; and a payment with
+ *     no recipient address of its own is refused rather than recorded. If a rail, an
+ *     escrow or a hold lands, the claim the page used to make becomes false and this
+ *     check goes red. No landing copy makes that claim any more, and that is not a
+ *     reason to stop checking it: it is the one thing here that is about money.
  *
- *  2. **The sentences RENDER.** The real component tree is rendered to the HTML
- *     a browser with JS disabled receives, and the markup is read: three `<dt>`
- *     refusals, three `<dd>` facts, the section's own `#refusals` anchor (which
- *     the nav and the ⌘K palette link to), and the band composed on the landing
- *     page between the integrations row and the close. A component that exists
- *     but is not on the page is not a page that says it.
+ *  2. **Receiving still asks for a signature, not an account.** The public charge
+ *     create route carries no auth guard, the signature is the credential, and the
+ *     taxonomy still names a charge whose signature does not hold.
  *
- *  3. **Each claim is still true of the backend.** This is the half that bites
- *     when the product changes rather than the copy:
- *       - custody — no file under `backend/src/services` or `backend/src/routes`
- *         builds a signing client, so the backend holds no key that could move a
- *         customer's money, and the balance the app shows is read off the chain at
- *         the account's own wallet;
- *       - account — the public charge create route carries no auth guard, and the
- *         signature is the credential;
- *       - fiat — no Stripe or Bridge call site, and the off-ramp audit actions
- *         exist in the taxonomy with nothing writing them.
- *     If a rail, an escrow or an auth guard lands, the sentence above it becomes
- *     false and this check goes red, which is the whole reason it exists.
+ *  3. **There is still no card and no bank rail.** No Stripe or Bridge key has a call
+ *     site, the off-ramp audit actions are declared in one taxonomy with nothing
+ *     writing them, and no file in the money path accepts a card or bank field.
  *
- *  4. **The voice holds.** No em dash, no en dash used as one, no exclamation, no
- *     question mark, no stablecoin name, no "revolutionary" vocabulary, no claim
- *     that Seti is a bank, and second person in every row. The same rules run over
- *     the sentence a REFUSED PAYMENT shows before any signature
- *     (`no-single-asset-covers`, #223), which is not on the page but is read at the
- *     moment the customer needs it to be true.
+ *  4. **The voice holds on the copy the customer still reads.** No em dash, no en
+ *     dash used as one, no exclamation, no question mark, no stablecoin name, no
+ *     "gas", second person, a finished sentence — over the sentence a REFUSED PAYMENT
+ *     shows before any signature (`no-single-asset-covers`, #223), the four wallet
+ *     sentences a signature failure shows (#226), and the token selector's refusal
+ *     (#228). None of these is on the landing page, and every one of them is read at
+ *     the worst possible moment, which is why they are held to the rules the deleted
+ *     band's copy was held to.
  *
  * Run from `web/`: npm run check:refusals (part of the root `verify` gate).
  */
@@ -45,12 +45,6 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { RefusalsSection } from '../app/components/landing/RefusalsSection.tsx';
-import {
-  REFUSAL_ROWS,
-  REFUSALS_EYEBROW,
-  REFUSALS_HEADING,
-} from '../app/components/landing/RefusalsSection.constants.ts';
 import { REFUSAL_BY_CODE, REFUSAL_UNKNOWN } from '../lib/api/refusal.constants.ts';
 import { COVERAGE_REFUSAL, pinAsset } from '../lib/pay/quote-asset.ts';
 import { TokenSelector } from '../components/token-selector/TokenSelector.tsx';
@@ -59,9 +53,7 @@ import {
   buildTokenSelector,
   selectorLine,
 } from '../components/token-selector/token-selector.model.ts';
-import { MENU_LINKS, SEARCH_SECTIONS } from '../app/components/landing/LandingNav.constants.ts';
 
-const WEB = fileURLToPath(new URL('..', import.meta.url));
 const BACKEND = fileURLToPath(new URL('../../backend/src/', import.meta.url));
 
 let passed = 0;
@@ -103,80 +95,6 @@ function backendFiles(dirs) {
 function stripComments(source) {
   return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 }
-
-const sentences = REFUSAL_ROWS.flatMap((row) => [row.label, row.detail]);
-
-console.log('the three are one list, and the heading counts them:');
-check('there are three refusals', REFUSAL_ROWS.length === 3, `${REFUSAL_ROWS.length}`);
-check(
-  'they are the three the issue names, in order',
-  REFUSAL_ROWS.map((row) => row.id).join(',') === 'custody,account,fiat',
-  REFUSAL_ROWS.map((row) => row.id).join(',')
-);
-check(
-  'no refusal is empty or repeated',
-  REFUSAL_ROWS.every((row) => row.label.trim().length > 10 && row.detail.trim().length > 20) &&
-    new Set(REFUSAL_ROWS.map((row) => row.label)).size === 3
-);
-check(
-  'the heading says Three, and "Three" is the number shown',
-  /\bThree\b/.test(REFUSALS_HEADING) && REFUSAL_ROWS.length === 3
-);
-check('the eyebrow names the band', REFUSALS_EYEBROW.trim() === 'What we refuse');
-
-console.log('the voice, on every sentence in the band:');
-check(
-  'no em dash and no en dash standing in for one',
-  !sentences.some((line) => /[—–]/.test(line)),
-  sentences.find((line) => /[—–]/.test(line))
-);
-check(
-  'no exclamation mark',
-  !sentences.some((line) => line.includes('!')),
-  sentences.find((line) => line.includes('!'))
-);
-check(
-  'no question mark: these are statements, not questionnaires',
-  !sentences.some((line) => line.includes('?')),
-  sentences.find((line) => line.includes('?'))
-);
-check(
-  'no stablecoin name where a customer is looking',
-  !sentences.some((line) => /\b(OUSD|USDC|USDC\.e|USDT0|USDT|pathUSD)\b/.test(line)),
-  sentences.find((line) => /\b(OUSD|USDC|USDC\.e|USDT0|USDT|pathUSD)\b/.test(line))
-);
-check(
-  'no "gas": the money that leaves is a platform fee',
-  !sentences.some((line) => /\bgas\b/i.test(line))
-);
-check(
-  'no revolutionary vocabulary, and no grade invented for a rail',
-  !sentences.some((line) =>
-    /revolution|seamless|unleash|empower|effortless|world-class|bank-grade|military-grade|next-gen/i.test(
-      line
-    )
-  )
-);
-check(
-  'Seti is never called a bank or a neobank',
-  // The rule is about Seti's own identity, not about the word. "No bank transfer"
-  // and "a bank account" are a refusal and a destination; "Seti is a bank" is the
-  // claim the house rule forbids, so the pattern is scoped to the subject.
-  sentences.every((line) => !/\bneobank\b/i.test(line)) &&
-    sentences.every((line) => !/\b(seti|we)\b[^.]{0,40}\b(is|are)\b[^.]{0,15}\bbank\b/i.test(line)),
-  sentences.find((line) => /\b(seti|we)\b[^.]{0,40}\b(is|are)\b[^.]{0,15}\bbank\b/i.test(line))
-);
-check(
-  'every refusal speaks to the reader, second person',
-  REFUSAL_ROWS.every((row) => /\byou\b|\byour\b/i.test(`${row.label} ${row.detail}`)),
-  REFUSAL_ROWS.filter((row) => !/\byou\b|\byour\b/i.test(`${row.label} ${row.detail}`))
-    .map((row) => row.id)
-    .join(',')
-);
-check(
-  'every detail is a finished sentence',
-  REFUSAL_ROWS.every((row) => /\.$/.test(row.detail.trim()))
-);
 
 console.log('the sentence a payment gives before any signature (#223):');
 {
@@ -368,56 +286,7 @@ console.log('the token selector: the same refusal, with the balance that can pay
   }
 }
 
-
-console.log('the sentences render, on the page, under the anchor they are linked by:');
-{
-  const html = renderToStaticMarkup(createElement(RefusalsSection));
-
-  check('the band is a section with the #refusals anchor', html.includes('id="refusals"'));
-  check(
-    'all three refusals are in the markup',
-    REFUSAL_ROWS.every((row) => html.includes(row.label)),
-    REFUSAL_ROWS.filter((row) => !html.includes(row.label))
-      .map((row) => row.id)
-      .join(',')
-  );
-  check(
-    'all three facts are in the markup',
-    REFUSAL_ROWS.every((row) => html.includes(row.detail)),
-    REFUSAL_ROWS.filter((row) => !html.includes(row.detail))
-      .map((row) => row.id)
-      .join(',')
-  );
-  check('the heading and eyebrow are in the markup', html.includes(REFUSALS_HEADING) && html.includes(REFUSALS_EYEBROW));
-  check(
-    'three terms and three definitions, no more',
-    (html.match(/<dt/g) ?? []).length === 3 && (html.match(/<dd/g) ?? []).length === 3,
-    `${(html.match(/<dt/g) ?? []).length} dt, ${(html.match(/<dd/g) ?? []).length} dd`
-  );
-  check(
-    'the rendered band carries no em dash and no exclamation',
-    !/[—–!]/.test(html),
-    (html.match(/[^\s]{0,20}[—–!][^\s]{0,20}/) ?? [''])[0]
-  );
-
-  const page = readFileSync(join(WEB, 'app/page.tsx'), 'utf8');
-  const order = ['<PartnersSection', '<RefusalsSection', '<ClosingSection'].map((tag) =>
-    page.indexOf(tag)
-  );
-  check('the landing page composes the band', order[1] !== -1);
-  check(
-    'it sits after the integrations row and before the close',
-    order[0] !== -1 && order[0] < order[1] && order[1] < order[2],
-    order.join(',')
-  );
-  check(
-    'the nav and the palette reach it by the anchor it renders',
-    MENU_LINKS.some((link) => link.href === '#refusals') &&
-      SEARCH_SECTIONS.some((section) => section.id === 'refusals')
-  );
-}
-
-console.log('"Seti never holds your money." — the backend holds no key that could move it:');
+console.log("the backend holds no key that could move a customer's money:");
 {
   const sources = backendFiles(['services', 'routes']);
 
@@ -462,7 +331,7 @@ console.log('"Seti never holds your money." — the backend holds no key that co
   );
 }
 
-console.log('"You do not need an account to get paid." — the receiving route asks for a signature:');
+console.log('receiving asks for a signature, not an account:');
 {
   const routePath = join(BACKEND, 'routes/public-charges.ts');
   const route = readFileSync(routePath, 'utf8');
@@ -486,7 +355,7 @@ console.log('"You do not need an account to get paid." — the receiving route a
   );
 }
 
-console.log('"No cards, no bank transfer." — there is no fiat rail to be a card or a bank:');
+console.log('there is no card and no bank rail:');
 {
   const sources = backendFiles(['services', 'routes', 'config']);
 
@@ -538,8 +407,8 @@ console.log('"No cards, no bank transfer." — there is no fiat rail to be a car
 console.log(`\n${passed} checks passed, ${failed} failed`);
 if (failed > 0) {
   console.error(
-    '\nThe landing page is saying something the code does not back, or the copy broke the voice. Fix the copy (or drop the refusal) rather than the check.'
+    '\nThe product is saying something the code does not back, or the copy broke the voice. Fix the copy (or drop the refusal) rather than the check.'
   );
   process.exit(1);
 }
-console.log('ok  three refusals, rendered and still true of the backend');
+console.log("ok  no key to a customer's money, no fiat rail, and the refusals still read in our voice");

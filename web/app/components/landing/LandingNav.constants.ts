@@ -19,16 +19,15 @@ export const NAV_LINKS: LandingLink[] = [
  * `md` to `lg` when the Personal | Business selector joined the row and stayed
  * there once the selector left, because the row it leaves is still too narrow.)
  *
- * The five are the three centre links in their own order, plus `Integrations` and
- * `What we refuse`, which the page ships as real bands (`#partners`, `#refusals`)
- * and the centre links never carried: the desktop bar stays two-answer-tight on
- * purpose, and a menu has no such constraint. Built from `NAV_LINKS` so a label
- * edited there cannot leave the menu naming a section the bar has renamed.
+ * The four are the three centre links in their own order, plus `Integrations`,
+ * which the page ships as a real band (`#partners`) and the centre links never
+ * carried: the desktop bar stays two-answer-tight on purpose, and a menu has no
+ * such constraint. Built from `NAV_LINKS` so a label edited there cannot leave
+ * the menu naming a section the bar has renamed.
  */
 export const MENU_LINKS: LandingLink[] = [
   ...NAV_LINKS,
   { label: 'Integrations', href: '#partners' },
-  { label: 'What we refuse', href: '#refusals' },
 ];
 
 /**
@@ -50,8 +49,8 @@ export const MENU_PANEL_ID = 'landing-nav-menu';
  *
  * THE IDS DID NOT MOVE IN THE REDESIGN (issue #187): `#hero`, `#how`, `#money`,
  * `#fees`, `#partners`, `#open` are the same six bands, recomposed rather than
- * replaced, and the page renders all six. `#refusals` joined them
- * after the redesign as a seventh band (#133). The page has one reading now — the
+ * replaced, and the page renders all six — it is six again since the refusals band
+ * came off it (#267), which had made a seventh. The page has one reading now — the
  * Personal | Business selector and its `?for=` parameter are gone — so every jump
  * lands on a band that is on the page, and no link in this file can point at a
  * variant that does not exist.
@@ -73,10 +72,5 @@ export const SEARCH_SECTIONS: SearchSection[] = [
   { id: 'money', label: 'Your money', keywords: 'spend send hold dollars shop person code print' },
   { id: 'fees', label: 'Fees', keywords: 'fee 2% cost price monthly minimum' },
   { id: 'partners', label: 'Integrations', keywords: 'integrations tempo privy bridge stripe stack what seti runs on' },
-  {
-    id: 'refusals',
-    label: 'What we refuse',
-    keywords: 'refuse custody hold money account signup cards bank transfer limit not do',
-  },
   { id: 'open', label: 'Sign in today', keywords: 'open start browser sign in claim name testnet' },
 ];
