@@ -1,46 +1,26 @@
 import { HERO_MERCHANT_NAME } from './HeroPaymentQr.constants';
 
 /**
- * Every word that renders beside the code.
+ * The code's accessible name, and the only word left in the hero about what it is.
  *
- * No imperative and no "send-to-this-address": the code opens a PAYMENT PAGE for
- * a named merchant, a different thing from a wallet address to push funds at. The
- * page learned that once — a scan-to-pay code sits badly under a label that does
- * not say what it is — which is why the treasury address that used to be
- * published in the footer was taken off the page rather than given a code.
+ * IT IS NOT VISIBLE COPY, and that is the point: the owner cut the three lines that
+ * used to render under the code — "Scanning this opens a real payment to ianllc", the
+ * printed URL, and the "DO NOT send money" warning — because the hero is a code and a
+ * promise, and small print under the object competes with both. What a sighted reader
+ * gets in place of those lines is the picture itself; what a screen reader gets is this
+ * sentence, which is the one thing about a code that cannot be seen.
  *
- * THE MIDDLE SENTENCE IS GONE, BY THE OWNER'S CALL, and no string here remains
- * unrendered. The caption used to be two lines: `lead`, then a network sentence
- * that read "ianllc accepts payments on Seti. You scan the QR code or use the link
- * below to send them money." — a sentence describing a plate the reader can see
- * above it and a URL they can see below it. Both strings are deleted rather than
- * kept dark, because the half renders ONE sentence now and a string sitting in
- * this file is a claim the page makes. `IS_PRACTICE_NETWORK` went with them: its
- * whole job was choosing between the two, and what that costs is recorded in
- * `HeroPaymentQr.constants.ts`.
+ * It has to say what scanning the code DOES. A code can carry a link, an address or a
+ * payment request, and "QR code" tells a screen-reader user nothing about which; this
+ * one opens a named merchant's payment page, which is a different thing from a wallet
+ * address to push funds at.
  *
- * THE HANDLE IS BARE. These sentences used to print `@ianllc`; the `@` is now
- * gone from every hero string, because the app writes a handle plain everywhere
- * it stores one, the URL this very code encodes is `/m/ianllc`, and a name with
- * an `@` in front of it was the hero's own second spelling of it. The payload is
- * NOT changed to match the caption; the URL has to keep resolving.
- *
- * `lead` is the owner's exact string, applied literally — the capital `I`, no
- * trailing full stop. It is a literal rather than an interpolation so nothing can
- * "tidy" it; the capital follows the merchant's NAME (`Ianllc`), while the handle
- * the app stores and renders everywhere else is lowercase (`ianllc` — the stored
- * handle is rendered verbatim, no casing applied).
+ * THE HANDLE IS NOT PRINTED ANY MORE, so the only name in this file is the merchant's
+ * own, used in words rather than as a handle: `Ianllc` is how the merchant is named and
+ * `ianllc` is the handle the URL carries, and neither is spelled with an `@` — the app
+ * writes a handle plain everywhere it stores one.
  */
 export const HERO_QR_COPY = {
   /** The code's accessible name; also the SVG's own `<title>`. */
   title: `Payment link for ${HERO_MERCHANT_NAME} — opens their Seti payment page`,
-  lead: 'Scanning this opens a real payment to ianllc',
-  /**
-   * The warning, and the last line under the code: the one sentence on the page
-   * that stops a visitor paying a demonstration merchant. The owner's wording
-   * verbatim, right down to the capitalised `DO NOT` — that emphasis is his, not a
-   * typo to be tidied. It carries no `Disclaimer:` label, because a label that
-   * repeats what the sentence already says is the same fact twice.
-   */
-  disclaimer: 'ianllc is shown for demonstration. DO NOT send money to this address.',
 } as const;

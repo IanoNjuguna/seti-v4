@@ -11,12 +11,13 @@ export const HERO_MERCHANT_HANDLE = 'ianllc';
 export const HERO_MERCHANT_NAME = 'Ianllc';
 
 /**
- * THE EXACT STRING THE QR ENCODES — one constant, used by the code and printed
- * under it, so the picture and the text cannot describe different URLs.
+ * THE EXACT STRING THE QR ENCODES — one constant, and the only place the URL exists.
  *
- * Built from `lib/site.ts`, never `window.location`: the page is prerendered, and
- * a code carrying the host that served a preview build would be wrong everywhere
- * else it is displayed.
+ * It used to be printed in mono under the code as well, so a person who could not scan
+ * could type it. That line is gone with the rest of the small print under the code
+ * (#266), so this constant now has exactly one reader: the symbol. Built from
+ * `lib/site.ts`, never `window.location`: the page is prerendered, and a code carrying
+ * the host that served a preview build would be wrong everywhere else it is displayed.
  */
 export const HERO_PAYMENT_URL = merchantPaymentUrl(HERO_MERCHANT_HANDLE);
 
@@ -33,7 +34,8 @@ export const HERO_PAYMENT_URL = merchantPaymentUrl(HERO_MERCHANT_HANDLE);
  * by construction — on the practice network the copy would say so, because "a real
  * payment" beside a page that moves no money is a claim the deployment cannot
  * back. With the sentence gone, that guarantee is enforced by NOTHING: nothing on
- * the landing page names its network. Unset used to mean practice, mirroring
+ * the landing page names its network, and since #266 nothing on it says the merchant is
+ * a demonstration either. Unset used to mean practice, mirroring
  * `lib/chain/chain.constants.ts`, which is where the chain is still read; the
  * mainnet id was mirrored rather than imported because that module THROWS at
  * import time when the token env vars are unset, and a marketing page must not
