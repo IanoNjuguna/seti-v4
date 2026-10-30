@@ -3,14 +3,13 @@ import { LandingNav } from './components/landing/LandingNav';
 import { HeroSection } from './components/landing/HeroSection';
 import { HowSection } from './components/landing/HowSection';
 import { MoneySection } from './components/landing/MoneySection';
-import { RefusalsSection } from './components/landing/RefusalsSection';
 import { FeesSection } from './components/landing/FeesSection';
 import { PartnersSection } from './components/landing/PartnersSection';
 import { ClosingSection } from './components/landing/ClosingSection';
 import { LandingFooter } from './components/landing/LandingFooter';
 
 /**
- * The landing page: seven bands, each its own component under
+ * The landing page: six bands, each its own component under
  * `components/landing/`, plus the fixed layer the ambient spec asks for.
  *
  * ONE READER, AND NO CONTROL TO CHOOSE ANOTHER. The page used to serve two readings
@@ -28,11 +27,23 @@ import { LandingFooter } from './components/landing/LandingFooter';
  * render — and both halves of it are gone together. A stale `?for=business` in an old
  * link still opens this page: an unread query parameter is not an error.
  *
- * The refusals band (`#refusals`) is the newest, between the integrations row and
- * the close: it says what Seti will not do, which is the one part of the trust
- * argument a screenshot of the product working cannot show (#133).
+ * THE REFUSALS BAND IS OUT (#267). It was the newest band, between the integrations
+ * row and the close, and it was the page's one argument by absence — what Seti will
+ * not do — which cost a band of scroll, a menu entry and a palette jump to say three
+ * things the rest of the page already says in its own voice. The component, its copy
+ * and the two navigation entries that reached it are gone together, and
+ * `npm run check:refusals --workspace web` keeps only the half of itself that was
+ * never about the band: the backend holds no key that can move a customer's money,
+ * and the sentences the product still shows hold the voice.
  *
- * The command palette's sections (`SEARCH_SECTIONS`) are the same seven ids the bands
+ * WHAT THE DELETION COSTS, RECORDED RATHER THAN PATCHED. The band was `canvas-light`
+ * between two dark ones, so the page now runs dark into dark at the foot: Partners
+ * and the close share a canvas and no hairline separates them. Nothing in a
+ * neighbouring band was restyled to cover it — repainting the close, or hanging a
+ * border off it, is a design decision about the page's last two bands and not a
+ * side effect this deletion gets to make on its own.
+ *
+ * The command palette's sections (`SEARCH_SECTIONS`) are the same six ids the bands
  * render, so a jump lands on a band whichever way the reader got here.
  */
 export default function Home() {
@@ -47,7 +58,6 @@ export default function Home() {
         <MoneySection />
         <FeesSection />
         <PartnersSection />
-        <RefusalsSection />
         <ClosingSection />
       </main>
 
