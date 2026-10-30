@@ -42,25 +42,11 @@ export const HERO_PAYMENT_URL = merchantPaymentUrl(HERO_MERCHANT_HANDLE);
  */
 
 /**
- * The two colours a QR is READ by, and its error-correction level.
+ * The code's colours and its error-correction level are NOT set here any more.
  *
- * Literal `black`/`white`, as in `components/receipt/Receipt.constants.ts`: a
- * QR's colours are a machine-readable contrast spec, not a styling choice, and a
- * brand tint on either one is what stops a code being read. The plate around it
- * IS a surface and does use tokens (`bg-canvas-light`, `rounded-md`).
+ * They were a local block (`HERO_QR`, literal black on white at level `M`) while the
+ * hero drew its own `react-qr-code`. The hero draws the app's plate now
+ * (`components/qr/qr.constants.ts`), so the ink, the level and the quiet zone are that
+ * module's to state once — and the mark sitting in the middle of the symbol is why the
+ * level is `H` rather than `M`.
  */
-export const HERO_QR = {
-  /**
-   * The SVG's own viewBox size, and the size the code RENDERS at — CSS scales
-   * the SVG to the plate, and the plate's `p-8` leaves exactly this much room
-   * inside its 16.375rem. It used to be 264, which put 264px of code on a
-   * desktop and left the hero taller than a laptop's fold; three-quarters of
-   * that, 198px, is the same code at 7.9px per module of its 25, which a phone
-   * camera resolves comfortably. Keep it in step with the plate: this number is
-   * the code's real width, not a hint.
-   */
-  size: 198,
-  level: 'M',
-  foreground: 'black',
-  background: 'white',
-} as const;

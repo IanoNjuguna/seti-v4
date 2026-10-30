@@ -83,11 +83,16 @@ export const QR_GEOMETRY = {
 export const QR_PLATE = {
   /**
    * A light canvas at the ONE surface radius, with the quiet zone already inside the
-   * SVG. 20rem is the cap: 320px keeps the 33-module code at 6.83px per module on a
-   * 390px phone, and `min(…,100%)` is what stops it overflowing a 320px one. The 12px
-   * corner radius sits inside a 27px quiet zone, so no corner module is ever clipped.
+   * SVG. The plate's WIDTH is set on the element from `QrPlate`'s `width` prop (20rem by
+   * default, capped at `max-width: 100%`), so a surface can hold the same plate at its
+   * own size instead of styling a second one, and a 320px phone clamps it rather than
+   * overflowing. 20rem keeps the 33-module code at 6.83px per module on a 390px phone.
+   * The 12px corner radius sits inside a 27px quiet zone, so no corner module is ever
+   * clipped.
    */
-  plate: 'w-[min(20rem,100%)] rounded-md bg-canvas-light p-5',
+  plate: 'rounded-md bg-canvas-light p-5',
+  /** The width every surface gets unless it asks for another one. */
+  width: '20rem',
   /** The plate positions the mark; the mark's WIDTH comes from the geometry. */
   frame: 'relative',
   mark: 'pointer-events-none absolute left-1/2 top-1/2 aspect-square -translate-x-1/2 -translate-y-1/2',

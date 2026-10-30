@@ -29,6 +29,17 @@ export interface QrPlateProps {
    * left-aligned text is the mixed edge that made the page read as two layouts.
    */
   align?: 'start' | 'center';
+  /**
+   * The plate's width, capped at the space it is given (`max-width: 100%`).
+   *
+   * A surface that holds the code as its leading object (the landing hero) asks for
+   * more room than a half of a receive screen; the arithmetic that makes a code
+   * scannable scales with the module, so the plate can grow without a second recipe.
+   * The cap is a `max-width` rather than a `min(…, 100%)` because a percentage inside
+   * the width resolves against a parent that is itself sized by its content: the caption
+   * beside the hero's code was silently deciding the code's width.
+   */
+  width?: string;
   /** Extra classes for the plate, merged onto the shared geometry. */
   className?: string;
 }
