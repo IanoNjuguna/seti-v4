@@ -32,7 +32,25 @@ function productionApiUrlGuard(): Plugin {
   };
 }
 
+/**
+ * The year the footer prints, stamped by the bundler rather than read at runtime.
+ *
+ * `LandingFooter.constants.ts` used to compute `new Date().getFullYear()` at module
+ * scope, which is correct under `next build` (the value lands at build time and is
+ * serialised into the HTML) and wrong under `build:vinext`: there the expression is
+ * kept as an expression and evaluated when the chunk runs, and the deployed Worker's
+ * clock answered 0, so the live footer read "© 1970 Seti" (#270).
+ *
+ * Stamping it HERE fixes that at the root: `define` substitutes the literal into every
+ * bundle, so no clock is read at build time in the Worker, at request time, or in the
+ * render. The date below is the build machine's, which is the year a build is named for.
+ */
+const BUILD_YEAR = String(new Date().getFullYear());
+
 export default defineConfig({
+  define: {
+    __SETI_BUILD_YEAR__: JSON.stringify(BUILD_YEAR),
+  },
   plugins: [
     productionApiUrlGuard(),
     vinext(),
