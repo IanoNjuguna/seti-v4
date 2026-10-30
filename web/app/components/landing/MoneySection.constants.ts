@@ -3,6 +3,12 @@ import type { MoneySectionCopy } from './MoneySection.types';
 /**
  * What the dollars are for, as four squares.
  *
+ * THE HEADING NAMES WHAT THE TILES SHOW (#276). It read "Spend it, or send it.", which
+ * is a payer's frame: three of the four tiles are about being paid and the fourth is
+ * about holding. "Paid to you, held by you" is the same idea the tiles carry — money
+ * arriving in the merchant's own balance and staying there — and it is the claim the
+ * hero states once, said again where the reader can see it in four parts.
+ *
  * THE BAND'S SHAPE IS THE REFERENCE'S card grid, which is the one section shape
  * this page did not have: four tiles on the band, 20px apart, each carrying one
  * thing, with the band's heading above them. On cash.app those four are a big
@@ -28,7 +34,7 @@ import type { MoneySectionCopy } from './MoneySection.types';
  * out of it.
  */
 export const MONEY_COPY: MoneySectionCopy = {
-  title: 'Spend it, or send it.',
+  title: 'Paid to you, held by you.',
   tiles: [
     {
       label: 'Get paid by name',
