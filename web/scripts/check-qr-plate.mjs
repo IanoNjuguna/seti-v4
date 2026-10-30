@@ -9,12 +9,12 @@
  * grows a module.
  *
  *   1. INK == TOKEN. The modules' colour is a literal (it goes into an SVG attribute a
- *      machine reads), so it must equal `--color-primary` in `app/globals.css`. The
- *      values are read from the stylesheet, never retyped here: a brand change that
- *      moves the token fails this suite instead of shipping a code in last month's
- *      cobalt.
- *   2. MEASUREMENT. The modules must clear 4.5:1 against the plate, and the ratio the
- *      constants quote is the ratio measured.
+ *      machine reads), so it must equal `--color-canvas-dark` in `app/globals.css`.
+ *      The values are read from the stylesheet, never retyped here: a palette change
+ *      that moves the token fails this suite instead of shipping a code in last month's
+ *      ink.
+ *   2. MEASUREMENT. The modules must clear 4.5:1 against the plate — ink clears 21.00:1
+ *      — and the ratio the constants quote is the ratio measured.
  *   3. STRUCTURE. Level H, four modules of quiet zone (ISO 18004's minimum), a square
  *      export.
  *   4. BUDGET. The white well may not erase more than 15% of the symbol at any real
@@ -55,14 +55,14 @@ const contrast = (a, b) => {
 };
 
 // 1. The literal IS the token.
-check('modules are --color-primary', QR_COLOURS.modules === token('primary'), QR_COLOURS.modules);
+check('modules are --color-canvas-dark', QR_COLOURS.modules === token('canvas-dark'), QR_COLOURS.modules);
 check('plate is --color-canvas-light', QR_COLOURS.plate === token('canvas-light'), QR_COLOURS.plate);
 
 // 2. The contrast the comment quotes, measured.
 const ratio = contrast(QR_COLOURS.modules, QR_COLOURS.plate);
-console.log(`      cobalt on plate: ${ratio.toFixed(2)}:1`);
+console.log(`      ink on plate: ${ratio.toFixed(2)}:1`);
 check('modules clear 4.5:1 on the plate', ratio >= 4.5, `${ratio.toFixed(2)}:1`);
-check('the quoted 6.06:1 is the measured value', ratio.toFixed(2) === '6.06', ratio.toFixed(3));
+check('the quoted 21.00:1 is the measured value', ratio.toFixed(2) === '21.00', ratio.toFixed(3));
 
 // 3. The structure the spec requires.
 check('level H', QR_GEOMETRY.level === 'H', QR_GEOMETRY.level);

@@ -10,8 +10,9 @@
  * is the cream one. See `design-kit/seti.live/marks/README.md` for the role map.
  *
  * `code` is the one canvas that is not a background but an INK: the white well in the
- * middle of a payment code, where the mark must be the same cobalt as the modules
- * (6.06:1 on white) or it reads as nothing at all. The cream pair is 1.3:1 there.
+ * middle of a payment code, where the mark must be the same colour as the modules
+ * around it (ink, 21.00:1 on white) or it reads as nothing at all. The cream pair is
+ * 1.3:1 there and the white pair is 1:1.
  */
 export type BrandExpression = 'neutral' | 'friendly';
 export type BrandCanvas = 'light' | 'dark' | 'code';

@@ -12,14 +12,15 @@ import { HERO_QR_COPY } from './HeroPaymentQr.copy';
  * IT IS THE APP'S OWN PLATE, not a second code. This used to draw `react-qr-code`
  * black-on-white at level `M` with no mark, which meant the landing page showed a
  * different object from the one `components/qr/QrPlate.tsx` puts on the receive and
- * merchant surfaces. The plate now is that one: cobalt modules, the Seti mark in the
- * well the geometry clears for it, level `H`, and the quiet zone inside the SVG. The
- * mark and the modules are one ink, which is what makes the code read as a brand
- * object rather than a logo pasted on a QR; the contrast, the well's share of the
- * symbol and the four-module quiet zone are the arithmetic `qr.constants.ts` records
- * and `npm run check:qr-plate` measures. The plate also carries the hero slot's slow
- * float (`hero-float`), which moves the whole plate ±3px about its own place; the
- * code's modules stay square, because a rounded module is a broken module.
+ * merchant surfaces. The plate now is that one: ink modules, the Seti mark in the well
+ * the geometry clears for it, level `H`, the quiet zone inside the SVG and no padding
+ * of the plate's own. The mark and the modules are one ink, which is what makes the
+ * code read as a brand object rather than a logo pasted on a QR; the contrast, the
+ * well's share of the symbol and the four-module quiet zone are the arithmetic
+ * `qr.constants.ts` records and `npm run check:qr-plate` measures. The plate also
+ * carries the hero slot's slow float (`hero-float`), which moves the whole plate ±3px
+ * about its own place; the code's modules stay square, because a rounded module is a
+ * broken module.
  *
  * THREE BLOCKS, NOT FOUR: the plate, the caption, the printed URL with its warning
  * under it. Each one is directly under the thing it is about, and the gaps say which
