@@ -1,62 +1,41 @@
-import type { HeroCopyByAudience } from './HeroCopy.types';
+import type { HeroCopy } from './HeroCopy.types';
 
 /**
- * The hero's words, one block per reader.
+ * The hero's words.
  *
- * TWO PROMISES, because there are two people at this door and they want opposite
- * things said. A person wants to know that paying somebody is easy; a business
- * wants to know that being paid is. The page used to say only the second, which
- * left a customer reading "Get paid." with no route into the product.
+ * ONE READING, and it is the merchant's. The page used to render two, chosen by a
+ * Personal | Business control in the navbar and carried in the URL as `?for=`. The
+ * control is gone: a visitor arriving at seti.live is deciding whether to use the
+ * product, not which of two brochures to read, and the merchant's reading is the one
+ * that names what the page is for. The words below are the business variant's,
+ * unchanged, because they were already the owner's.
  *
- * WHAT IS SHARED IS SHARED: "See how it works" is the same second action in both
- * variants, because the band it opens is the same band. The primary action
- * differs, and both land on `SIGN_IN_PATH` — the claim happens inside the
- * product, in onboarding, so the label promises a step the link leads to.
+ * WHY THE MERCHANT'S AND NOT THE CUSTOMER'S: a customer paying a merchant is doing
+ * the thing the page describes; a merchant reading a page that says "Pay by name" is
+ * being told to do somebody else's job. The reading kept is the one whose action the
+ * hero can actually take a reader to — `Claim your name` lands in onboarding, where
+ * the name is claimed (both actions point at `SIGN_IN_PATH`).
  *
- * The business copy is the page's OLD copy, kept word for word where it still
- * holds ("Get paid.", "See how it works"), because it was the owner's wording and
- * this change is about giving the customer a voice BESIDE it, not replacing it.
- * The one line rewritten is the lede: "Use Seti to send and receive money."
- * described the product's category rather than naming a thing to do, and in the
- * business variant the reader has a specific one (claim a name, print a code).
+ * `lede` OPENING WITH THE ACTION IS DELIBERATE, and it is the owner's string: the
+ * sentence announces the step, the button under it offers the step. What the band
+ * does not do is repeat the promise — "Get paid." is the claim, the sentence is the
+ * method, and the button is the first move of the method.
  *
  * EVERY SENTENCE IS ONE THE CODE CAN BACK. There is no monthly fee and no minimum
- * (`FeesSection.constants.ts`), a name is claimed in onboarding, a printable code
- * is produced there (`components/merchant/MerchantQr.tsx`, "Print this as your
- * sticker"), and a payment goes straight to the payee's own balance. Nothing here
- * promises a dashboard, an invoice, a card, M-Pesa or an off-ramp, because none
- * of those exist in v1.
+ * (`FeesSection.constants.ts`), a name is claimed in onboarding, a printable code is
+ * produced there (`components/merchant/MerchantQr.tsx`, "Print this as your sticker"),
+ * and a payment goes straight to the payee's own balance. Nothing here promises a
+ * dashboard, an invoice, a card, M-Pesa or an off-ramp, because none of those exist
+ * in v1.
  *
- * NEITHER HEADLINE NAMES THE CURRENCY, which is unchanged on purpose: the hero is
+ * THE HEADLINE DOES NOT NAME THE CURRENCY, which is unchanged on purpose: the hero is
  * deliberately currency-free and the first figure on the page belongs to the band
- * below it. `layout.tsx`'s document title still carries "dollars" for the tab and
- * for a search result.
- *
- * The personal lede names a name and a code rather than a link, because the link
- * is printed in full under the hero's own code; a first sentence that opens with
- * `https://` is a sentence written for a machine.
+ * below it. `layout.tsx`'s document title still carries "dollars" for the tab and for
+ * a search result.
  */
-export const HERO_COPY: HeroCopyByAudience = {
-  /**
-   * Personal: the person paying. The promise is the payer's, because that is who
-   * is holding the phone when this page is open.
-   */
-  personal: {
-    headline: 'Pay by name.',
-    lede: 'Type a name or scan a code. The money goes straight to them.',
-    primaryAction: 'Open Seti',
-    secondaryAction: 'See how it works',
-  },
-
-  /**
-   * Business: the merchant being paid. Two short sentences rather than one long
-   * one, and both name a thing the product actually produces: a claimed name, a
-   * printed code, and a customer who can pay by either.
-   */
-  business: {
-    headline: 'Get paid.',
-    lede: 'Claim your name. Customers pay you by name or by scanning your code.',
-    primaryAction: 'Claim your name',
-    secondaryAction: 'See how it works',
-  },
+export const HERO_COPY: HeroCopy = {
+  headline: 'Get paid.',
+  lede: 'Claim your name. Customers pay you by name or by scanning your code.',
+  primaryAction: 'Claim your name',
+  secondaryAction: 'See how it works',
 };

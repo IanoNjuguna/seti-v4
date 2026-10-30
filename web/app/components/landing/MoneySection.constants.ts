@@ -1,8 +1,7 @@
-import type { ByAudience } from './Audience.types';
 import type { MoneySectionCopy } from './MoneySection.types';
 
 /**
- * What the dollars are for, as four squares per reader.
+ * What the dollars are for, as four squares.
  *
  * THE BAND'S SHAPE IS THE REFERENCE'S card grid, which is the one section shape
  * this page did not have: four tiles on the band, 20px apart, each carrying one
@@ -17,58 +16,35 @@ import type { MoneySectionCopy } from './MoneySection.types';
  * because the object in these squares is a word rather than an image: a caption
  * repeating the word above it is the same fact twice.
  *
- * FOUR IS THE REFERENCE'S COUNT and it is also the count the two audiences have:
- * each gets the two things it does (pay and send, or be paid by name and be paid
- * by code), the thing it gets for free (being paid by name, or owning the money
- * outright), and holding dollars, which is true of both and is where the band
- * stops making a claim about a currency it cannot convert.
+ * FOUR IS THE REFERENCE'S COUNT and it is also the count this reading has: the two
+ * things a merchant does (be paid by name, print a code), the thing it gets for free
+ * (owning the money outright), and holding dollars, which is where the band stops
+ * making a claim about a currency it cannot convert. The tiles used to be written
+ * twice, once for a merchant and once for a person; the merchant's four are what the
+ * page says now.
  *
  * NOTHING HERE NAMES A CARD, A BANK, M-PESA OR AN OFF-RAMP, because none of them
  * exist in v1. "Hold dollars" says what happens to a balance and promises no way
  * out of it.
  */
-export const MONEY_COPY: ByAudience<MoneySectionCopy> = {
-  personal: {
-    title: 'Spend it, or send it.',
-    tiles: [
-      {
-        label: 'Pay in a shop',
-        detail: 'Scan the code, or type the shop name.',
-      },
-      {
-        label: 'Send to a person',
-        detail: 'A name, or a link. No long numbers to copy.',
-      },
-      {
-        label: 'Get paid',
-        detail: 'Your own name and link work the same way round.',
-      },
-      {
-        label: 'Hold dollars',
-        detail: 'Your balance stays in dollars until you spend it.',
-      },
-    ],
-  },
-
-  business: {
-    title: 'Spend it, or send it.',
-    tiles: [
-      {
-        label: 'Get paid by name',
-        detail: 'Customers type your name instead of a number.',
-      },
-      {
-        label: 'Print your code',
-        detail: 'One code for the counter. It opens your payment page.',
-      },
-      {
-        label: 'The money is yours',
-        detail: 'It lands in your own balance. Nobody holds it in between.',
-      },
-      {
-        label: 'Hold dollars',
-        detail: 'Your balance stays in dollars between payments.',
-      },
-    ],
-  },
+export const MONEY_COPY: MoneySectionCopy = {
+  title: 'Spend it, or send it.',
+  tiles: [
+    {
+      label: 'Get paid by name',
+      detail: 'Customers type your name instead of a number.',
+    },
+    {
+      label: 'Print your code',
+      detail: 'One code for the counter. It opens your payment page.',
+    },
+    {
+      label: 'The money is yours',
+      detail: 'It lands in your own balance. Nobody holds it in between.',
+    },
+    {
+      label: 'Hold dollars',
+      detail: 'Your balance stays in dollars between payments.',
+    },
+  ],
 };

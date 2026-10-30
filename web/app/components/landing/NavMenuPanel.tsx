@@ -1,18 +1,15 @@
 import { cn } from '@/lib/cn';
-import { AudienceSelector } from './AudienceSelector';
 import { MENU_LINKS, MENU_PANEL_ID } from './LandingNav.constants';
 import type { NavMenuPanelProps } from './NavMenuPanel.types';
 
 /**
- * The menu the bar opens below `lg`: the Personal | Business selector, then the
- * five section destinations, and nothing else.
+ * The menu the bar opens below `lg`: the five section destinations, and nothing else.
  *
- * THE SELECTOR IS HERE BECAUSE THIS IS WHERE IT LIVES ON A PHONE. The bar carries
- * it from `md` up; below that the row is brand, Search, Menu and Sign in, and two
- * more segments would take the width the brand needs. A reader on a phone must
- * still be able to say which page they are on, so the control is the panel's first
- * row — `large`, because a thumb is pressing it and 44px is the target size the
- * rest of the product uses.
+ * IT USED TO OPEN ON A CONTROL. The Personal | Business selector was the panel's first
+ * row — it lived here below `md`, where the bar had no width for it — and the five
+ * links came after. The selector is gone (the page has one reading now), so the panel
+ * is the links and only the links, and its first row is `How it works` at the same 48px
+ * height the segments used to be.
  *
  * IT IS FLUSH, NOT FLOATING, and that is the ruling rather than a default. The
  * panel is `absolute inset-x-0 top-full` in the (positioned) bar, so it is the
@@ -36,7 +33,7 @@ import type { NavMenuPanelProps } from './NavMenuPanel.types';
  * standalone `translate` property and a transition on `transform` would animate
  * nothing.
  */
-export function NavMenuPanel({ open, onNavigate, audience }: NavMenuPanelProps) {
+export function NavMenuPanel({ open, onNavigate }: NavMenuPanelProps) {
   return (
     <div
       id={MENU_PANEL_ID}
@@ -47,10 +44,6 @@ export function NavMenuPanel({ open, onNavigate, audience }: NavMenuPanelProps) 
       )}
     >
       <div className="mx-auto max-w-6xl px-6 pb-2 pt-3">
-        <div className="border-b border-hairline-dark pb-3 md:hidden">
-          <AudienceSelector audience={audience} large />
-        </div>
-
         <ul>
           {MENU_LINKS.map((link) => (
             <li key={link.href}>

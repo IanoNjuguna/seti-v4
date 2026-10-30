@@ -1,36 +1,31 @@
 import { HERO_COPY } from './HeroCopy.constants';
-import type { AudienceProps } from './Audience.types';
 
 /**
- * The hero's promise: one line, set at the page's largest display step, in the
- * band's leading column.
+ * The hero's promise: one line, set at the page's largest display step, in the band's
+ * right column.
  *
- * THE FIRST OF THREE COLUMNS, and the first thing the composition changed.
- * cash.app's hero is not two halves: the promise sits in the LEFT third, the
- * product object owns the middle third and rises above both the promise and the
- * sentence beside it, and the sentence plus its action take the right third. The
- * three share one bottom line (`md:items-end` in `HeroSection`), so the taller
- * object sets the baseline and nothing floats in a gap. Measured on the reference
- * at 1440x900: promise 448px wide, object 437px, sentence 331px, all with their
- * bottom edge inside 30px of each other.
+ * `text-display-xl` is a clamp from 48px to 80px, the system's own step for a page's
+ * identity. "Get paid." is four characters of wide type at 80px, so it holds ONE line
+ * in the right column and does not wrap the way the old "Pay by name." did across two
+ * — the column it sits in is the composition's wide half (six of twelve, ~590px at
+ * `max-w-6xl`), and a promise that fits its column in one line is what lets the
+ * sentence and the actions under it hang from a single left edge.
  *
- * `text-display-xl` is a clamp from 48px to 80px, the system's own step for a
- * page's identity. On a desktop column of ~440px the promise wraps to two lines at
- * 80px, which is what the reference's 56px promise does in its 448px column: two
- * lines at a similar proportion to the column, which is the composition. A
- * one-line promise at 48px would read as a section heading rather than as the
- * page's statement.
+ * It used to take a reader, because the page carried two promises. It carries one now
+ * (`HeroCopy.constants.ts`).
  *
- * The leading trim (`md:-mt-[0.132em]`) is gone with the centring it served: it
- * pulled the line box's leading off the top so a centred group's optical centre
- * landed on the column's middle. Nothing here is centred on a middle any more,
- * so the trim would only shift the cap height off the bottom line the three
- * columns share.
+ * THE LEADING TRIM IS OPTICAL, AND IT IS MEASURED AGAINST THE CODE. The line box of a
+ * display step carries leading above the caps, so an `items-start` row would put the
+ * headline's box top level with the plate and its CAP about 11px below the plate's top
+ * edge — two objects that look staggered while being geometrically aligned. `-0.132em`
+ * is the leading `text-display-xl` adds above the cap, so the promise's cap line lands
+ * on the plate's edge. The same trim moved a centred group's optical centre in an
+ * earlier version of this band; here it is doing the only job it has.
  */
-export function HeroHeadline({ audience }: AudienceProps) {
+export function HeroHeadline() {
   return (
-    <h1 className="entrance font-brand text-display-xl font-medium text-on-dark">
-      {HERO_COPY[audience].headline}
+    <h1 className="entrance font-brand text-display-xl font-medium text-on-dark md:-mt-[0.132em]">
+      {HERO_COPY.headline}
     </h1>
   );
 }

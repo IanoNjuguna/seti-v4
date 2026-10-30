@@ -15,8 +15,8 @@
  * by intent; the recipe is therefore written here, as one string, and there is no
  * second colour on the element.
  *
- * The same string is used by both audience variants: the action it dresses does
- * not change, only the label it carries.
+ * The same string dresses the one action the hero offers; there is no second label to
+ * keep in step with it any more.
  */
 export const QUIET_ACTION_CLASSES =
   'inline-flex min-touch w-fit items-center rounded-sm text-button font-semibold text-on-dark-mute underline-offset-4 transition-colors duration-(--duration-quick) ease-out hover:text-on-dark hover:underline active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-dark focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-dark';

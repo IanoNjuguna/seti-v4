@@ -1,6 +1,11 @@
-import type { Audience } from './Audience.types';
-
-/** The hero's words, as one block: the promise, the sentence, the two actions. */
+/**
+ * The hero's words, as one block: the promise, the sentence, the two actions.
+ *
+ * It used to be a record keyed by reader, because the page served a person and a
+ * business from one URL. It serves one reader now — the merchant, who is the person
+ * with a name to claim — so the shape is a single block and a missing variant is
+ * no longer something a type can catch, because there are no variants.
+ */
 export interface HeroCopy {
   /** The promise. Cash.app's hero is one short line, not a sentence. */
   headline: string;
@@ -11,6 +16,3 @@ export interface HeroCopy {
   /** The quiet second action, 2 to 4 words. */
   secondaryAction: string;
 }
-
-/** One hero, two readers. The shape cannot fork; only the words can. */
-export type HeroCopyByAudience = Record<Audience, HeroCopy>;
