@@ -1,69 +1,60 @@
 import { HeroActions } from './HeroActions';
 import { HeroHeadline } from './HeroHeadline';
 import { HeroPaymentQr } from './HeroPaymentQr';
-import type { AudienceProps } from './Audience.types';
 
 /**
- * The hero: three columns on one bottom line, the page's own object in the middle.
+ * The hero: the product's own object on the left, the words on the right.
  *
- * THE COMPOSITION IS THE REFERENCE'S, measured rather than guessed. cash.app's
- * hero at 1440x900 is a promise in the left third (448px), a product object dead
- * centre (437px) that is TALLER than the copy and so rises past it, and the
- * sentence plus its one pill in the right third (331px). Their bottom edges land
- * within 30px of each other, which is what makes the band read as one object
- * instead of three blocks at three heights. That is `md:items-end` here: the grid
- * aligns every column to the same bottom edge, the QR column is the tallest, and
- * the two text columns sit at its foot.
+ * TWO COLUMNS, AND THE CODE IS THE ONE ON THE LEFT. The band used to be three — promise
+ * left, actions right, code in the middle — because it had to hold two readers' words
+ * at once and the object was what the middle third could spare. With one reading
+ * (`HeroCopy.constants.ts`) there are two things to say and one to show, and the
+ * object leads: a stranger's first look lands on a code they can actually scan, and
+ * the promise answers what it is for.
  *
- * THE GROUP IS CENTRED IN THE BAND, NOT PINNED TO ITS BOTTOM, and that is measured
- * rather than chosen. The reference's hero content sits in the middle two thirds of
- * its 900px band (promise from y 484, block from 174 to 770) rather than resting on
- * the fold. A group pinned to the bottom of a full-height band leaves an empty top
- * third here, because this page's object is a 380px QR plate and not a 720px phone
- * that bleeds off both edges of the band. So `justify-center` splits the leftover
- * height above and below the group; bottom alignment spent all of it at the top.
+ * THE COLUMNS ARE 5 AND 7 OF TWELVE, WHICH IS WHY THEY ARE NOT HALVES. The code opens
+ * the grid and the words take column 6 to the band's right edge. The gutter between
+ * them is whatever the plate's column leaves over: 441px of column holding a 352px
+ * plate, plus one 32px gap, so about 120px of white between the plate's edge and the
+ * first letter. That air is doing the most work in the composition — a gutter narrower
+ * than the plate's own corner radius reads as a table with two cells rather than as an
+ * object and the words about it.
  *
- * WHAT THIS REPLACED. The band was two halves, seven/five, copy left and the code
- * right, with the copy centred on its column's middle and the code centred on its
- * own. Both halves carried long arguments in this file's history about optical
- * centres agreeing to 0.2px, and the result was still a document: a headline and a
- * picture facing each other across a gutter. Putting the object in the middle is
- * what gives the band a focal point and makes the hero show the product instead of
- * describing it.
+ * The words get the wider column because they are the part that wraps badly: at six
+ * columns "Claim your name. Customers pay you by name or by scanning your code." broke
+ * to three lines, and a three-line sentence under a one-line promise looks like a
+ * paragraph nobody cut. At seven it is two. The paragraph's own `max-w-md` still stops
+ * it running the whole width of the column.
  *
- * ORDER ON A PHONE IS NOT THE DESKTOP ORDER. In the DOM the promise is first, the
- * sentence and its action second, and the code last, so a phone reader gets the
- * words, then something to do, then the thing itself. `md:order-*` puts the code
- * back in the middle on a wide screen, where there is room for three columns.
+ * THE TWO BLOCKS SHARE A TOP EDGE, and that is the alignment the band rests on. The
+ * headline's cap line lands level with the plate's top, so the eye reads one row: the
+ * object, then what it is for. `md:items-start` rather than `items-center` — centring
+ * the shorter words on the taller plate put the promise a third of the way down the
+ * band with nothing above it, which is the floating-in-a-gap look this page has been
+ * corrected for before. The bottoms differ and that is honest: the plate block carries
+ * a caption, a URL and a warning under it that the words have no counterpart for.
  *
- * `grid-cols-1` on the phone is load-bearing rather than tidy: without it the
- * single implicit column is `auto`, which sizes to an item's MIN-CONTENT, and the
- * printed URL under the code (one unbreakable string) would push the page past the
- * viewport at 360px. An explicit `minmax(0, 1fr)` track caps it.
+ * ORDER ON A PHONE IS NOT THE DESKTOP ORDER. In the DOM the words are first and the
+ * code second, so a phone reader gets the promise, the sentence and the action before
+ * being shown a code they cannot scan off their own screen; `md:order-1` lifts the code
+ * into the left column where there is room for two.
  *
- * The three columns are 5/4/3 of twelve, not thirds. The promise and the sentence
- * are not the same object and should not be the same width; the code gets the
- * middle four, which at `max-w-6xl` is 347px, 85px more than the 262px plate it
- * holds, so the plate has air on both sides and the caption's ragged right does
- * not touch it.
+ * `grid-cols-1` on the phone is load-bearing rather than tidy: without it the single
+ * implicit column is `auto`, which sizes to an item's MIN-CONTENT, and the printed URL
+ * under the code (one unbreakable string) would push the page past the viewport at
+ * 360px. An explicit `minmax(0, 1fr)` track caps it.
  */
-export function HeroSection({ audience }: AudienceProps) {
+export function HeroSection() {
   return (
     <section id="hero" className="relative z-10">
       <div className="mx-auto flex min-h-svh max-w-6xl flex-col justify-center px-6 pb-16 pt-28 md:pb-20 md:pt-32">
-        <div className="grid grid-cols-1 gap-12 md:grid-cols-12 md:items-end md:gap-8">
-          <div className="md:col-span-5">
-            <HeroHeadline audience={audience} />
+        <div className="grid grid-cols-1 gap-14 md:grid-cols-12 md:items-start md:gap-8">
+          <div className="md:order-2 md:col-span-7 md:col-start-6">
+            <HeroHeadline />
+            <HeroActions />
           </div>
 
-          {/* The actions come SECOND in the DOM, so a phone reads the promise and
-              then something to do; `md:order-3` puts them back on the right of the
-              three columns on a wide screen, where the code takes the middle. */}
-          <div className="md:order-3 md:col-span-3">
-            <HeroActions audience={audience} />
-          </div>
-
-          <div className="md:order-2 md:col-span-4">
+          <div className="md:order-1 md:col-span-5 md:col-start-1">
             <HeroPaymentQr />
           </div>
         </div>

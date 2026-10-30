@@ -14,10 +14,10 @@ export const NAV_LINKS: LandingLink[] = [
  *
  * Below `lg` the centre links are `hidden lg:flex`, so between `md` and `lg` the
  * bar keeps no way to reach a section at all; this is what the menu opens onto.
- * (The breakpoint moved from `md` to `lg` when the Personal | Business selector
- * joined the row: brand, selector, search, menu and Sign in already fill a 768px
- * row, and 300px of section links do not fit beside them. Below `lg` the menu is
- * therefore reachable on a tablet as well as a phone, which it was not before.)
+ * (The breakpoint is `lg` rather than `md` because brand, Search, Menu and Sign in
+ * fill a 768px row and 300px of section links do not fit beside them. It moved from
+ * `md` to `lg` when the Personal | Business selector joined the row and stayed
+ * there once the selector left, because the row it leaves is still too narrow.)
  *
  * The five are the three centre links in their own order, plus `Integrations` and
  * `What we refuse`, which the page ships as real bands (`#partners`, `#refusals`)
@@ -50,19 +50,17 @@ export const MENU_PANEL_ID = 'landing-nav-menu';
  *
  * THE IDS DID NOT MOVE IN THE REDESIGN (issue #187): `#hero`, `#how`, `#money`,
  * `#fees`, `#partners`, `#open` are the same six bands, recomposed rather than
- * replaced, and both audience variants render all six. `#refusals` joined them
- * after the redesign as a seventh band (#133), rendered by both variants because
- * none of the three refusals changes with the audience. The audience is a query
- * parameter, not a route, so a palette jump works the same whichever variant the
- * reader is on — and because it never becomes part of an href here, no link in
- * this file can point at a variant that does not exist.
+ * replaced, and the page renders all six. `#refusals` joined them
+ * after the redesign as a seventh band (#133). The page has one reading now — the
+ * Personal | Business selector and its `?for=` parameter are gone — so every jump
+ * lands on a band that is on the page, and no link in this file can point at a
+ * variant that does not exist.
  *
  * EVERY LABEL NAMES WHAT THE READER LANDS ON. Two entries violated that once: the
  * last band's jump still said `Open it` after the owner retitled the band to
- * `Sign in today`, and `#partners` was missing entirely. Both are fixed here, and
- * the closing band's heading is deliberately the SAME STRING for both audiences
- * (`ClosingSection.constants.ts`) so this label cannot go stale for one of them:
- * only the closing band's button changes with the selector. `Integrations` is the
+ * `Sign in today`, and `#partners` was missing entirely. Both are fixed here. The
+ * closing band's heading is the string (`ClosingSection.constants.ts`) and the band
+ * renders that same constant, so this label cannot go stale. `Integrations` is the
  * band's own eyebrow, `Your money` and `How it works` are the other two bands'
  * eyebrows, and `Sign in today` its h2 — the strings the reader actually meets —
  * rather than labels invented for the palette. Keywords keep the words people type

@@ -1,92 +1,67 @@
-'use client';
-
-import { QRCode } from '@/components/merchant/qr-code';
-import { HERO_PAYMENT_URL, HERO_QR } from './HeroPaymentQr.constants';
+import { QrPlate } from '@/components/qr/QrPlate';
+import { HERO_PAYMENT_URL } from './HeroPaymentQr.constants';
 import { HERO_QR_COPY } from './HeroPaymentQr.copy';
 
 /**
- * The hero's centre column: a LIVE payment link, as a code you can scan.
+ * The hero's left column: a LIVE payment link, as the code a merchant prints.
  *
- * It is not an illustration of a payment. The code encodes a real merchant's
- * public payment page, and scanning it opens that page in the real flow, signed
- * out, the way a customer meets a printed sticker. That is also why it is the
- * right object for the middle of the band: cash.app puts its product screen
- * there, and the honest equivalent for this product is the thing a customer
- * actually meets, at the size they meet it.
+ * It is not an illustration of a payment. The code encodes a real merchant's public
+ * payment page, and scanning it opens that page in the real flow, signed out, the way
+ * a customer meets a printed sticker.
  *
- * THE OBJECT OF THE COMPOSITION, so it is centred in its own column and it is the
- * column that sets the band's height. It used to be the taller of two halves,
- * centred on its column's middle; the difference now is that the two text columns
- * beside it sit at its FOOT (`md:items-end` in `HeroSection`) rather than at their
- * own middles, so the code rises above them the way the reference's phone does.
- *
- * THREE BLOCKS, NOT FOUR: the plate, the caption, the link with its warning under
- * it. Each one is directly under the thing it is about, and the gaps say which is
- * which — `gap-6` between blocks, `gap-3` between the link and the warning,
- * because the warning qualifies the link and nothing may come between them.
- *
- * WHY A QR: a stock object at the page's loudest surface is a claim nobody can
- * check. This is one they can. It is drawn as vector (`react-qr-code`, already a
- * dependency of the receipt and merchant surfaces), never a committed raster QR: a
- * few hundred pixels of raster would be visibly soft at 198px, and vector stays
- * exact at any size or zoom.
- *
- * THE LINK IS PRINTED, NOT COPYABLE, and that is the owner's call after seeing a
- * control there. The URL stays printed in mono because the picture has to be
- * readable by a person who cannot scan it. The handle is written bare (`ianllc`),
- * no `@`, as everywhere else in the hero.
- *
- * THE WARNING IS THE LAST LINE, and it is the one sentence on the page that stops
- * a visitor paying a demonstration merchant. `text-caption` against the caption's
- * `body-sm` — one step down the scale, and the doc's own size for a disclosure —
- * in `font-semibold`, so it is subordinate in size and emphatic in weight rather
- * than competing with the sentence above it. `text-stone` on this canvas measures
- * 6.99:1 against `{colors.canvas-dark}`; the field's corner washes are gone
- * (`LandingBackdrop`), so the black behind this line is the only surface it ever
- * meets. No `Disclaimer:` label: the sentence already says what it is.
- *
- * THE PLATE, at four-fifths of the column. A QR is read as dark modules on a light
- * field, so it sits on a real `canvas-light` surface at the ONE control/surface
- * radius, `rounded-md` (12px), with `p-10` of padding doing two jobs: the plate's
- * internal padding, and the code's quiet zone. The spec wants FOUR modules of clean
- * field, and the shipped payload is a 25-module (version 2) code: 40px of padding
- * around a 240px code is 4.17 modules, which is the padding this size requires —
- * the earlier 32px was four modules around a 198px code, and scaling the plate up
- * without scaling the padding would have quietly spent the quiet zone (the same
- * trap `components/qr/qr.constants.ts` records for the receive plate). The plate
- * carries the slot's slow float (`--duration-float`), which moves it ±3px about
- * its own place; the QR's own modules stay square, because a rounded module is a
+ * IT IS THE APP'S OWN PLATE, not a second code. This used to draw `react-qr-code`
+ * black-on-white at level `M` with no mark, which meant the landing page showed a
+ * different object from the one `components/qr/QrPlate.tsx` puts on the receive and
+ * merchant surfaces. The plate now is that one: ink modules, the Seti mark in the well
+ * the geometry clears for it, level `H`, the quiet zone inside the SVG and no padding
+ * of the plate's own. The mark and the modules are one ink, which is what makes the
+ * code read as a brand object rather than a logo pasted on a QR; the contrast, the
+ * well's share of the symbol and the four-module quiet zone are the arithmetic
+ * `qr.constants.ts` records and `npm run check:qr-plate` measures. The plate also
+ * carries the hero slot's slow float (`hero-float`), which moves the whole plate ±3px
+ * about its own place; the code's modules stay square, because a rounded module is a
  * broken module.
  *
- * THE PLATE GREW because the caption under it was breaking mid-sentence: at 262px
- * the figure wrapped "to ianllc" onto a line of its own and put the URL and the
- * warning in the same narrow gutter, so the centre column read as three columns of
- * small print. At 320px each of the three blocks is a line or two at its natural
- * width, and the code is closer to the share of the band the reference's object
- * takes (437px of a 1344px band; this is 320 of 1152, and the code inside it is
- * 240px — bigger than the 198 it was).
+ * THREE BLOCKS, NOT FOUR: the plate, the caption, the printed URL with its warning
+ * under it. Each one is directly under the thing it is about, and the gaps say which
+ * is which — `gap-6` between blocks, `gap-3` between the URL and the warning, because
+ * the warning qualifies the URL and nothing may come between them.
  *
- * `'use client'` because `react-qr-code` is a CLASS component and RSC renders only
- * functions. It still server-renders into the static HTML, so the code, and the
- * exact value it carries, is in the page a crawler or a JS-disabled browser
- * receives.
+ * EVERYTHING IS FLUSH LEFT. The plate was centred in its own column when it was the
+ * middle of three; it is the band's leading object now, and it shares the page's left
+ * axis with the nav's wordmark and every section header below it. `align="start"` on
+ * the plate is that decision, and it is the reason the caption and the URL under it
+ * are left-aligned too — a centred square above left-aligned text is the mixed edge
+ * that makes a band read as two layouts.
+ *
+ * THE LINK IS PRINTED, NOT COPYABLE, and that is the owner's call after seeing a
+ * control there. The URL stays printed in mono because the picture has to be readable
+ * by a person who cannot scan it. The handle is written bare (`ianllc`), no `@`, as
+ * everywhere else on the page.
+ *
+ * THE WARNING IS THE LAST LINE, and it is the one sentence on the page that stops a
+ * visitor paying a demonstration merchant. `text-caption` against the caption's
+ * `body-sm` — one step down the scale, and the doc's own size for a disclosure — in
+ * `font-semibold`, so it is subordinate in size and emphatic in weight rather than
+ * competing with the sentence above it. `text-stone` on this canvas measures 6.99:1
+ * against `{colors.canvas-dark}`. No `Disclaimer:` label: the sentence already says
+ * what it is.
+ *
+ * It is a SERVER component: the plate is the client boundary, because it registers
+ * itself for the PNG export and an export is a browser operation. The code still
+ * server-renders into the static HTML, so the code, and the exact value it carries, is
+ * in the page a crawler or a JS-disabled browser receives.
  */
 export function HeroPaymentQr() {
   return (
-    <figure className="mx-auto flex w-[min(20rem,100%)] flex-col gap-6">
-      <div className="hero-float rounded-md bg-canvas-light p-10">
-        <div role="img" aria-label={HERO_QR_COPY.title}>
-          <QRCode
-            value={HERO_PAYMENT_URL}
-            size={HERO_QR.size}
-            level={HERO_QR.level}
-            fgColor={HERO_QR.foreground}
-            bgColor={HERO_QR.background}
-            title={HERO_QR_COPY.title}
-            style={{ width: '100%', height: 'auto', display: 'block' }}
-          />
-        </div>
-      </div>
+    <figure className="flex flex-col items-start gap-6">
+      <QrPlate
+        value={HERO_PAYMENT_URL}
+        title={HERO_QR_COPY.title}
+        align="start"
+        width="22rem"
+        className="hero-float"
+      />
 
       <figcaption className="text-body-sm text-on-dark-mute">
         <span className="block font-semibold text-on-dark">{HERO_QR_COPY.lead}</span>

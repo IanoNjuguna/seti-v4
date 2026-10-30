@@ -31,13 +31,13 @@ which gives marks that genuinely differ only by the expression:
   seti-mark-friendly.png       cream head, ink eyes + smile      (on canvas-light)
   seti-mark-neutral-dark.png   white head, eyes punched to alpha 0
   seti-mark-friendly-dark.png  white head, eyes + smile punched
-  seti-mark-neutral-code.png   cobalt head, eyes punched         (in a code's well)
-  seti-mark-friendly-code.png  cobalt head, eyes + smile punched (in a code's well)
+  seti-mark-neutral-code.png   ink head, eyes punched            (in a code's well)
+  seti-mark-friendly-code.png  ink head, eyes + smile punched    (in a code's well)
 
 Eyes are PUNCHED on the mono pair rather than filled dark: the dark canvas is
 black and a painted pupil breaks the moment the mark sits on anything else. The
 code colourway is the same argument one surface further in — its well is white,
-so a punched eye is a white eye and the head is one solid cobalt shape.
+so a punched eye is a white eye and the head is one solid ink shape.
 
 Every mark shares one crop, one scale and one canvas, so swapping expression,
 colourway or canvas never shifts the mark by a pixel.
@@ -68,15 +68,20 @@ MINUSCULE = 0.4  # mask feather, px
 
 MOUTH_INK = (26, 22, 23)
 DARK_INK = (255, 255, 255)
-# Cobalt — `--color-primary` in `web/app/globals.css` (`#494fdf`).
+# Ink — `--color-canvas-dark` in `web/app/globals.css` (`#000000`), the same literal
+# the code's modules are drawn in (`web/components/qr/qr.constants.ts`).
 #
 # The one colourway that is not a canvas: it is the ink of the payment code's
-# white well, and the mark has to be the SAME ink as the thing it sits in. Cream
+# white well, and the mark has to be the SAME ink as the modules around it. Cream
 # on that well is 1.3:1 and reads as two eyes with no head; the white pair has no
-# contrast on white at all. Cobalt on white is 6.06:1, so the mark and the
-# modules are one colour, which is what makes a Seti code read as one object
-# rather than a logo stuck on a QR code.
-CODE_INK = (73, 79, 223)
+# contrast on white at all. Ink on white is 21.00:1 — the maximum a code can
+# carry — so the mark and the modules are one colour, which is what makes a Seti
+# code read as one object rather than a logo stuck on a QR code.
+#
+# It was cobalt `#494fdf` (6.06:1) while the plate wanted the brand accent. A code
+# is a document read by a camera before it is a surface seen by a person, and the
+# brand accent is not the thing to spend its contrast on.
+CODE_INK = (0, 0, 0)
 
 
 def _luma(rgb: np.ndarray) -> np.ndarray:

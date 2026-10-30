@@ -29,12 +29,12 @@ import type { QrPlateProps } from './qr.types';
  * object announced twice otherwise, and what a person needs to hear is what scanning
  * DOES.
  */
-export function QrPlate({ value, title, align = 'center', className }: QrPlateProps) {
+export function QrPlate({ value, title, align = 'center', width = QR_PLATE.width, className }: QrPlateProps) {
   const geometry = useQrCode(value);
 
   return (
     <div className={align === 'start' ? 'flex flex-col items-start' : 'flex flex-col items-center'}>
-      <div className={cn(QR_PLATE.plate, className)}>
+      <div className={cn(QR_PLATE.plate, className)} style={{ width, maxWidth: '100%' }}>
         {geometry ? (
           <div className={QR_PLATE.frame}>
             <QrCodeSvg value={value} title={title} geometry={geometry} />

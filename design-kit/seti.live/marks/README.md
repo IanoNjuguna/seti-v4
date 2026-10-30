@@ -45,7 +45,7 @@ expression and colourway, which is the whole point:
 | `seti-mark-friendly.png` | friendly | light | same body, smile in the eyes' ink |
 | `seti-mark-neutral-dark.png` | neutral | dark | white, same shading, **eyes punched to alpha 0** |
 | `seti-mark-friendly-dark.png` | friendly | dark | as above, smile punched |
-| `seti-mark-neutral-code.png` | neutral | code | cobalt `#494fdf`, same shading, **eyes punched** |
+| `seti-mark-neutral-code.png` | neutral | code | ink `#000000`, same shading, **eyes punched** |
 | `seti-mark-friendly-code.png` | friendly | code | as above, smile punched |
 
 All six are 384×384 with one crop, one scale, and the head at 93% of the
@@ -102,13 +102,17 @@ colourways above both fail, for opposite reasons:
 | --- | --- | --- |
 | cream `rgb(223,214,205)` (light) | 1.3:1 | two dark eyes with no head |
 | white (dark) | 1.0:1 | nothing |
-| **cobalt `#494fdf` (code)** | **6.06:1** | one solid head with white eyes |
+| **ink `#000000` (code)** | **21.00:1** | one solid head with white eyes |
 
 So the code colourway is a real third ink, not a tint of an existing file: the head
-is filled with `--color-primary` and its eyes are PUNCHED, exactly the treatment the
-dark pair gets, because the well behind them is white. Cobalt is also the same ink as
+is filled with `--color-canvas-dark` and its eyes are PUNCHED, exactly the treatment the
+dark pair gets, because the well behind them is white. Ink is also the same colour as
 the modules, which is what makes the code read as one object rather than a logo
 pasted on a QR code.
+
+It was cobalt `#494fdf` (6.06:1) while the plate spent its contrast on the brand
+accent. A code is a document a camera reads before a person looks at it, so the ink
+went to the maximum the system has.
 
 `code` is a colourway axis, so both expressions exist — but only the NEUTRAL one is
 ever drawn: a code is a document. `seti-mark-friendly-code.png` is generated so the

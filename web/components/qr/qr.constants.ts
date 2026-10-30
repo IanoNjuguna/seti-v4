@@ -6,51 +6,56 @@
  * symbol is left intact. All three are geometry. The brand is a fourth, and it is
  * spent out of the first three rather than painted over them.
  *
- *  - **Contrast is cobalt, and it is measured.** `#494fdf` is `--color-primary`
- *    (`web/app/globals.css`); a literal here because this colour goes into an SVG
- *    attribute a machine reads, not into a class a person styles. Cobalt on the white
- *    plate is **6.06:1** (relative luminance 0.123 against 1.000), where literal black
- *    is 21.00:1. So the code spends contrast for the brand, and the cost is known: the
- *    symbol keeps 88% of the symbol contrast black gave it (SC 0.88 vs 1.00, against
- *    the 0.20 a scanner needs). What defends the rest of the margin is that every
- *    module keeps its FULL dark area — corners rounded, module not shrunk to a dot,
- *    and neighbours overlapping by 3% so no white seam grows between them. A "pretty"
- *    code of 70% dots throws away a third of the dark area the contrast was measured
- *    on; this one throws away none of it.
- *  - **The quiet zone travels inside the SVG.** Four clean modules, in the viewBox,
- *    not in the plate's padding. That is the difference that matters: the download
- *    rasterises the SVG on its own, where CSS padding does not exist, and a printed
- *    code with no margin is a code a scanner cannot find. The plate's own padding is
- *    now visual breathing room on top of a margin that is already there, so it can no
- *    longer silently shrink the way pixel padding around a scaling code does.
+ *  - **Contrast is INK, and it is the maximum a code can have.** `#000000` is
+ *    `--color-canvas-dark` (`web/app/globals.css`); a literal here because this colour
+ *    goes into an SVG attribute a machine reads, not into a class a person styles. Black
+ *    on the white plate is **21.00:1**: the symbol contrast is 1.00 against the 0.20 a
+ *    scanner needs. The plate drew in cobalt-violet for a while, at 6.06:1 — 0.88 of
+ *    this, by definition — and the traded margin bought nothing a reader could see on a
+ *    surface this small. Cobalt is the brand accent and the design system keeps it
+ *    scarce on marketing surfaces; a code is a document, and its ink is not decoration.
+ *    Every module keeps its FULL dark area too — corners rounded, module not shrunk to
+ *    a dot, and neighbours overlapping by 3% so no white seam grows between them. A
+ *    "pretty" code of 70% dots throws away a third of the dark area the contrast was
+ *    measured on; this one throws away none of it.
+ *  - **The quiet zone travels inside the SVG.** Four clean modules, in the viewBox. That
+ *    is the difference that matters: the download rasterises the SVG on its own, where
+ *    CSS padding does not exist, and a printed code with no margin is a code a scanner
+ *    cannot find. The plate adds NO padding of its own — the white around the modules in
+ *    a Seti code is exactly the four modules ISO 18004 requires, so the code fills the
+ *    plate instead of floating in a second, decorative margin.
  *  - **Error correction is H (30%)** because the mark sits in the middle of the
  *    symbol and the well under it erases real modules. At 26% of the code's own width
  *    the mark is 8, 9 or 11 modules across as the payload grows (29, 33, 41 modules at
  *    level H), the well around it is two modules wider, and the erased area is 11.9%,
  *    11.1% or 10.1% of the symbol — a third of what H can correct. The decodes in the
  *    PR are the evidence; this arithmetic only says where to look.
- *  - **The mark is cobalt too**, from the design kit's own generator
+ *  - **The mark is ink too**, from the design kit's own generator
  *    (`design-kit/seti.live/marks/`), because the cream mark is 1.3:1 on a white well
  *    and reads as two eyes with no head. Mark and modules being one ink is what makes
  *    the code a brand object rather than a logo stuck on a QR code.
  *
- * The arithmetic, at the one plate size (288px box, 280px code after `p-5`) and at the
- * size a download writes:
+ * The arithmetic, at the one plate size (a 320px plate, with the code filling it) and at
+ * the size a download writes:
  *
  * | payload | modules | module on screen | quiet zone | mark | well |
  * | --- | --- | --- | --- | --- | --- |
- * | 29 (v3, a username) | 37 with the zone | 7.57px | 30px | 61px | 76px |
- * | 33 (v4, a business) | 41 with the zone | 6.83px | 27px | 62px | 75px |
- * | 41 (v6, an address) | 49 with the zone | 5.71px | 23px | 63px | 74px |
+ * | 29 (v3, a username) | 37 with the zone | 8.65px | 34.6px | 69px | 87px |
+ * | 33 (v4, a business) | 41 with the zone | 7.80px | 31.2px | 70px | 86px |
+ * | 41 (v6, an address) | 49 with the zone | 6.53px | 26.1px | 72px | 85px |
  *
  * and at 1024px that 33-module code is 24.98px per module with a 100px quiet zone, so
  * a 35mm code printed at 300dpi (~413px) is a downscale, not an upscale. The mark
- * holds one size, ~75px, whatever the payload: it scales with the module COUNT while
+ * holds one size, ~70px, whatever the payload: it scales with the module COUNT while
  * the module itself shrinks.
  */
 export const QR_COLOURS = {
-  /** `--color-primary`. Modules, finder patterns and the mark are one ink. */
-  modules: '#494fdf',
+  /**
+   * `--color-canvas-dark`. Modules, finder patterns and the mark are one ink, and it is
+   * the darkest the system has: a code is read at 21.00:1 here, which is the whole
+   * margin a camera gets to lose.
+   */
+  modules: '#000000',
   /** The plate, and the quiet zone around the code. */
   plate: '#ffffff',
 } as const;
@@ -83,11 +88,21 @@ export const QR_GEOMETRY = {
 export const QR_PLATE = {
   /**
    * A light canvas at the ONE surface radius, with the quiet zone already inside the
-   * SVG. 20rem is the cap: 320px keeps the 33-module code at 6.83px per module on a
-   * 390px phone, and `min(…,100%)` is what stops it overflowing a 320px one. The 12px
-   * corner radius sits inside a 27px quiet zone, so no corner module is ever clipped.
+   * SVG — and NO padding of its own. The white a reader sees around the modules is the
+   * four modules ISO 18004 requires, exactly, so the code fills the plate instead of
+   * sitting inside a second, decorative margin nobody can justify. `overflow-hidden`
+   * is what lets the plate's 12px corner round the SVG's own white background while
+   * the quiet zone (26px at the smallest payload) keeps every corner module clear of
+   * the arc.
+   *
+   * The plate's WIDTH is set on the element from `QrPlate`'s `width` prop (20rem by
+   * default, capped at `max-width: 100%`), so a surface can hold the same plate at its
+   * own size instead of styling a second one, and a 320px phone clamps it rather than
+   * overflowing.
    */
-  plate: 'w-[min(20rem,100%)] rounded-md bg-canvas-light p-5',
+  plate: 'overflow-hidden rounded-md bg-canvas-light',
+  /** The width every surface gets unless it asks for another one. */
+  width: '20rem',
   /** The plate positions the mark; the mark's WIDTH comes from the geometry. */
   frame: 'relative',
   mark: 'pointer-events-none absolute left-1/2 top-1/2 aspect-square -translate-x-1/2 -translate-y-1/2',

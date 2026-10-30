@@ -1,7 +1,6 @@
 import { Reveal } from './Reveal';
 import { SectionHeader } from './SectionHeader';
 import { FEE_COPY } from './FeesSection.constants';
-import type { AudienceProps } from './Audience.types';
 
 /**
  * Fees — the second light band, and the price list.
@@ -21,11 +20,10 @@ import type { AudienceProps } from './Audience.types';
  * strings are the long ones and a column that gave width away would wrap them into
  * the label's baseline; the label column takes whatever is left, and its widest
  * label ("2% of each payment") renders 236px, so it has hundreds of pixels of
- * slack. The column was 18rem (288px) before the Personal | Business split, sized
- * against a widest string of 287.6px; the personal fee row's new detail is longer
- * than that string, so the column grew to 352px rather than the sentence being
- * trimmed to fit a measurement it no longer matches. Re-measure this pair if the
- * fee copy moves again.
+ * slack. The column grew to 22rem while the first row was carrying the payer's
+ * wording (the longer of the two); that wording is gone with the personal reading,
+ * and the column is left at the width the pair was measured at rather than quietly
+ * narrowed. Re-measure this pair if the fee copy moves again.
  *
  * IT USED TO CARRY A LINK. "Where the 2% goes" pointed at the footer's treasury
  * block, which published the address the fee is collected to, the one claim on this
@@ -33,16 +31,14 @@ import type { AudienceProps } from './Audience.types';
  * (the owner's call), so the price list stands on its own and the number is
  * unverified from here. That is recorded rather than quietly accepted.
  */
-export function FeesSection({ audience }: AudienceProps) {
-  const rows = FEE_COPY[audience];
-
+export function FeesSection() {
   return (
     <Reveal id="fees" className="bg-canvas-light py-[var(--band-pad-block)]">
       <div className="mx-auto max-w-6xl px-6">
         <SectionHeader eyebrow="What it costs" title="No hidden charges" />
 
         <dl className="mt-12">
-          {rows.map((row) => (
+          {FEE_COPY.map((row) => (
             <div
               key={row.label}
               className="border-t border-hairline-light py-6 first:border-t-0 first:pt-0 sm:grid sm:grid-cols-[minmax(0,1fr)_22rem] sm:items-baseline sm:gap-10"

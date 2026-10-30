@@ -9,10 +9,8 @@ export interface HowStep {
 /**
  * One band's worth of the mechanic, as the reader's own case describes it.
  *
- * The steps keep their shape and their order across both audiences; what changes
- * is the MECHANIC in the first one, because that is the only step where a person
- * and a business genuinely differ: a person is found by a username or a link, a
- * business by its name and the code it prints.
+ * The steps keep their shape and their order; what the copy describes is the
+ * merchant's mechanic — found by a name and by the code it prints.
  */
 export interface HowSectionCopy {
   /** The band's heading. */

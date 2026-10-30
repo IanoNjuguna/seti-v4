@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { SearchModal } from '@/app/components/SearchModal';
 import { BrandMark } from '@/components/ui';
 import { SIGN_IN_PATH } from '@/lib/routes';
-import { AudienceSelector } from './AudienceSelector';
 import { NavLinks } from './NavLinks';
 import { NavMenuButton } from './NavMenuButton';
 import { NavMenuPanel } from './NavMenuPanel';
@@ -13,40 +12,40 @@ import { MENU_PANEL_ID } from './LandingNav.constants';
 import { useNavMenu } from './useNavMenu';
 import { useNavSearch } from './useNavSearch';
 import { useScrollNav } from './useScrollNav';
-import type { AudienceProps } from './Audience.types';
 
 /**
  * The landing nav: `nav-bar` from `design/revolut.md` — black, 64px, full bleed,
- * opaque — with the page's two readers' choice in it, and a state that arrives
- * when the reader leaves the top of the page.
+ * opaque — with a state that arrives when the reader leaves the top of the page.
  *
- * THE SCROLLED STATE IS CSS, AND THE HOOK ONLY SAYS WHICH ONE. `useScrollNav`
- * writes `data-scrolled` on this `<header>`; `.landing-nav` and `.landing-nav-bar`
- * in `globals.css` carry the transition and the two states, and the comment there
- * records every property and why it moved or did not. Two consequences that
- * matter: nothing on this component re-renders while the page is scrolled, and the
- * SERVER-RENDERED HTML is the rest state, so a browser that never hydrates keeps
- * the bar it would have had before this change.
+ * THE SELECTOR IS GONE FROM THIS BAR. A Personal | Business segmented control sat
+ * between the wordmark and the links, and it was the one control up here that changed
+ * the page rather than leaving it. The page has one reading now, so the row is the
+ * brand, the links, Search, Menu and Sign in — and the brand is back against the links
+ * instead of being pushed right by a control that chose nothing.
+ *
+ * THE SCROLLED STATE IS CSS, AND THE HOOK ONLY SAYS WHICH ONE. `useScrollNav` writes
+ * `data-scrolled` on this `<header>`; `.landing-nav` and `.landing-nav-bar` in
+ * `globals.css` carry the transition and the two states, and the comment there records
+ * every property and why it moved or did not. Two consequences that matter: nothing on
+ * this component re-renders while the page is scrolled, and the SERVER-RENDERED HTML is
+ * the rest state, so a browser that never hydrates keeps the bar it would have had
+ * before this change.
  *
  * IT STAYS SOLID BLACK IN BOTH STATES. The reference fades to a translucent black
- * behind a blur; over a white band that reads as grey plastic, which is the fault
- * a previous version of this bar was corrected for. Solid black is the one surface
- * that holds on both canvases, so a white band scrolling under it can never change
- * what the labels sit on.
+ * behind a blur; over a white band that reads as grey plastic, which is the fault a
+ * previous version of this bar was corrected for. Solid black is the one surface that
+ * holds on both canvases, so a white band scrolling under it can never change what the
+ * labels sit on.
  *
  * `pointer-events` IS SPLIT ON PURPOSE. The header is `fixed` and, once scrolled,
  * carries 8px of its own inset above the bar; without `pointer-events-none` on the
  * shell and `auto` on the bar, that strip would eat clicks on whatever is under it.
  *
- * THE SELECTOR SITS BETWEEN THE BRAND AND THE LINKS (the reference puts its own
- * two-segment control in exactly that place), and it is where it is because it is
- * the one control on this bar that changes the page rather than leaving it. Below
- * `md` it moves into the menu panel: at 360px the row is brand, Sign in and the
- * menu control, and two more segments would take the width the brand needs. That
- * is also why THE CENTRE LINKS NOW START AT `lg`, not `md`: brand + selector +
- * search + menu + Sign in is 500px of a 720px row at 768, and the links need 300
- * more, so they cannot share it. The menu carries the links below `lg` (it always
- * carried them below `md`), so nothing is unreachable.
+ * THE CENTRE LINKS STILL START AT `lg`, and the reason outlives the selector that
+ * caused it: with the links in the row, brand + three links + Search + Menu + Sign in
+ * is still more than a 768px row holds at `md`, and the menu carries the links there
+ * instead. Removing the two segments narrowed the gap without closing it, and moving
+ * the breakpoint back is a layout decision for a change that is not about this bar.
  *
  * TWO CONTROLS ON THE RIGHT, AND WHICH ONE IS THERE DEPENDS ON THE WIDTH, exactly
  * as before: the ⌘K palette at `lg` and up, and below `lg` a menu control in its
@@ -57,7 +56,7 @@ import type { AudienceProps } from './Audience.types';
  * dismissals, the panel is a sibling of its own control, and nothing is trapped.
  * `Sign in` stays the right edge — the doc's own mobile rule.
  */
-export function LandingNav({ audience }: AudienceProps) {
+export function LandingNav() {
   const scrollRef = useScrollNav();
   const { open, openSearch, closeSearch } = useNavSearch();
   const {
@@ -76,20 +75,14 @@ export function LandingNav({ audience }: AudienceProps) {
       >
         <nav aria-label="Main" className="landing-nav-bar pointer-events-auto relative">
           <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-6">
-            <div className="flex items-center gap-4">
-              <Link
-                href="#hero"
-                className="flex items-center gap-3 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-dark focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-dark"
-              >
-                {/* Decorative: the wordmark beside it names the product. */}
-                <BrandMark expression="neutral" canvas="dark" className="h-7" />
-                <span className="font-brand text-heading-sm font-medium text-on-dark">seti</span>
-              </Link>
-
-              <div className="hidden md:block">
-                <AudienceSelector audience={audience} />
-              </div>
-            </div>
+            <Link
+              href="#hero"
+              className="flex items-center gap-3 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-dark focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-dark"
+            >
+              {/* Decorative: the wordmark beside it names the product. */}
+              <BrandMark expression="neutral" canvas="dark" className="h-7" />
+              <span className="font-brand text-heading-sm font-medium text-on-dark">seti</span>
+            </Link>
 
             <NavLinks />
 
@@ -108,11 +101,7 @@ export function LandingNav({ audience }: AudienceProps) {
                   panelId={MENU_PANEL_ID}
                   buttonRef={menuButtonRef}
                 />
-                <NavMenuPanel
-                  open={menuOpen}
-                  onNavigate={closeMenu}
-                  audience={audience}
-                />
+                <NavMenuPanel open={menuOpen} onNavigate={closeMenu} />
               </div>
 
               <Link
