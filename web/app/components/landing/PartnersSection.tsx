@@ -4,6 +4,7 @@ import {
   PARTNER_ENTRIES,
   PARTNER_STATE_LABELS,
   PARTNERS_EYEBROW,
+  markAlignment,
 } from './PartnersSection.constants';
 import { cn } from '@/lib/cn';
 
@@ -106,9 +107,12 @@ export function PartnersSection() {
         <SectionEyebrow label={PARTNERS_EYEBROW} onDark />
 
         <ul className="mt-12 grid grid-cols-2 gap-x-6 gap-y-10 lg:grid-cols-4">
-          {PARTNER_ENTRIES.map((entry) => (
-            <li key={entry.label} className="flex flex-col items-center">
-              <span className="flex h-12 w-full items-center justify-center lg:h-16">
+          {PARTNER_ENTRIES.map((entry, index) => (
+            <li
+              key={entry.label}
+              className={cn('flex flex-col', markAlignment(index, PARTNER_ENTRIES.length))}
+            >
+              <span className="flex h-12 items-center lg:h-16">
                 {/* eslint-disable-next-line @next/next/no-img-element -- a brand SVG, which
                     next/image cannot serve without dangerouslyAllowSVG */}
                 <img
@@ -116,6 +120,7 @@ export function PartnersSection() {
                   alt={entry.label}
                   className={cn(
                     'max-h-full max-w-[132px] object-contain lg:max-w-[176px]',
+                    entry.markScale,
                     entry.hasEmbeddedBitmap && 'brightness-0 invert',
                   )}
                 />

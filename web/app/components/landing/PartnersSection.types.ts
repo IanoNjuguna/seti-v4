@@ -15,4 +15,13 @@ export interface PartnerEntry {
    * so such a mark also needs a filter on the `<img>` to cover the rest.
    */
   hasEmbeddedBitmap?: boolean;
+  /**
+   * A transform that corrects a mark's optical weight inside the shared box,
+   * applied to the image and inherited by nothing else.
+   *
+   * Only for a mark whose ARTWORK is the reason it reads small — a two-line
+   * lockup whose name is half its own height. It scales the picture, not the box,
+   * so the four captions stay on one baseline.
+   */
+  markScale?: string;
 }
