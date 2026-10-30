@@ -3,6 +3,14 @@ import type { HowSectionCopy } from './HowSection.types';
 /**
  * The mechanic, as the merchant lives it.
  *
+ * THE LEDE NAMES THE CATEGORY AND THE AUDIENCE (#276). It used to restate the hero's
+ * own sentence — "Your name is what customers type. Your code is the same name, printed
+ * for the counter" — which told a visitor who already understood the product what they
+ * had just read. A visitor arriving from a shared link does not know what Seti is or
+ * whether it is for them, and nothing else on the page says so: the hero is a promise
+ * and a code, and the bands below are mechanics. So the first line of the first
+ * explanatory band says what this is, who it is for, and how they pay, in one breath.
+ *
  * THE COPY IS THE BUSINESS VARIANT'S, unchanged. It was one of two blocks — the other
  * was a person's — chosen by the navbar's Personal | Business control. That control is
  * gone (`HeroCopy.constants.ts` records why), so this band carries the reading whose
@@ -24,7 +32,7 @@ import type { HowSectionCopy } from './HowSection.types';
  */
 export const HOW_COPY: HowSectionCopy = {
   title: 'How people pay you.',
-  lede: 'Your name is what customers type. Your code is the same name, printed for the counter.',
+  lede: 'Seti is a payment app for shops and traders. Customers pay by your name, or by the code on your counter.',
   steps: [
     {
       index: '1',

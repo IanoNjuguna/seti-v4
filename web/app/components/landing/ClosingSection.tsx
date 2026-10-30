@@ -40,6 +40,12 @@ export function ClosingSection() {
             <ButtonLink href={SIGN_IN_PATH} variant="on-dark" fullWidth className="sm:w-auto">
               {CLOSING_COPY.action}
             </ButtonLink>
+            {/* Under the button, where the decision is made: the two facts a merchant
+                weighs at this point, both of them the price list above saying
+                themselves once more (#276). */}
+            <p className="text-body-sm text-on-dark-mute md:text-right">
+              {CLOSING_COPY.reassurance}
+            </p>
           </div>
         </div>
       </div>

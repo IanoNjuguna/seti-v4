@@ -1,5 +1,6 @@
 /**
- * The hero's words, as one block: the promise, the sentence, the two actions.
+ * The hero's words, as one block: the promise, the sentence, the two actions, and the
+ * one line of proof under them.
  *
  * It used to be a record keyed by reader, because the page served a person and a
  * business from one URL. It serves one reader now — the merchant, who is the person
@@ -15,4 +16,12 @@ export interface HeroCopy {
   primaryAction: string;
   /** The quiet second action, 2 to 4 words. */
   secondaryAction: string;
+  /**
+   * The claim under the actions, at the point of decision.
+   *
+   * ONE claim, and it is the one no competitor can copy cheaply: the money lands in
+   * the merchant's own wallet and Seti never holds it. It was in step three of the
+   * band below and in one tile, and never where the reader decides (#276).
+   */
+  proof: string;
 }
