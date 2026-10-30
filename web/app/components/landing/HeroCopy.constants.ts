@@ -38,4 +38,20 @@ export const HERO_COPY: HeroCopy = {
   lede: 'Claim your name. Customers pay you by name or by scanning your code.',
   primaryAction: 'Claim your name',
   secondaryAction: 'See how it works',
+  /**
+   * THE ONE CLAIM THAT IS SETI'S OWN, placed where the reader decides.
+   *
+   * A merchant's first question about a payments product is who ends up holding the
+   * money, and this page could answer it in the only way that matters: the payment goes
+   * from the payer's wallet to the merchant's own wallet and the platform never takes
+   * possession. That is true of the code (`services/settlement.ts` plans a swap the
+   * customer's own wallet signs; `check:refusals` fails the build if a signing client
+   * ever appears in `backend/src`), so it is stated once, plainly, under the buttons
+   * rather than only in step three of the band below (#276).
+   *
+   * Two sentences, because the first says what happens and the second is the absence a
+   * merchant is actually asking about. The absence is a real one and it is stated once,
+   * at the CTA, which is the only place the copywriting skill allows a negation.
+   */
+  proof: 'The money lands in your own wallet. Seti never holds it.',
 };
