@@ -73,6 +73,14 @@ import { cn } from '@/lib/cn';
  * four as a set. The box is fixed-height (not fitted to each mark) so the four
  * captions sit on one baseline; a box that grew with its mark would stagger them.
  *
+ * THE BOX IS THREE QUARTERS SIZE BELOW `lg` (#271). 176/64 is tuned for four across
+ * a laptop; the phone grid is two columns, so each cell is ~150px and the full-size
+ * marks filled it edge to edge, ran into the gutter and read as a jumble — the
+ * wordmarks touched their neighbours while the lockup sat at half their cap height.
+ * `h-12` and a 132px cap (0.75 of 64/176) is the smallest step that leaves air on
+ * both sides of every mark and still keeps Bridge's two-line lockup legible, and it
+ * stops applying at `lg` where the four-across row is the one that was measured.
+ *
  * BRIDGE IS THE ONE MARK A BOX CANNOT EVEN UP, AND THAT IS THE ASSET, NOT THE
  * LAYOUT. Its artwork is a two-line lockup — the Bridge name with "a stripe
  * company" under it — so inside any box that has to hold both lines its name sits
@@ -100,14 +108,14 @@ export function PartnersSection() {
         <ul className="mt-12 grid grid-cols-2 gap-x-6 gap-y-10 lg:grid-cols-4">
           {PARTNER_ENTRIES.map((entry) => (
             <li key={entry.label} className="flex flex-col items-center">
-              <span className="flex h-16 w-full items-center justify-center">
+              <span className="flex h-12 w-full items-center justify-center lg:h-16">
                 {/* eslint-disable-next-line @next/next/no-img-element -- a brand SVG, which
                     next/image cannot serve without dangerouslyAllowSVG */}
                 <img
                   src={entry.mark}
                   alt={entry.label}
                   className={cn(
-                    'max-h-full max-w-[176px] object-contain',
+                    'max-h-full max-w-[132px] object-contain lg:max-w-[176px]',
                     entry.hasEmbeddedBitmap && 'brightness-0 invert',
                   )}
                 />
