@@ -27,7 +27,7 @@ import { CLOSING_COPY } from './ClosingSection.constants';
  */
 export function ClosingSection() {
   return (
-    <Reveal id="open" className="bg-canvas-dark py-[var(--band-pad-block)]">
+    <Reveal id="open" className="border-t border-hairline-dark bg-canvas-dark py-[var(--band-pad-block)]">
       <div className="mx-auto max-w-6xl px-6">
         <div className="grid items-end gap-12 md:grid-cols-12 md:gap-16">
           <div className="md:col-span-7">
