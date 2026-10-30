@@ -7,25 +7,28 @@ export const FOOTER_LINKS: LandingLink[] = [
 ];
 
 /**
- * The copyright's year, read from the clock ONCE, at module scope.
+ * The copyright's year.
  *
- * The line this replaces ("© Seti. Made in Thika, Kenya.") refused a year
- * outright: `new Date()` computed during a render is a hydration defect here,
- * because the server renders it with its own clock and a visitor either side of
- * midnight on 31 December hydrates a different string. That is true of a year
- * computed in a render that also runs in the browser, which is why this one is
- * not. This module is imported only by `LandingFooter`, the footer is a server
- * component, and nothing below it crosses a `'use client'` boundary, so the
- * value is worked out once in the server runtime and serialised into the HTML.
- * On the prerendered landing page that means build time: the year advances with
- * the next deploy, not at midnight, and no literal is typed here that rots in
- * January.
+ * IT COMES FROM THE BUILD, NOT FROM A CLOCK. It used to be `new Date().getFullYear()`
+ * read once at module scope, on the argument that a value computed at module scope is
+ * worked out once in the server runtime and serialised into the HTML, so no visitor's
+ * clock could disagree with it. That argument holds for `next build` and fails for the
+ * bundle the site actually ships: under `build:vinext` the expression is kept as an
+ * expression and evaluated when the chunk runs, and the deployed Worker's clock
+ * answered 0, which is why the live footer read "© 1970 Seti" (#270).
  *
- * KEEP IT THAT WAY. The moment anything under a `'use client'` boundary imports
- * this file, the browser re-evaluates it with the visitor's clock and the
- * mismatch above is back.
+ * So `vite.config.ts` stamps `__SETI_BUILD_YEAR__` at build time and this reads the
+ * stamp. The fallback exists for the paths that do not go through Vite (`next dev`, a
+ * bare `next build`), where the identifier is undefined and the clock is the browser's
+ * or the dev server's own — correct in both cases, and never the deployed render.
+ *
+ * KEEP THE FALLBACK GUARDED BY `typeof`. A bare reference to an identifier the bundler
+ * did not define is a ReferenceError; `typeof` on an undeclared name is not.
  */
-const COPYRIGHT_YEAR = new Date().getFullYear();
+declare const __SETI_BUILD_YEAR__: string | undefined;
+
+const COPYRIGHT_YEAR =
+  typeof __SETI_BUILD_YEAR__ === 'string' ? __SETI_BUILD_YEAR__ : String(new Date().getFullYear());
 
 /** The footer's left: who this is, and the year the page was built. */
 export const FOOTER_COPYRIGHT = `© ${COPYRIGHT_YEAR} Seti`;
