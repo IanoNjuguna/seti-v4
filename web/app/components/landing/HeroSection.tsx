@@ -27,12 +27,12 @@ import { HeroPaymentQr } from './HeroPaymentQr';
  * it running the whole width of the column.
  *
  * THE TWO BLOCKS SHARE A TOP EDGE, and that is the alignment the band rests on. The
- * headline's cap line lands level with the plate's top, so the eye reads one row: the
+ * headline's cap line lands level with the code's top, so the eye reads one row: the
  * object, then what it is for. `md:items-start` rather than `items-center` — centring
- * the shorter words on the taller plate put the promise a third of the way down the
- * band with nothing above it, which is the floating-in-a-gap look this page has been
- * corrected for before. The bottoms differ and that is honest: the plate block carries
- * a caption, a URL and a warning under it that the words have no counterpart for.
+ * the shorter words on the taller code put the promise a third of the way down the band
+ * with nothing above it, which is the floating-in-a-gap look this page has been
+ * corrected for before. The bottoms differ, and since the small print under the code was
+ * deleted (#266) they differ by the height of the action row and no more.
  *
  * ORDER ON A PHONE IS NOT THE DESKTOP ORDER. In the DOM the words are first and the
  * code second, so a phone reader gets the promise, the sentence and the action before
