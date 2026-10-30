@@ -51,6 +51,32 @@ export const PARTNER_STATE_LABELS: Record<PartnerState, string> = {
 export const PARTNER_ENTRIES: PartnerEntry[] = [
   { label: 'Tempo', state: 'live', mark: '/tempo-wordmark-white.svg' },
   { label: 'Privy', state: 'live', mark: '/privy-wordmark-white.svg' },
-  { label: 'Bridge', state: 'soon', mark: '/bridge-logo-white.svg', hasEmbeddedBitmap: true },
+  {
+    label: 'Bridge',
+    state: 'soon',
+    mark: '/bridge-logo-white.svg',
+    hasEmbeddedBitmap: true,
+    markScale: 'scale-125 origin-left lg:origin-center',
+  },
   { label: 'Stripe', state: 'soon', mark: '/stripe-wordmark-white.svg' },
 ];
+
+/**
+ * Which edge a mark hangs from, per position in the row (#274).
+ *
+ * THE OUTER EDGES SIT ON THE PAGE'S AXIS. Every band runs 161..1265; the marks,
+ * centred in equal cells, ran 202..1212 — 41px in from the left edge and 53px
+ * short on the right, under an eyebrow that starts at 161. So the first and last
+ * marks take the outer edges and the ones between them stay centred in their
+ * cells. The phone grid is two columns, so there the left-hand item of each row
+ * takes the left edge and the right-hand one takes the right edge.
+ *
+ * The trade, accepted: the gaps between marks are no longer equal, because the
+ * cells still are. Even cells with inset edges, or flush edges with uneven gaps —
+ * the page's axis wins, which is the same call every other band makes.
+ */
+export function markAlignment(index: number, total: number): string {
+  if (index === 0) return 'items-start';
+  if (index === total - 1) return 'items-end';
+  return index % 2 === 0 ? 'items-start lg:items-center' : 'items-end lg:items-center';
+}

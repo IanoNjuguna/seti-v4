@@ -17,6 +17,13 @@ import { FOOTER_COPYRIGHT, FOOTER_LINKS, FOOTER_ORIGIN } from './LandingFooter.c
  * about 197px and the three legal links alone want most of that, so the band
  * stays stacked until 768px, where a third is 240px.
  *
+ * THE LEGAL LINKS ARE TAP TARGETS, NOT WORDMARKS. They rendered at their text
+ * height — 20px, measured — which is under the 44px floor the design system keeps
+ * everywhere else and under WCAG's AAA target size. `min-touch` and
+ * `inline-flex items-center` give each one a 44px box without moving its label:
+ * an inline `<a>` ignores `min-height`, so the display has to change with it
+ * (ui-skills review, #274).
+ *
  * THE TREASURY BLOCK IS GONE. The address block that used to sit at the bottom of
  * this footer — and the fee band's link down to it — were both deleted. It was
  * the page's one independently checkable claim (the address the 2% is collected
@@ -47,7 +54,7 @@ export function LandingFooter() {
               <a
                 key={link.href}
                 href={link.href}
-                className="rounded-sm text-body-sm font-semibold text-on-dark-mute underline-offset-4 transition-colors duration-(--duration-quick) ease-out hover:text-on-dark hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-dark focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-dark"
+                className="inline-flex min-touch items-center rounded-sm text-body-sm font-semibold text-on-dark-mute underline-offset-4 transition-colors duration-(--duration-quick) ease-out hover:text-on-dark hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-dark focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-dark"
               >
                 {link.label}
               </a>

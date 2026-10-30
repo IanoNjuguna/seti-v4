@@ -47,7 +47,7 @@ import { HeroPaymentQr } from './HeroPaymentQr';
 export function HeroSection() {
   return (
     <section id="hero" className="relative z-10">
-      <div className="mx-auto flex min-h-svh max-w-6xl flex-col justify-center px-6 pb-16 pt-28 md:pb-20 md:pt-32">
+      <div className="mx-auto flex min-h-[min(100svh,52rem)] max-w-6xl flex-col justify-center px-6 pb-16 pt-28 md:pb-20 md:pt-32">
         <div className="grid grid-cols-1 gap-14 md:grid-cols-12 md:items-start md:gap-8">
           <div className="md:order-2 md:col-span-7 md:col-start-6">
             <HeroHeadline />

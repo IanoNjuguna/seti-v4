@@ -13,13 +13,21 @@ import type { NavMenuPanelProps } from './NavMenuPanel.types';
  *
  * IT IS FLUSH, NOT FLOATING, and that is the ruling rather than a default. The
  * panel is `absolute inset-x-0 top-full` in the (positioned) bar, so it is the
- * bar's own width, its own canvas and its own left edge (`px-6`, the padding every
- * band and the bar itself use) — it reads as the nav unfolding, not as a card
- * hovering over the page. The bar carries no hairline under it at rest (the nav's
- * own ruling, preserved), so the panel's one edge is its bottom one: the line that
- * says where the menu stops and the page resumes. When the bar is in its scrolled
- * state the panel widens and narrows with it, because it is measured against the
- * bar rather than the viewport.
+ * bar's own width, its own left edge (`px-6`, the padding every band and the bar
+ * itself use) — it reads as the nav unfolding, not as a card hovering over the
+ * page. The bar carries no hairline under it at rest (the nav's own ruling,
+ * preserved), so the panel's one edge is its bottom one: the line that says where
+ * the menu stops and the page resumes. When the bar is in its scrolled state the
+ * panel widens and narrows with it, because it is measured against the bar rather
+ * than the viewport.
+ *
+ * IT SITS ON `surface-elevated`, NOT ON THE PAGE'S BLACK (#274). Flush is still
+ * right, but the canvas it is flushed to cannot be the same #000 as the hero
+ * underneath: on a phone the panel ends four lines down and the hero's own CTA
+ * starts immediately below it, so at `canvas-dark` the last menu row and the
+ * button read as one list. One step up the black ladder separates the layer while
+ * keeping it a plane rather than a card, and it is the token the bar's other
+ * raised detail already uses (the ⌘K chip).
  *
  * IT STAYS MOUNTED AND FADES, rather than mounting on open. A CSS transition cannot
  * run on a node that did not exist last frame, and `invisible` is what makes the
@@ -38,7 +46,7 @@ export function NavMenuPanel({ open, onNavigate }: NavMenuPanelProps) {
     <div
       id={MENU_PANEL_ID}
       className={cn(
-        'absolute inset-x-0 top-full border-b border-hairline-dark bg-canvas-dark',
+        'absolute inset-x-0 top-full border-b border-hairline-dark bg-surface-elevated',
         'motion-safe:transition-[opacity,translate,visibility] motion-safe:duration-(--duration-quick) motion-safe:ease-out',
         open ? 'visible translate-y-0 opacity-100' : 'invisible -translate-y-1 opacity-0'
       )}

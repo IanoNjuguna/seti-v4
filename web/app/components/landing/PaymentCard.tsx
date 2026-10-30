@@ -31,6 +31,7 @@ export function PaymentCard({ payment, className }: PaymentCardProps) {
     <div
       className={cn(
         'flex items-center gap-4 rounded-md border border-hairline-light bg-surface-card p-4',
+        'max-sm:flex-wrap max-sm:gap-y-2',
         className
       )}
     >
@@ -46,7 +47,7 @@ export function PaymentCard({ payment, className }: PaymentCardProps) {
         <span className="mt-0.5 block truncate text-caption text-mute">{detail}</span>
       </span>
 
-      <span className="shrink-0 text-right">
+      <span className="shrink-0 text-right max-sm:w-full">
         <span
           className={cn(
             'block whitespace-nowrap font-tabular text-body-md-bold font-semibold',
