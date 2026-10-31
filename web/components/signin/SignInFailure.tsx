@@ -1,6 +1,5 @@
 import { Text } from '@/components/ui';
 import { Icon } from '@/components/ui/Icon';
-import { SIGN_IN_COPY } from './SignInScreen.constants';
 import type { SignInFailureProps } from './SignInScreen.types';
 
 /**
@@ -16,7 +15,7 @@ import type { SignInFailureProps } from './SignInScreen.types';
  * So the shape here is that primitive's shape — a medallion, a title, the reason —
  * not a card. The medallion is the one object, and it is the reason the failure is
  * not signalled by colour alone: the alert mark reads to somebody who cannot see
- * the tint, and the title says what happened.
+ * the tint, and the title names it.
  *
  * It is still NOT `StateMessage variant="failure"` itself. That shape draws its
  * copy in `ink` and `mute`, the light-canvas text colours, so on this black band
@@ -28,7 +27,7 @@ import type { SignInFailureProps } from './SignInScreen.types';
  * drawn, never announced, is a failure a screen reader never hears. The FIX is
  * the control the visitor was already reaching for, directly below.
  */
-export function SignInFailure({ message }: SignInFailureProps) {
+export function SignInFailure({ error }: SignInFailureProps) {
   return (
     <div role="alert" className="flex items-start gap-4">
       <span
@@ -40,10 +39,10 @@ export function SignInFailure({ message }: SignInFailureProps) {
 
       <div className="min-w-0 flex-1">
         <Text variant="card-title" as="p" color="inverse">
-          {SIGN_IN_COPY.errorTitle}
+          {error.title}
         </Text>
         <Text variant="body" as="p" color="inverse-muted" className="mt-1">
-          {message}
+          {error.message}
         </Text>
       </div>
     </div>

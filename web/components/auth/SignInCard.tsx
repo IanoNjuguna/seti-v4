@@ -1,6 +1,7 @@
 'use client';
 
 import { StateMessage } from '@/components/ui';
+import type { SessionProblem } from '@/lib/auth';
 import { SIGN_IN_CARD_COPY } from './SignInCard.constants';
 import { SignInPrompt } from './SignInPrompt';
 
@@ -9,8 +10,13 @@ export interface SignInCardProps {
    * Why the last restore or sign-in attempt failed, when it did. Never a gate: the
    * session still resolves to `anonymous`, which this card already knows how to
    * render.
+   *
+   * Carries its own heading (`SessionProblem`), because the same field is used by
+   * the sign-in page and by this card, and two renderers choosing a heading each is
+   * how one of them ends up showing "Could not sign in" over "Seti is not
+   * answering."
    */
-  error: string | null;
+  error: SessionProblem | null;
 }
 
 /**
@@ -35,7 +41,7 @@ export function SignInCard({ error }: SignInCardProps) {
       <SignInPrompt title={SIGN_IN_CARD_COPY.title} body={SIGN_IN_CARD_COPY.body} />
 
       {error ? (
-        <StateMessage variant="failure" title={SIGN_IN_CARD_COPY.errorTitle} body={error} />
+        <StateMessage variant="failure" title={error.title} body={error.message} />
       ) : null}
     </div>
   );

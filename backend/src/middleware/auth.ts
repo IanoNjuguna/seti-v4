@@ -1,7 +1,7 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '../lib/prisma.js';
 import { env } from '../config/env.js';
-import { verifyPrivySubject } from '../services/auth.js';
+import { AUTH_UNAUTHORIZED, AUTH_UNAUTHORIZED_MESSAGE, verifyPrivySubject } from '../services/auth.js';
 import { resolveSessionIdentity } from '../services/session-identity.js';
 import { normalizeNetwork, type Network } from '../lib/network.js';
 import { servedNetwork } from '../config/networks.js';
@@ -86,7 +86,10 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
   }
 
   if (scheme !== 'Bearer' || !token) {
-    return reply.status(401).send({ error: 'Missing or invalid Authorization header' });
+    return reply.status(401).send({
+      error: 'Missing or invalid Authorization header',
+      code: AUTH_UNAUTHORIZED,
+    });
   }
 
   try {
@@ -107,6 +110,17 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
     // cannot disagree with the identity this session was created as.
     request.user = { id: identity.id, email: identity.email, network: identity.network };
   } catch {
-    return reply.status(401).send({ error: 'Invalid or expired token' });
+    // A refused token, and the one refusal every route in this API shares. The
+    // CODE is what makes it readable: the web app maps `unauthorized` to "Your
+    // session has ended. Sign in again to continue." (`refusal.constants.ts`),
+    // while a body with no code renders as the unknown-failure sentence, which
+    // says nothing and offers a retry that cannot work. `services/auth.ts`
+    // declares this code for exactly this event; this catch used to drop it.
+    //
+    // Nothing about the SDK's own words leaves here: they may name the
+    // algorithm, the key or the app, and that belongs in the server log.
+    return reply
+      .status(401)
+      .send({ error: AUTH_UNAUTHORIZED_MESSAGE, code: AUTH_UNAUTHORIZED });
   }
 }

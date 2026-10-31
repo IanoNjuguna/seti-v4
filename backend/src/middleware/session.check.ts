@@ -33,6 +33,7 @@
 import Fastify from 'fastify';
 import { prisma } from '../lib/prisma.js';
 import { authMiddleware } from './auth.js';
+import { AUTH_UNAUTHORIZED_MESSAGE } from '../services/auth.js';
 import {
   SESSION_IDENTITY_UNKNOWN,
   bindSessionIdentity,
@@ -208,6 +209,22 @@ async function main() {
     'a JWT-shaped token is verified for real, not swallowed by the bypass',
     realLooking.statusCode === 401,
     `got ${realLooking.statusCode}`
+  );
+
+  // The refusal carries its CODE, which is what the web app reads (#284). A 401
+  // whose body has only `error` renders as the unknown-failure sentence there, so
+  // the customer was told "Try again in a moment. It was cleared, sign in again."
+  // instead of "Your session ended. Sign in again." — one sentence, one action.
+  const refusedBody = realLooking.json<{ error?: string; code?: string }>();
+  check(
+    'a refused bearer answers with the unauthorized code',
+    refusedBody.code === 'unauthorized',
+    `got ${JSON.stringify(refusedBody)}`
+  );
+  check(
+    "the body is the sentence services/auth.ts declares, not the SDK's",
+    refusedBody.error === AUTH_UNAUTHORIZED_MESSAGE,
+    String(refusedBody.error)
   );
 
   await app.close();

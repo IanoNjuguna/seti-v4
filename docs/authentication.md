@@ -107,15 +107,25 @@ It runs the **same** middleware as every other protected route
 public `/auth/*` routes stay public. Reusing the one token flow is the point: this
 endpoint cannot disagree with the rest of the API about who a token is, and the dev
 bypass resolves here exactly as it does on `/transactions`. A token the middleware
-refuses is a `401`.
+refuses is a `401` carrying `code: "unauthorized"`, which is what lets the browser
+show a sentence about the session rather than a generic failure.
 
 This exists for the web app. The browser persists a token **and** the user it signed
 in as (`seti-auth-token` / `seti-auth-user`); the user half is a cache, never an
 identity claim. On every load the web session presents the stored token here and
-adopts only what the server answers — a token the server refuses, or an answer that
-names a different account than the stored user claimed, clears the stored pair and
-leaves the app signed out, so a stale or hand-edited snapshot can never leave a
-cached identity visible. See `web/lib/auth/session-bootstrap.ts`.
+adopts only what the server answers. Two of those answers end the session and one
+does not:
+
+- a token the server **refuses** (`401`/`403`), or an answer naming a **different
+  account** than the stored user claimed, clears the stored pair and leaves the app
+  signed out, so a stale or hand-edited snapshot can never leave a cached identity
+  visible;
+- a server that **did not answer** (`5xx`, an unreachable host, an unreadable body)
+  keeps the stored pair and says so. It is not evidence that the token is bad, and
+  deleting a session over it signed everybody out on every deploy.
+
+See `web/lib/auth/session-bootstrap.ts` for the classification and
+`web/lib/auth/session-problem.constants.ts` for what each one says.
 
 ## What a real integration would need
 

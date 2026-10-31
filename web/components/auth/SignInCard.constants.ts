@@ -13,5 +13,4 @@
 export const SIGN_IN_CARD_COPY = {
   title: 'Sign in to Seti',
   body: 'Your balance and payments are tied to your account.',
-  errorTitle: 'Could not sign in',
 } as const;

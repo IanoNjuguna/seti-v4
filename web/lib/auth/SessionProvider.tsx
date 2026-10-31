@@ -13,10 +13,16 @@ import {
 import { clearStoredSession, persistSession } from './auth.storage';
 import { usePrivyEmailSignIn } from './privy-email-sign-in';
 import { bootstrapStoredSession } from './session-bootstrap';
-import { describeStoredSessionFailure } from './session-identity';
+import { SIGN_IN_FAILED_TITLE, SESSION_UNREACHABLE } from './session-problem.constants';
 import { devSignIn, privySignIn } from './session';
 import { clearInviteCode } from '@/lib/invite/invite.client';
-import type { AuthStatus, AuthUser, SessionValue, SignInStatus } from './auth.types';
+import type {
+  AuthStatus,
+  AuthUser,
+  SessionProblem,
+  SessionValue,
+  SignInStatus,
+} from './auth.types';
 
 /**
  * The session as a state MACHINE, not a bag of nullable fields.
@@ -27,7 +33,7 @@ import type { AuthStatus, AuthUser, SessionValue, SignInStatus } from './auth.ty
  */
 type SessionState =
   | { status: 'restoring' }
-  | { status: 'anonymous'; error: string | null }
+  | { status: 'anonymous'; error: SessionProblem | null }
   | { status: 'signed-in'; user: AuthUser; token: string };
 
 const RESTORING: SessionState = { status: 'restoring' };
@@ -136,13 +142,19 @@ export function SessionProvider({
         // silent — there was never a session to lose.
         return {
           status: 'anonymous',
-          error: outcome.kind === 'rejected' ? outcome.error : null,
+          error: outcome.kind === 'rejected' ? outcome.problem : null,
         };
       })
-      .catch((cause: unknown): SessionState => ({
-        status: 'anonymous',
-        error: describeStoredSessionFailure(cause),
-      }))
+      // Unreachable in practice: `bootstrapStoredSession` fails closed itself and
+      // never rejects. It is here because this chain also writes storage, and
+      // anything that escapes it still has to land in a state the shell branches on
+      // rather than in an error boundary.
+      .catch(
+        (): SessionState => ({
+          status: 'anonymous',
+          error: SESSION_UNREACHABLE,
+        })
+      )
       .then((next) => {
         if (active) setState(next);
       });
@@ -175,7 +187,9 @@ export function SessionProvider({
   const failPrivySignIn = useCallback((message: string) => {
     setSignInStatus('error');
     setState((previous) =>
-      previous.status === 'signed-in' ? previous : { status: 'anonymous', error: message }
+      previous.status === 'signed-in'
+        ? previous
+        : { status: 'anonymous', error: { title: SIGN_IN_FAILED_TITLE, message } }
     );
   }, []);
 
@@ -218,7 +232,10 @@ export function SessionProvider({
         } catch (error) {
           // A refused sign-in is `anonymous` with a reason — never a rejection,
           // and never a state the UI has no branch for.
-          setState({ status: 'anonymous', error: describeDevSignInFailure(error) });
+          setState({
+            status: 'anonymous',
+            error: { title: SIGN_IN_FAILED_TITLE, message: describeDevSignInFailure(error) },
+          });
         } finally {
           setSigningIn(false);
         }

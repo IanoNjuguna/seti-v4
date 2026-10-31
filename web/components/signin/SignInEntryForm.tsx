@@ -58,7 +58,7 @@ export function SignInEntryForm({
       {/* Above the controls, so the reason and the thing to press are adjacent. */}
       {error ? (
         <div className="mt-6">
-          <SignInFailure message={error} />
+          <SignInFailure error={error} />
         </div>
       ) : null}
 
