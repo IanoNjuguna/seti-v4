@@ -54,7 +54,6 @@ import type { HowSectionCopy } from './HowSection.types';
  * sentence is truer without it: what a payer spends is the balance they hold.
  */
 export const HOW_COPY: HowSectionCopy = {
-  lede: 'Seti is a payment app for shops and traders. Customers pay by your name, or by the code on your counter.',
   steps: [
     {
       index: '1',

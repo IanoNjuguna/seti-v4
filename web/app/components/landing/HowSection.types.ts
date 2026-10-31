@@ -13,8 +13,6 @@ export interface HowStep {
  * merchant's mechanic — found by a name and by the code it prints.
  */
 export interface HowSectionCopy {
-  /** One sentence under the marker, naming how money reaches the reader. */
-  lede: string;
   /** The three steps, in order. */
   steps: HowStep[];
 }

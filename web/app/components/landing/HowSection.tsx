@@ -7,15 +7,13 @@ import { HOW_COPY } from './HowSection.constants';
  * How money reaches you — the first light band, and the band that carries the
  * MECHANIC.
  *
- * THE HEADER IS THE SHARED ONE (`SectionHeader`), which is the change to this band's
- * shape: every band on the page opens with the marker in the same place, which is the
- * rhythm cash.app's bands keep and what this page was missing when each section carried
- * its own idea of a heading. This band's display heading ("How people pay you.") was
- * deleted (#288) — it restated the marker — so the marker is the h2 and the sentence
- * under it is the band's only opening line.
- * THE SENTENCE UNDER THE MARKER NAMES HOW MONEY REACHES A MERCHANT: a name customers
- * type, and a code printed for the counter. It used to be the reader's own sentence,
- * flipped by the navbar's selector; the page has one reading now.
+ * THE HEADER IS THE SHARED ONE (`SectionHeader`), and it is the marker alone (#292). The
+ * band's display heading ("How people pay you.") went in #288 for restating the marker,
+ * and the sentence under it went too: "Seti is a payment app for shops and traders.
+ * Customers pay by your name, or by the code on your counter." described the reader's own
+ * situation and then re-told step one, which is the first row underneath it. The band now
+ * opens with HOW IT WORKS and lands straight on "They choose how to pay you." — the
+ * mechanic, with nothing said twice on the way in.
  *
  * Seven/five, and the left column is a column of ROWS with hairlines rather than a
  * row of cards: hairline rows say "a sequence" and cost a fraction of the
@@ -33,7 +31,7 @@ export function HowSection() {
       className="border-t border-hairline-light bg-canvas-light py-[var(--band-pad-block)]"
     >
       <div className="mx-auto max-w-6xl px-6">
-        <SectionHeader eyebrow="How it works" lede={HOW_COPY.lede} />
+        <SectionHeader eyebrow="How it works" />
 
         <div className="mt-12 grid grid-cols-1 gap-12 md:mt-16 md:grid-cols-12 md:gap-16">
           <div className="md:order-2 md:col-span-5">
