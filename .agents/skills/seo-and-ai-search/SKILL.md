@@ -71,6 +71,28 @@ programme name in branded search. A domain that carries the category, redirected
 would do more for branded queries than any page work here. Also open, and not an SEO question: the
 "SETI" mark is held in some classes, which is a lawyer's question before it is a listing's.
 
+## The avatar is a remittance receiver, and it reorders everything
+
+The person we are building for receives money from abroad: a family sender in the UK, the US or
+the Gulf, or a customer paying a Kenyan business from outside. Not a shop owner taking a
+shilling at the counter, which is who the page currently speaks to.
+
+That decides three things, and two of them are uncomfortable.
+
+1. **The queries that matter change.** "send money to Kenya" and "cheapest way to send money to
+   Kenya" are bought by Wise, Remitly, WorldRemit and Western Union with real budgets, and a new
+   domain will not take them. Winnable instead: "send USDC to Kenya", "receive dollars in Kenya",
+   "pay a Kenyan supplier from abroad", "international payment to a Kenyan business". Lower
+   volume, and the intent is already ours.
+2. **The price claim is gone on both sides.** We are not cheaper than a till locally and not
+   cheaper than Wise on the corridor. What we sell is that the money arrives in dollars, whole,
+   with nobody holding it in between, against an average corridor cost of about 4.9%.
+3. **The last mile is now the product's biggest hole.** A receiver who lands dollars and cannot
+   turn them into rent money is worse off than one who gets shillings on a till, however cheap
+   the send. Until there is a spend path (a card) or an off-ramp partner, the remittance avatar
+   is a promise the product breaks on the day it is kept. This is a product decision, not a copy
+   one, and it outranks every page here.
+
 ## The pages we are building toward
 
 One primary term per URL, which is how the arithmetic gets fixed: one page cannot rank for a
@@ -80,12 +102,13 @@ they support.
 | URL | Primary term | Words | State |
 | --- | --- | --- | --- |
 | `/` | get paid by QR, Kenya | 600 to 800 | exists, 235 words, no schema |
+| `/receive-from-abroad` | receive money from abroad in dollars | 600 | to build, first, the avatar page |
 | `/pricing` | 2% fee payments Kenya, M-Pesa alternative | 500 to 700 | to build |
 | `/how-it-works` | how to accept dollar payments in Kenya | 600 | to build |
 | `/for/shops-and-traders` | QR payments for shops in Kenya | 500 | to build |
 | `/for/online-sellers` | accept payments online in Kenya | 500 | to build |
 | `/learn` | dollar payments in Kenya (hub) | index | to build |
-| `/learn/*` | is USDC legal in Kenya, how to accept USDC as a merchant, M-Pesa fees against 2%, what a stablecoin payment is | 1,000+ each | to build |
+| `/learn/*` | is USDC legal in Kenya, how to accept USDC as a merchant, what a 2% fee avoids that a card and a transfer do not, what a stablecoin payment is | 1,000+ each | to build |
 
 Ship the first two child pages before the rest. A segment page with no `/pricing` behind it has
 nowhere to send the reader who is ready to decide.
@@ -150,14 +173,47 @@ Mechanically:
 - Facts arrive in text, tables and lists. A figure that only exists inside a client component
   that needs a session is invisible to both audiences.
 
+## We are not the cheapest route, on either side of the bill
+
+Measured 2026-11-01, and it changes the fee argument in both directions.
+
+**Local shilling payments.** Safaricom cut merchant tariffs in 2026: a Lipa na M-Pesa Buy Goods
+till is 0.55% to the merchant, capped at KES 200, and payments up to KES 500 are free. The cap
+starts to bite around KES 36,363.
+
+**Remittances to Kenya.** The average cost of sending is around 4.9% per USD 200, which is the
+number the World Bank tracks, and it is where cash, cards and banks sit. The cheapest digital
+routes are far below it: Wise delivers to M-PESA at roughly 0.87% all in on the comparisons
+published for 2026. So 2% is not the cheapest remittance route to Kenya either.
+
+Our fee is 2%, and the CUSTOMER or SENDER pays it, so the receiver keeps the whole ticket. On a
+KES 1,250 payment the merchant nets KES 1,250 with us against KES 1,243.12 on a till, but their
+customer pays KES 1,275 instead of KES 1,250, and under KES 500 M-Pesa costs the customer
+nothing.
+
+So the honest position, and the only one that can go on a page:
+
+- **We are not the cheap way to take a local shilling payment.** M-Pesa is, and the page says so.
+- **We are not the cheapest way to send money to Kenya.** Wise is, at about 1% to M-PESA, and a
+  page that claims otherwise gets checked in thirty seconds by the diaspora reader.
+- **What we sell is the property, not the price.** The money arrives as the sender's asset, in
+  dollars, whole, and no intermediary holds it on the way. Against the 4.9% average that is a
+  large win; against Wise's 0.87% it is a worse price for a different product, and we say which.
+- **The merchant's or receiver's number is the one that moves**, because the fee sits on the
+  paying side.
+
+A "cheaper than M-Pesa" or "cheapest way to send to Kenya" headline is wrong on the arithmetic
+and it is the first thing a Kenyan reader checks.
+
+
+
 ## SEM, in one paragraph
 
 If we ever buy a click, the landing page must say the query back: one page per intent, one
 primary action, no near-duplicate URLs behind tracking parameters, and a canonical on every
-one. A page that argues with the ad that bought it wastes the click. The comparison page
-("2% against M-Pesa") is the highest-intent page nobody in our market has written, and it
-ships only after Safaricom's current tariff is verified in the same change, because a fee
-comparison from memory is a claim we cannot back.
+one. A page that argues with the ad that bought it wastes the click. The comparison page is
+still worth writing, but against a card and an international transfer rather than against a
+till, for the reason above, and the tariff it cites is dated and sourced.
 
 ## The sync checklist
 
