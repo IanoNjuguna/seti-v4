@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { BrandMark, Text } from '@/components/ui';
+import { BrandLockup } from '@/components/ui';
 import { AppNavLink } from './AppNavLink';
 import { RailIdentityCard } from './RailIdentityCard';
 import { RailNetworkRow } from './RailNetworkRow';
@@ -13,14 +13,13 @@ import { useAppNav } from './useAppNav';
  * bar rotated vertical, and its brand block is exactly one `nav-bar` tall, on its
  * own hairline.
  *
- * The brand is the neutral mark the landing nav uses plus the wordmark at
- * `heading-md`: a 20px wordmark over 48px rows read as a label on the list rather
- * than as the product's name. The size is the `heading-md` VARIANT, not a
- * `text-heading-md` class beside `variant="section"` — two size classes in one
- * `cn()` join resolve by Tailwind's emission order, and `text-heading-sm` is
- * emitted last, so the wordmark quietly rendered at 20px while the code asked for
- * 24. One variant, one size. `pb-[safe-area-inset-bottom]` mirrors the bottom
- * bar, so the last row is never under a home indicator on a tablet.
+ * The brand is the supplied lockup now (#294): the mark and the word as one drawn object,
+ * `h-8` in a `nav-bar`-tall block, instead of the neutral mark with the wordmark typeset
+ * beside it. The wordmark's size used to be argued over in this comment — two size classes
+ * in one `cn()` join resolved by Tailwind's emission order, so it quietly rendered at 20px
+ * while the code asked for 24 — and a lockup removes the argument rather than settling it:
+ * there is no word to size. `pb-[safe-area-inset-bottom]` mirrors the bottom bar, so the
+ * last row is never under a home indicator on a tablet.
  *
  * Three destinations end a quarter of the way down a 900px column, and the rest
  * is canvas — deliberately empty, because filling it means putting new
@@ -51,10 +50,7 @@ export function AppRail() {
         href="/app"
         className="mb-2 flex h-[var(--app-nav-bar)] shrink-0 items-center gap-3 border-b border-hairline-dark px-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
-        <BrandMark expression="neutral" canvas="dark" className="h-8" />
-        <Text variant="heading-md" as="span" color="inverse">
-          seti
-        </Text>
+        <BrandLockup className="h-8" />
       </Link>
 
       <RailNetworkRow />

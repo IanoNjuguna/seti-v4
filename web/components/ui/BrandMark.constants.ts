@@ -24,3 +24,21 @@ export const BRAND_MARK_SRC: Record<BrandExpression, Record<BrandCanvas, string>
 
 /** The intrinsic size every mark is exported at. Square, so a height sizes it. */
 export const BRAND_MARK_SIZE = 384;
+
+/**
+ * The lockup: the neutral mark and the wordmark as ONE object, as supplied.
+ *
+ * It is `design-kit/seti-world/navbar.png` trimmed to its own content box (2px of air at
+ * the edges), and both files are the same pixels: the kit is where the artwork lives,
+ * `web/public` is what the app serves. Trimmed because the supplied canvas is 707x353
+ * around a 304x108 lockup — sized from the canvas, a 28px block would render the artwork
+ * at 8px.
+ *
+ * The ink is #f5f5f5, which is NOT `on-dark` (#ffffff). A supplied brand mark is not
+ * retinted to match a token, and the kit has no second colourway of it.
+ */
+export const BRAND_LOCKUP_SRC = '/seti-lockup.png';
+
+/** The trimmed asset's intrinsic size, so `next/image` can reserve the right box. */
+export const BRAND_LOCKUP_WIDTH = 308;
+export const BRAND_LOCKUP_HEIGHT = 112;
