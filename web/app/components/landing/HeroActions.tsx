@@ -22,11 +22,20 @@ import { QUIET_ACTION_CLASSES } from './HeroActions.constants';
  * text line ~20px tall, so aligning their tops would hang the link 28px below the
  * pill's own baseline. Centring the link on the pill's height puts both on one
  * optical line.
+ *
+ * THE SENTENCE'S MEASURE IS `max-w-2xl` NOW, and the number is the sentence's, not a
+ * preference (#288). "Customers pay through your username or by scanning your QR code."
+ * is 624px at `text-body-lg` in 64 characters, so the old `max-w-md` (448px) folded it
+ * after "by". `max-w-2xl` is 672 and holds it on one line down to a 577px column (the
+ * 640 breakpoint), below which a 64-character sentence on two lines is what a phone
+ * does anyway. It still stops the paragraph running the whole width of a 820px column,
+ * which is the job the constraint had in the first place: a line of body text is read,
+ * not measured.
  */
 export function HeroActions() {
   return (
     <>
-      <p className="entrance entrance-2 mt-6 max-w-md text-body-lg text-on-dark-mute">
+      <p className="entrance entrance-2 mt-6 max-w-2xl text-body-lg text-on-dark-mute">
         {HERO_COPY.lede}
       </p>
 
