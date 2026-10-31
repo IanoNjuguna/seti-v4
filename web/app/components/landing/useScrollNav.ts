@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { SCROLL_NAV_ATTRIBUTE, SCROLL_NAV_THRESHOLD_PX } from './ScrollNav.constants';
+import { SCROLL_NAV_ATTRIBUTE, SCROLL_NAV_RELEASE_PX, SCROLL_NAV_THRESHOLD_PX } from './ScrollNav.constants';
 import type { ScrollNavRef } from './useScrollNav.types';
 
 /**
@@ -45,7 +45,11 @@ export function useScrollNav(): ScrollNavRef {
 
     const apply = () => {
       frame = 0;
-      const next = window.scrollY > SCROLL_NAV_THRESHOLD_PX;
+      // TWO NUMBERS, ONE DIRECTION EACH (#282): 80 puts the bar in, 24 lets it
+      // out. A single threshold let a reader parked on it flip the state back and
+      // forth and restart the transition on every crossing.
+      const line = scrolled ? SCROLL_NAV_RELEASE_PX : SCROLL_NAV_THRESHOLD_PX;
+      const next = window.scrollY > line;
       if (next === scrolled) return;
       scrolled = next;
       if (next) shell.setAttribute(SCROLL_NAV_ATTRIBUTE, '');

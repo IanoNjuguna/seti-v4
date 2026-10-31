@@ -22,6 +22,23 @@
 export const SCROLL_NAV_THRESHOLD_PX = 80;
 
 /**
+ * Where the state comes back, in pixels of scroll.
+ *
+ * THE SAME NUMBER IN BOTH DIRECTIONS IS A FLICKER (#282). With one threshold, a
+ * reader parked on it with a trackpad — or on a phone with momentum scrolling —
+ * crosses it in both directions several times a second, and each crossing
+ * restarts the bar's transition, so the bar is seen half-way between its two
+ * states rather than in either. The bar now comes in above 80 and goes back out
+ * below 24, which is the bar's own height minus its logo: enough hysteresis that
+ * no plausible scroll can oscillate it, and small enough that a reader scrolling
+ * to the top sees the full-bleed bar before they have arrived.
+ *
+ * It is not a second hand-off point, so it is not in the CSS: only `80` starts
+ * the motion, and the CSS still keys on one attribute.
+ */
+export const SCROLL_NAV_RELEASE_PX = 24;
+
+/**
  * The attribute the hook writes on the header, and the only thing the CSS keys
  * the scrolled state on.
  *

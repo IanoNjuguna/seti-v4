@@ -114,18 +114,21 @@
   --app-grain-shadow: 0.06;
 
   /* -------------------------------------------------------------------------
-   * THE NAVBAR'S SCROLL STATE (issue #187) — the landing nav's own dials.
+   * THE NAVBAR'S SCROLL STATE (issue #187, retuned in #282) — the landing nav's
+   * own dials.
    *
-   * Read out of minisend.xyz's own bundle rather than guessed at: the bar flips
-   * ONE boolean at `scrollY > 80` and a 400ms transition on
-   * cubic-bezier(0.33, 1, 0.68, 1) carries the properties. These two tokens are
-   * that duration and that curve, named once so the CSS below and the hook's
-   * threshold cannot drift apart.
+   * The bar flips ONE boolean at `scrollY > 80` and these two tokens carry the
+   * transition. Read out of minisend.xyz's bundle originally, and retuned after
+   * measuring ours: one state change cost 25 forced layouts, 7.6ms of layout,
+   * 87 style recalculations, and 400ms of travel that put 90% of the movement at
+   * 230ms and spent the last 170ms crawling. Two of those were the duration and
+   * the curve; the third was that the animating box contained the whole row.
    *
-   * `--ease-nav` is deliberately NOT `--ease-out` (0.22, 1, 0.36, 1). The
-   * reference uses the gentler cubic, and on a width change a reader is
-   * watching, the difference between them is visible: ease-out snaps into its
-   * last 10% where this one is still travelling.
+   * `--ease-nav` is deliberately NOT `--ease-out` (0.22, 1, 0.36, 1), and it is
+   * not the reference's gentler cubic any more either. It is an expo-out: 90% of
+   * the travel inside the first third of the duration, so the bar arrives with
+   * the reader's scroll instead of trailing it. On a width change a reader is
+   * watching, a long tail is the whole difference between smooth and lagging.
    *
    * `--nav-inset` is how far the scrolled bar sits below the viewport's top edge
    * — the reference's `y: 8`. It is the motion vocabulary's own 8px step rather
@@ -138,8 +141,8 @@
    * its `px-6`) and to a 12px gutter on a phone, where there is no width to give
    * back and only the inset, the radius and the edge move.
    * ---------------------------------------------------------------------- */
-  --duration-nav: 400ms;
-  --ease-nav: cubic-bezier(0.33, 1, 0.68, 1);
+  --duration-nav: 200ms;
+  --ease-nav: cubic-bezier(0.16, 1, 0.3, 1);
   --nav-inset: 8px;
   --nav-width-scrolled: min(calc(100% - 1.5rem), 72rem);
 }
@@ -807,15 +810,40 @@
        narrows, so the bar shrinks toward the middle rather than toward its left
        edge. */
     margin-inline: auto;
+    /* THE BAR'S BOX IS THE CONTENT'S BOX AND NEVER CHANGES SIZE (#282). Its own
+       surface is painted by ::before, which is the only thing the state
+       transition touches. That is what stops the wide shot below from costing a
+       re-layout of the wordmark, the links and the two controls on every frame:
+       the row is laid out once, and a childless rectangle changes width under
+       it. `isolation` gives the bar the stacking context that lets the surface
+       paint behind its own content with a negative z-index. */
+    position: relative;
+    isolation: isolate;
+  }
+
+  /* THE SURFACE — background, radius and edge — and the only moving part.
+     It carries the width instead of the bar, so the text never sits inside an
+     animating box and never re-hints while the edge travels. It is centred on
+     its own bar (left 50%, translate -50%) rather than relying on the bar's
+     `margin-inline: auto`, because the bar is now always the full width and a
+     centred child has to say so itself. */
+  .landing-nav-bar::before {
+    content: '';
+    position: absolute;
+    inset-block: 0;
+    left: 50%;
+    translate: -50% 0;
+    width: 100%;
+    z-index: -1;
     border-radius: 0;
     background-color: var(--color-canvas-dark);
     /* AN OUTLINE, NOT A BORDER, and this is load-bearing twice over. A border
-       would add 2px to the bar's box the moment its colour stopped being
-       transparent, which is a 2px jump in the middle of a transition, and it would
-       also make the bar 66px tall where `Reveal`'s `scroll-mt-16` reserves exactly
-       64. An outline is drawn inside the box, takes no space, follows the radius,
-       and is a stroke rather than a shadow, so it is not the system's forbidden
-       depth cue. */
+       would add 2px to the box the moment its colour stopped being transparent,
+       which is a 2px jump in the middle of a transition, and it would also make
+       the surface 66px tall where `Reveal`'s `scroll-mt-16` reserves exactly
+       64. An outline is drawn inside the box, takes no space, follows the
+       radius, and is a stroke rather than a shadow, so it is not the system's
+       forbidden depth cue. */
     outline: 1px solid transparent;
     outline-offset: -1px;
     transition:
@@ -828,7 +856,7 @@
     padding-top: var(--nav-inset);
   }
 
-  .landing-nav[data-scrolled] .landing-nav-bar {
+  .landing-nav[data-scrolled] .landing-nav-bar::before {
     width: var(--nav-width-scrolled);
     border-radius: var(--radius-md);
     outline-color: var(--color-hairline-dark);
@@ -929,7 +957,8 @@
      the full-bleed bar without one. The transition is removed rather than
      shortened, so there is no window in which a reader sees a half-width bar. */
   .landing-nav,
-  .landing-nav-bar {
+  .landing-nav-bar,
+  .landing-nav-bar::before {
     transition: none;
   }
 }
