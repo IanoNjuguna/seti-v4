@@ -13,10 +13,8 @@ export interface MoneyTile {
   detail: string;
 }
 
-/** The money band, one block per reader. */
+/** The money band: the tiles, in the order they are shown. */
 export interface MoneySectionCopy {
-  /** The band's heading. The same sentence for both, because the band is. */
-  title: string;
   /** The four squares, in the order they are shown. */
   tiles: MoneyTile[];
 }

@@ -1,18 +1,20 @@
 import type { MoneySectionCopy } from './MoneySection.types';
 
 /**
- * What the dollars are for, as four squares.
+ * What the dollars are for, as squares.
  *
- * THE HEADING NAMES WHAT THE TILES SHOW (#276). It read "Spend it, or send it.", which
- * is a payer's frame: three of the four tiles are about being paid and the fourth is
- * about holding. "Paid to you, held by you" is the same idea the tiles carry — money
- * arriving in the merchant's own balance and staying there — and it is the claim the
- * hero states once, said again where the reader can see it in four parts.
+ * THE DISPLAY HEADING IS GONE (#288). It read "Paid to you, held by you.", added for
+ * #276 as the same idea the tiles carry — money arriving in the merchant's own balance
+ * and staying there — said in one line above four tiles that say it in four parts. The
+ * owner deleted it along with the two other bands' headings, because a heading that
+ * restates the marker and the content is a line the page pays for and nobody reads. The
+ * marker ("Your money") is the band's heading now, so the outline still has one, and the
+ * band opens straight into the squares.
  *
  * THE BAND'S SHAPE IS THE REFERENCE'S card grid, which is the one section shape
  * this page did not have: four tiles on the band, 20px apart, each carrying one
- * thing, with the band's heading above them. On cash.app those four are a big
- * figure, a photograph and a floating UI chip inside square frames; here they are
+ * thing. On cash.app those four are a big figure, a photograph and a floating UI
+ * chip inside square frames; here they are
  * four things you can do with a balance, in frames that are wider than they are tall
  * because words are not a photograph, because that is what this product actually
  * has and a picture of a card would be a picture of something Seti does not issue.
@@ -39,7 +41,6 @@ import type { MoneySectionCopy } from './MoneySection.types';
  * out of it.
  */
 export const MONEY_COPY: MoneySectionCopy = {
-  title: 'Paid to you, held by you.',
   tiles: [
     {
       label: 'Get paid by name',
