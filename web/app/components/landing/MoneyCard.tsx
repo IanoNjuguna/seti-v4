@@ -22,7 +22,7 @@ import type { MoneyCardProps } from './MoneyCard.types';
  * THE TILE IS A SQUARE ON THE REFERENCE AND A 4:3 CARD HERE, and the difference is
  * content rather than taste. cash.app's squares hold a photograph, a big figure and
  * a floating UI chip, so 331px of tile is 331px of object. These hold a heading and
- * one sentence: at `sm:aspect-square` the 265px tile the 4-up grid gives at 1440 put
+ * one sentence: at `sm:aspect-square` the tile the grid gives at 1440 put
  * ~140px of nothing between the label at the top and the sentence at the foot, and
  * four potholes in one row read as a missing image rather than as whitespace. So the
  * tile takes a height instead of a side (`min-h-[13rem]`), which keeps the grid, the

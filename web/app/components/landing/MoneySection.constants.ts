@@ -22,12 +22,17 @@ import type { MoneySectionCopy } from './MoneySection.types';
  * because the object in these squares is a word rather than an image: a caption
  * repeating the word above it is the same fact twice.
  *
- * FOUR IS THE REFERENCE'S COUNT and it is also the count this reading has: the two
- * things a merchant does (be paid by name, print a code), the thing it gets for free
- * (owning the money outright), and holding dollars, which is where the band stops
- * making a claim about a currency it cannot convert. The tiles used to be written
- * twice, once for a merchant and once for a person; the merchant's four are what the
- * page says now.
+ * FOUR BECAME THREE (#286). The fourth tile was "The money is yours. It lands in
+ * your own balance. Nobody holds it in between.", which is not a fourth thing a
+ * merchant does with a balance: it is the hero's own claim ("The money lands in your
+ * own wallet. Seti never holds it.") said again, and the heading above it ("Paid to
+ * you, held by you.") said a third time. The three that remain are verbs the reader
+ * can act on. A band of restatements teaches a scanning reader that the rest of it
+ * is skippable too, and the claim it repeated is above the fold where it matters.
+ *
+ * THE GRID DROPS TO THREE COLUMNS with it (`MoneySection.tsx`): three tiles in a
+ * four-column grid leave a hole at the right edge, and a hole is worse than the
+ * sentence was.
  *
  * NOTHING HERE NAMES A CARD, A BANK, M-PESA OR AN OFF-RAMP, because none of them
  * exist in v1. "Hold dollars" says what happens to a balance and promises no way
@@ -43,10 +48,6 @@ export const MONEY_COPY: MoneySectionCopy = {
     {
       label: 'Print your code',
       detail: 'One code for the counter. It opens your payment page.',
-    },
-    {
-      label: 'The money is yours',
-      detail: 'It lands in your own balance. Nobody holds it in between.',
     },
     {
       label: 'Hold dollars',
