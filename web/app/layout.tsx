@@ -38,7 +38,7 @@ const jetbrainsMono = localFont({
 export const metadata: Metadata = {
   title: "Seti — Get paid in dollars",
   description:
-    'Your customer scans your code, types your name, or opens your link. No hidden charges. Made in Thika.',
+    'Your customer scans your code, types your name, or opens your link. Made in Thika.',
   keywords: ["get paid", "dollar payments", "QR payments", "Kenya", "Thika", "Tempo", "OUSD", "pathUSD"],
   /* The tab: the mark on its own, no tile. The tab is chrome the mark does not
      own, and it is the one place the alien is all a visitor sees, so a black
