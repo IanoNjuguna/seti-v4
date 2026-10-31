@@ -37,10 +37,14 @@ import { HERO_QR_COPY } from './HeroPaymentQr.copy';
  * a margin somebody chose. It is the same symbol as the sticker a merchant prints, which
  * is the point; the sticker keeps ink on white because paper is white.
  *
- * It is FLUSH LEFT: the code shares the page's left axis with the nav's wordmark and every
- * section header below it. The plate carries the hero slot's slow float (`hero-float`),
- * which moves it ±3px about its place; the modules themselves stay square, because a
- * rounded module is a broken module.
+ * It is FLUSH LEFT in its column, at one size everywhere: 18rem, capped by the column it
+ * is in (`maxWidth: 100%`). That is 285px beside the words at `xl`, where the code owns
+ * one grid column of three, and 288px under them below `xl`, where the band stacks — so
+ * the object is the same physical size whether it is beside the promise or under it, and
+ * no magic number has to match the grid. A fixed 22rem overflowed the three-column track
+ * and left a sliver of white on the page's own right edge (#288). The plate carries the
+ * hero slot's slow float (`hero-float`), which moves it ±3px about its place; the modules
+ * themselves stay square, because a rounded module is a broken module.
  *
  * It is a SERVER component: the plate is the client boundary, because it registers itself
  * for the PNG export and an export is a browser operation. The code still server-renders
@@ -53,7 +57,7 @@ export function HeroPaymentQr() {
       value={HERO_PAYMENT_URL}
       title={HERO_QR_COPY.title}
       align="start"
-      width="22rem"
+      width="18rem"
       tone="dark"
       className="hero-float"
     />

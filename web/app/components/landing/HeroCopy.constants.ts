@@ -16,10 +16,31 @@ import type { HeroCopy } from './HeroCopy.types';
  * hero can actually take a reader to — `Claim your name` lands in onboarding, where
  * the name is claimed (both actions point at `SIGN_IN_PATH`).
  *
- * `lede` OPENING WITH THE ACTION IS DELIBERATE, and it is the owner's string: the
- * sentence announces the step, the button under it offers the step. What the band
- * does not do is repeat the promise — "Get paid." is the claim, the sentence is the
- * method, and the button is the first move of the method.
+ * `lede` SAYS THE METHOD AND ONLY THE METHOD. It used to open with the action
+ * ("Claim your name. Customers pay you ..."), so the sentence announced the step, the
+ * button under it offered the step and the promise above it said what the merchant
+ * gets. The owner's wording drops the opening clause: the button under it is "Claim
+ * your name", which is the step, and the sentence now spends its whole length on how a
+ * customer pays — a username, or a code.
+ *
+ * "USERNAME" HERE AND "NAME" ON THE BUTTON is the app's own split rather than a slip:
+ * the receive surfaces claim a username (`/u/<handle>`) and the landing page has always
+ * spoken about being paid by name, which is what a customer types. Recorded because two
+ * words for one thing in two adjacent lines is the kind of thing that is either a
+ * decision or a mistake, and nobody can tell from the diff which.
+ *
+ * THE PROMISE NAMES THE SPEED NOW (#288). It was "Get paid." — true, and short
+ * enough to hold one line in the hero's old seven-column half. The promise says when
+ * as well as what, because a merchant's second question after "who holds the money"
+ * is "how long until I have it", and this product's answer is a good one: a payment is
+ * ONE atomic transfer, so it lands in the block that carries it, and Tempo's blocks
+ * measured 525ms over 40 blocks on 2026-10-31 (a swap is retried two seconds apart
+ * because "a Tempo block is well under a second", `useConvertSwap.ts`). "In seconds"
+ * is the claim the code backs; a number like "under two seconds" would not be, because
+ * it has never been measured end to end, so it is not here.
+ *
+ * `lede` still carries the method, and it is unchanged: naming the payee and scanning
+ * the code are what a customer does, and the promise above says what the merchant gets.
  *
  * EVERY SENTENCE IS ONE THE CODE CAN BACK. There is no monthly fee and no minimum
  * (`FeesSection.constants.ts`), a name is claimed in onboarding, a printable code is
@@ -34,8 +55,8 @@ import type { HeroCopy } from './HeroCopy.types';
  * a search result.
  */
 export const HERO_COPY: HeroCopy = {
-  headline: 'Get paid.',
-  lede: 'Claim your name. Customers pay you by name or by scanning your code.',
+  headline: 'Get paid in seconds.',
+  lede: 'Customers pay through your username or by scanning your QR code.',
   primaryAction: 'Claim your name',
   secondaryAction: 'See how it works',
   /**
