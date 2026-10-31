@@ -30,19 +30,24 @@ import type { HowSectionCopy } from './HowSection.types';
  * "In use now" caption, and in no sentence anywhere: a reader who wants to know what the
  * settlement runs on, which is what makes a same-wallet transfer possible instead of a
  * custodial ledger entry, could not find out. It goes here and not in the hero, because
- * a shop owner reading the promise in five seconds has no frame for a chain name, and
- * the hero's proof line is already carrying the claim about who holds the money. Once
+ * a shop owner reading the promise in five seconds has no frame for a chain name. Once
  * is enough: the Integrations row above carries the mark for anyone scanning for it.
  *
  * STEP THREE NO LONGER SAYS WHO HOLDS THE MONEY (#280). Adding the rail pushed the
  * paragraph to three lines, and the third held one word and a full stop — "in a queue."
- * — so the clause that pushed it over came out: "Nobody holds it in between" is the
- * hero's own claim, stated above the fold where the merchant decides, in as many words
- * ("The money lands in your own wallet. Seti never holds it."). A reader now meets it
- * once, in the place it matters, and this step says only what it is for: the rail the
- * money settles on and the fact that nothing queues. The alternative was a typesetting
- * fix (`text-wrap: pretty`) that leaves three lines on browsers that honour it and none
- * of the words on the browsers that do not; the copy is the thing that wanted cutting.
+ * — so the clause that pushed it over came out: "Nobody holds it in between". The cut
+ * stands on its own terms: this step says what it is for, the rail the money settles on
+ * and the fact that nothing queues. The alternative was a typesetting fix
+ * (`text-wrap: pretty`) that leaves three lines on browsers that honour it and none of
+ * the words on the browsers that do not; the copy is the thing that wanted cutting.
+ *
+ * WHEN THE HERO STILL CARRIED THAT SENTENCE, this note said the claim was "stated above
+ * the fold where the merchant decides" and that a reader met it once, in the place that
+ * matters. That is no longer where it is: the hero's proof line went (#288) and so did
+ * the money band's tile (#286), so the landing page states nothing about who holds the
+ * money. The step does not get it back to fill the gap — a reader who needs the claim
+ * meets it on the pay page and at the Terms checkbox — and `HeroCopy.constants.ts` keeps
+ * the record of what went with it.
  *
  * One line of the second step changed once and stays changed: "From their own wallet"
  * became "From their own balance". A wallet is the thing the product is not, and the

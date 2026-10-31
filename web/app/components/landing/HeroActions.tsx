@@ -39,14 +39,6 @@ export function HeroActions() {
           {HERO_COPY.secondaryAction}
         </Link>
       </div>
-
-      {/* The proof sits UNDER the actions, not above them: the reader already has the
-          promise and the sentence, and this is the line they need at the moment they
-          decide (#276). One step smaller and one step quieter than the lede, so it is
-          read after the buttons and does not compete with them. */}
-      <p className="entrance entrance-3 mt-6 max-w-sm text-body-sm text-on-dark-mute">
-        {HERO_COPY.proof}
-      </p>
     </>
   );
 }
