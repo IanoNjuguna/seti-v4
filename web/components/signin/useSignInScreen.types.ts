@@ -1,3 +1,4 @@
+import type { SessionProblem } from '@/lib/auth';
 import type { SignInStage } from './SignInScreen.types';
 
 /**
@@ -18,7 +19,8 @@ export interface UseSignInScreenReturn {
   stage: SignInStage;
   address: string;
   code: string;
-  error: string | null;
+  /** Why the last attempt failed, or why the stored session did not restore. */
+  error: SessionProblem | null;
   /** The consent gate. False on every visit until the person ticks the box. */
   accepted: boolean;
   /** A code is being mailed (or re-mailed). */

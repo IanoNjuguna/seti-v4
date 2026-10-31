@@ -49,7 +49,7 @@ export function SignInSentPanel({
 
       {error ? (
         <div className="mt-6">
-          <SignInFailure message={error} />
+          <SignInFailure error={error} />
         </div>
       ) : null}
 

@@ -7,4 +7,12 @@ export {
   describeDevSignInFailure,
   describePrivySignInFailure,
 } from './auth.constants';
-export type { AuthSource, AuthStatus, AuthUser, SessionValue, SignInStatus } from './auth.types';
+export type {
+  AuthSource,
+  AuthStatus,
+  AuthUser,
+  SessionProblem,
+  SessionValue,
+  SignInStatus,
+} from './auth.types';
+export { SESSION_ENDED, SESSION_UNREACHABLE, SIGN_IN_FAILED_TITLE } from './session-problem.constants';

@@ -30,7 +30,6 @@ export const SIGN_IN_COPY = {
   lede: 'No password. We email you a code.',
   emailLabel: 'Email',
   submit: 'Continue with email',
-  errorTitle: 'Could not sign in',
   /** Shared with the app: the same "we are still finding out" line it renders. */
   restoring: 'One moment…',
   /**

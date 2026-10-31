@@ -1,5 +1,7 @@
 import type { AuthSource } from './auth.types';
 import { ApiError, refusalMessage } from '@/lib/api';
+import { REFUSAL_NETWORK_STATUS } from '@/lib/api/refusal.constants';
+import { SESSION_UNREACHABLE } from './session-problem.constants';
 
 /** localStorage keys — the web counterpart of mobile's SecureStore entries. */
 export const AUTH_TOKEN_KEY = 'seti-auth-token';
@@ -121,6 +123,15 @@ export function describePrivySignInFailure(
       'PRIVY_APP_SECRET in backend/.env, using the same app as ' +
       'NEXT_PUBLIC_PRIVY_APP_ID, then restart it and try again.'
     );
+  }
+
+  // A request that never left the device says nothing about this customer's
+  // connection when WE are the ones deploying, and "Check your connection" is the
+  // one line that makes someone toggle wifi over our rollout (#284). It gets the
+  // same sentence the session restore gives for the same event, so one outage does
+  // not read two different ways a minute apart.
+  if (error instanceof ApiError && error.status === REFUSAL_NETWORK_STATUS) {
+    return SESSION_UNREACHABLE.message;
   }
 
   if (error instanceof ApiError) return refusalMessage(error, 'account');

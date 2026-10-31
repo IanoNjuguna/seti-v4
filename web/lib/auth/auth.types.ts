@@ -56,6 +56,27 @@ export interface AuthUser {
   phone: string | null;
 }
 
+/**
+ * What a surface says when the session could not be established, in two parts.
+ *
+ * Both halves are ours and neither is the server's: `session-problem.constants.ts`
+ * holds every one of these, and the API client has already replaced anything the
+ * backend said with mapped copy before it reaches here.
+ *
+ *  - `title` is the heading, and it carries the ACTION or the fault ("Sign in
+ *    again", "Seti is not answering"). A person skimming a failure reads the bold
+ *    line first, so the verb belongs there rather than buried in a third clause.
+ *  - `message` is exactly one sentence saying what happened, and nothing else. No
+ *    reason in brackets: a sentence wrapped around another sentence is what made
+ *    this say "could not confirm this session (Seti could not complete that. Try
+ *    again in a moment.). It was cleared — sign in again.", which asks for two
+ *    different things and reads as two sentences fighting.
+ */
+export interface SessionProblem {
+  title: string;
+  message: string;
+}
+
 export interface SessionValue {
   /** The session's state. Branch on THIS, not on the presence of `user`. */
   status: AuthStatus;
@@ -71,8 +92,12 @@ export interface SessionValue {
    * Why the last restore or sign-in failed, when it did. Never a gate — the
    * session still resolves to `anonymous`, which the UI already knows how to
    * render.
+   *
+   * An OBJECT rather than a sentence, because the heading is part of the answer:
+   * see `SessionProblem`. Every renderer of this field shows the title as its
+   * bold line and the message under it, so the two cannot drift apart.
    */
-  error: string | null;
+  error: SessionProblem | null;
   /** True while a sign-in request is in flight, so the button can show it. */
   signingIn: boolean;
   /**

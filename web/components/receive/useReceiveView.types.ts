@@ -1,3 +1,4 @@
+import type { SessionProblem } from '@/lib/auth';
 import type { ReceiveView } from './ReceivePage.types';
 
 /** The half's string: the bare handle, and the resolvable link the code encodes. */
@@ -38,7 +39,7 @@ export interface ReceiveClaimView {
  */
 export type ReceiveScreenState =
   | { status: 'loading' }
-  | { status: 'signed-out'; error: string | null }
+  | { status: 'signed-out'; error: SessionProblem | null }
   | { status: 'failed'; message: string; retry: () => void }
   | { status: 'no-name'; claim: ReceiveClaimView }
   | {

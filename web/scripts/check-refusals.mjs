@@ -45,7 +45,16 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { REFUSAL_BY_CODE, REFUSAL_UNKNOWN } from '../lib/api/refusal.constants.ts';
+import { REFUSAL_BY_CODE, REFUSAL_NETWORK, REFUSAL_NETWORK_STATUS, REFUSAL_UNKNOWN } from '../lib/api/refusal.constants.ts';
+import { ApiError } from '../lib/api/client.ts';
+import { describePrivySignInFailure } from '../lib/auth/auth.constants.ts';
+import {
+  SESSION_ENDED,
+  SESSION_UNREACHABLE,
+  SIGN_IN_FAILED_TITLE,
+} from '../lib/auth/session-problem.constants.ts';
+import { bootstrapStoredSession } from '../lib/auth/session-bootstrap.ts';
+import { AUTH_TOKEN_KEY, AUTH_USER_KEY } from '../lib/auth/auth.constants.ts';
 import { COVERAGE_REFUSAL, pinAsset } from '../lib/pay/quote-asset.ts';
 import { TokenSelector } from '../components/token-selector/TokenSelector.tsx';
 import { TOKEN_SELECTOR_COPY } from '../components/token-selector/TokenSelector.constants.ts';
@@ -402,6 +411,191 @@ console.log('there is no card and no bank rail:');
     fiatTerminals.length === 0,
     fiatTerminals.map((file) => file.name).join(',')
   );
+}
+
+console.log('\nthe words a session that could not be confirmed gets (#284):');
+{
+  // Copy first, because the copy is what a person reads at the worst moment and it
+  // is the half with no other gate on it. Every rule here is the one the wallet
+  // sentences are held to in `check-claim-states.mjs`, plus the one this line broke:
+  // ONE instruction per sentence.
+  const sentence = (problem) => problem.message;
+
+  check(
+    'the two events have their own heading, so the block never reads as one event',
+    SESSION_ENDED.title !== SESSION_UNREACHABLE.title,
+    `${SESSION_ENDED.title} / ${SESSION_UNREACHABLE.title}`
+  );
+  check(
+    'the heading carries the action when the session is over',
+    /sign in/i.test(SESSION_ENDED.title),
+    SESSION_ENDED.title
+  );
+  check(
+    'the heading names Seti, not the customer, when it did not answer',
+    /seti/i.test(SESSION_UNREACHABLE.title),
+    SESSION_UNREACHABLE.title
+  );
+  check(
+    'the ended sentence says what happened, not what to press',
+    /session/i.test(sentence(SESSION_ENDED)) && !/try again/i.test(sentence(SESSION_ENDED)),
+    sentence(SESSION_ENDED)
+  );
+  check(
+    'the unanswered sentence tells nobody to sign in, because their session was kept',
+    !/sign in/i.test(sentence(SESSION_UNREACHABLE)),
+    sentence(SESSION_UNREACHABLE)
+  );
+  check(
+    'neither one wraps a sentence in brackets, which is what made it two sentences',
+    ![SESSION_ENDED, SESSION_UNREACHABLE].some((problem) => /[()]/.test(sentence(problem)))
+  );
+  check(
+    'no em dash, no en dash, no exclamation, no question mark',
+    ![SESSION_ENDED, SESSION_UNREACHABLE].some((problem) => /[—–!?]/.test(sentence(problem))),
+    `${sentence(SESSION_ENDED)} ${sentence(SESSION_UNREACHABLE)}`
+  );
+  check(
+    'one sentence each, finished',
+    [SESSION_ENDED, SESSION_UNREACHABLE].every(
+      (problem) => problem.message.split('.').filter((part) => part.trim()).length === 1 &&
+        /\.$/.test(problem.message)
+    )
+  );
+  check(
+    'no token name where a customer is looking',
+    ![SESSION_ENDED, SESSION_UNREACHABLE].some((problem) =>
+      /\b(OUSD|USDC|USDC\.e|USDT0|USDT|pathUSD)\b/i.test(problem.message)
+    )
+  );
+  check(
+    'a failed attempt keeps its own heading, so the two are not confused',
+    /could not sign in/i.test(SIGN_IN_FAILED_TITLE) &&
+      SIGN_IN_FAILED_TITLE !== SESSION_ENDED.title &&
+      SIGN_IN_FAILED_TITLE !== SESSION_UNREACHABLE.title,
+    SIGN_IN_FAILED_TITLE
+  );
+
+  // The same outage one screen later: a sign-in attempt that never reached the
+  // server. It used to say "We could not reach Seti. Check your connection and try
+  // again.", which is the customer's fault assigned to them while we deploy.
+  const offlineAttempt = describePrivySignInFailure(
+    new ApiError(REFUSAL_NETWORK, REFUSAL_NETWORK_STATUS)
+  );
+  check(
+    'a sign-in attempt that never reached the server says what the restore says',
+    offlineAttempt === SESSION_UNREACHABLE.message,
+    offlineAttempt
+  );
+}
+
+console.log('\na session that could not be confirmed is not a logout:');
+{
+  // The behaviour, not the wording: what the bootstrap does to the stored pair on
+  // each of the three answers. This is the half that was wrong (#284): a 5xx used to
+  // clear the session exactly like a 401, so every deploy signed everybody out.
+  const ACCOUNT = { id: 'acc-1', email: 'a@seti.test', firstName: null, lastName: null, phone: null };
+
+  const storage = () => {
+    const held = new Map();
+    globalThis.window = {
+      localStorage: {
+        getItem: (key) => (held.has(key) ? held.get(key) : null),
+        setItem: (key, value) => held.set(key, String(value)),
+        removeItem: (key) => held.delete(key),
+      },
+    };
+    return held;
+  };
+
+  const storeSession = (held, user = ACCOUNT) => {
+    held.set(AUTH_USER_KEY, JSON.stringify(user));
+    held.set(AUTH_TOKEN_KEY, 'stored-token');
+  };
+
+  let calls = 0;
+  const answer = (status, body) => {
+    calls = 0;
+    globalThis.fetch = async () => {
+      calls += 1;
+      return new Response(JSON.stringify(body), {
+        status,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+  };
+
+  // 1. The server refused the token: the pair goes, and it says the session ended.
+  {
+    const held = storage();
+    storeSession(held);
+    answer(401, { error: 'Invalid or expired token', code: 'unauthorized' });
+    const outcome = await bootstrapStoredSession();
+
+    check('a refused token lands on the ended sentence', outcome.problem === SESSION_ENDED, outcome.kind);
+    check('a refused token takes the stored pair with it', held.size === 0, `${held.size} keys left`);
+  }
+
+  // 2. The server did not answer: the pair STAYS, and it does not say sign in again.
+  {
+    const held = storage();
+    storeSession(held);
+    answer(500, { error: 'boom' });
+    const outcome = await bootstrapStoredSession();
+
+    check('a 5xx lands on the unanswered sentence', outcome.problem === SESSION_UNREACHABLE, outcome.kind);
+    check(
+      'a 5xx does NOT clear the stored session, which is the whole fix',
+      held.get(AUTH_USER_KEY) !== undefined && held.get(AUTH_TOKEN_KEY) === 'stored-token',
+      `${held.size} keys left`
+    );
+    check('it asked once more before giving up', calls === 2, `${calls} requests`);
+  }
+
+  // 3. Nothing answered at all — offline, DNS, a blocked origin.
+  {
+    const held = storage();
+    storeSession(held);
+    calls = 0;
+    globalThis.fetch = async () => {
+      calls += 1;
+      throw new TypeError('Failed to fetch');
+    };
+    const outcome = await bootstrapStoredSession();
+
+    check('an unreachable server lands on the unanswered sentence', outcome.problem === SESSION_UNREACHABLE);
+    check('an unreachable server keeps the stored session', held.size === 2, `${held.size} keys left`);
+  }
+
+  // 4. The server answered, and it is somebody else: neither kept nor reported as a
+  //    silent sign-out. Cleared, with the same one action as the expiry.
+  {
+    const held = storage();
+    storeSession(held, { ...ACCOUNT, id: 'acc-2', email: 'other@seti.test' });
+    answer(200, { user: ACCOUNT });
+    const outcome = await bootstrapStoredSession();
+
+    check('a different account is refused, not adopted', outcome.problem === SESSION_ENDED, outcome.kind);
+    check('and the pair it disagreed with is gone', held.size === 0, `${held.size} keys left`);
+  }
+
+  // 5. The server confirmed it: restored, from the SERVER's copy.
+  {
+    const held = storage();
+    storeSession(held, { ...ACCOUNT, firstName: 'stale' });
+    answer(200, { user: ACCOUNT });
+    const outcome = await bootstrapStoredSession();
+
+    check('a confirmed match restores the session', outcome.kind === 'restored', outcome.kind);
+    check(
+      'and the account it carries is the server’s, not the stored one',
+      outcome.kind === 'restored' && outcome.user.firstName === null,
+      JSON.stringify(outcome.kind === 'restored' ? outcome.user : null)
+    );
+  }
+
+  delete globalThis.window;
+  delete globalThis.fetch;
 }
 
 console.log(`\n${passed} checks passed, ${failed} failed`);

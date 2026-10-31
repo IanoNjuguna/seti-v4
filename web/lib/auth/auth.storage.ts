@@ -54,9 +54,14 @@ export function persistSession(session: StoredSession): void {
 /**
  * Drop both halves.
  *
- * Called on sign-out AND whenever the stored pair fails to re-resolve, so a
- * token the server has refused can never leave a cached identity behind for the
- * next load to pick up.
+ * Called on sign-out, and whenever the stored pair is REFUSED by the server or
+ * resolves to a different account — so a token the server has refused can never
+ * leave a cached identity behind for the next load to pick up.
+ *
+ * Deliberately NOT called when the server merely failed to answer (a 5xx, an
+ * offline laptop): that is not evidence about the token, and dropping the pair over
+ * it is the logout-on-every-deploy bug this comment used to describe as normal. See
+ * `session-bootstrap.ts`.
  */
 export function clearStoredSession(): void {
   try {

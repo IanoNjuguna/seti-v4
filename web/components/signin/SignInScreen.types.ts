@@ -1,5 +1,5 @@
 import type { FormEvent, ReactNode } from 'react';
-import type { AuthSource, AuthStatus, SignInStatus } from '@/lib/auth';
+import type { AuthSource, AuthStatus, SessionProblem, SignInStatus } from '@/lib/auth';
 
 /**
  * Which of the page's four surfaces is on screen.
@@ -38,7 +38,8 @@ export interface SignInPanelProps {
 
 export interface SignInEntryFormProps {
   address: string;
-  error: string | null;
+  /** Why the last attempt failed: a heading and one sentence. */
+  error: SessionProblem | null;
   sending: boolean;
   /** The consent gate: the email control is disabled until this is true. */
   accepted: boolean;
@@ -52,7 +53,7 @@ export interface SignInEntryFormProps {
 export interface SignInSentPanelProps {
   address: string;
   code: string;
-  error: string | null;
+  error: SessionProblem | null;
   /** A new code is being mailed (`resending`) versus the typed code being checked. */
   resending: boolean;
   /**
@@ -69,7 +70,8 @@ export interface SignInSentPanelProps {
 }
 
 export interface SignInFailureProps {
-  message: string;
+  /** The heading and the one sentence under it: see `SessionProblem`. */
+  error: SessionProblem;
 }
 
 export interface SignInTextButtonProps {

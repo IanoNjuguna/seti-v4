@@ -13,32 +13,19 @@ import type { AuthUser } from './auth.types';
  *
  * A null on either side is a mismatch: an account with no resolved identity
  * cannot be confirmed, and the caller must not adopt it.
+ *
+ * ## Why there is no longer a sentence here
+ *
+ * This module also held the words a person read when the pair did not survive:
+ * one naming the two accounts, and one wrapping the mapped refusal in brackets and
+ * appending a second instruction (#284). Both are gone, and the copy lives in
+ * `session-problem.constants.ts`, so this file is back to the one question it is
+ * named for. The two-accounts sentence is the loss worth naming: a mismatch is
+ * still a distinct EVENT, it is the tamper signal, it just no longer gets its own
+ * paragraph, because the only action behind it is signing in again and the expiry
+ * sentence already says that.
  */
 export function isSameAccount(stored: AuthUser | null, resolved: AuthUser | null): boolean {
   if (!stored || !resolved) return false;
   return stored.id === resolved.id && stored.email === resolved.email;
-}
-
-/**
- * Why a stored session was refused, in words that name the actual fault.
- *
- * This is the one case a person can be shown a discrepancy about: the browser
- * held one account and the token belonged to another, which is either a stale
- * snapshot from before an account switch or a hand-edited localStorage entry.
- * Both are cleared the same way; naming the mismatch (rather than a bare "could
- * not sign in") is what makes a tamper report distinguishable from an outage.
- */
-export function describeStoredSessionMismatch(stored: AuthUser, resolved: AuthUser): string {
-  const held = stored.email ?? stored.id;
-  const owned = resolved.email ?? resolved.id;
-  return (
-    `The session stored on this device said ${held}, but the token belongs to ${owned}. ` +
-    'The stored session was cleared — sign in again.'
-  );
-}
-
-/** Why the server would not confirm the stored session — a rejection or a fault. */
-export function describeStoredSessionFailure(cause: unknown): string {
-  const reason = cause instanceof Error ? cause.message : 'the server refused the token';
-  return `Could not confirm this session with the server (${reason}). It was cleared — sign in again.`;
 }
