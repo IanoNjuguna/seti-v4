@@ -26,6 +26,14 @@ import type { HowSectionCopy } from './HowSection.types';
  * them IS shared: the payer's dollars leave the payer's own balance and land in the
  * payee's, in one payment, with nobody holding them in between.
  *
+ * STEP THREE NAMES THE RAIL (#278). The page said "Tempo" once, as a wordmark with an
+ * "In use now" caption, and in no sentence anywhere: a reader who wants to know what the
+ * settlement runs on, which is what makes a same-wallet transfer possible instead of a
+ * custodial ledger entry, could not find out. It goes here and not in the hero, because
+ * a shop owner reading the promise in five seconds has no frame for a chain name, and
+ * the hero's proof line is already carrying the claim about who holds the money. Once
+ * is enough: the Integrations row above carries the mark for anyone scanning for it.
+ *
  * One line of the second step changed once and stays changed: "From their own wallet"
  * became "From their own balance". A wallet is the thing the product is not, and the
  * sentence is truer without it: what a payer spends is the balance they hold.
@@ -47,7 +55,7 @@ export const HOW_COPY: HowSectionCopy = {
     {
       index: '3',
       title: 'It lands in your balance.',
-      body: 'Nobody holds your money in between, and nothing waits in a queue.',
+      body: 'It settles on Tempo, into your own balance. Nobody holds it in between, and nothing waits in a queue.',
     },
   ],
 };
