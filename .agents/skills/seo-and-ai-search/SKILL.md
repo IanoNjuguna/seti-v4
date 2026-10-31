@@ -48,6 +48,64 @@ not a target for its own sake. Reach it by adding sections a merchant needs (who
 how a payment works, what the customer needs, what it costs) and never by padding a
 paragraph.
 
+## Our name is the problem, and it decides the keyword plan
+
+Searched 2026-11-01, and this bounds everything above. "seti" returns eight pages of the SETI
+Institute, Britannica and Berkeley SETI. "seti payments app" returns four unrelated apps that
+are actually called SETI or SETPay. "seti.live" returns eight results, all of them the SETI
+Institute's livestream series of that name. We appear in none of them.
+
+So we do not target the bare word, ever, and we do not spend on it. Two rules follow:
+
+1. **Every title, H1, app store subtitle and schema description carries category plus country.**
+   The one sentence is fixed and repeats verbatim: "Seti is a payments app for Kenyan shops and
+   traders." A qualifier is what makes the query ours, and it is the sentence a model will quote.
+2. **Entity separation is the work, not a trick.** `Organization` schema with `name`, `alternateName`,
+   `areaServed` (Kenya), `description` and `sameAs` for profiles we actually run. App store listing
+   name and subtitle carrying the qualifier. Third party citations that use the sentence. An
+   assistant asked "what is Seti" answers with the space institute until third parties have written
+   the other Seti down.
+
+The domain is part of this and it is a decision, not a task: `seti.live` resolves to their
+programme name in branded search. A domain that carries the category, redirected to the same app,
+would do more for branded queries than any page work here. Also open, and not an SEO question: the
+"SETI" mark is held in some classes, which is a lawyer's question before it is a listing's.
+
+## The pages we are building toward
+
+One primary term per URL, which is how the arithmetic gets fixed: one page cannot rank for a
+cluster. Each child page links to `/pricing` and to signup, and the blog posts link to the page
+they support.
+
+| URL | Primary term | Words | State |
+| --- | --- | --- | --- |
+| `/` | get paid by QR, Kenya | 600 to 800 | exists, 235 words, no schema |
+| `/pricing` | 2% fee payments Kenya, M-Pesa alternative | 500 to 700 | to build |
+| `/how-it-works` | how to accept dollar payments in Kenya | 600 | to build |
+| `/for/shops-and-traders` | QR payments for shops in Kenya | 500 | to build |
+| `/for/online-sellers` | accept payments online in Kenya | 500 | to build |
+| `/learn` | dollar payments in Kenya (hub) | index | to build |
+| `/learn/*` | is USDC legal in Kenya, how to accept USDC as a merchant, M-Pesa fees against 2%, what a stablecoin payment is | 1,000+ each | to build |
+
+Ship the first two child pages before the rest. A segment page with no `/pricing` behind it has
+nowhere to send the reader who is ready to decide.
+
+## What to borrow, and what to ignore
+
+From the 2026-10-31 teardown of three comparables. The mechanics transfer; their buyer does not,
+because they sell payouts and APIs to treasury teams and we sell to a shop in Thika.
+
+| Mechanic | Who ships it | Ours |
+| --- | --- | --- |
+| Organization and WebSite JSON-LD | all three | `layout.tsx`, once |
+| FAQ accordion plus `FAQPage` | Decaf (6 questions), Sphere (schema) | the landing page, and the home the custody sentence lost |
+| Numbered capability list | Decaf (01 to 08) | our three steps, numbered and expanded |
+| Pain-question block | Sphere | "Losing 2% to mobile money?", "A customer abroad cannot pay you." |
+| Segment list | Sphere ("Built for your business") | shops, online sellers |
+| Before and after comparison | Beans | mobile money today against Seti |
+| A content strip on the landing page | Sphere ("Latest from Sphere") | a "Latest" row pointing at `/learn` |
+| Three H1s, all-caps headings, empty headings as layout | Beans, Sphere | never. Our outline is already cleaner than theirs |
+
 ## KES is the unit
 
 Every price and every figure in copy, metadata, FAQ and schema is written in KES. Dollars are
