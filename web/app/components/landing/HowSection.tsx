@@ -7,11 +7,13 @@ import { HOW_COPY } from './HowSection.constants';
  * How money reaches you — the first light band, and the band that carries the
  * MECHANIC.
  *
- * THE HEADING IS THE SHARED ONE (`SectionHeader`), which is the change to this
- * band's shape: every band on the page now opens with the eyebrow, the heading and
- * one sentence in the same place, which is the rhythm cash.app's bands keep and
- * what this page was missing when each section carried its own idea of a heading.
- * THE SENTENCE UNDER THE HEADING NAMES HOW MONEY REACHES A MERCHANT: a name customers
+ * THE HEADER IS THE SHARED ONE (`SectionHeader`), which is the change to this band's
+ * shape: every band on the page opens with the marker in the same place, which is the
+ * rhythm cash.app's bands keep and what this page was missing when each section carried
+ * its own idea of a heading. This band's display heading ("How people pay you.") was
+ * deleted (#288) — it restated the marker — so the marker is the h2 and the sentence
+ * under it is the band's only opening line.
+ * THE SENTENCE UNDER THE MARKER NAMES HOW MONEY REACHES A MERCHANT: a name customers
  * type, and a code printed for the counter. It used to be the reader's own sentence,
  * flipped by the navbar's selector; the page has one reading now.
  *
@@ -31,7 +33,7 @@ export function HowSection() {
       className="border-t border-hairline-light bg-canvas-light py-[var(--band-pad-block)]"
     >
       <div className="mx-auto max-w-6xl px-6">
-        <SectionHeader eyebrow="How it works" title={HOW_COPY.title} lede={HOW_COPY.lede} />
+        <SectionHeader eyebrow="How it works" lede={HOW_COPY.lede} />
 
         <div className="mt-12 grid grid-cols-1 gap-12 md:mt-16 md:grid-cols-12 md:gap-16">
           <div className="md:order-2 md:col-span-5">

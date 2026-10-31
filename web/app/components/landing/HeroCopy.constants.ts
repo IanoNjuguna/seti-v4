@@ -16,10 +16,46 @@ import type { HeroCopy } from './HeroCopy.types';
  * hero can actually take a reader to — `Claim your name` lands in onboarding, where
  * the name is claimed (both actions point at `SIGN_IN_PATH`).
  *
- * `lede` OPENING WITH THE ACTION IS DELIBERATE, and it is the owner's string: the
- * sentence announces the step, the button under it offers the step. What the band
- * does not do is repeat the promise — "Get paid." is the claim, the sentence is the
- * method, and the button is the first move of the method.
+ * THE PROMISE NAMES THE SPEED NOW (#288). It was "Get paid." — true, and short
+ * enough to hold one line in the hero's old seven-column half. The promise says when
+ * as well as what, because a merchant's second question after "who holds the money"
+ * is "how long until I have it", and this product's answer is a good one: a payment is
+ * ONE atomic transfer, so it lands in the block that carries it, and Tempo's blocks
+ * measured 525ms over 40 blocks on 2026-10-31 (a swap is retried two seconds apart
+ * because "a Tempo block is well under a second", `useConvertSwap.ts`). "In seconds"
+ * is the claim the code backs; a number like "under two seconds" would not be, because
+ * it has never been measured end to end, so it is not here.
+ *
+ * `lede` SAYS THE METHOD AND ONLY THE METHOD. It used to open with the action
+ * ("Claim your name. Customers pay you ..."), so the sentence announced the step, the
+ * button under it offered the step and the promise above it said what the merchant
+ * gets. The owner's wording drops the opening clause: the button under it is "Claim
+ * your name", which is the step, and the sentence now spends its whole length on how a
+ * customer pays — a username, or a code.
+ *
+ * "USERNAME" HERE AND "NAME" ON THE BUTTON is the app's own split rather than a slip:
+ * the receive surfaces claim a username (`/u/<handle>`) and the landing page has always
+ * spoken about being paid by name, which is what a customer types. Recorded because two
+ * words for one thing in two adjacent lines is the kind of thing that is either a
+ * decision or a mistake, and nobody can tell from the diff which.
+ *
+ * THE PROOF LINE IS GONE (#288), and with it the page's only custody sentence. It read
+ * "The money lands in your own wallet. Seti never holds it." and it was put here on
+ * purpose (#276): the claim no competitor copies cheaply, at the point of decision. The
+ * money band's "Nobody holds it in between" tile went the same way (#286), so the
+ * landing page now says nothing about who holds the money. What it lost is recorded
+ * here rather than discovered later:
+ *
+ *   - the claim is still made, in as many words, everywhere a person is actually moving
+ *     money: the public pay page and the public name page (`PayCustodyNote`,
+ *     `PersonPublic.constants.ts`), the receive screen, the save screen, the security
+ *     screen;
+ *   - and it is stated at the moment consent is taken, in the Terms checkbox every
+ *     person ticks to sign in ("I understand that Seti never holds my money.").
+ *
+ * If the promise belongs on the landing page again it needs a home that is not the
+ * hero: the hero's job is the promise and one action, and this band is now the words
+ * and the code.
  *
  * EVERY SENTENCE IS ONE THE CODE CAN BACK. There is no monthly fee and no minimum
  * (`FeesSection.constants.ts`), a name is claimed in onboarding, a printable code is
@@ -34,24 +70,8 @@ import type { HeroCopy } from './HeroCopy.types';
  * a search result.
  */
 export const HERO_COPY: HeroCopy = {
-  headline: 'Get paid.',
-  lede: 'Claim your name. Customers pay you by name or by scanning your code.',
+  headline: 'Get paid in seconds.',
+  lede: 'Customers pay through your username or by scanning your QR code.',
   primaryAction: 'Claim your name',
   secondaryAction: 'See how it works',
-  /**
-   * THE ONE CLAIM THAT IS SETI'S OWN, placed where the reader decides.
-   *
-   * A merchant's first question about a payments product is who ends up holding the
-   * money, and this page could answer it in the only way that matters: the payment goes
-   * from the payer's wallet to the merchant's own wallet and the platform never takes
-   * possession. That is true of the code (`services/settlement.ts` plans a swap the
-   * customer's own wallet signs; `check:refusals` fails the build if a signing client
-   * ever appears in `backend/src`), so it is stated once, plainly, under the buttons
-   * rather than only in step three of the band below (#276).
-   *
-   * Two sentences, because the first says what happens and the second is the absence a
-   * merchant is actually asking about. The absence is a real one and it is stated once,
-   * at the CTA, which is the only place the copywriting skill allows a negation.
-   */
-  proof: 'The money lands in your own wallet. Seti never holds it.',
 };

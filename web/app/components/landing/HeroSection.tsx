@@ -3,58 +3,74 @@ import { HeroHeadline } from './HeroHeadline';
 import { HeroPaymentQr } from './HeroPaymentQr';
 
 /**
- * The hero: the product's own object on the left, the words on the right.
+ * The hero: the words on the left, the product's own object on the right.
  *
- * TWO COLUMNS, AND THE CODE IS THE ONE ON THE LEFT. The band used to be three — promise
- * left, actions right, code in the middle — because it had to hold two readers' words
- * at once and the object was what the middle third could spare. With one reading
- * (`HeroCopy.constants.ts`) there are two things to say and one to show, and the
- * object leads: a stranger's first look lands on a code they can actually scan, and
- * the promise answers what it is for.
+ * THE SIDES SWAPPED WHEN THE PROMISE GOT LONGER (#288). The band used to lead with the
+ * code in five columns and put seven aside for the words, because "Get paid." was four
+ * words and the object was what a stranger's first look should land on. The promise now
+ * names the speed as well as the payment — "Get paid in seconds.", 772px at the 80px
+ * step — so the words take nine columns and the code takes the last three. What that
+ * buys besides the width is the LEFT AXIS: the promise starts on the same x as the
+ * nav's wordmark and every section header under it, instead of hanging 473px into the
+ * page with nothing above it.
  *
- * THE COLUMNS ARE 5 AND 7 OF TWELVE, WHICH IS WHY THEY ARE NOT HALVES. The code opens
- * the grid and the words take column 6 to the band's right edge. The gutter between
- * them is whatever the plate's column leaves over: 441px of column holding a 352px
- * plate, plus one 32px gap, so about 120px of white between the plate's edge and the
- * first letter. That air is doing the most work in the composition — a gutter narrower
- * than the plate's own corner radius reads as a table with two cells rather than as an
- * object and the words about it.
+ * TWO COLUMNS ONLY FROM `xl`, WHICH IS THE LINE'S DECISION RATHER THAN A BREAKPOINT'S.
+ * `text-display-xl` is `clamp(48px, 8vw, 80px)`: it tracks the VIEWPORT, and the column
+ * tracks the content box, which is capped at `max-w-6xl`. So between 1000 and 1279 the
+ * type stops shrinking (80px) while the column keeps shrinking, and the measured width
+ * says so — 820px of column at 1280, 770 at 1100, 713 at 1024, against a line that needs
+ * 772. At 1100 it missed by two pixels and broke into "Get paid in / seconds.". Below
+ * `xl` the words therefore take the whole content box (1104 at 1280, 961 at 1024, 705 at
+ * 768) and the code sits under them, which is also the calmest version of the band: one
+ * focal object, then the specimen. The phone breaks the line at about 480px, where a
+ * four-word promise on two lines is what every page does.
  *
- * The words get the wider column because they are the part that wraps badly: at six
- * columns "Claim your name. Customers pay you by name or by scanning your code." broke
- * to three lines, and a three-line sentence under a one-line promise looks like a
- * paragraph nobody cut. At seven it is two. The paragraph's own `max-w-md` still stops
- * it running the whole width of the column.
+ * THE BAND IS SIZED BY ITS CONTENT, NOT A SCREEN (#288). It was `min(100svh, 52rem)`,
+ * which on any desktop taller than 832px was 832 with ~420px of content centred in it: a
+ * third of the band empty under the code. The first attempt capped it at 44rem and the
+ * measurement showed that was still 230px of slack top and bottom — the content is 281
+ * tall, not the ~420 I had estimated before the proof line came out. 34rem is 544, which
+ * is the content (281) plus its own padding (192) with about 35px of air above and below,
+ * and the next section is visible below the band. That is the trade, recorded because it
+ * is a brand one: the hero no longer fills the screen, it is the page's opening band, which
+ * is also what the reference band he compared it to does (~540px).
  *
- * THE TWO BLOCKS SHARE A TOP EDGE, and that is the alignment the band rests on. The
- * headline's cap line lands level with the code's top, so the eye reads one row: the
- * object, then what it is for. `md:items-start` rather than `items-center` — centring
- * the shorter words on the taller code put the promise a third of the way down the band
- * with nothing above it, which is the floating-in-a-gap look this page has been
- * corrected for before. The bottoms differ, and since the small print under the code was
- * deleted (#266) they differ by the height of the action row and no more.
+ * THE CODE IS ANCHORED TO THE BOTTOM, NOT THE TOP (`xl:items-end`). It used to share its
+ * top edge with the headline's cap line, and that alignment was the band's whole idea. It
+ * stopped working when the promise got to 820px: the code then sat 32px from the last
+ * letter of a full-width line, which is a table with two cells rather than an object and
+ * the words about it — 820 + 32 + 252 is the content box exactly, so the band was at 100%
+ * utilisation and nothing breathed. Bottom-anchored, the code faces the lede and the
+ * buttons, where the text is 624 and ~330 wide, so it has air beside it; and with the band
+ * shorter it anchors the bottom edge instead of floating above a hole.
  *
- * ORDER ON A PHONE IS NOT THE DESKTOP ORDER. In the DOM the words are first and the
- * code second, so a phone reader gets the promise, the sentence and the action before
- * being shown a code they cannot scan off their own screen; `md:order-1` lifts the code
- * into the left column where there is room for two.
+ * WHAT IT COSTS, recorded here rather than left in a diff: the object stops leading, and
+ * between 768 and 1279 it is not beside the words at all. At `xl` it is one grid column
+ * (~252px) instead of 352, and the second thing read rather than the first. The trade
+ * holds because the promise is the part that survives a reader who will not scan anything,
+ * and on a phone the code is one tap away.
+ *
+ * NO ORDER UTILITIES ANY MORE. The words were second in the DOM and lifted left by
+ * `md:order-1`, because the desktop composition ran against the reading order. The
+ * desktop order IS the reading order now, so the promise, the sentence and the action
+ * come first in the markup and a phone gets them before a code it cannot scan off its
+ * own screen, with nothing to undo.
  *
  * `grid-cols-1` on the phone is load-bearing rather than tidy: without it the single
- * implicit column is `auto`, which sizes to an item's MIN-CONTENT, and the printed URL
- * under the code (one unbreakable string) would push the page past the viewport at
- * 360px. An explicit `minmax(0, 1fr)` track caps it.
+ * implicit column is `auto`, which sizes to an item's MIN-CONTENT, and the plate is one
+ * unbreakable object. An explicit `minmax(0, 1fr)` track caps it.
  */
 export function HeroSection() {
   return (
     <section id="hero" className="relative z-10">
-      <div className="mx-auto flex min-h-[min(100svh,52rem)] max-w-6xl flex-col justify-center px-6 pb-16 pt-28 md:pb-20 md:pt-32">
-        <div className="grid grid-cols-1 gap-14 md:grid-cols-12 md:items-start md:gap-8">
-          <div className="md:order-2 md:col-span-7 md:col-start-6">
+      <div className="mx-auto flex min-h-[min(100svh,34rem)] max-w-6xl flex-col justify-center px-6 pb-16 pt-28 md:pb-20 md:pt-32">
+        <div className="grid grid-cols-1 gap-14 xl:grid-cols-12 xl:items-end xl:gap-8">
+          <div className="xl:col-span-9">
             <HeroHeadline />
             <HeroActions />
           </div>
 
-          <div className="md:order-1 md:col-span-5 md:col-start-1">
+          <div className="xl:col-span-3">
             <HeroPaymentQr />
           </div>
         </div>

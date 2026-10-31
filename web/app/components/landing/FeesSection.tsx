@@ -5,15 +5,17 @@ import { FEE_COPY } from './FeesSection.constants';
 /**
  * Fees — the second light band, and the price list.
  *
- * THE HEADING NOW SITS ABOVE THE LIST instead of beside it. It used to share a
- * twelve-column grid with the rows, split four/eight below `lg` and five/seven
- * above, and the split was chosen against a measured width: at five columns "No
- * hidden charges" sits on one line with room to spare and the list still leaves its
- * widest label one line. The band opens with `SectionHeader` now, like the two
- * bands above it, so the heading is no longer a column and the split has nothing
- * left to decide. What it costs: the rows run the band's full content width
- * (1104px at `max-w-6xl`) instead of 714px. What it buys: every band on the page
- * starts the same way, which is the rhythm this redesign is for.
+ * THE BAND OPENS WITH ITS MARKER AND NOTHING ELSE (#288). "No hidden charges" was the
+ * heading; the owner deleted it with the other two bands', because the price list under
+ * it says the same thing four times over and the marker ("What it costs") already names
+ * the band. The marker carries the h2 now, so the band keeps a heading.
+ *
+ * Before that deletion the heading sat above the list, and before THAT it shared a
+ * twelve-column grid with the rows, split four/eight below `lg` and five/seven above —
+ * a split chosen against a measured width, because at five columns "No hidden charges"
+ * sat on one line and the list still left its widest label one line. With no heading
+ * there is no column and no split to decide, so the rows run the band's full content
+ * width (1104px at `max-w-6xl`).
  *
  * THE ROWS KEEP A FIXED DETAIL COLUMN, and it is load-bearing rather than taste:
  * `minmax(0,1fr) 22rem` with a 40px gap. The detail column is fixed because its
@@ -35,7 +37,7 @@ export function FeesSection() {
   return (
     <Reveal id="fees" className="bg-canvas-light py-[var(--band-pad-block)]">
       <div className="mx-auto max-w-6xl px-6">
-        <SectionHeader eyebrow="What it costs" title="No hidden charges" />
+        <SectionHeader eyebrow="What it costs" />
 
         <dl className="mt-12">
           {FEE_COPY.map((row) => (

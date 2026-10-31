@@ -19,12 +19,13 @@ import { MONEY_COPY } from './MoneySection.constants';
  * NO PROSE COLUMN AND NO LEDE. The owner deleted this band's intro paragraph
  * ("Your money is digital dollars. Each one is worth a US dollar.") and then the
  * lede under the heading, both as glosses on a page whose reader already knows
- * what money is. Nothing here puts either back: the heading and the squares
+ * what money is. Nothing here puts either back: the marker and the squares
  * are the whole band, and `SectionHeader` renders no paragraph when it is handed
  * none.
  *
- * The heading is the band's own sentence, and the squares are what a merchant
- * does with a balance.
+ * The marker is the band's heading now (#288): the display heading ("Paid to you, held by
+ * you.") was deleted for restating what the marker and the squares already said, and the
+ * marker carries the h2 so the band keeps a heading in the outline.
  *
  * TRUE #000, deliberately. The field's lift belongs to the HERO band alone, so
  * this band paints `canvas-dark` and lets the hero stay the one lit band. That is
@@ -35,7 +36,7 @@ export function MoneySection() {
   return (
     <Reveal id="money" className="bg-canvas-dark py-[var(--band-pad-block)]">
       <div className="mx-auto max-w-6xl px-6">
-        <SectionHeader eyebrow="Your money" title={MONEY_COPY.title} onDark />
+        <SectionHeader eyebrow="Your money" onDark />
 
         <ul className="mt-12 grid grid-cols-1 gap-x-5 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
           {MONEY_COPY.tiles.map((tile) => (
