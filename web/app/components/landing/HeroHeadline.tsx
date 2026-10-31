@@ -24,17 +24,15 @@ import { HERO_COPY } from './HeroCopy.constants';
  * seconds." — a one-glyph-word last line, which is the rag `SignInEntryForm` fixed the
  * same way on the front door. Balancing splits it into two near-equal lines.
  *
- * THE LEADING TRIM IS OPTICAL, AND IT IS STILL MEASURED AGAINST THE CODE. The line box
- * of a display step carries leading above the caps, so an `items-start` row would put
- * the headline's box top level with the plate and its CAP about 11px below the plate's
- * top edge — two objects that look staggered while being geometrically aligned.
- * `-0.132em` is the leading `text-display-xl` adds above the cap, so the promise's cap
- * line lands on the plate's edge. The same trim moved a centred group's optical centre
- * in an earlier version of this band; here it is doing the only job it has.
+ * THE LEADING TRIM IS GONE (#288). It was `-0.132em`, the leading `text-display-xl` adds
+ * above the caps, and it existed so the promise's CAP LINE landed on the code's top edge,
+ * which was the band's shared-edge alignment. The code is anchored to the band's bottom
+ * now (`HeroSection`), so there is no cap-to-plate edge to level, and the trim would only
+ * pull the headline 10px out of the stack it now shares a bottom with.
  */
 export function HeroHeadline() {
   return (
-    <h1 className="entrance text-balance font-brand text-display-xl font-medium text-on-dark md:-mt-[0.132em]">
+    <h1 className="entrance text-balance font-brand text-display-xl font-medium text-on-dark">
       {HERO_COPY.headline}
     </h1>
   );

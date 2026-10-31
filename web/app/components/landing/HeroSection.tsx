@@ -25,20 +25,30 @@ import { HeroPaymentQr } from './HeroPaymentQr';
  * focal object, then the specimen. The phone breaks the line at about 480px, where a
  * four-word promise on two lines is what every page does.
  *
+ * THE BAND IS SIZED BY ITS CONTENT, NOT A SCREEN (#288). It was `min(100svh, 52rem)`,
+ * which on any desktop taller than 832px was 832 with ~420px of content centred in it: a
+ * third of the band empty under the code. The first attempt capped it at 44rem and the
+ * measurement showed that was still 230px of slack top and bottom — the content is 281
+ * tall, not the ~420 I had estimated before the proof line came out. 34rem is 544, which
+ * is the content (281) plus its own padding (192) with about 35px of air above and below,
+ * and the next section is visible below the band. That is the trade, recorded because it
+ * is a brand one: the hero no longer fills the screen, it is the page's opening band, which
+ * is also what the reference band he compared it to does (~540px).
+ *
+ * THE CODE IS ANCHORED TO THE BOTTOM, NOT THE TOP (`xl:items-end`). It used to share its
+ * top edge with the headline's cap line, and that alignment was the band's whole idea. It
+ * stopped working when the promise got to 820px: the code then sat 32px from the last
+ * letter of a full-width line, which is a table with two cells rather than an object and
+ * the words about it — 820 + 32 + 252 is the content box exactly, so the band was at 100%
+ * utilisation and nothing breathed. Bottom-anchored, the code faces the lede and the
+ * buttons, where the text is 624 and ~330 wide, so it has air beside it; and with the band
+ * shorter it anchors the bottom edge instead of floating above a hole.
+ *
  * WHAT IT COSTS, recorded here rather than left in a diff: the object stops leading, and
  * between 768 and 1279 it is not beside the words at all. At `xl` it is one grid column
- * (~285px) instead of 352, and the second thing read rather than the first. The trade
- * holds because the promise is the part that survives a reader who will not scan
- * anything, and on a phone the code is one tap away.
- *
- * THE COLUMNS STILL SHARE A TOP EDGE AT `xl`, and that is the alignment the band rests
- * on. The headline's cap line lands level with the code's top (`md:-mt-[0.132em]` in
- * `HeroHeadline` does the trimming), so the eye reads one row: the promise, then the
- * object it is about. `xl:items-start` rather than `items-center` — centring the shorter
- * block on the taller one floats it a third of the way down the band with nothing above
- * it, which is the look this page has been corrected for before. Between the two there is
- * one 32px grid gap plus the 48px the headline leaves in its own column, so about 80px of
- * white between the last letter and the code's edge.
+ * (~252px) instead of 352, and the second thing read rather than the first. The trade
+ * holds because the promise is the part that survives a reader who will not scan anything,
+ * and on a phone the code is one tap away.
  *
  * NO ORDER UTILITIES ANY MORE. The words were second in the DOM and lifted left by
  * `md:order-1`, because the desktop composition ran against the reading order. The
@@ -53,8 +63,8 @@ import { HeroPaymentQr } from './HeroPaymentQr';
 export function HeroSection() {
   return (
     <section id="hero" className="relative z-10">
-      <div className="mx-auto flex min-h-[min(100svh,52rem)] max-w-6xl flex-col justify-center px-6 pb-16 pt-28 md:pb-20 md:pt-32">
-        <div className="grid grid-cols-1 gap-14 xl:grid-cols-12 xl:items-start xl:gap-8">
+      <div className="mx-auto flex min-h-[min(100svh,34rem)] max-w-6xl flex-col justify-center px-6 pb-16 pt-28 md:pb-20 md:pt-32">
+        <div className="grid grid-cols-1 gap-14 xl:grid-cols-12 xl:items-end xl:gap-8">
           <div className="xl:col-span-9">
             <HeroHeadline />
             <HeroActions />

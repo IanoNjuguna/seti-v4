@@ -11,15 +11,16 @@ import { HERO_QR_COPY } from './HeroPaymentQr.copy';
  *
  * THE CODE IS THE WHOLE BLOCK. Three lines of small print used to hang under it — a
  * caption saying what scanning does, the URL printed in mono, and a warning that `ianllc`
- * is a demonstration merchant. The owner cut all three: the hero is a code and a promise,
- * and a paragraph under the object competes with both. Nothing replaced them and nothing
- * was moved into the right column, because there was nothing true to put there that the
- * picture does not already say.
+ * is a demonstration merchant. The owner cut all three (#266). A one-line caption came back
+ * with the rebalance and went the same day (#288): the hero is a code and a promise, and
+ * the block is the code alone. Nothing replaced them and nothing was moved into the other
+ * column, because there was nothing true to put there that the picture does not already
+ * say.
  *
- * What that costs, recorded here rather than left in a diff: the page no longer tells a
- * visitor that `ianllc` is a demonstration merchant, which was the one sentence on it
- * aimed at a stranger about to pay a demo. The code still opens a real payment page, and
- * its accessible name still says whose it is (`HeroPaymentQr.copy.ts`).
+ * What that leaves, recorded here rather than left in a diff: the page does not tell a
+ * visitor that `ianllc` is a demonstration merchant, which was the one sentence aimed at a
+ * stranger about to pay a demo. The code opens a real payment page, and its accessible name
+ * says what to do with it (`HeroPaymentQr.copy.ts`).
  *
  * IT IS THE APP'S OWN CODE, in the tone this band needs. This used to draw
  * `react-qr-code` black-on-white at level `M` with no mark, which meant the landing page

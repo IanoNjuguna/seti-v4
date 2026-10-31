@@ -35,11 +35,11 @@ import { QUIET_ACTION_CLASSES } from './HeroActions.constants';
 export function HeroActions() {
   return (
     <>
-      <p className="entrance entrance-2 mt-6 max-w-2xl text-body-lg text-on-dark-mute">
+      <p className="entrance entrance-2 mt-8 max-w-2xl text-body-lg text-on-dark-mute">
         {HERO_COPY.lede}
       </p>
 
-      <div className="entrance entrance-3 mt-10 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-6">
+      <div className="entrance entrance-3 mt-8 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-6">
         <ButtonLink href={SIGN_IN_PATH} variant="on-dark">
           {HERO_COPY.primaryAction}
         </ButtonLink>
