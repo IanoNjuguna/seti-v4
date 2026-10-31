@@ -34,6 +34,16 @@ import type { HowSectionCopy } from './HowSection.types';
  * the hero's proof line is already carrying the claim about who holds the money. Once
  * is enough: the Integrations row above carries the mark for anyone scanning for it.
  *
+ * STEP THREE NO LONGER SAYS WHO HOLDS THE MONEY (#280). Adding the rail pushed the
+ * paragraph to three lines, and the third held one word and a full stop — "in a queue."
+ * — so the clause that pushed it over came out: "Nobody holds it in between" is the
+ * hero's own claim, stated above the fold where the merchant decides, in as many words
+ * ("The money lands in your own wallet. Seti never holds it."). A reader now meets it
+ * once, in the place it matters, and this step says only what it is for: the rail the
+ * money settles on and the fact that nothing queues. The alternative was a typesetting
+ * fix (`text-wrap: pretty`) that leaves three lines on browsers that honour it and none
+ * of the words on the browsers that do not; the copy is the thing that wanted cutting.
+ *
  * One line of the second step changed once and stays changed: "From their own wallet"
  * became "From their own balance". A wallet is the thing the product is not, and the
  * sentence is truer without it: what a payer spends is the balance they hold.
@@ -55,7 +65,7 @@ export const HOW_COPY: HowSectionCopy = {
     {
       index: '3',
       title: 'It lands in your balance.',
-      body: 'It settles on Tempo, into your own balance. Nobody holds it in between, and nothing waits in a queue.',
+      body: 'It settles on Tempo, into your own balance. Nothing waits in a queue.',
     },
   ],
 };
