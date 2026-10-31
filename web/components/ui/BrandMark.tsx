@@ -1,7 +1,13 @@
 import NextImage from 'next/image';
 import { cn } from '@/lib/cn';
-import { BRAND_MARK_SIZE, BRAND_MARK_SRC } from './BrandMark.constants';
-import type { BrandMarkProps } from './BrandMark.types';
+import {
+  BRAND_LOCKUP_HEIGHT,
+  BRAND_LOCKUP_SRC,
+  BRAND_LOCKUP_WIDTH,
+  BRAND_MARK_SIZE,
+  BRAND_MARK_SRC,
+} from './BrandMark.constants';
+import type { BrandLockupProps, BrandMarkProps } from './BrandMark.types';
 
 /**
  * `next/image`'s default export is the component under a bundler, but under a bare Node
@@ -48,6 +54,32 @@ export function BrandMark({ expression, canvas, className, label, preload }: Bra
       alt={label ?? ''}
       width={BRAND_MARK_SIZE}
       height={BRAND_MARK_SIZE}
+      preload={preload}
+      className={cn('w-auto select-none', className)}
+      draggable={false}
+    />
+  );
+}
+
+/**
+ * The supplied lockup: the mark and the wordmark as one drawn object.
+ *
+ * For the two chrome surfaces that identify the product — the landing navbar and the app
+ * rail — which used to draw `BrandMark` and set the word beside it in the brand face at a
+ * size of their own. That reconstruction could drift (the gap, the weight, the word's size
+ * against the row) and it was never the artwork; this is
+ * `design-kit/seti-world/navbar.png`, trimmed and served from `web/public`.
+ *
+ * The name is on the image, not beside it, so `label` defaults to the product's rather than
+ * being omitted: an unlabelled lockup inside a link is a link with no accessible name.
+ */
+export function BrandLockup({ className, label = 'Seti', preload }: BrandLockupProps) {
+  return (
+    <Image
+      src={BRAND_LOCKUP_SRC}
+      alt={label}
+      width={BRAND_LOCKUP_WIDTH}
+      height={BRAND_LOCKUP_HEIGHT}
       preload={preload}
       className={cn('w-auto select-none', className)}
       draggable={false}

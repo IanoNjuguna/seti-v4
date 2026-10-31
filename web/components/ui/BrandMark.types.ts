@@ -28,3 +28,19 @@ export interface BrandMarkProps {
   /** Load with the document. For the mark that is on screen at first paint. */
   preload?: boolean;
 }
+
+/**
+ * The lockup, for the two places that used to draw the mark and type its word beside it.
+ *
+ * Unlike `BrandMark` it carries a name by default: the image IS the product's name, so
+ * there is no separate wordmark to carry it, and an unlabelled link here would be a link
+ * with no accessible name.
+ */
+export interface BrandLockupProps {
+  /** Sizes it: pass a height, the asset's own ratio gives the width. */
+  className?: string;
+  /** The accessible name. Defaults to the product's. */
+  label?: string;
+  /** Load with the document. The navbar's is on screen at first paint. */
+  preload?: boolean;
+}
