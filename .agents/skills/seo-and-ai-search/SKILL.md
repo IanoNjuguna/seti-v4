@@ -297,19 +297,54 @@ Run this on every copy or structure change. Each line has caught a real defect h
   page that ranks on one of them buys a visitor whose next click is back to the results.
 - **Testimonials, logos and urgency** while there are no customers to name.
 
-## The gate (to build)
+## The gate
 
-This skill is the rule. The check is the enforcement, and it does not exist yet. `check:seo`
-belongs in the `verify` chain with these assertions, each of which fails on today's site:
+`npm run check:seo` is the enforcement, and it is the last step of `npm run verify` (#299). Read
+`scripts/check-seo.mjs` before changing a page: its docstring states what it checks and, more
+usefully, what green does not mean.
 
-- every route's `description` is 140 to 155 characters and contains a KES figure or a place;
-- every route has exactly one `h1`;
-- `app/sitemap.ts` exists, lists every static route, and the built `/sitemap.xml` responds 200;
-- `app/robots.ts` responds with a `Sitemap:` line;
-- `layout.tsx` renders `Organization` and `WebSite` JSON-LD;
-- no heading on any page is empty;
-- no rendered page repeats a deleted claim: assert the absence of the strings the copy cuts
-  (the #288 and #290 cases both live here).
+It asserts, over the repository's own files:
 
-Add the assertion with the change that makes it pass, and prove it fails first. A gate nobody
-has seen red is a gate that is not running.
+- the landing `description` is 140 to 155 characters, names a place, and states `2%`;
+- the landing `title` is 45 to 60 characters and ends with the brand;
+- the landing tree carries exactly one `h1`;
+- `app/sitemap.ts` lists exactly the four public paths, and `app/robots.ts` names the sitemap;
+- `layout.tsx` renders a `ld+json` script, and the structured-data module names `Organization`
+  and `WebSite`;
+- `public/llms.txt` exists and says something;
+- the five private surfaces carry `index: false`;
+- the claims the copy cut stay cut: "No hidden charges", "Neo-Bank", "settles instantly".
+
+Two properties of it are deliberate and worth keeping:
+
+**It is source-level.** No build, no fetch, no server, so it runs in a second on every commit. It
+therefore cannot see the merged `<head>` Next emits, cannot validate the JSON-LD against schema.org,
+and cannot prove `/sitemap.xml` answers 200 on the deployed host. Those are a live fetch after a
+deploy, not a check.
+
+**It reads comment-stripped source.** The first version did not, and it flagged `FeesSection.tsx`
+recording that "No hidden charges" was deleted, and `sitemap.ts` naming `/app` to say why it is
+excluded. A check that punishes the page's own record of a decision teaches people to delete the
+record.
+
+**Still to come:** the 600 to 800 word floor is not asserted, because no page reaches it yet. Add it
+with the copy that earns it, never before, and prove it red first. A gate nobody has seen red is a
+gate that is not running.
+
+## Where the site stands, 2026-11-03
+
+The table above is a measurement taken on 2026-10-31 and kept as a measurement, not as current
+state. After #299 the landing page reads:
+
+| Field | Now | Where |
+| --- | --- | --- |
+| `title` | 46, "Get paid in dollars by QR code in Kenya · Seti" | `web/app/layout.tsx` |
+| `description` | 153, states the 2% and Thika | same |
+| Sitemap | generated, four entries: `/`, `/privacy`, `/terms`, `/cookies` | `web/app/sitemap.ts` |
+| robots.txt | generated, allows crawling, names the sitemap | `web/app/robots.ts` |
+| Structured data | `Organization` and `WebSite`, `areaServed` Kenya, no `sameAs` | `web/lib/structured-data.ts` |
+| `llms.txt` | exists, pointers plus what Seti does not do | `web/public/llms.txt` |
+| Words | still 235 | `web/app/page.tsx` |
+| Hidden from crawlers | `/app/*`, `/signin`, `/r/*`, `/pay/*`, `/u/*` | `robots` in each route |
+
+The word count and the FAQ are the next copy change, and the child pages after them.
