@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { SITE_ORIGIN } from "@/lib/site";
+import { siteSchemas } from "@/lib/structured-data";
 import "./globals.css";
 
 /**
@@ -35,11 +37,47 @@ const jetbrainsMono = localFont({
   variable: "--font-jetbrains",
 });
 
+/**
+ * The two strings every surface repeats: the tab, a search result, a shared
+ * link preview. They are written to be read cold, out of context, by someone
+ * who has never heard of Seti, so the title says the job (getting paid, in
+ * dollars, by QR code, in Kenya) and the description says how the money moves
+ * and what it costs, including the city the company is run from.
+ */
 export const metadata: Metadata = {
-  title: "Seti — Get paid in dollars",
+  /* Absolute URLs are built from SITE_ORIGIN below, so this changes no output
+     today. It is set anyway because it is the one place that decides what an
+     absolute-looking path resolves against, and Next fails the BUILD when a
+     URL field has no base. Better a build error now than a link preview that
+     points at a preview host. */
+  metadataBase: new URL(SITE_ORIGIN),
+  title: "Get paid in dollars by QR code in Kenya · Seti",
   description:
-    'Your customer scans your code, types your name, or opens your link. Made in Thika.',
+    "A customer scans the code on your counter or types your name, and the dollars land in your own wallet. 2% of each payment, no monthly fee. Made in Thika.",
   keywords: ["get paid", "dollar payments", "QR payments", "Kenya", "Thika", "Tempo", "OUSD", "pathUSD"],
+  /* The preview card restates the title and description rather than inventing
+     a shorter variant: a link that says something different from the page it
+     opens reads as a bait, and there is nothing here worth saying twice in two
+     ways. `locale` is en_KE, not en_US, because the price on the page is a
+     Kenyan price and the audience is Kenyan. */
+  openGraph: {
+    title: "Get paid in dollars by QR code in Kenya · Seti",
+    description:
+      "A customer scans the code on your counter or types your name, and the dollars land in your own wallet. 2% of each payment, no monthly fee. Made in Thika.",
+    url: SITE_ORIGIN,
+    siteName: "Seti",
+    locale: "en_KE",
+    type: "website",
+    images: [`${SITE_ORIGIN}/seti-lockup.png`],
+  },
+  /* The large card shows the lockup at the width it was drawn for; the summary
+     card would crop it into a thumbnail. */
+  twitter: {
+    card: "summary_large_image",
+    title: "Get paid in dollars by QR code in Kenya · Seti",
+    description:
+      "A customer scans the code on your counter or types your name, and the dollars land in your own wallet. 2% of each payment, no monthly fee. Made in Thika.",
+  },
   /* The tab: the mark on its own, no tile. The tab is chrome the mark does not
      own, and it is the one place the alien is all a visitor sees, so a black
      square there reads as a thumbnail of the product instead of as its face.
@@ -63,7 +101,21 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${poppins.variable} ${jetbrainsMono.variable} h-full font-sans antialiased`}>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {/* Structured data belongs in the server HTML, not appended after
+            hydration: a crawler or an assistant reading the document without
+            running scripts has to find the entity in the bytes we ship.
+            dangerouslySetInnerHTML is safe here because the payload is a
+            constant assembled at module load from SITE_ORIGIN, never user
+            input, so there is nothing in it to escape. */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({ "@context": "https://schema.org", "@graph": siteSchemas }),
+          }}
+        />
+        {children}
+      </body>
     </html>
   );
 }
