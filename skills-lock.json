@@ -254,6 +254,12 @@
       "skillPath": "skills/review-animations/SKILL.md",
       "computedHash": "6ff590d29e436766135aa3d137be1fac2a867165c7257fc315b189361f1873af"
     },
+    "seo-and-ai-search": {
+      "source": "./local",
+      "sourceType": "local",
+      "skillPath": ".agents/skills/seo-and-ai-search/SKILL.md",
+      "computedHash": "0de5a83d828841d8deac79bf327a688ca90fafa06ab3145c69beda11459aed86"
+    },
     "skill-gardening": {
       "source": "./local",
       "sourceType": "local",

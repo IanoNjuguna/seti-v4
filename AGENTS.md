@@ -60,6 +60,7 @@ This repo has project skills in `.agents/skills/` that govern all UI work. Load 
 - **`brandkit`** — for brand-guidelines work and visual identity.
 - **`redesign-existing-projects`** — for redesigning existing UI surfaces.
 - **`full-output-enforcement`** — for tasks requiring exhaustive, unabridged code output.
+- **`seo-and-ai-search`**: the layer that decides whether a finished page is found. Title and description, the heading outline, structured data, the sitemap and robots, internal links, and whether an assistant can quote the page. A change to copy or structure owes this layer in the same commit. Every price it states is in KES.
 - **`skill-gardening`** — for maintaining the skills themselves. When you make a mistake, the user corrects you, you discover an undocumented convention, or standards change, update the owning skill in the same session.
 
 ### Skill ownership (each rule lives in exactly one place)
@@ -73,6 +74,7 @@ This repo has project skills in `.agents/skills/` that govern all UI work. Load 
 | Mobile screen image generation | `imagegen-frontend-mobile` |
 | Brand / visual identity | `brandkit` |
 | Exhaustive code output | `full-output-enforcement` |
+| On-page SEO, structured data, sitemap and robots, answer-engine readability | `seo-and-ai-search` |
 | How/when to edit skills | `skill-gardening` |
 | Issue → branch → PR workflow, and what a PR must say | `feature-process` |
 
