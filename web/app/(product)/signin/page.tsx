@@ -32,6 +32,8 @@ import { INVITE_COOKIE } from '@/lib/invite/invite.constants';
 export const metadata: Metadata = {
   title: 'Sign in · Seti',
   description: 'Sign in to Seti with your email. No password. We email you a code.',
+  // A signed-out shell, not a page: a front door for someone who was already sent here.
+  robots: { index: false, follow: false },
 };
 
 export default async function SignInPage() {

@@ -36,9 +36,13 @@ export async function generateMetadata({ params }: PersonLinkPageProps): Promise
   const { handle } = await params;
   const person = await loadPerson(handle);
 
+  // A person's own link is thin and per-person: it is not content to be found, so it
+  // is excluded whichever answer the lookup gives.
+  const robots = { index: false, follow: false };
+
   return person
-    ? { title: `${person.name} — Seti`, description: `Send money to ${person.name} with Seti.` }
-    : { title: 'No one here — Seti' };
+    ? { title: `${person.name} — Seti`, description: `Send money to ${person.name} with Seti.`, robots }
+    : { title: 'No one here — Seti', robots };
 }
 
 export default async function PersonLinkPage({ params }: PersonLinkPageProps) {

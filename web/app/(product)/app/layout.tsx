@@ -24,6 +24,8 @@ import { AmountPrivacyProvider } from '@/lib/privacy/amount-privacy.context';
 export const metadata: Metadata = {
   title: 'Seti — Account',
   description: 'Your Seti balance, payments and activity.',
+  // The whole signed-in product shell is private: nothing inside it is meant to be found.
+  robots: { index: false, follow: false },
 };
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
