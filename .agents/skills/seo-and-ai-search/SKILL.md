@@ -93,6 +93,56 @@ That decides three things, and two of them are uncomfortable.
    is a promise the product breaks on the day it is kept. This is a product decision, not a copy
    one, and it outranks every page here.
 
+## The category we are bought against
+
+Seti is a stablecoin neobank, and that is the word a buyer arrives with. Privy, whose wallets we
+run on, publishes the category. Their solution page is titled "Stablecoin Banking" and opens
+"Build global banking with stablecoins"; the March 2026 post `building-crypto-neobanks-with-privy`
+names KAST, UGLYCASH, Avici and Brookwell as the cohort, and `/neobanks` carries Plasma One, Ramp
+and Slash as case studies. Read 2026-11-03.
+
+The shape all of them share, which is the loop we are building:
+
+1. the wallet is the account, not a custodial ledger sitting behind one;
+2. balances are US dollar-denominated stablecoins;
+3. money comes in from an external bank account, and from crypto;
+4. it settles in seconds, any hour, outside banking hours;
+5. a card is how a dollar becomes rent;
+6. idle balance earns, where the provider offers it.
+
+Three of those six are live for us: the wallet as account, dollar-denominated balances, and
+instant settlement on Tempo. The funding leg is not built, the spend leg does not exist, and
+there is no yield product. That gap decides the copy, and it decides which queries are ours to
+take today.
+
+**The funding loop is not copy yet.** The landing page's Integrations band already marks Bridge
+and Stripe as "Not in use yet" (`web/app/components/landing/PartnersSection.constants.ts`,
+`state: 'soon'`), and `docs/internal/prd.md` records the reason: "schema fields only:
+`bankAccount`, `bridgeRecipientId`", and "credentials are present in `.env` with no call site. A
+populated key is not evidence of an integration." So a funded account, a US virtual account, an
+ACH or SEPA deposit, a card and a yield balance cannot appear in a title, a description, an FAQ
+answer or a schema field until the call site exists. This is the same rule as the section above,
+applied to the one claim that is easiest to talk ourselves into.
+
+**What it does to the keyword plan.** The funding leg carries the valuable terms: "USD account in
+Kenya", "hold dollars in Kenya", "stablecoin account Kenya", "send dollars to Kenya", "fund a
+Kenyan account from the US". Those outrank the QR terms on volume and on intent, and none of them
+is winnable with a page whose product cannot take a bank deposit. A reader who lands on that
+query and finds a scanner does not convert, they leave, and the bounce tells the crawler the page
+is the wrong answer. So those terms belong to the page that ships with the rail, and until then
+the site keeps the terms it can honour: "get paid by QR, Kenya", "accept dollar payments in
+Kenya", "2% fee payments Kenya".
+
+**What it does to the competitor work.** The category page is teardowned against the Privy cohort,
+not against a till. `/for/shops-and-traders` and the fee argument stay against decaf, beans and
+sphere, because that is who a Kenyan shop compares us to. Privy's pages are marketing for their
+infrastructure and a description of what their customers built, never a feature list to copy into
+ours.
+
+**And it does not change the price argument.** Every one of these products is cheaper to fund
+than we are to receive, and none of them is 2% to take a shilling at a counter. We still do not
+claim the cheapest route on either side.
+
 ## The pages we are building toward
 
 One primary term per URL, which is how the arithmetic gets fixed: one page cannot rank for a
@@ -242,6 +292,9 @@ Run this on every copy or structure change. Each line has caught a real defect h
 - **Three H1s, all-caps headings, headings used as layout hooks.** The comparables do all three
   and they lose outline signal for it.
 - **A meta description at the truncation edge** (156 characters was the worst measured).
+- **A roadmap capability in the present tense.** "Fund your account from your bank", "earn on
+  your balance", "spend with your card" are all true of the category and false of this app. A
+  page that ranks on one of them buys a visitor whose next click is back to the results.
 - **Testimonials, logos and urgency** while there are no customers to name.
 
 ## The gate (to build)
