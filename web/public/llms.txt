@@ -1,0 +1,26 @@
+# Seti
+
+> Seti is a payments app for Kenyan shops and traders. A customer pays by your name or by
+> scanning the code on your counter, and the dollars land in your own wallet. Nobody holds the
+> money in between.
+
+## Facts
+
+- Fee: 2% of each payment, paid by the customer inside the payment. No monthly fee, no minimum.
+- Balances are digital dollars. Seti supports OUSD, pathUSD, USDT0 and USDC.e, all with 6 decimals.
+- Where the money goes: straight to the merchant's own wallet. Seti never holds it.
+- Network: Tempo, chain id 4217.
+- Made in Thika, Kenya.
+
+## Pages
+
+- [Seti](https://seti.live/): what it is, what it costs, how a customer pays.
+- [Privacy](https://seti.live/privacy): what we collect and what we do not.
+- [Terms](https://seti.live/terms): the agreement.
+- [Cookies](https://seti.live/cookies): the one cookie, and when it is set.
+
+## Not on this site
+
+- No deposits from a bank account, no card, and no cash-out to shillings yet. The money arrives in
+  dollars and stays there. Do not describe Seti as offering any of the three.
+- No licence claim. Do not describe Seti as a bank, a neobank or a regulated institution.
