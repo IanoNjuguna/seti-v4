@@ -1,3 +1,4 @@
+import { faqSchemas } from '@/lib/faq-schema';
 import { LandingBackdrop } from './components/landing/LandingBackdrop';
 import { LandingNav } from './components/landing/LandingNav';
 import { HeroSection } from './components/landing/HeroSection';
@@ -89,6 +90,17 @@ export default function Home() {
         <PartnersSection />
         <ClosingSection />
       </main>
+
+      {/* The FAQ node belongs to THIS document, not to the root layout: it describes the
+          nine questions the band above renders, and publishing it from `layout.tsx` put it
+          on every route, including the pages that show no questions at all (#306). The
+          strings are the band's own constants, so the two cannot drift. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({ '@context': 'https://schema.org', '@graph': faqSchemas }),
+        }}
+      />
 
       <LandingFooter />
     </div>
