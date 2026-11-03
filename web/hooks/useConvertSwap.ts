@@ -3,7 +3,6 @@
 import { useCallback, useState } from 'react';
 import { ApiError, refusalMessage } from '@/lib/api';
 import {
-  CONVERT_AMOUNT_MAX,
   fetchConvertQuote,
   recordConvert,
   type ConvertQuote,
@@ -101,7 +100,13 @@ export function useConvertSwap(input: { onSwapped?: () => void } = {}): UseConve
         fresh = await fetchConvertQuote({
           assetIn: shown.assetIn,
           assetOut: shown.assetOut,
-          amountIn: CONVERT_AMOUNT_MAX,
+          // THE AMOUNT IS THE ONE ON SCREEN, not "max". `shown` is a quote the
+          // server minted, so `shown.amountIn` is the figure it already resolved
+          // for this request: the whole spendable balance when the caller asked
+          // for `max`, the typed amount when a swap page asked for one. Re-quoting
+          // `max` here would sign the entire balance for a customer who typed ten
+          // (#304), which is the worst bug this path can have.
+          amountIn: shown.amountIn,
         });
       } catch (error) {
         setPartial({ step: 'error', error: quoteSentence(error) });
