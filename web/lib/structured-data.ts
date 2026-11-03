@@ -1,3 +1,4 @@
+import { faqSchemas } from '@/lib/faq-schema';
 import { SITE_ORIGIN } from '@/lib/site';
 
 /**
@@ -58,7 +59,20 @@ export const websiteSchema: Record<string, unknown> = {
 };
 
 /**
- * Both nodes, in the order the `@graph` lists them: the organization first,
- * because the site's publisher points back at it.
+ * The nodes, in the order the `@graph` lists them: the organization first, because the
+ * site's publisher points back at it, then the site, then whatever document-level nodes a
+ * band owns.
+ *
+ * THE FAQ PAGE NODE IS APPENDED FROM THE BAND'S OWN STRINGS. Its questions and their
+ * answers are `FAQ_COPY`, the constant `FaqSection` renders, read through
+ * `web/lib/faq-schema.ts`, so the visible band and the structured data cannot drift:
+ * there is one copy of a question in the repo, and editing it changes both. The spread
+ * means an empty `faqSchemas` appends nothing, which is what "when it exists" should mean
+ * rather than a conditional in the layout.
  */
-export const siteSchemas: Record<string, unknown>[] = [organizationSchema, websiteSchema];
+export const siteSchemas: Record<string, unknown>[] = [
+  organizationSchema,
+  websiteSchema,
+  ...faqSchemas,
+];
+

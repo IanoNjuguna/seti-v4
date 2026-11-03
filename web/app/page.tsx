@@ -2,15 +2,37 @@ import { LandingBackdrop } from './components/landing/LandingBackdrop';
 import { LandingNav } from './components/landing/LandingNav';
 import { HeroSection } from './components/landing/HeroSection';
 import { HowSection } from './components/landing/HowSection';
+import { WhoItsForSection } from './components/landing/WhoItsForSection';
+import { YourCustomerSection } from './components/landing/YourCustomerSection';
 import { MoneySection } from './components/landing/MoneySection';
 import { FeesSection } from './components/landing/FeesSection';
+import { SetupSection } from './components/landing/SetupSection';
+import { FaqSection } from './components/landing/FaqSection';
 import { PartnersSection } from './components/landing/PartnersSection';
 import { ClosingSection } from './components/landing/ClosingSection';
 import { LandingFooter } from './components/landing/LandingFooter';
 
 /**
- * The landing page: six bands, each its own component under
+ * The landing page: nine bands, each its own component under
  * `components/landing/`, plus the fixed layer the ambient spec asks for.
+ *
+ * THE ORDER IS THE READER'S ORDER, AND `who` SITS NEXT TO `how` ON PURPOSE: a reader who
+ * has just understood the mechanics needs to know whether this is for them, so the two new
+ * bands (`who it is for`, `what your customer does`) run between `how` and `money`, and the
+ * questions follow the price list because the fee is the next thing a reader asks about.
+ * The bands in order are hero, how, who it is for, what your customer does, money, fees,
+ * questions, partners, close.
+ *
+ * THE TWO NEW BANDS ARE LIGHT, and that is what keeps `MoneySection`'s own record true: it
+ * is the first dark band after the hero, so painting either new band `canvas-dark` would
+ * have put a black band directly above another black one and made that sentence false.
+ * The run from `how` to `what your customer does` is therefore one catalogue stretch,
+ * separated by the same top hairline each of those bands carries.
+ *
+ * THE QUESTIONS BAND IS THE PAGE'S ONLY MACHINE-READABLE BAND: its `h2`, its `h3`s and its
+ * answers are in the server HTML, and `web/lib/faq-schema.ts` builds the `FAQPage` node for
+ * the layout's `@graph` out of the same constants. See `FaqSection` and `FaqItem` for why
+ * nothing there is a disclosure.
  *
  * ONE READER, AND NO CONTROL TO CHOOSE ANOTHER. The page used to serve two readings
  * from one URL — `?for=business` for a merchant, the bare path for a person — with a
@@ -44,7 +66,10 @@ import { LandingFooter } from './components/landing/LandingFooter';
  * side effect this deletion gets to make on its own.
  *
  * The command palette's sections (`SEARCH_SECTIONS`) are the same six ids the bands
- * render, so a jump lands on a band whichever way the reader got here.
+ * render, so a jump lands on a band whichever way the reader got here. The three new
+ * bands carry ids of their own (`#who`, `#customer`, `#questions`) that any link can
+ * reach; their absence from the palette's list is deliberate, because adding a row there
+ * is a navigation decision and not a side effect of a copy change.
  */
 export default function Home() {
   return (
@@ -55,8 +80,12 @@ export default function Home() {
       <main className="relative flex flex-1 flex-col">
         <HeroSection />
         <HowSection />
+        <WhoItsForSection />
+        <YourCustomerSection />
         <MoneySection />
         <FeesSection />
+        <SetupSection />
+        <FaqSection />
         <PartnersSection />
         <ClosingSection />
       </main>
