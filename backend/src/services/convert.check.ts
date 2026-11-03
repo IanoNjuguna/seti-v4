@@ -2,37 +2,73 @@
  * The convert quote: pairs, refusals, the slippage bound, and the book.
  *
  * Run with:  npx tsx src/services/convert.check.ts
- * (or `npm run check:convert` from the repo root.)
+ * (or `npm run check:convert` from the repo root. `CONVERT_BOOK_REPORT=1` runs the
+ * nightly book report instead, see REPORT MODE below.)
  *
  * Requires:  docker compose up -d  (the `seti-postgres` container) for the route
  *            section, which authenticates through the development bypass and needs a
- *            user row. The three sections before it need no database.
+ *            user row. The book matrix, the allowlist, the refusals and the amount
+ *            rule need no database.
+ *
+ * WHAT WE ASSERT, AND WHAT WE ONLY REPORT (#303)
+ *
+ * This suite asserts what is OURS and reports what is not:
+ *
+ *  - ASSERTED, because a person changed this repository and the merge should stop:
+ *    the allowlist, the refusal code every surface answers with, the amount rule,
+ *    the floor we promise on a quote, and the par band MEASURED for each pair and
+ *    side (`PAR_BAND_BPS` below, with the date it was taken).
+ *  - REPORTED, because nothing here can fix it: a third party's inventory. Whether
+ *    Tempo's enshrined DEX holds the token on the side you are selling at 03:00
+ *    tomorrow is not a fact about Seti. On mainnet the USDT0 side of two books went
+ *    empty, `usdt0 → ousd` and `usdt0 → pathusd` refused at every size with
+ *    `convert-no-liquidity`, and this suite read that as hard failures on the gate
+ *    every merge has to pass.
+ *
+ * So `convert-no-liquidity` is printed as `report` and counts as nothing, while a
+ * refusal with ANY OTHER code stays a hard failure: that one means our mapping
+ * broke (an asset we list is not, a pair we allow has no contracts) rather than the
+ * market emptying. A gate must not depend on who holds USDT0 at that hour; it may
+ * depend on what we wrote down.
  *
  * Four halves, and the split is the point:
  *
- *  1. HERMETIC. Every refusal that must happen before the chain or the database
+ *  1. THE BOOK, as a MATRIX: every pair on the allowlist, BOTH directions, at
+ *     10.000000 in, one line each: `ok` (answered, inside its measured band),
+ *     `report` (the venue refused: a one-sided market), `FAIL` (a refusal code we
+ *     did not expect, a band nobody measured, or a spread outside the band plus
+ *     headroom).
+ *  2. HERMETIC. Every refusal that must happen before the chain or the database
  *     is touched is asserted here with no Postgres, no wallet and no network —
  *     because those are the answers the app switches on, and a refusal that
  *     needed a database to be reached would be a 500 in production instead.
- *  2. LIVE. The book itself is read from the DEX precompile on the network this
- *     deployment serves, and each quote is asserted to sit inside the par band
- *     MEASURED for that pair (`PAR_BAND_BPS` below, with the date it was taken).
- *     This half is what fails if the venue changes shape, the precompile moves, or
- *     someone widens the allowlist to a pair with no orders.
  *  3. THE AMOUNT RULE (`resolveConvertAmount`), pure: how much of a balance may be
  *     signed, which is the balance less gas because Tempo charges the fee in the
  *     token being spent. Signing the whole balance reverts on chain (#105).
  *  4. THE QUOTE ROUTE, over HTTP with the real auth guard: the five refusals #240
- *     names, each with its own code, plus one successful quote and the assertion
+ *     names, each with its own code, plus one successful quote of a pair the matrix
+ *     above saw a book on (and a skip naming why when none did), and the assertion
  *     that asking wrote no row. The schema is where a refusal code is lost — a
  *     `z.enum` for the assets answers 400 where the app expects
  *     `convert-unknown-asset` — so the route is driven rather than described.
+ *
+ * REPORT MODE (`CONVERT_BOOK_REPORT=1`), for a nightly job: prints the network
+ * line, the matrix, then one `summary: <n> answered, <m> refused`, and exits 0
+ * having touched neither Postgres nor Fastify. A nightly job that went red on a
+ * third party's inventory would page somebody about a market, and one that opened a
+ * database connection to read a public book would be one more thing to break at
+ * 03:00. Nothing in report mode can fail the process: the only way out non-zero is
+ * this file throwing.
  *
  * What it deliberately does NOT do: sign, record, or write. A quote is a read, and
  * a suite that moved money to prove one would be proving the wrong thing. The
  * record path is proved by `check:convert-record` against a real swap receipt.
  */
-import Fastify, { type FastifyInstance } from 'fastify';
+// Fastify is a TYPE here and is imported for its factory only inside the route
+// section, below, together with Prisma and the route itself: report mode must be
+// able to run on a box with no database and no server, so those four modules are
+// loaded where they are used rather than at the top of this file.
+import type { FastifyInstance } from 'fastify';
 import { parseUnits } from 'viem';
 import {
   CONVERT_AMOUNT_MAX,
@@ -47,12 +83,9 @@ import {
   type ConvertQuote,
 } from './convert.js';
 import { STABLECOIN_DEX_ADDRESS, networkConfigFor, servedNetwork } from './chain.js';
-import { ASSET_DECIMALS, SUPPORTED_ASSETS } from '../config/assets.js';
+import { ASSET_DECIMALS, SUPPORTED_ASSETS, type SupportedAsset } from '../config/assets.js';
 import { readQuote } from './quote.js';
 import { SETTLE_TARGET } from './settlement.js';
-import { prisma } from '../lib/prisma.js';
-import { apiErrorHandler } from '../server.js';
-import { transactionRoutes } from '../routes/transactions.js';
 import type { Network } from '../lib/network.js';
 
 let total = 0;
@@ -89,6 +122,12 @@ const NETWORK = servedNetwork;
  *               pathusd ↔ usdt0     6.00 bps
  *     practice  ousd ↔ pathusd      1.00 bps
  *
+ * ...and the OTHER SIDE of two of those pairs, measured on 2026-11-03 at the same
+ * size, three consecutive reads agreeing to the basis point:
+ *
+ *     mainnet   ousd → usdc.e       3.00 bps
+ *               pathusd → usdc.e    3.00 bps
+ *
  * Per network because the books are: practice carries one pair and quoted a basis
  * point off par on the day mainnet's native pair sat at zero. One number for both
  * would be a number that was never true of either.
@@ -105,11 +144,25 @@ const NETWORK = servedNetwork;
  * before the assertion (#202). A check that passes because the network it runs on
  * has nothing to quote is not a check.
  *
- * Keys are order-insensitive (`canonicalPair`) so one row covers both directions,
- * and a pair with no entry FAILS rather than defaulting: a band has to be measured,
- * not inherited.
+ * The keys are of two kinds, and the difference is load-bearing:
+ *
+ *  - `a↔b` is a PAIR band, taken in the direction the pair is written in
+ *    `CONVERT_PAIRS`. It covers the other direction where that side was not measured
+ *    separately, which is every pair here except the two rows below: the USDT0 sides
+ *    that were measured are the ones with orders, and the sides that are empty today
+ *    are reported rather than failed (#303).
+ *  - `a→b` is a DIRECTION band, for a side that measured differently from its
+ *    partner (`bandFor` prefers it). An AMM book can quote 1bps one way and 3bps the
+ *    other because its mid sits a couple of basis points off par, so a single number
+ *    for both sides would either pass a side nobody measured or go red on a book that
+ *    had not moved. This is why the matrix below quotes each direction separately.
+ *
+ * A pair with no entry of either kind FAILS rather than defaulting: a band has to be
+ * measured, not inherited.
  */
 const MEASURED_ON = '2026-10-23';
+/** The date the reverse sides of the bridged pairs were measured (see above). */
+const MEASURED_REVERSE_ON = '2026-11-03';
 
 const PAR_BAND_BPS: Readonly<Record<Network, Readonly<Record<string, number>>>> = {
   mainnet: {
@@ -118,6 +171,12 @@ const PAR_BAND_BPS: Readonly<Record<Network, Readonly<Record<string, number>>>> 
     'pathusd↔usdc.e': 2,
     'ousd↔usdt0': 5,
     'pathusd↔usdt0': 6,
+    // The reverse sides of the two bridged pairs, measured on 2026-11-03 (the
+    // numbers and their stability are in the docblock above). ADDED, not changed:
+    // not one band above moved to make this suite green, and the pair rows still
+    // cover every direction that was not measured separately.
+    'ousd→usdc.e': 3,
+    'pathusd→usdc.e': 3,
   },
   testnet: {
     'ousd↔pathusd': 1,
@@ -144,12 +203,279 @@ function canonicalPair(a: string, b: string): string {
   return [a, b].sort().join('↔');
 }
 
+/**
+ * The band a DIRECTION is held to: the direction's own measurement when one exists
+ * (`'ousd→usdc.e'`), otherwise the pair's (`'ousd↔usdc.e'`).
+ *
+ * Direction first because the two sides of a book are not one price: the parent row is
+ * the measurement taken in the direction the pair is written in `CONVERT_PAIRS`, and
+ * using it for the other side is the fallback rather than the rule.
+ */
+function bandFor(assetIn: string, assetOut: string): number | undefined {
+  return (
+    PAR_BAND_BPS[NETWORK][`${assetIn}→${assetOut}`] ??
+    PAR_BAND_BPS[NETWORK][canonicalPair(assetIn, assetOut)]
+  );
+}
+
+/**
+ * REPORT MODE, for a nightly job: the matrix only, then a summary, then exit 0.
+ *
+ * Read from the environment rather than a flag so `check:convert` stays the one
+ * entry point, and read as the exact string `1` so a typo cannot quietly turn the
+ * gate into a report.
+ */
+const BOOK_REPORT_MODE = process.env.CONVERT_BOOK_REPORT === '1';
+
+/** The size every pair is quoted at, in token units: 10.000000, as measured. */
+const BOOK_QUOTE_SIZE = BigInt(10_000_000);
+
+/**
+ * Column widths for the matrix. Wide enough for `report` and for the longest pair
+ * on either allowlist (`pathusd → usdc.e`), so the status and the pair line up
+ * down the block exactly as the arrow lines elsewhere in this file do.
+ */
+const BOOK_STATUS_WIDTH = 9;
+const BOOK_PAIR_WIDTH = 20;
+
+/**
+ * One direction of one pair, as the book answered it.
+ *
+ * Both directions are kept, not just the one written in `CONVERT_PAIRS`, because a
+ * market can hold orders on one side only: the venue has no bid for USDT0 on mainnet
+ * on the day this was written, so `usdt0 → ousd` refuses while `ousd → usdt0` may
+ * well quote. A reading that collapsed the two would be a claim about symmetry that
+ * nobody measured.
+ */
+interface BookReading {
+  readonly assetIn: SupportedAsset;
+  readonly assetOut: SupportedAsset;
+  readonly answer:
+    | {
+        readonly kind: 'quote';
+        readonly amountOut: bigint;
+        readonly minAmountOut: bigint;
+        /** Against par, in whole basis points: the integer the band is judged on. */
+        readonly spreadBps: number;
+      }
+    | { readonly kind: 'refused'; readonly code: string };
+}
+
+/**
+ * Print one matrix line, and count it when it is an assertion.
+ *
+ * A `report` line is a REPORTED CONDITION and is deliberately neither a total nor a
+ * failure: it says what a third party's book did, which this repository cannot fix.
+ * `ok` and `FAIL` are ours, so they count.
+ */
+function matrixLine(status: 'ok' | 'report' | 'FAIL', pair: string, detail: string): void {
+  console.log(`${status.padEnd(BOOK_STATUS_WIDTH)}${pair.padEnd(BOOK_PAIR_WIDTH)}${detail}`);
+  if (status === 'report') return;
+  total += 1;
+  if (status === 'FAIL') failures += 1;
+}
+
+/** The refusal code the book gave, one line even when the driver's message is not. */
+function bookRefusalCode(error: unknown): string {
+  if (error instanceof ConvertRefusalError) return error.code;
+  const message = error instanceof Error ? error.message : String(error);
+  return `unexpected: ${message.split('\n')[0]}`;
+}
+
+/**
+ * Hold one reading to its measured band, or report that the venue refused.
+ *
+ * The distinction this function exists to make:
+ *
+ *  - `convert-no-liquidity` is the market's answer. Reported, and never a failure.
+ *  - any OTHER code is our mapping failing (an asset this network does not list, a
+ *    pair we allow with no contracts behind it). Hard failure, because it will not
+ *    fix itself by morning.
+ *  - an answered quote outside `band + LIVE_BOOK_HEADROOM_BPS` is a hard failure: the
+ *    book MOVED, and a customer would be quoted a price the product does not expect.
+ *  - a pair with no band in `PAR_BAND_BPS` is a hard failure: there is no number to
+ *    hold it to, and defaulting one would be inventing a tolerance.
+ */
+function judgeReading(reading: BookReading): void {
+  const pair = `${reading.assetIn} → ${reading.assetOut}`;
+
+  if (reading.answer.kind === 'refused') {
+    const { code } = reading.answer;
+    matrixLine(code === 'convert-no-liquidity' ? 'report' : 'FAIL', pair, `refused ${code}`);
+    return;
+  }
+
+  const { spreadBps } = reading.answer;
+  const measured = spreadBps.toFixed(2);
+  const band = bandFor(reading.assetIn, reading.assetOut);
+
+  if (band === undefined) {
+    matrixLine('FAIL', pair, `${measured} bps, no entry in PAR_BAND_BPS`);
+    return;
+  }
+
+  const allowed = band + LIVE_BOOK_HEADROOM_BPS;
+  if (spreadBps > allowed) {
+    matrixLine('FAIL', pair, `${measured} bps > ${allowed} bps allowed`);
+    return;
+  }
+
+  matrixLine('ok', pair, `${measured} bps`);
+}
+
+/** Quote ONE direction, print its verdict, and return the reading for later sections. */
+async function readDirection(
+  assetIn: SupportedAsset,
+  assetOut: SupportedAsset
+): Promise<BookReading> {
+  try {
+    const quoted = await quoteDexConvert({
+      assetIn,
+      assetOut,
+      amountIn: BOOK_QUOTE_SIZE,
+      network: NETWORK,
+    });
+
+    // Integer basis points, the same arithmetic the band comparison uses, so the
+    // figure printed is the figure judged: 2.0000000004 > 2 in floating point, and
+    // a quote is integers all the way.
+    const spreadBps = Number(
+      ((BOOK_QUOTE_SIZE - quoted.amountOut) * BigInt(10_000)) / BOOK_QUOTE_SIZE
+    );
+    const reading: BookReading = {
+      assetIn,
+      assetOut,
+      answer: {
+        kind: 'quote',
+        amountOut: quoted.amountOut,
+        minAmountOut: quoted.minAmountOut,
+        spreadBps,
+      },
+    };
+    judgeReading(reading);
+    return reading;
+  } catch (error) {
+    const reading: BookReading = {
+      assetIn,
+      assetOut,
+      answer: { kind: 'refused', code: bookRefusalCode(error) },
+    };
+    judgeReading(reading);
+    return reading;
+  }
+}
+
+/**
+ * The matrix: every pair on the allowlist, BOTH directions, one line each.
+ *
+ * This replaced a loop that quoted each pair once, in the direction the table
+ * happened to be written, and turned any refusal into a failure. That loop reported
+ * a third party's inventory as a defect in this repository, and it never once asked
+ * what the other side of the book would pay (#303).
+ */
+async function scanBook(): Promise<BookReading[]> {
+  const directions: Array<readonly [SupportedAsset, SupportedAsset]> = [];
+  for (const [a, b] of CONVERT_PAIRS[NETWORK]) {
+    directions.push([a, b], [b, a]);
+  }
+
+  const readings: BookReading[] = [];
+  for (const [assetIn, assetOut] of directions) {
+    readings.push(await readDirection(assetIn, assetOut));
+  }
+  return readings;
+}
+
+/**
+ * The asset the route section's fixture row names, and therefore the input the funded
+ * quote has to ask from: one wallet row per address, one `asset` label per row, and a
+ * quote reads the balance of its input asset through that label.
+ *
+ * It is also the input of the `max` case below, which is why one row serves both: the
+ * row sits at the DEX contract, whose pathUSD balance (7.86M on mainnet, 75.3bn on
+ * practice) is far more than the OUSD side of the book can pay out.
+ */
+const FUNDED_ASSET: SupportedAsset = 'pathusd';
+
 async function main(): Promise<void> {
+  // The network, on the first line and unconditionally: every figure below is a
+  // figure about ONE chain, and a matrix that does not say which book it read is a
+  // matrix about nothing.
+  console.log(`network: ${NETWORK} (${networkConfigFor(NETWORK).chainId})`);
+
   // -------------------------------------------------------------------------
-  // (a) the allowlist is the measured book, not a permutation of four assets
+  // (a) the book, as a matrix: every pair, BOTH directions, at 10.000000 in
   // -------------------------------------------------------------------------
 
-  console.log(`allowlist (${NETWORK}):`);
+  const book = await scanBook();
+
+  // Report mode is finished here on purpose. It has printed what a nightly job
+  // exists to print, and the sections below would open a database and a route to
+  // assert things a report is not asserting.
+  if (BOOK_REPORT_MODE) {
+    const answered = book.filter((reading) => reading.answer.kind === 'quote').length;
+    console.log(`summary: ${answered} answered, ${book.length - answered} refused`);
+    return;
+  }
+
+  // The band table and the floor are OURS, so they are asserted whether or not the
+  // book answered. A pair on the allowlist with no measured band is a hole in the
+  // table rather than a market condition, and it used to go unnoticed exactly where
+  // the book had nothing to quote (#202).
+  const unmeasured = CONVERT_PAIRS[NETWORK]
+    .flatMap(([a, b]) => [
+      [a, b],
+      [b, a],
+    ] as const)
+    .filter(([a, b]) => bandFor(a, b) === undefined)
+    .map(([a, b]) => `${a} → ${b}`);
+  check(
+    `every direction on the ${NETWORK} allowlist has a measured par band (${MEASURED_ON}, reverse sides ${MEASURED_REVERSE_ON})`,
+    unmeasured.length === 0,
+    unmeasured.join(', ')
+  );
+
+  const widestBand = Math.max(...Object.values(PAR_BAND_BPS[NETWORK]));
+  check(
+    `the widest band given for ${NETWORK} plus ${LIVE_BOOK_HEADROOM_BPS}bp headroom is inside the ceiling (<= ${PAR_BAND_CEILING_BPS}bps)`,
+    widestBand + LIVE_BOOK_HEADROOM_BPS <= PAR_BAND_CEILING_BPS,
+    `${widestBand}bps`
+  );
+
+  // The floor is our arithmetic, not the book's: the quote less the tolerance the
+  // route promises. One check per direction that answered, because a market that
+  // refused has no floor to check.
+  for (const reading of book) {
+    if (reading.answer.kind !== 'quote') continue;
+    const { amountOut, minAmountOut } = reading.answer;
+    check(
+      `${reading.assetIn} → ${reading.assetOut} floor is the quote less ${CONVERT_TOLERANCE_BPS}bps, never above the quote`,
+      minAmountOut < amountOut &&
+        minAmountOut === (amountOut * BigInt(10_000 - CONVERT_TOLERANCE_BPS)) / BigInt(10_000),
+      `min ${(Number(minAmountOut) / 1_000_000).toFixed(6)}`
+    );
+  }
+
+  // A size nobody should be able to fill on a thin book, to prove the refusal
+  // path is reachable rather than theoretical. It stays an assertion even though
+  // `convert-no-liquidity` is reported in the matrix above: this one asks whether the
+  // refusal path exists at all, on whatever pair the allowlist names first, and a
+  // venue that answered a trillion units would be the thing worth knowing.
+  const absurd = await refusalOf(() =>
+    quoteDexConvert({
+      assetIn: CONVERT_PAIRS[NETWORK][0][0],
+      assetOut: CONVERT_PAIRS[NETWORK][0][1],
+      amountIn: BigInt('1000000000000000000'), // 1e12 units
+      network: NETWORK,
+    })
+  );
+  check('a size the book cannot fill is refused as no-liquidity', absurd === 'convert-no-liquidity', absurd);
+
+  // -------------------------------------------------------------------------
+  // (b) the allowlist is the measured book, not a permutation of four assets
+  // -------------------------------------------------------------------------
+
+  console.log(`\nallowlist (${NETWORK}):`);
   for (const [a, b] of CONVERT_PAIRS[NETWORK]) console.log(`     ${a} ↔ ${b}`);
 
   // This assertion used to read "usdt0 is offered on no network". It had a book on
@@ -160,8 +486,12 @@ async function main(): Promise<void> {
     CONVERT_PAIRS.mainnet.some(([a, b]) => a === 'usdt0' || b === 'usdt0') &&
       !CONVERT_PAIRS.testnet.some(([a, b]) => a === 'usdt0' || b === 'usdt0')
   );
+  // The label says CONFIG on purpose: this asserts that the allowlist accepts both
+  // directions of every pair, which is a fact about `isAllowedPair`. It says nothing
+  // about the book, and the matrix at the top is the only place that asks the book
+  // (#303): a market can hold orders on one side and refuse the other.
   check(
-    'the allowlist is symmetric: a pair can be converted in either direction',
+    'the allowlist is symmetric in config, which says nothing about the book',
     CONVERT_PAIRS[NETWORK].every(([a, b]) => isAllowedPair(a, b, NETWORK) && isAllowedPair(b, a, NETWORK))
   );
   check(
@@ -183,7 +513,7 @@ async function main(): Promise<void> {
   );
 
   // -------------------------------------------------------------------------
-  // (b) refusals that must not need a chain or a database
+  // (c) refusals that must not need a chain or a database
   // -------------------------------------------------------------------------
 
   console.log('\nrefusals:');
@@ -247,75 +577,6 @@ async function main(): Promise<void> {
   );
   check('a non-numeric amount is refused by code', notANumber === 'convert-amount-invalid', notANumber);
 
-  // -------------------------------------------------------------------------
-  // (c) the book: live quotes on the pairs we offer
-  // -------------------------------------------------------------------------
-
-  console.log('\nlive quotes (10.000000 in):');
-
-  for (const [a, b] of CONVERT_PAIRS[NETWORK]) {
-    try {
-      const quoted = await quoteDexConvert({
-        assetIn: a,
-        assetOut: b,
-        amountIn: BigInt(10_000_000),
-        network: NETWORK,
-      });
-
-      const out = Number(quoted.amountOut) / 1_000_000;
-      const min = Number(quoted.minAmountOut) / 1_000_000;
-      // Integer basis points, so the bound cannot fail on a float artefact:
-      // 2.0000000004 > 2 in floating point, and a quote is integers all the way.
-      const spreadBps = Number(
-        ((BigInt(10_000_000) - quoted.amountOut) * BigInt(10_000)) / BigInt(10_000_000)
-      );
-
-      const band = PAR_BAND_BPS[NETWORK][canonicalPair(a, b)];
-      const allowed = band === undefined ? 0 : band + LIVE_BOOK_HEADROOM_BPS;
-
-      check(`${a} → ${b} quotes`, quoted.amountOut > 0n, `${out.toFixed(6)} out`);
-      // A pair with no measured band is a FAILURE, not a pass with a default: the
-      // number below has to come from a quote somebody took, or this suite would
-      // hold a new pair to a tolerance nobody chose.
-      check(
-        `${a} → ${b} has a par band measured on ${MEASURED_ON}`,
-        band !== undefined,
-        band === undefined ? 'no entry in PAR_BAND_BPS' : `<= ${band}bps`
-      );
-      check(
-        `${a} → ${b} is inside its measured band (${band ?? 0}bps + ${LIVE_BOOK_HEADROOM_BPS}bp headroom, measured ${MEASURED_ON})`,
-        spreadBps <= allowed,
-        `${spreadBps.toFixed(2)}bps`
-      );
-      check(
-        `the band for ${a} → ${b} is inside the ceiling (<= ${PAR_BAND_CEILING_BPS}bps)`,
-        allowed <= PAR_BAND_CEILING_BPS,
-        `${allowed}bps`
-      );
-      check(
-        `${a} → ${b} floor is the quote less ${CONVERT_TOLERANCE_BPS}bps, never above the quote`,
-        quoted.minAmountOut < quoted.amountOut &&
-          quoted.minAmountOut === (quoted.amountOut * BigInt(10_000 - CONVERT_TOLERANCE_BPS)) / BigInt(10_000),
-        `min ${min.toFixed(6)}`
-      );
-    } catch (error) {
-      // A pair on the allowlist that cannot quote is a FAILURE, not a skip: the
-      // app offers it, so the book has to answer for it.
-      check(`${a} → ${b} quotes`, false, error instanceof Error ? error.message : String(error));
-    }
-  }
-
-  // A size nobody should be able to fill on a thin book, to prove the refusal
-  // path is reachable rather than theoretical.
-  const absurd = await refusalOf(() =>
-    quoteDexConvert({
-      assetIn: CONVERT_PAIRS[NETWORK][0][0],
-      assetOut: CONVERT_PAIRS[NETWORK][0][1],
-      amountIn: BigInt('1000000000000000000'), // 1e12 units
-      network: NETWORK,
-    })
-  );
-  check('a size the book cannot fill is refused as no-liquidity', absurd === 'convert-no-liquidity', absurd);
 
   // -------------------------------------------------------------------------
   // (d) the amount a balance can actually swap — the money rule, no chain
@@ -403,6 +664,17 @@ async function main(): Promise<void> {
   // which would make the suite's verdict depend on what happened to be funded that
   // hour. No ledger row is ever written: a quote is a read.
   console.log('\nquote route (POST /transactions/convert/quote):');
+
+  // Loaded HERE rather than at the top of the file: report mode must not open a
+  // database or register a route, so Prisma, the error handler and the router exist
+  // only on the path that drives them.
+  const [{ default: Fastify }, { prisma }, { apiErrorHandler }, { transactionRoutes }] =
+    await Promise.all([
+      import('fastify'),
+      import('../lib/prisma.js'),
+      import('../server.js'),
+      import('../routes/transactions.js'),
+    ]);
 
   const app: FastifyInstance = Fastify();
   app.setErrorHandler(apiErrorHandler);
@@ -493,21 +765,54 @@ async function main(): Promise<void> {
       `${short.statusCode} ${codeOf(short)}`
     );
 
+    // The funded quote asks a pair the MATRIX above actually answered, and one whose
+    // INPUT is `pathusd`, because that is the only label the one fixture row this
+    // account can hold may carry. Two constraints decide that, and both are already in
+    // the code: `Wallet.address` is unique, so the single row at the DEX CONTRACT names
+    // exactly one asset, and a quote reads the balance of its INPUT asset through that
+    // label (`getUserBalance`). A pair on any other input reads whichever wallet the
+    // account happens to hold, which on mainnet is a placeholder holding nothing.
+    //
+    // Before this the pair was `[listed[0], listed[1]]`, whose book is empty on
+    // mainnet, so the route answered about the market while the check believed it was
+    // asking about the route (#303). When no fundable pair answered there is nothing to
+    // ask, and a skip that says why is more honest than a failure about inventory.
+    const funded = book.find(
+      (reading) => reading.answer.kind === 'quote' && reading.assetIn === FUNDED_ASSET
+    );
+    const fundedOut = funded?.assetOut;
+
     // ---- now with a balance to quote against ----
+    // The row points at the DEX CONTRACT, which holds a real balance of every token on
+    // both chains (mainnet today: 5.99M OUSD, 7.86M pathUSD, 1.31M USDC.e, 1.59M
+    // USDT0). That address is protocol-owned and permanent, unlike a faucet drip to a
+    // stranger, which would make the suite's verdict depend on what was funded that hour.
     await prisma.wallet.create({
       data: {
         userId: devUser.id,
         chain: 'tempo',
-        asset: 'pathusd',
+        asset: FUNDED_ASSET,
         address: STABLECOIN_DEX_ADDRESS,
         network: NETWORK,
         status: 'active',
       },
     });
 
-    const ok = await ask({ assetIn: 'ousd', assetOut: 'pathusd', amountIn: '10' });
-    const quoted = ok.statusCode === 200 ? ok.json<{ quote: ConvertQuote }>().quote : null;
-    check('a pair with a book quotes 200', ok.statusCode === 200, `${ok.statusCode} ${codeOf(ok)}`);
+    const ok = fundedOut
+      ? await ask({ assetIn: FUNDED_ASSET, assetOut: fundedOut, amountIn: '10' })
+      : null;
+    if (ok) {
+      check(
+        'a pair with a book quotes 200',
+        ok.statusCode === 200,
+        `${FUNDED_ASSET} → ${fundedOut}: ${ok.statusCode} ${codeOf(ok)}`
+      );
+    } else {
+      console.log(
+        `skip  no ${FUNDED_ASSET} pair answered the book at 10.000000 on ${NETWORK}, so the fixture can fund no pair with a book to quote through the route`
+      );
+    }
+    const quoted = ok && ok.statusCode === 200 ? ok.json<{ quote: ConvertQuote }>().quote : null;
 
     if (quoted) {
       const out = parseUnits(quoted.amountOut, ASSET_DECIMALS);
@@ -548,10 +853,12 @@ async function main(): Promise<void> {
       check('and it is not usable by another account', notYours === 'quote-not-yours', notYours);
     }
 
-    // The whole balance is more than the book can fill: the DEX holds 75.3bn pathUSD
-    // against an OUSD inventory of ~50k, and `quoteSwapExactAmountIn` reverts rather
-    // than part-filling. This is the case that HIDES the control on a row.
-    const noBook = await ask({ assetIn: 'pathusd', assetOut: 'ousd', amountIn: 'max' });
+    // The whole balance is more than the book can fill: on practice the DEX address
+    // holds 75.3bn pathUSD against a thin OUSD side, and on mainnet 7.86M pathUSD left
+    // the same ask unquotable. `quoteSwapExactAmountIn` reverts rather than
+    // part-filling. This is the case that HIDES the control on a row, and the fixture
+    // row above already names `pathusd`, so `max` reads the balance it means.
+    const noBook = await ask({ assetIn: FUNDED_ASSET, assetOut: 'ousd', amountIn: 'max' });
     check(
       'a size the book cannot fill is refused as convert-no-liquidity',
       noBook.statusCode === 422 && codeOf(noBook) === 'convert-no-liquidity',

@@ -1,0 +1,189 @@
+# Whether the Tempo convert book still answers, every morning.
+#
+# This is a REPORT, not a gate. It is deliberately not part of `npm run verify`
+# and cannot block a merge: `check:convert` is the gate. This job covers the
+# other half of that story, telling someone the BOOK moved before a deploy gate
+# goes red for a reason that has nothing to do with the diff.
+#
+# A trip opens exactly ONE issue and keeps updating it; a clean report closes it
+# again. Silence means healthy, and a missing run means broken CI, which is why
+# the absence of an issue is not the only signal.
+name: book drift report
+
+on:
+  schedule:
+    # 06:45 UTC = 09:45 EAT, an hour after the gas drift report so the two
+    # morning reports never land in the same minute.
+    - cron: '45 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+# One run at a time: two overlapping runs would race on the same issue.
+concurrency:
+  group: book-drift-report
+  cancel-in-progress: false
+
+env:
+  NODE_ENV: development
+  # Mainnet: the book that serves customers is the one on chain 4217. This job
+  # READS that book through a public RPC. It needs no wallet and no secret, and
+  # it writes nothing.
+  TEMPO_CHAIN_ID: '4217'
+
+# Why no token addresses here, unlike verify.yml
+# ---------------------------------------------
+# `verify.yml` pins TEMPO_TOKEN_PATHUSD / TEMPO_TOKEN_OUSD to PRACTICE
+# addresses. Reusing them would be exactly wrong: this report reads the MAINNET
+# book, and an address belongs to a CHAIN. So neither variable is set, and the
+# mainnet token addresses come from the config defaults in
+# `backend/src/config/assets.ts`, the one table of per-chain addresses taken
+# from Tempo's own registry (`https://tokenlist.tempo.xyz/list/4217`). That file
+# states every entry was read from those lists but carries no read date of its
+# own; the earliest dated attestation of the mainnet set is the par-band
+# measurement of 2026-10-23 in `backend/src/services/convert.check.ts`.
+#
+# Why no DATABASE_URL either: a book is read from the DEX precompile, not from
+# Postgres. MEASURED 2026-11-03: with only NODE_ENV, TEMPO_CHAIN_ID and
+# CONVERT_BOOK_REPORT in the environment (no DATABASE_URL, no JWT_SECRET, no
+# token variables, no ALLOW_MAINNET) report mode printed `network: mainnet (4217)`
+# and every direction, and exited 0; it also exits 0 with DATABASE_URL pointed at
+# a dead host, which is what proves no Prisma call. `backend/src/config/env.ts`
+# requires DATABASE_URL, JWT_SECRET and both token variables and validates them at
+# import, so report mode reaches the book without loading it, and the
+# ALLOW_MAINNET opt-in that guards network selection in
+# `backend/src/config/networks.ts` is not in the way of a read today. If a future
+# change puts either module back on this path, the run fails loudly and names the
+# missing variable rather than closing an issue on a book nobody read: that fix
+# belongs in the suite, not in this file.
+
+jobs:
+  report:
+    name: book report
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install (npm workspace root)
+        run: npm ci
+
+      # The exit code is captured, not propagated. Whether the suite RAN AT ALL
+      # is judged in the next step, which is the only step that can say why on
+      # the issue it must not close. A failing step here would skip that
+      # explanation and leave a red run with no issue comment.
+      - name: Run the suite in report mode
+        working-directory: backend
+        run: |
+          set -uo pipefail
+          CONVERT_BOOK_REPORT=1 TEMPO_CHAIN_ID=4217 \
+            npx tsx src/services/convert.check.ts 2>&1 | tee "$RUNNER_TEMP/book-report.txt"
+          echo "${PIPESTATUS[0]}" > "$RUNNER_TEMP/book-status.txt"
+          exit 0
+
+      # The one decision this job makes. Three outcomes, never a fourth:
+      #   the suite did not run  -> fail loudly, comment why, close nothing
+      #   refusals in the report -> open ONE issue, or comment on it
+      #   refusals: none         -> comment `Book healthy on <date>`, close it
+      # Pairs and their count are DERIVED from the output, never listed here: a
+      # pair added to the book must need no workflow edit.
+      - name: One issue, opened, updated or closed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPORT: ${{ runner.temp }}/book-report.txt
+          STATUS: ${{ runner.temp }}/book-status.txt
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          title='Book drift: a convert pair stopped quoting'
+          day=$(date -u +%Y-%m-%d)
+
+          existing=$(gh issue list --state open --limit 100 --json number,title \
+            --jq ".[] | select(.title == \"$title\") | .number" | head -1)
+
+          # ---- did the suite run at all? ----------------------------------
+          # A non-zero exit, or output with no `summary:` line, is broken CI and
+          # never a healthy book. Reporting healthy on a crash would close a
+          # real issue on the strength of nothing.
+          status=$(cat "$STATUS" 2>/dev/null || echo 'missing')
+          if [ "$status" != '0' ] || ! grep -q '^summary:' "$REPORT"; then
+            echo 'the book report did not run'
+            {
+              echo "The book report did not run on $day, so this issue stays open. **A missing report is not a healthy book.**"
+              echo
+              echo "- exit status: \`$status\`"
+              echo "- report line: \`summary:\` was not printed"
+              echo "- date: $day"
+              echo "- run: $RUN_URL"
+              echo
+              echo 'Nothing about the book is claimed by this run. The likely causes are the chain being unreachable from CI, or the suite loading a config module this job does not satisfy; the tail of the output is below.'
+              echo
+              echo '```'
+              tail -n 40 "$REPORT" 2>/dev/null || true
+              echo '```'
+            } > "$RUNNER_TEMP/failure.md"
+            if [ -n "$existing" ]; then
+              gh issue comment "$existing" --body-file "$RUNNER_TEMP/failure.md"
+            fi
+            echo "::error::the convert book report did not run (exit $status, no summary line); not reporting healthy"
+            exit 1
+          fi
+
+          summary=$(grep -m1 '^summary:' "$REPORT")
+          grep -E '^report([[:space:]]|$)' "$REPORT" > "$RUNNER_TEMP/refused.txt" || true
+          refused=$(wc -l < "$RUNNER_TEMP/refused.txt" | tr -d ' ')
+          echo "$summary; $refused refused direction(s) in the output"
+
+          # ---- the book is healthy ----------------------------------------
+          if [ "$refused" -eq 0 ]; then
+            echo 'report is clean'
+            if [ -n "$existing" ]; then
+              gh issue comment "$existing" --body "Book healthy on $day"
+              gh issue close "$existing" --reason completed
+            fi
+            exit 0
+          fi
+
+          # ---- at least one direction is refused ---------------------------
+          # The table is built from the `report` lines themselves: direction and
+          # refusal code are both read out of the output, so the shape of the
+          # book is never restated in this file.
+          echo 'report tripped:'
+          cat "$RUNNER_TEMP/refused.txt"
+          {
+            echo "The nightly convert book report tripped on $day. Nothing is blocked by this: it is a report, not a gate."
+            echo
+            echo 'A thin book is not a code bug. It means one side of the pair has no orders to fill against, so a balance held in that asset cannot be converted into OUSD until the book returns.'
+            echo
+            echo '| Direction | Refusal |'
+            echo '| --- | --- |'
+            while IFS= read -r line; do
+              rest=$(printf '%s' "${line#report}" | sed -E 's/^[[:space:]]+//')
+              direction=$(printf '%s' "$rest" | sed -E 's/[[:space:]]+refused[[:space:]]+.*$//')
+              code=$(printf '%s' "$rest" | sed -E 's/^.*[[:space:]]refused[[:space:]]+//')
+              echo "| \`$direction\` | \`$code\` |"
+            done < "$RUNNER_TEMP/refused.txt"
+            echo
+            echo "\`$summary\`"
+            echo
+            echo "- date: $day"
+            echo "- run: $RUN_URL"
+            echo "- chain: 4217 (Tempo mainnet)"
+            echo
+            echo 'This issue is commented on again on every run that trips, and closed by the first run that reports the book healthy.'
+          } > "$RUNNER_TEMP/body.md"
+
+          if [ -n "$existing" ]; then
+            echo "updating issue #$existing"
+            gh issue comment "$existing" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh issue create --title "$title" --body-file "$RUNNER_TEMP/body.md"
+          fi
