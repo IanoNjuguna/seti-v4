@@ -105,8 +105,10 @@ const PRIVATE_SURFACES = [
 ];
 
 /** Public paths the sitemap is allowed to name, and the prefixes it is never allowed to. */
-const PUBLIC_PATHS = ['/', '/privacy', '/terms', '/cookies'];
+const PUBLIC_PATHS = ['/', '/pricing', '/how-it-works', '/privacy', '/terms', '/cookies'];
 const PRIVATE_PREFIXES = ['/app', '/signin', '/r/', '/pay/', '/m/', '/u/', '/i/'];
+/** The legal documents: public, but not pages a breadcrumb is meant to describe (#306). */
+const KNOWN_LEGAL = new Set(['/privacy', '/terms', '/cookies']);
 
 /**
  * Claims that were deleted and must stay deleted. The `why` is the origin, because the
@@ -394,7 +396,7 @@ if (sitemapSource === null) {
   const extra = found.filter((p) => !PUBLIC_PATHS.includes(p));
 
   if (missing.length === 0 && extra.length === 0) {
-    pass('3a. the sitemap names exactly the four public paths', found.join(' '));
+    pass('3a. the sitemap names exactly the public paths', found.join(' '));
   } else {
     fail(
       '3a. the sitemap names exactly the four public paths',
@@ -417,6 +419,27 @@ if (sitemapSource === null) {
       '3b. the sitemap names no private surface',
       leaked.join(' '),
       `remove ${leaked.join(', ')} from ${rel(SITEMAP)}: those pages carry noindex because they are behind a session, and a sitemap entry asks a crawler in anyway`,
+    );
+  }
+
+  /**
+   * 3d. A sitemap entry is an invitation to index a URL, so the URL has to exist. This is
+   * the assertion that would have caught adding `/pricing` to the sitemap a commit before
+   * the route: a crawler would fetch a 404, and nothing else in the chain reads a Next
+   * route table. `/` is `app/page.tsx`; every other path is `app/<segments>/page.tsx`.
+   */
+  const routeless = PUBLIC_PATHS.filter((p) => {
+    const segments = p.split('/').filter(Boolean);
+    const page = path.join(WEB_APP, ...segments, 'page.tsx');
+    return read(page) === null;
+  });
+  if (routeless.length === 0) {
+    pass('3d. every path the sitemap names is a route', PUBLIC_PATHS.join(' '));
+  } else {
+    fail(
+      '3d. every path the sitemap names is a route',
+      routeless.map((p) => `${p} has no page`).join('; '),
+      `add web/app/<path>/page.tsx for ${routeless.join(', ')} before listing it: a sitemap that names a 404 asks a crawler to fetch one`,
     );
   }
 }
@@ -1211,22 +1234,31 @@ if (faq === null) {
       );
     }
 
-    // 10h. the node the layout renders carries it
-    const structuredPath = STRUCTURED_DATA.find((f) => existsSync(f));
-    if (!structuredPath) {
-      fail('10h. the layout\'s graph carries the FAQPage node', 'no structured-data module', 'restore web/lib/structured-data.ts: the layout renders its graph and nothing else');
+    // 10h. the HOME page carries it, and no other document does
+    //
+    // Corrected in #306: the node used to hang off the root layout's graph, which meant
+    // `/pricing` published nine answers it does not show. Structured data describes the
+    // document it is inside, so the assertion is now two-sided: the home page renders it,
+    // and no other route's page file does.
+    const homeCode = stripComments(read(HOME) ?? '');
+    const homeCarries = /from\s+['"][^'"]*faq-schema['"]/.test(homeCode) && /faqSchemas/.test(homeCode);
+    const otherPages = walk(WEB_APP)
+      .filter((f) => /page\.tsx$/.test(f) && f !== HOME && !f.includes(`${path.sep}(product)${path.sep}`))
+      .filter((f) => /faq-schema|faqSchemas/.test(stripComments(read(f) ?? '')));
+
+    if (homeCarries && otherPages.length === 0) {
+      pass('10h. only the home page publishes the FAQPage node', 'app/page.tsx');
     } else {
-      const structuredCode = stripComments(read(structuredPath) ?? '');
-      const imported = /from\s+['"][^'"]*faq-schema['"]/.test(structuredCode);
-      if (imported) {
-        pass('10h. the layout\'s graph carries the FAQPage node', `${path.basename(structuredPath)} imports faq-schema`);
-      } else {
-        fail(
-          '10h. the layout\'s graph carries the FAQPage node',
-          `${rel(structuredPath)} does not import ${path.basename(faqSchemaPath)}`,
-          `import the FAQ nodes into ${rel(structuredPath)} and spread them into siteSchemas: a FAQPage module nothing renders is JSON that ships nowhere`,
-        );
-      }
+      fail(
+        '10h. only the home page publishes the FAQPage node',
+        [
+          homeCarries ? null : 'app/page.tsx does not render faqSchemas',
+          otherPages.length ? `also published by ${otherPages.map(rel).join(', ')}` : null,
+        ]
+          .filter(Boolean)
+          .join('; '),
+        `render the FAQ nodes in ${rel(HOME)} and nowhere else: a FAQPage on a page that shows no questions is structured data that does not describe the document, which is what Google removes markup for`,
+      );
     }
   }
 
@@ -1262,6 +1294,58 @@ if (faq === null) {
         .join('; '),
       `render the answers as static text in the FAQ band: a <details>, a useState or a client component means the answer is not in the HTML a crawler and an assistant read, which is the whole reason the FAQ is on the page`,
     );
+  }
+}
+
+// ---------------------------------------------------------------------------------
+// 11. every child page publishes a trail a crawler can read
+// ---------------------------------------------------------------------------------
+//
+// `layout.tsx` publishes Organization and WebSite for the whole site; a CHILD page has to
+// say where it sits, and a BreadcrumbList is how. Two things are asserted, because either
+// alone can be true and useless: the page passes its own path, and the component builds
+// absolute `item` URLs from SITE_ORIGIN rather than from a relative path that would resolve
+// against whichever host served the page.
+{
+  console.log('\nthe trail a child page publishes:');
+
+  const childRoutes = PUBLIC_PATHS.filter((p) => p !== '/' && !KNOWN_LEGAL.has(p));
+  const breadcrumbComponent = path.join(WEB_APP, 'components/marketing/MarketingBreadcrumb.tsx');
+  const breadcrumbSource = read(breadcrumbComponent);
+
+  if (breadcrumbSource === null) {
+    fail(
+      '11a. the breadcrumb component exists',
+      rel(breadcrumbComponent),
+      'add the component that renders a BreadcrumbList for a child page',
+    );
+  } else {
+    const code = stripComments(breadcrumbSource);
+    const absolute = /SITE_ORIGIN\}/.test(code) && /BreadcrumbList/.test(code);
+    if (absolute) {
+      pass('11a. the breadcrumb builds absolute item URLs from SITE_ORIGIN', 'BreadcrumbList');
+    } else {
+      fail(
+        '11a. the breadcrumb builds absolute item URLs from SITE_ORIGIN',
+        'no SITE_ORIGIN-built item or no BreadcrumbList',
+        `edit ${rel(breadcrumbComponent)}: a relative item resolves against whichever host served the page, so the trail means something different on a preview`,
+      );
+    }
+  }
+
+  for (const route of childRoutes) {
+    const pageDir = path.join(WEB_APP, ...route.split('/').filter(Boolean));
+    const files = walk(pageDir).filter((f) => /\.tsx$/.test(f));
+    const wired = files.filter((f) => new RegExp(`<MarketingBreadcrumb\\s+path="${route}"`).test(stripComments(read(f) ?? '')));
+    if (wired.length === 1) {
+      pass(`11b. ${route} publishes its own trail`, rel(wired[0]));
+    } else {
+      fail(
+        `11b. ${route} publishes its own trail`,
+        wired.length ? `${wired.length} files pass the path` : 'no file passes its own path to the breadcrumb',
+        `render <MarketingBreadcrumb path="${route}" label="…" /> exactly once in web/app${route}: a child page with no trail is a page a crawler reads without knowing where it sits`,
+      );
+    }
   }
 }
 

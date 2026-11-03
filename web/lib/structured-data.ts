@@ -1,4 +1,3 @@
-import { faqSchemas } from '@/lib/faq-schema';
 import { SITE_ORIGIN } from '@/lib/site';
 
 /**
@@ -60,19 +59,17 @@ export const websiteSchema: Record<string, unknown> = {
 
 /**
  * The nodes, in the order the `@graph` lists them: the organization first, because the
- * site's publisher points back at it, then the site, then whatever document-level nodes a
- * band owns.
+ * site's publisher points back at it, then the site.
  *
- * THE FAQ PAGE NODE IS APPENDED FROM THE BAND'S OWN STRINGS. Its questions and their
- * answers are `FAQ_COPY`, the constant `FaqSection` renders, read through
- * `web/lib/faq-schema.ts`, so the visible band and the structured data cannot drift:
- * there is one copy of a question in the repo, and editing it changes both. The spread
- * means an empty `faqSchemas` appends nothing, which is what "when it exists" should mean
- * rather than a conditional in the layout.
+ * DOCUMENT-LEVEL NODES ARE NOT HERE, and that is a correction rather than an omission
+ * (#306). `FAQPage` describes the questions a page shows, and a node rendered from the root
+ * layout is published on every route, so `/pricing` was asserting nine FAQ answers that are
+ * not on it. Structured data has to describe the document that carries it: the FAQ node is
+ * rendered by `app/page.tsx`, which is the page with the band, and a child page publishes
+ * its own `BreadcrumbList`. `check:seo` holds that split.
  */
 export const siteSchemas: Record<string, unknown>[] = [
   organizationSchema,
   websiteSchema,
-  ...faqSchemas,
 ];
 
