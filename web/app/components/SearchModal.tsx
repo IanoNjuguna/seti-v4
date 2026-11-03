@@ -132,7 +132,7 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
             placeholder="Search sections..."
             className="flex-1 bg-transparent text-body-md text-on-dark placeholder:text-on-dark-mute focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/60"
           />
-          <span className="rounded-sm bg-surface-deep px-1.5 py-0.5 text-[10px] font-semibold text-on-dark-mute">
+          <span className="rounded-sm bg-surface-deep px-1.5 py-0.5 text-xs font-semibold text-on-dark-mute">
             ESC
           </span>
         </div>
