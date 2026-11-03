@@ -24,7 +24,12 @@ import {
   NoSingleAssetCoversError,
   SendRequiresBatchError,
 } from '../services/payments.js';
-import { previewConvert, quoteConvert, ConvertRefusalError } from '../services/convert.js';
+import {
+  CONVERT_PAIRS,
+  previewConvert,
+  quoteConvert,
+  ConvertRefusalError,
+} from '../services/convert.js';
 import { planSettlement } from '../services/settlement.js';
 import { toRecentTransaction } from '../services/transaction-view.js';
 import {
@@ -34,7 +39,8 @@ import {
 } from '../services/recent-recipients.js';
 import { buildReceipt } from '../services/receipt.js';
 import { mintReceiptLink } from '../services/receipt-link.js';
-import { SUPPORTED_ASSETS } from '../services/chain.js';
+import { SUPPORTED_ASSETS, type SupportedAsset } from '../services/chain.js';
+import type { Network } from '../lib/network.js';
 
 /**
  * The asset a client may NAME to spend, if it wants to choose.
@@ -197,6 +203,68 @@ const listQuerySchema = z.object({
 const paramsSchema = z.object({
   id: z.string().cuid(),
 });
+
+/**
+ * One convertible pair, as the swap surface reads it: the asset given up, and the
+ * asset received.
+ *
+ * `in` / `out` rather than `assetIn` / `assetOut` because this is a LIST a control
+ * iterates, not one request: the page reads `pair.in` and `pair.out` without
+ * knowing which side the allowlist happens to write first.
+ */
+export interface ConvertPairView {
+  in: SupportedAsset;
+  out: SupportedAsset;
+}
+
+/** What the swap surface may offer on ONE network. */
+export interface ConvertPairsView {
+  /** Every allowed pair, BOTH directions, each one once. */
+  pairs: ConvertPairView[];
+  /** The distinct assets those pairs pay out to, in the order they are met. */
+  targets: SupportedAsset[];
+}
+
+/**
+ * The swap surface's whole vocabulary for one network: which pairs may be asked
+ * for, and which assets may be asked for.
+ *
+ * BOTH directions, because `isAllowedPair` accepts either side of an entry (one
+ * book, two ways through it), so a picker that offered only the written direction
+ * would hide half of what the quote route would happily price.
+ *
+ * `targets` is DERIVED from those pairs rather than written down beside them: it is
+ * the set of distinct `out` assets, in the order the expansion meets them. Derived
+ * means the two fields cannot disagree about which swaps exist.
+ *
+ * PURE, and the network is a PARAMETER rather than the served one: the route hands
+ * it the session's network, and the check drives both networks through this same
+ * function without mutating the environment.
+ */
+export function convertPairsFor(network: Network): ConvertPairsView {
+  const pairs: ConvertPairView[] = [];
+  const seen = new Set<string>();
+  const targets: SupportedAsset[] = [];
+
+  for (const [a, b] of CONVERT_PAIRS[network]) {
+    for (const [assetIn, assetOut] of [
+      [a, b],
+      [b, a],
+    ] as const) {
+      // Deduped rather than assumed unique: the same pair written into the allowlist
+      // twice, or an entry whose two sides are one asset, would otherwise publish one
+      // swap as two, and a control that rendered both would offer it twice.
+      const key = `${assetIn}→${assetOut}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      pairs.push({ in: assetIn, out: assetOut });
+      if (!targets.includes(assetOut)) targets.push(assetOut);
+    }
+  }
+
+  return { pairs, targets };
+}
 
 function requireUser(request: FastifyRequest) {
   const user = request.user;
@@ -409,6 +477,32 @@ export async function transactionRoutes(app: FastifyInstance) {
     const plan = await planSettlement({ userId: user.id, network: user.network });
 
     return reply.send({ plan });
+  });
+
+  /**
+   * Which pairs this account's network will convert, and into which assets.
+   *
+   * A READ OF A CONSTANT. No user data, no balance, no quote, nothing written: the
+   * answer is a function of the network alone, so two callers on one network get
+   * the same bytes.
+   *
+   * WHY THE ROUTE EXISTS AT ALL, when the allowlist is a table the client could
+   * copy: because that copy would be a SECOND answer to the same question. The
+   * allowlist is what `/convert/quote` refuses against (`convert-pair-unavailable`),
+   * so the day a pair is added, dropped or a book empties, a client carrying its own
+   * list would keep offering a button the server refuses (#304). One copy, served.
+   *
+   * The network comes from the SESSION, like the quote route: a client cannot ask
+   * for another network's list, and a practice account is never shown a live pair.
+   *
+   * LITERAL BEFORE PARAM: declared here, above every `/:id…` route below, for the
+   * reason the statement route states. The check suite asserts registration rather
+   * than trusting the eyeball.
+   */
+  app.get('/convert/pairs', async (request, reply) => {
+    const user = requireUser(request);
+
+    return reply.send(convertPairsFor(user.network));
   });
 
   /**
