@@ -34,8 +34,22 @@ const NOT_ASKED: ConvertQuoteState = { status: 'refused', quote: null, code: nul
  * synchronous setState in an effect cascades a render. A failure is `refused`, not an
  * error to show: the row has no control to put a sentence under, and a read that
  * failed must not block a swap that would have worked.
+ *
+ * ## `amount`: one figure, still the server's
+ *
+ * `max` is the default, so a balance row asks the question it has always asked. A page
+ * where the customer types a figure passes it here instead, and it is passed through
+ * untouched: the quote that comes back is the quote for the amount that was asked about,
+ * so `amountOut`, `minAmountOut` and `networkFee` are the server's answer for the figure
+ * on screen rather than a number this hook derived. Nothing here computes a fee, a floor
+ * or a spendable maximum, and an amount the customer owns is still asked of the server.
  */
-export function useConvertQuote({ assetIn, assetOut, balance }: UseConvertQuoteInput): ConvertQuoteState {
+export function useConvertQuote({
+  assetIn,
+  assetOut,
+  balance,
+  amount = CONVERT_AMOUNT_MAX,
+}: UseConvertQuoteInput): ConvertQuoteState {
   const [state, setState] = useState<ConvertQuoteState>({
     status: 'loading',
     quote: null,
@@ -52,7 +66,7 @@ export function useConvertQuote({ assetIn, assetOut, balance }: UseConvertQuoteI
 
     let active = true;
 
-    fetchConvertQuote({ assetIn, assetOut, amountIn: CONVERT_AMOUNT_MAX })
+    fetchConvertQuote({ assetIn, assetOut, amountIn: amount })
       .then((quote: ConvertQuote) => {
         if (!active) return;
         setState({ status: 'ready', quote, code: null });
@@ -69,8 +83,10 @@ export function useConvertQuote({ assetIn, assetOut, balance }: UseConvertQuoteI
     return () => {
       active = false;
     };
-    // `balance` is a trigger, not an input: see UseConvertQuoteInput.
-  }, [assetIn, assetOut, balance, asked]);
+    // `balance` is a trigger, not an input: see UseConvertQuoteInput. `amount` IS an
+    // input: a typed figure that changed is a different question, and the last answer
+    // would be a figure for money the customer is no longer swapping.
+  }, [assetIn, assetOut, balance, asked, amount]);
 
   return asked ? state : NOT_ASKED;
 }

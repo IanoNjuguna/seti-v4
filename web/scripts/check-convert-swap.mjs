@@ -118,6 +118,33 @@ console.log('the control is absent, not disabled, when the book cannot fill it:'
   check('a refused quote renders nothing at all', withoutOffer === '', JSON.stringify(withoutOffer));
 
   /**
+   * The one exception, added in #304: two refusal codes now speak on the row. The
+   * assertion above still holds for `offer: null` with no code, and these two pin the
+   * edge that made it necessary. Without them the older assertion would quietly keep
+   * passing while the row learned to say a sentence, which is exactly the kind of
+   * stale green a check exists to prevent.
+   */
+  for (const code of ['convert-no-liquidity', 'convert-pair-unavailable']) {
+    const refused = renderToStaticMarkup(
+      createElement(BalanceTokenSwap, { offer: null, code, onSwapped: NOOP })
+    );
+    check(
+      `a row refused for ${code} prints the code's own sentence, and no control`,
+      refused !== '' && refused.indexOf('<button') === -1 && refused.indexOf('Swap') === -1,
+      refused
+    );
+  }
+
+  const otherRefusal = renderToStaticMarkup(
+    createElement(BalanceTokenSwap, { offer: null, code: 'unauthorized', onSwapped: NOOP })
+  );
+  check(
+    'every other refusal still draws nothing, because it is not news about the row',
+    otherRefusal === '',
+    JSON.stringify(otherRefusal)
+  );
+
+  /**
    * The OFFERED state is asserted from source rather than rendered, and the reason is
    * worth writing down: the action reads the account's network, so rendering it here
    * would need the session and account providers — and a check that has to stand up the

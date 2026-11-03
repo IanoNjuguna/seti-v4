@@ -1,4 +1,4 @@
-import { post } from './client';
+import { get, post } from './client';
 
 /**
  * A conversion, from the app's side.
@@ -70,6 +70,42 @@ export interface ConvertQuote {
 export async function fetchConvertQuote(input: ConvertQuoteInput): Promise<ConvertQuote> {
   const { quote } = await post<{ quote: ConvertQuote }>('/transactions/convert/quote', input);
   return quote;
+}
+
+/**
+ * One direction the book will fill, as the server spells it.
+ *
+ * `in` and `out` are the ledger's own labels (`ousd`, `pathusd`), the same strings a
+ * balance row and a quote carry, so a pair can be matched against a balance without a
+ * translation table in the client.
+ */
+export interface ConvertPair {
+  in: string;
+  out: string;
+}
+
+/**
+ * What this account's network can convert, from the server.
+ *
+ * `targets` is every asset that appears on the right-hand side of some pair, and it is
+ * carried rather than derived so the page shows the book's list and not a set this
+ * client inferred from the pairs it happened to receive.
+ */
+export interface ConvertPairs {
+  pairs: ConvertPair[];
+  targets: string[];
+}
+
+/**
+ * Ask which directions the book fills, for the caller's own network.
+ *
+ * A READ, like the quote: nothing is signed and nothing is written. It exists because a
+ * page that offers a picker has to know what the picker may offer, and the answer is the
+ * book's, measured now — the same reason a balance row asks before it draws a control
+ * (#240). A refusal arrives as an `ApiError` and is shown as the sentence its code owns.
+ */
+export async function fetchConvertPairs(): Promise<ConvertPairs> {
+  return get<ConvertPairs>('/transactions/convert/pairs');
 }
 
 export interface RecordConvertInput {

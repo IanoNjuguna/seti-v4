@@ -13,6 +13,16 @@ export interface BalanceTokenSwapProps {
   /** The row's live quote, or null when there is nothing to offer. */
   offer: ConvertQuote | null;
   /**
+   * The refusal the gate answered with, when it answered with one.
+   *
+   * Carried because two codes have something to say to the customer — the book cannot
+   * fill this balance right now (`convert-no-liquidity`), or this pair cannot be swapped
+   * at all (`convert-pair-unavailable`) — and the row used to say nothing in both cases.
+   * Every other code, and no code at all, still draws nothing: absent means the row has
+   * no answer, not that it failed.
+   */
+  code?: string | null;
+  /**
    * Called once a swap has been RECORDED, so the card can re-read the balances.
    *
    * Not called on a signature: a swap that was broadcast and refused by the ledger

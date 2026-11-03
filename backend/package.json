@@ -58,7 +58,8 @@
     "check:charge-fee": "tsx src/services/charge-fee.check.ts",
     "check:health": "tsx src/services/health.check.ts",
     "check:merchant-app": "tsx src/services/merchant-app.check.ts",
-    "check:charge-tools": "tsx src/services/charge-tools.check.ts"
+    "check:charge-tools": "tsx src/services/charge-tools.check.ts",
+    "check:convert-pairs": "DEV_BYPASS_AUTH=true tsx src/services/convert-pairs.check.ts"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.0",
