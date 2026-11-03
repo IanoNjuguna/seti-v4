@@ -1,3 +1,4 @@
+import { ButtonLink } from '@/components/ui/ButtonLink';
 import { Reveal } from './Reveal';
 import { SectionHeader } from './SectionHeader';
 import { PaymentStack } from './PaymentStack';
@@ -54,6 +55,15 @@ export function HowSection() {
               </li>
             ))}
           </ol>
+        </div>
+
+        {/* One link for the reader who wants the whole mechanic rather than three rows
+            (#306): the page that carries it is `/how-it-works`, and this band is where a
+            reader is already asking. */}
+        <div className="mt-10">
+          <ButtonLink href="/how-it-works" variant="ghost">
+            The whole payment, step by step
+          </ButtonLink>
         </div>
       </div>
     </Reveal>

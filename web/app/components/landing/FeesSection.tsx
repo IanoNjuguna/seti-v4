@@ -1,3 +1,4 @@
+import { ButtonLink } from '@/components/ui/ButtonLink';
 import { Reveal } from './Reveal';
 import { SectionHeader } from './SectionHeader';
 import { FEE_COPY } from './FeesSection.constants';
@@ -50,6 +51,16 @@ export function FeesSection() {
             </div>
           ))}
         </dl>
+
+        {/* The one way out of the band for a reader who is pricing (#306): the list above
+            is what we charge, and `/pricing` is the same list beside a till and a
+            remittance route, with the dates those two numbers were measured. A ghost link,
+            not a second button: the decision on this page is the close, not this. */}
+        <div className="mt-10">
+          <ButtonLink href="/pricing" variant="ghost">
+            What that costs against a till
+          </ButtonLink>
+        </div>
       </div>
     </Reveal>
   );

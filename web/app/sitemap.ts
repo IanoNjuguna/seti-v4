@@ -6,8 +6,9 @@ import { SITE_ORIGIN } from '@/lib/site';
  *
  * ## What is here
  *
- * Four pages: the landing page and the three legal documents. They are the ones
- * a stranger can reach, read and link to without an account, and a description
+ * Six pages: the landing page, the two a reader reaches from it (`/pricing` and
+ * `/how-it-works`, both shipped in #306), and the three legal documents. They are the
+ * ones a stranger can reach, read and link to without an account, and a description
  * that is quoted from them is accurate for everyone.
  *
  * ## What is absent, and why
@@ -49,7 +50,7 @@ import { SITE_ORIGIN } from '@/lib/site';
  * no basis for. `priority: 0.8` asserts a relative importance nobody measured.
  */
 export default function sitemap(): MetadataRoute.Sitemap {
-  return ['/', '/privacy', '/terms', '/cookies'].map((path) => ({
+  return ['/', '/pricing', '/how-it-works', '/privacy', '/terms', '/cookies'].map((path) => ({
     url: `${SITE_ORIGIN}${path}`,
   }));
 }
