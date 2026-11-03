@@ -117,6 +117,18 @@ Radii: `sm`, `md`, `lg`, `xl`, `pill`.
   `transition-duration: var(--duration-quick)` and *does* pull the variable into the
   emitted `:root`. Same shape as the `--text-body-md-bold` trap — grep the built CSS for
   the selector before trusting a class name.
+- **A border on a grid item stops where that item's CONTENT stops.** A vertical hairline
+  drawn with `border-l` on a grid column ends at the column's content box, so a row whose
+  bottom padding lives on the row leaves the rule hanging in mid-air above the next
+  separator. Put the row's padding on the columns instead (`md:pb-16` on each child,
+  `md:pb-0` on the row) and the border then runs the full row height, meeting the rule
+  below it. Measured in the footer rebuild (#313): the rule stopped 56px short at 1440px.
+- **A lockup inside `flex-col` is stretched to full width and loses its ratio.**
+  `align-items: stretch` is the default, and it overrides the width `w-auto` implies:
+  `BrandLockup` with `h-7 w-auto` measured 342×28 in a 390px stacked rail — a squashed
+  wordmark — and 77×28 in the same rail at `md:flex-row`. `items-start` on the column (or
+  `self-start` on the child) is the fix. A fixed height does not protect an image from a
+  stretched cross axis.
 - The motion tokens live in a plain `@theme` block in `globals.css` (a real value, not a
   `@theme inline` mapping of a `:root` declaration): a custom property that references
   itself is invalid at computed-value time, so the landing's first build resolved
