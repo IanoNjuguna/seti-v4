@@ -32,10 +32,11 @@ import type { BalanceTokenRowProps } from './BalanceTokens.types';
  * control exists to prevent (`check:amount-privacy`).
  *
  * THE SWAP ACTION IS ASKED FOR, not drawn blindly (#240). The row asks the book what
- * its whole spendable balance would fetch, and `BalanceTokenSwap` renders nothing at
- * all when the answer is a refusal: the absence IS the book's answer, which is the only
- * honest way to offer a pair whose liquidity comes and goes. A zero row never asks, so
- * an account holding three of four tokens costs one request, not four.
+ * its whole spendable balance would fetch, and `BalanceTokenSwap` draws no control when
+ * the answer is a refusal: the absence IS the book's answer, which is the only honest way
+ * to offer a pair whose liquidity comes and goes. Two refusals say why in a line under
+ * the row instead of leaving it blank (#304); the rest still draw nothing. A zero row
+ * never asks, so an account holding three of four tokens costs one request, not four.
  */
 export function BalanceTokenRow({ row, currency, onSwapped }: BalanceTokenRowProps) {
   const { hidden } = useAmountPrivacy();
@@ -93,6 +94,7 @@ export function BalanceTokenRow({ row, currency, onSwapped }: BalanceTokenRowPro
       */}
       <BalanceTokenSwap
         offer={convert.status === 'ready' ? convert.quote : null}
+        code={convert.code}
         onSwapped={onSwapped}
       />
     </li>

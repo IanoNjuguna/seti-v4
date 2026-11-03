@@ -44,4 +44,13 @@ export interface UseConvertQuoteInput {
    * a swap, or a deposit landing — re-asks instead of offering last minute's figure.
    */
   balance: string;
+  /**
+   * The figure to price, in `assetIn` units, or `'max'` for the whole spendable balance.
+   *
+   * Defaults to `'max'` so a balance row keeps asking the question it always asked. A
+   * surface where the customer types an amount passes that amount: it is the SERVER's
+   * to convert into a floor, a payout and a fee, and the answer is a quote for the
+   * figure on screen rather than a figure this client worked out.
+   */
+  amount?: string;
 }

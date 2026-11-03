@@ -1,10 +1,19 @@
 'use client';
 
+import Link from 'next/link';
 import { Text } from '@/components/ui';
+import { SWAP_COPY } from '@/lib/pay/convert-swap.constants';
 import { BalanceTokenRow } from './BalanceTokenRow';
 import { BALANCE_TOKENS_COPY } from './BalanceTokens.constants';
+import { SWAP_ACTION_CLASS } from './BalanceTokenSwap.constants';
 import { useBalanceTokens } from './useBalanceTokens';
 import type { BalanceTokensProps } from './BalanceTokens.types';
+
+/** The page the header's action opens. One literal, read once. */
+const SWAP_PAGE_PATH = '/app/swap';
+
+/** The link's name for a screen reader: the action, and what it acts on. */
+const SWAP_PAGE_LABEL = `${SWAP_COPY.action} a balance`;
 
 /**
  * What the figure above is made of: one row per asset the chain lists.
@@ -28,6 +37,13 @@ import type { BalanceTokensProps } from './BalanceTokens.types';
  * A heading over zero rows, or four rows of `KES 0.00` invented for a read that failed,
  * would both be claims nobody made.
  *
+ * THE HEADER CARRIES THE WAY IN (#304). `Swap` sits on the caption's line, opposite the
+ * words, because it acts on all four rows below it rather than on one: a fifth control
+ * inside a row would say this row, and the page it opens begins by asking which balance
+ * anyway. It borrows the row action's own recipe (`SWAP_ACTION_CLASS`), which is the
+ * card's recipe for an inline control on the dark canvas, so the two read as one control
+ * at two places.
+ *
  * The hairline is `hairline-dark`, the system's own divider inside a dark region: it
  * separates the total from its parts without drawing a second surface inside the card.
  */
@@ -38,9 +54,17 @@ export function BalanceTokens({ assets, currency, onSwapped }: BalanceTokensProp
 
   return (
     <div className="mt-6 border-t border-hairline-dark pt-4">
-      <Text variant="micro" as="p" color="inverse-muted">
-        {BALANCE_TOKENS_COPY.label}
-      </Text>
+      <div className="flex items-baseline justify-between gap-4">
+        <Text variant="micro" as="p" color="inverse-muted">
+          {BALANCE_TOKENS_COPY.label}
+        </Text>
+
+        <Link href={SWAP_PAGE_PATH} className={SWAP_ACTION_CLASS} aria-label={SWAP_PAGE_LABEL}>
+          <Text variant="micro" as="span" color="inverse">
+            {SWAP_COPY.action}
+          </Text>
+        </Link>
+      </div>
 
       <ul className="mt-1 flex flex-col">
         {rows.map((row) => (
