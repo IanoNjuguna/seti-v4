@@ -8,7 +8,14 @@
  *
  *   node --experimental-strip-types? no: run with `npx tsx src/services/savings.check.ts`
  */
-import { chooseDepositAsset, SAVINGS_LIVE, SavingsNotLiveError, sharesForDeposit } from './savings.js';
+import {
+  chooseDepositAsset,
+  depositFitsWithFee,
+  SAVINGS_LIVE,
+  SavingsNotLiveError,
+  sharesForDeposit,
+  spendableAfterFee,
+} from './savings.js';
 import { quoteSavingsDeposit } from './savings.js';
 import type { SupportedAsset } from '../config/assets.js';
 
@@ -166,6 +173,41 @@ check(
 );
 
 check('a zero share price floors at zero rather than dividing', sharesForDeposit(231_112n, 0) === BigInt(0));
+
+// ---------------------------------------------------------------------------
+// The fee headroom (#137, item 7). A Tempo transaction pays its gas in the asset it
+// spends, so an amount priced at the WHOLE balance cannot be signed: the transfer
+// succeeds and the fee has nothing left. These pin the relationship, not a number.
+// ---------------------------------------------------------------------------
+console.log('\nthe network fee is reserved before an amount counts as affordable\n');
+
+const FEE = 178n; // 0.000178 pathUSD, the fee measured on a practice deposit
+
+check(
+  'the whole balance does NOT fund a deposit (the fee would have nothing)',
+  depositFitsWithFee(231_112n, 231_112n, FEE) === false
+);
+
+check(
+  'the balance less the fee does fund it',
+  depositFitsWithFee(231_112n, 231_112n - FEE, FEE) === true
+);
+
+check(
+  'one unit short of the fee is still a refusal',
+  depositFitsWithFee(231_112n, 231_112n - FEE + 1n, FEE) === false
+);
+
+check(
+  'the spendable figure is the balance less exactly one fee',
+  spendableAfterFee(231_112n, FEE) === 231_112n - FEE,
+  `got ${spendableAfterFee(231_112n, FEE)}`
+);
+
+check(
+  'a balance smaller than the fee spends nothing, rather than going negative',
+  spendableAfterFee(100n, FEE) === BigInt(0)
+);
 
 // ---------------------------------------------------------------------------
 // The gate (#137). Deposits are closed; the only way this check passes is if the
