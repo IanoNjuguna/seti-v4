@@ -51,6 +51,9 @@ export interface SavingsDepositQuote {
   vault: string;
   quoteId: string;
   hasEnoughBalance: boolean;
+  /** The network fee this deposit pays, in the funding asset, reserved out of the balance. */
+  networkFee?: string;
+  networkFeeSource?: 'estimate' | 'reserve';
   spendableFiat: string;
 }
 
