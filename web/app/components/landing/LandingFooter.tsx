@@ -1,66 +1,76 @@
-import { BrandMark } from '@/components/ui';
-import { FOOTER_COPYRIGHT, FOOTER_LINKS, FOOTER_ORIGIN } from './LandingFooter.constants';
+import { FooterFacts } from './FooterFacts';
+import { FooterIndex } from './FooterIndex';
+import { FooterLegal } from './FooterLegal';
+import { FooterRail } from './FooterRail';
+import { FooterStatement } from './FooterStatement';
+import {
+  FOOTER_FACTS,
+  FOOTER_INDEX,
+  FOOTER_LINKS,
+  FOOTER_STATEMENT,
+} from './LandingFooter.constants';
 
 /**
- * The footer — `footer` from `design/revolut.md`: dark canvas, `on-dark-mute`
- * copy, `body-sm`, a hairline above it.
+ * The footer, in three movements.
  *
- * Three parts on one line: the mark and the copyright on the left, "Made in
- * Thika" on the band's exact centre, the legal links on the right. The centre
- * item is deliberate placement this time, not the stranded middle of the
- * `justify-between` row this footer used to be, where the middle item's
- * position moved with the width of the two outer ones. A three-column grid
- * gives the middle column a real address, and the mark, the centre line and the
- * links all sit on one vertical centre (`items-center`).
+ * ONE: the statement, and the ledger beside it. The sentence is display type and the
+ * ledger is three answers to money questions, aligned right so both halves stop on the
+ * container's edge. This is the band's whole reason to exist — the page's last true
+ * claim, at the point where a reader goes to check one.
  *
- * The single row starts at `md`, not `sm`: at 640px a third of the container is
- * about 197px and the three legal links alone want most of that, so the band
- * stays stacked until 768px, where a third is 240px.
+ * TWO: the index (left, seven columns) and the legal links (right, three). The leaders
+ * run the width of the index column and stop where the legal column begins, so the gap
+ * between them is a gutter rather than a hole; the eye reads `01…04` as one column and
+ * `Privacy` as a separate set. Filling that gutter is how a footer becomes a four-column
+ * link farm, which `landing-page-design` lists as a generic pattern.
  *
- * THE LEGAL LINKS ARE TAP TARGETS, NOT WORDMARKS. They rendered at their text
- * height — 20px, measured — which is under the 44px floor the design system keeps
- * everywhere else and under WCAG's AAA target size. `min-touch` and
- * `inline-flex items-center` give each one a 44px box without moving its label:
- * an inline `<a>` ignores `min-height`, so the display has to change with it
- * (ui-skills review, #274).
+ * THREE: the rail. Lockup, colophon, done.
  *
- * THE TREASURY BLOCK IS GONE. The address block that used to sit at the bottom of
- * this footer — and the fee band's link down to it — were both deleted. It was
- * the page's one independently checkable claim (the address the 2% is collected
- * to, verifiable on chain), and removing it costs the page the only thing a
- * reader could go and confirm for themselves; the fee statement in the band above
- * now stands unverified. That was the owner's call, recorded here so the loss is
- * visible to whoever reads this next rather than discovered as a surprise.
+ * WHAT REPLACED WHAT. It used to be one row: mark and copyright left, "Made in Thika"
+ * centred, three legal links right, in a three-column grid whose centre cell was placed
+ * by the grid rather than by `justify-between` (#274). That was correct and quiet and it
+ * was one line of text at the bottom of a black page. The rebuild keeps every string,
+ * every target size and every route, and gives the band three movements and the page's
+ * strongest sentence, which is art the page can back rather than decoration it cannot.
  *
- * It stays on the black canvas rather than switching to white, and it is flushed
- * to `canvas-dark` — true #000 — so it joins the closing band as flat black
- * instead of showing the drift through it: the field's lift belongs to the hero
- * alone.
+ * THE TREASURY BLOCK STAYS GONE. The address the 2% is collected to was deleted once and
+ * is not restored here: this footer states the fee, it does not re-open a decision to
+ * publish where the money lands.
+ *
+ * IT STAYS ON THE BLACK CANVAS rather than switching to white, flushed to `canvas-dark`
+ * so it joins the closing band as flat black instead of showing the field's drift
+ * through it: that lift belongs to the hero alone.
  */
 export function LandingFooter() {
   return (
     <footer className="relative z-10 border-t border-hairline-dark bg-canvas-dark">
-      <div className="mx-auto max-w-6xl px-6 py-12">
-        <div className="flex flex-col gap-8 md:grid md:grid-cols-3 md:items-center">
-          <div className="flex items-center gap-4">
-            <BrandMark expression="neutral" canvas="dark" label="Seti" className="h-8" />
-            <p className="text-body-sm text-on-dark-mute">{FOOTER_COPYRIGHT}</p>
+      <div className="mx-auto max-w-6xl px-6">
+        <div className="grid gap-12 pb-14 pt-20 md:grid-cols-12 md:gap-16 md:pb-0 md:pt-24">
+          <div className="md:col-span-8 md:pb-16">
+            <FooterStatement lines={FOOTER_STATEMENT} />
           </div>
-
-          <p className="text-body-sm text-on-dark-mute md:text-center">{FOOTER_ORIGIN}</p>
-
-          <nav aria-label="Legal" className="flex gap-6 md:justify-end">
-            {FOOTER_LINKS.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                className="inline-flex min-touch items-center rounded-sm text-body-sm font-semibold text-on-dark-mute underline-offset-4 transition-colors duration-(--duration-quick) ease-out hover:text-on-dark hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-dark focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-dark"
-              >
-                {link.label}
-              </a>
-            ))}
-          </nav>
+          {/* The vertical hairline is what makes the empty middle structural: the top
+              movement is two halves divided the way the movements below are divided, and
+              the ledger reads as a column with an edge instead of as text floating right.
+              IT RUNS TO THE SEPARATOR because the movement's own bottom padding lives on
+              the columns rather than on the row: a border drawn on a grid item stops where
+              that item's content stops, and a rule that ends 56px above the next hairline
+              reads as a mistake rather than as a division. */}
+          <div className="md:col-span-4 md:border-l md:border-hairline-dark md:pb-16 md:pl-8">
+            <FooterFacts facts={FOOTER_FACTS} />
+          </div>
         </div>
+
+        <div className="grid gap-12 border-t border-hairline-dark py-12 md:grid-cols-12">
+          <div className="md:col-span-7">
+            <FooterIndex rows={FOOTER_INDEX} />
+          </div>
+          <div className="md:col-span-3 md:col-start-10">
+            <FooterLegal links={FOOTER_LINKS} />
+          </div>
+        </div>
+
+        <FooterRail />
       </div>
     </footer>
   );

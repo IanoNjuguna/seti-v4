@@ -75,10 +75,19 @@ import { LandingFooter } from './components/landing/LandingFooter';
 export default function Home() {
   return (
     <div className="relative flex flex-1 flex-col">
+      {/* `landing-page-design` B10: a keyboard user reaches the content without tabbing
+          the nav. First focusable element on the page, invisible until focused, and it
+          targets the `main` below, which carries the matching id. The landing had none. */}
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-sm focus:bg-canvas-light focus:px-4 focus:py-3 focus:text-body-sm focus:font-semibold focus:text-ink"
+      >
+        Skip to content
+      </a>
       <LandingBackdrop />
       <LandingNav />
 
-      <main className="relative flex flex-1 flex-col">
+      <main id="main" tabIndex={-1} className="relative flex flex-1 flex-col outline-none">
         <HeroSection />
         <HowSection />
         <WhoItsForSection />

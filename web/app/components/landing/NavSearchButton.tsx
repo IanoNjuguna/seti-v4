@@ -34,7 +34,7 @@ export function NavSearchButton({ onOpen }: NavSearchButtonProps) {
     >
       <SearchIcon className="h-4 w-4" />
       <span className="hidden sm:inline">Search</span>
-      <span aria-hidden className="hidden rounded-sm bg-surface-elevated px-1.5 py-0.5 text-[10px] font-semibold sm:inline">
+      <span aria-hidden className="hidden rounded-sm bg-surface-elevated px-1.5 py-0.5 text-xs font-semibold sm:inline">
         ⌘K
       </span>
     </button>
