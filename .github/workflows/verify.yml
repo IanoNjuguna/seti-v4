@@ -67,6 +67,13 @@ jobs:
       QUOTE_SIGNING_SECRET: ci-only-quote-signing-secret-not-a-real-secret
       SETI_TREASURY_ADDRESS: "0x48cb25f9d82aF721e71437feAfb295da627BA475"
       TEMPO_CHAIN_ID: "42431"
+      # The gate runs on practice so no runner reaches a mainnet endpoint. The PAR-BAND
+      # matrix is the exception: it measures the book the PRODUCT quotes on, and that is
+      # mainnet. Without this line the gate fails whenever the practice book drifts
+      # (`pathusd → ousd` read 96 bps on 2026-11-04 against a 1 bp band), which blocked
+      # every merge and every deploy in the repository while mainnet sat at 0.00 bps
+      # (#316).
+      SETI_PAR_NETWORK: "mainnet"
       TEMPO_TOKEN_PATHUSD: "0x20c0000000000000000000000000000000000000"
       TEMPO_TOKEN_OUSD: "0x20c0000000000000000000006a37da5c996874be"
       # The gate runs in development mode, as it does locally. The production
