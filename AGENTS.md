@@ -71,6 +71,8 @@ This repo has project skills in `.agents/skills/` that govern all UI work. Load 
 | Restructuring **existing** UI, behavior preservation | `modular-ui-refactor` |
 | Styling, tokens, design system | `design-enforcement` (owner: `design/revolut.md`) |
 | Design judgment calls (hierarchy, rhythm, motion, target size, contrast, what to cut) | `apple-design` |
+| Page strategy: intake, section ladder, conversion copy, the tagline reveal rule | `landing-page-design` (vendored; the repo wins its values, the skill wins its judgment) |
+| Figma files: variables, text styles, auto layout, component libraries | `figma-designer` (vendored; needs a Figma MCP server to be more than a document) |
 | Mobile screen image generation | `imagegen-frontend-mobile` |
 | Brand / visual identity | `brandkit` |
 | Exhaustive code output | `full-output-enforcement` |
