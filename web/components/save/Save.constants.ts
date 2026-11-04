@@ -17,8 +17,23 @@ export const SAVE_COPY = {
   title: 'Save',
   savedLabel: 'Saved',
   availableLabel: 'Available',
-  empty: 'Money you set aside earns interest. You can take it out any time.',
+  /**
+   * Below the figure, with nothing saved: what this place IS, and nothing it cannot
+   * back. It read "Money you set aside earns interest. You can take it out any time."
+   * until #137 measured both halves: `apy.net` is 0.000000 and `instantLiquidity` is
+   * null on every Earn vault including ours, so the sentence promised a rate we do not
+   * pay and a withdrawal the vault has never proven. What is left is the part that is
+   * true on chain: the position is in the customer's own name.
+   */
+  empty: 'Money you set aside goes into a Tempo vault in your own name.',
   rateUnavailable: 'Rate unavailable right now',
+  /**
+   * THE RATE IS ZERO, which is not the same as unavailable. The vault publishes
+   * `apy.net 0.000000`; "unavailable" was the copy for a failed read (#137), and
+   * printing a bare `0.00` leaves the customer to guess whether that is the rate or a
+   * broken screen. Neither is the sentence; this is.
+   */
+  rateZero: 'The vault pays no rate right now',
   earnedLabel: 'Earned so far',
   earnedUnknown: 'Earnings not measurable yet',
   addAction: 'Add money',
@@ -29,7 +44,8 @@ export const SAVE_COPY = {
   amountPlaceholder: '0.00',
   amountInputId: 'save-amount',
   amountHint: 'From your available balance.',
-  amountNote: 'Swapped into the vault and starts earning straight away.',
+  /** No earning claim here either: the swap is a fact, "starts earning" is a rate. */
+  amountNote: 'Swapped into the vault, in your own name.',
   amountButton: 'Add to savings',
   withdrawTitle: 'How much are you taking out?',
   withdrawLabel: 'Amount to withdraw',
@@ -43,7 +59,8 @@ export const SAVE_COPY = {
   cancel: 'Cancel',
   paused: 'Savings are paused right now. Nothing can be added.',
   deposited: 'Saved',
-  depositedBody: 'It is earning now, and you can withdraw it any time.',
+  /** No "and you can withdraw it any time": withdrawability is the vault's to prove. */
+  depositedBody: 'It is in the vault in your own name.',
   done: 'Done',
   /* The closed state. Shown while deposits are off (#137): no button, no date, and
      no promise about a rate that currently reads 0.000000. */
@@ -61,3 +78,24 @@ export const SAVE_SIGNED_OUT_COPY = {
   title: 'Sign in to save',
   body: 'Money in savings comes out of your own balance.',
 } as const;
+
+/**
+ * The one line under the saved figure, decided from the rate itself.
+ *
+ * THREE ANSWERS, NOT TWO, because the vault can say three different things and the
+ * screen used to collapse two of them (#137):
+ *
+ *  - `null` is a read that failed or an offer with no rate on it: "unavailable".
+ *  - a rate above zero is the rate, as the vault published it.
+ *  - zero is a RATE, not a fault: the vault publishes `apy.net 0.000000` and printing a
+ *    bare `0.00` invites the customer to read it as a broken screen.
+ *
+ * Parsed rather than string-matched, because the API's figure may arrive as `0.00`,
+ * `0.000000` or `0.00%` and all three mean the same thing to a customer.
+ */
+export function rateLine(apy: string | null): string {
+  if (apy === null || apy.trim() === '') return SAVE_COPY.rateUnavailable;
+  const value = Number.parseFloat(apy.replace('%', ''));
+  if (!Number.isFinite(value)) return SAVE_COPY.rateUnavailable;
+  return value > 0 ? apy : SAVE_COPY.rateZero;
+}

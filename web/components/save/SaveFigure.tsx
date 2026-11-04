@@ -2,7 +2,7 @@
 
 import { formatFiat } from '@/lib/formatCurrency';
 import { Skeleton, Text } from '@/components/ui';
-import { SAVE_COPY } from './Save.constants';
+import { SAVE_COPY, rateLine } from './Save.constants';
 import type { SaveFigureProps } from '@/hooks/useSave.types';
 
 /**
@@ -58,7 +58,7 @@ export function SaveFigure({ summary, loading }: SaveFigureProps) {
         ) : (
           <>
             <Text variant="micro" as="p" color={summary?.apy ? undefined : 'secondary'}>
-              {summary?.apy ?? SAVE_COPY.rateUnavailable}
+              {rateLine(summary?.apy ?? null)}
             </Text>
             <Text variant="micro" as="p" color="secondary">
               {earned === null
