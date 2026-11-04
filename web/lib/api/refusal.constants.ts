@@ -25,6 +25,16 @@
 
 /** One sentence per refusal code. The code is the contract; the words are ours. */
 export const REFUSAL_BY_CODE: Record<string, string> = {
+  // --- savings: one code per thing that can be wrong (#137, item 8) ---------
+  // The amount the customer typed, and nothing else, so the field can say what is
+  // wrong instead of blaming the vault for arithmetic.
+  'savings-amount-invalid': 'Enter an amount greater than zero to save.',
+  // A read or a leg that did not come back: the chain, or us. One sentence that says
+  // the one thing a customer needs first, which is that their money did not move.
+  'savings-chain-unavailable':
+    'We could not reach the vault just now. Nothing was moved. Try again in a moment.',
+  'savings-quote-unavailable':
+    'We could not price that just now. Nothing was moved. Try again in a moment.',
   // --- entry the customer can correct -------------------------------------
   'amount-invalid':
     'That is not an amount we can send. Enter a figure with up to two decimal places.',

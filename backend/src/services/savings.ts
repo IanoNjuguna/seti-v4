@@ -44,7 +44,7 @@ import { getFxQuote, resolveUserFiat } from './payments.js';
 import { normalizeNetwork, type Network } from '../lib/network.js';
 import { isValidEvmAddress } from '../lib/address.js';
 import { ASSET_DECIMALS, type SupportedAsset } from '../config/assets.js';
-import { publicClientFor } from './chain.js';
+import { publicClientFor, estimateNetworkFee } from './chain.js';
 
 const EARN_API = 'https://api.tempo.xyz/v1/earn';
 
@@ -334,6 +334,13 @@ export interface SavingsDepositQuote {
   /** Signed frozen rate, so the ledger is written from the rate the quote showed. */
   quoteId: string;
   hasEnoughBalance: boolean;
+  /**
+   * The network fee this deposit will pay, in the funding asset's units, already
+   * reserved out of `spendableFiat` and out of `hasEnoughBalance` (#137, item 7).
+   */
+  networkFee: string;
+  /** Whether that fee was measured or is a conservative reserve. */
+  networkFeeSource: 'estimate' | 'reserve';
   /** The spendable balance converted to fiat, for the "is this more than I have" line. */
   spendableFiat: string;
 }
@@ -403,6 +410,16 @@ export class SavingsNotLiveError extends Error {
   }
 }
 
+/** A refusal the customer can act on: the amount they typed, as typed. */
+export class SavingsInputError extends Error {
+  readonly code = 'savings-amount-invalid';
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'SavingsInputError';
+  }
+}
+
 /** The tolerance on both legs of a deposit, in basis points. */
 export const SAVINGS_TOLERANCE_BPS = 50;
 
@@ -429,6 +446,27 @@ export function sharesForDeposit(amountOut: bigint, sharePrice: number): bigint 
   );
 }
 
+/**
+ * Whether a balance can fund this deposit AND its network fee.
+ *
+ * THE TRANSACTION PAYS ITS GAS IN THE ASSET IT SPENDS (#137, item 7). A quote that only
+ * asks `balance >= amountIn` therefore prices an amount the customer cannot actually
+ * sign when it is close to the whole balance: the deposit itself is fine and the
+ * transaction runs out of the very asset it is moving. The fee is small (0.000178
+ * pathUSD on the deposit that was measured) and it is exactly the size of the failure.
+ *
+ * Pure and exported so `check:save` can hold the relationship at the whole balance and
+ * one unit under it, rather than trusting a number in a quote nobody re-derives.
+ */
+export function depositFitsWithFee(balance: bigint, amountIn: bigint, fee: bigint): boolean {
+  return balance >= amountIn + fee;
+}
+
+/** What is left to deposit once the fee is reserved out of the balance. */
+export function spendableAfterFee(balance: bigint, fee: bigint): bigint {
+  return balance > fee ? balance - fee : BigInt(0);
+}
+
 export async function quoteSavingsDeposit(input: {
   userId: string;
   amountFiat: string;
@@ -442,7 +480,7 @@ export async function quoteSavingsDeposit(input: {
 
   const amountFiat = Number(input.amountFiat);
   if (!Number.isFinite(amountFiat) || amountFiat <= 0) {
-    throw new Error('The amount to save must be a positive number.');
+    throw new SavingsInputError('The amount to save must be a positive number.');
   }
 
   const fiatCurrency = await resolveUserFiat(input.userId);
@@ -490,8 +528,24 @@ export async function quoteSavingsDeposit(input: {
   const sharePrice = Number(vaultRecord?.sharePrice?.formatted ?? '1');
   const minShares = sharesForDeposit(amountOut, sharePrice);
 
-  const hasEnoughBalance = chosen.balance >= amountIn;
+  /*
+   * The network fee, reserved before anything is called "enough" (#137, item 7).
+   *
+   * A Tempo transaction pays its gas in the asset it spends, so a deposit priced at the
+   * whole balance cannot be signed: the transfer succeeds and the fee has nothing left.
+   * The estimate is the same `estimateNetworkFee` the convert quote uses, in the funding
+   * asset's own units, so the reservation is measured rather than assumed.
+   */
+  const feeEstimate = await estimateNetworkFee(assetIn, network);
+  const networkFee = parseUnits(feeEstimate.feeAsset, ASSET_DECIMALS);
+
+  const hasEnoughBalance = depositFitsWithFee(chosen.balance, amountIn, networkFee);
   const spendableTotal = funding.reduce((sum, candidate) => sum + candidate.balance, BigInt(0));
+  // What the customer can actually put in, which is the balance less one fee. The screen
+  // prints this as "available", so its maximum and the quote's limit are the same figure.
+  const spendableFiat = (
+    Number(formatUnits(spendableAfterFee(spendableTotal, networkFee), ASSET_DECIMALS)) * fiatPerUsd
+  ).toFixed(2);
 
   const quoteId = issueQuote({
     userId: input.userId,
@@ -515,9 +569,9 @@ export async function quoteSavingsDeposit(input: {
     vault,
     quoteId,
     hasEnoughBalance,
-    spendableFiat: (
-      Number(formatUnits(spendableTotal, ASSET_DECIMALS)) * fiatPerUsd
-    ).toFixed(2),
+    networkFee: formatUnits(networkFee, ASSET_DECIMALS),
+    networkFeeSource: feeEstimate.source,
+    spendableFiat,
   };
 }
 

@@ -1,10 +1,11 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { authMiddleware } from '../middleware/auth.js';
 import {
   getSavingsSummary,
   quoteSavingsDeposit,
   quoteSavingsWithdraw,
+  SavingsInputError,
   SavingsNotLiveError,
 } from '../services/savings.js';
 import { recordSavingsDeposit, recordSavingsWithdrawal } from '../services/transactions.js';
@@ -44,6 +45,34 @@ const quoteSchema = z.object({
   /** The amount the customer typed, in THEIR currency — as everywhere in this app. */
   amountFiat: z.string().regex(/^\d+(\.\d+)?$/),
 });
+
+/**
+ * The savings routes' three answers, and the one that used to be a shrug.
+ *
+ * #137 item 8: a chain-side failure must surface a CODE and one plain sentence, never
+ * the generic "Could not complete that. Nothing was moved." Everything that was not
+ * typed used to fall into a 422 carrying a raw viem message, which the client could not
+ * translate — so a dropped RPC read and an operator's mistake looked identical to the
+ * customer, and both looked like their own fault.
+ *
+ *   - closed on purpose -> 503 `savings-not-live`, unchanged;
+ *   - the amount they typed -> 422 with its own code, so the field can say what is wrong;
+ *   - anything else, including the chain -> 502 `savings-chain-unavailable` with one
+ *     sentence that says the money did not move.
+ */
+function savingsRefusal(reply: FastifyReply, error: unknown): FastifyReply {
+  if (error instanceof SavingsNotLiveError) {
+    return reply.status(503).send({ error: error.message, code: error.code });
+  }
+  if (error instanceof SavingsInputError) {
+    return reply.status(422).send({ error: error.message, code: error.code });
+  }
+  reply.log.error({ err: error }, 'savings request failed');
+  return reply.status(502).send({
+    error: 'We could not reach the vault just now. Nothing was moved.',
+    code: 'savings-chain-unavailable',
+  });
+}
 
 /**
  * Savings: what the account has put aside, and what it is worth now.
@@ -88,17 +117,7 @@ export async function savingsRoutes(app: FastifyInstance) {
       });
       return reply.send({ quote });
     } catch (error) {
-      // Closed on purpose, not broken: 503 so no client mistakes it for a bad request
-      // and retries, and a code so the app can say "not open yet" instead of guessing.
-      if (error instanceof SavingsNotLiveError) {
-        return reply.status(503).send({ error: error.message, code: error.code });
-      }
-      // A refusal the customer can act on (no market, bad amount) is a 422 with a
-      // sentence; anything else is ours to fix.
-      return reply.status(422).send({
-        error: error instanceof Error ? error.message : 'Could not price that deposit.',
-        code: 'savings-quote-unavailable',
-      });
+      return savingsRefusal(reply, error);
     }
   });
 
@@ -124,7 +143,7 @@ export async function savingsRoutes(app: FastifyInstance) {
         return reply.status(503).send({ error: error.message, code: error.code });
       }
       if (error instanceof PaymentRefusalError) return refusalResponse(reply, error);
-      throw error;
+      return savingsRefusal(reply, error);
     }
   });
 
@@ -143,10 +162,7 @@ export async function savingsRoutes(app: FastifyInstance) {
       });
       return reply.send({ quote });
     } catch (error) {
-      return reply.status(422).send({
-        error: error instanceof Error ? error.message : 'Could not price that withdrawal.',
-        code: 'savings-quote-unavailable',
-      });
+      return savingsRefusal(reply, error);
     }
   });
 
@@ -166,7 +182,7 @@ export async function savingsRoutes(app: FastifyInstance) {
       return reply.status(201).send({ transaction });
     } catch (error) {
       if (error instanceof PaymentRefusalError) return refusalResponse(reply, error);
-      throw error;
+      return savingsRefusal(reply, error);
     }
   });
 }
