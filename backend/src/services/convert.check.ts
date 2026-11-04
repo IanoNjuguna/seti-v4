@@ -110,6 +110,36 @@ async function refusalOf(run: () => Promise<unknown>): Promise<string> {
 const NETWORK = servedNetwork;
 
 /**
+ * The network whose BOOK the par-band matrix measures.
+ *
+ * THE PAR BAND IS A CLAIM ABOUT THE BOOK THE PRODUCT QUOTES ON, and that is mainnet,
+ * not the network the gate happens to be running on. CI pins `TEMPO_CHAIN_ID=42431`
+ * so no runner reaches a mainnet endpoint for the rest of the gate, and that pin used
+ * to carry this matrix with it. On 2026-11-04 practice's OUSD/pathUSD book was
+ * one-sided — `ousd → pathusd` 1.00 bps, `pathusd → ousd` 96.00 bps — against a band of
+ * 1 bp and a ceiling of 15, so the suite refused it, correctly, about a testnet. It
+ * failed identically on a docs-only branch, blocked every merge in the repository, and
+ * stopped `deploy.yml` shipping two already-merged PRs while mainnet read 0.00 bps on
+ * the same pair.
+ *
+ * So the matrix takes its own network: `SETI_PAR_NETWORK`, DEFAULTING TO the served one
+ * so a laptop run is unchanged and the unit of the suite is still "the network this
+ * process serves". CI sets it to `mainnet`, where the product runs. No band moved and
+ * the ceiling still applies: the matrix is held to the measured band of the network it
+ * now judges.
+ *
+ * A refused value is an ERROR rather than a fallback: a typo that silently reads the
+ * served network is exactly the confusion this variable exists to end.
+ */
+function parNetwork(value: string | undefined, fallback: Network): Network {
+  if (value === undefined || value === '') return fallback;
+  if (value === 'mainnet' || value === 'testnet') return value;
+  throw new Error(`SETI_PAR_NETWORK must be "mainnet" or "testnet", got "${value}"`);
+}
+
+const PAR_NETWORK: Network = parNetwork(process.env.SETI_PAR_NETWORK, NETWORK);
+
+/**
  * The par band each pair is held to, in basis points, PER NETWORK: a MEASUREMENT
  * WITH A DATE, not a claim about how wide a spread is allowed to be.
  *
@@ -213,8 +243,8 @@ function canonicalPair(a: string, b: string): string {
  */
 function bandFor(assetIn: string, assetOut: string): number | undefined {
   return (
-    PAR_BAND_BPS[NETWORK][`${assetIn}→${assetOut}`] ??
-    PAR_BAND_BPS[NETWORK][canonicalPair(assetIn, assetOut)]
+    PAR_BAND_BPS[PAR_NETWORK][`${assetIn}→${assetOut}`] ??
+    PAR_BAND_BPS[PAR_NETWORK][canonicalPair(assetIn, assetOut)]
   );
 }
 
@@ -333,7 +363,7 @@ async function readDirection(
       assetIn,
       assetOut,
       amountIn: BOOK_QUOTE_SIZE,
-      network: NETWORK,
+      network: PAR_NETWORK,
     });
 
     // Integer basis points, the same arithmetic the band comparison uses, so the
@@ -375,7 +405,7 @@ async function readDirection(
  */
 async function scanBook(): Promise<BookReading[]> {
   const directions: Array<readonly [SupportedAsset, SupportedAsset]> = [];
-  for (const [a, b] of CONVERT_PAIRS[NETWORK]) {
+  for (const [a, b] of CONVERT_PAIRS[PAR_NETWORK]) {
     directions.push([a, b], [b, a]);
   }
 
@@ -402,6 +432,10 @@ async function main(): Promise<void> {
   // figure about ONE chain, and a matrix that does not say which book it read is a
   // matrix about nothing.
   console.log(`network: ${NETWORK} (${networkConfigFor(NETWORK).chainId})`);
+  // The book being judged, which is NOT this process's network in CI: the par band is a
+  // claim about where the product quotes, and the job runs on the testnet so nothing
+  // reaches a mainnet endpoint (see `PAR_NETWORK`).
+  console.log(`par bands: ${PAR_NETWORK} (${networkConfigFor(PAR_NETWORK).chainId})`);
 
   // -------------------------------------------------------------------------
   // (a) the book, as a matrix: every pair, BOTH directions, at 10.000000 in
@@ -422,7 +456,7 @@ async function main(): Promise<void> {
   // book answered. A pair on the allowlist with no measured band is a hole in the
   // table rather than a market condition, and it used to go unnoticed exactly where
   // the book had nothing to quote (#202).
-  const unmeasured = CONVERT_PAIRS[NETWORK]
+  const unmeasured = CONVERT_PAIRS[PAR_NETWORK]
     .flatMap(([a, b]) => [
       [a, b],
       [b, a],
@@ -430,14 +464,14 @@ async function main(): Promise<void> {
     .filter(([a, b]) => bandFor(a, b) === undefined)
     .map(([a, b]) => `${a} → ${b}`);
   check(
-    `every direction on the ${NETWORK} allowlist has a measured par band (${MEASURED_ON}, reverse sides ${MEASURED_REVERSE_ON})`,
+    `every direction on the ${PAR_NETWORK} allowlist has a measured par band (${MEASURED_ON}, reverse sides ${MEASURED_REVERSE_ON})`,
     unmeasured.length === 0,
     unmeasured.join(', ')
   );
 
-  const widestBand = Math.max(...Object.values(PAR_BAND_BPS[NETWORK]));
+  const widestBand = Math.max(...Object.values(PAR_BAND_BPS[PAR_NETWORK]));
   check(
-    `the widest band given for ${NETWORK} plus ${LIVE_BOOK_HEADROOM_BPS}bp headroom is inside the ceiling (<= ${PAR_BAND_CEILING_BPS}bps)`,
+    `the widest band given for ${PAR_NETWORK} plus ${LIVE_BOOK_HEADROOM_BPS}bp headroom is inside the ceiling (<= ${PAR_BAND_CEILING_BPS}bps)`,
     widestBand + LIVE_BOOK_HEADROOM_BPS <= PAR_BAND_CEILING_BPS,
     `${widestBand}bps`
   );
