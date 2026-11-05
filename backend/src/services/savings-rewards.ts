@@ -72,10 +72,12 @@ function asBigInt(value: unknown): bigint | null {
 }
 
 /** The wrapper's Distributor, which is the contract that pays and the one to call. */
-async function readDistributor(wrapper: string, network: Network): Promise<string | null> {
+async function readDistributor(network: Network): Promise<string | null> {
   try {
+    // `MERKL_WRAPPER` is already an `Address` (getAddress), so no cast is needed here:
+    // asserting `0x${string}` at the generic call is what the lint rule rejected.
     const distributor = await publicClientFor(network).readContract({
-      address: wrapper as `0x${string}`,
+      address: MERKL_WRAPPER,
       abi: [
         {
           name: 'distributor',
@@ -107,7 +109,7 @@ export async function getSavingsRewards(input: {
   const network = normalizeNetwork(input.network);
   if (!input.address) return NOTHING;
 
-  const distributor = await readDistributor(MERKL_WRAPPER, network);
+  const distributor = await readDistributor(network);
   if (!distributor) return { ...NOTHING, reason: 'Could not reach the rewards contract.' };
 
   let payload: unknown;
@@ -129,15 +131,24 @@ export async function getSavingsRewards(input: {
     if (!Array.isArray(rewards)) continue;
 
     for (const reward of rewards) {
-      const token = (reward as { token?: { address?: unknown } })?.token?.address;
+      if (typeof reward !== 'object' || reward === null) continue;
+      // Read through `Record<string, unknown>` rather than asserting a shape at each
+      // field: the lint rule here rejects an assertion the generic could have inferred,
+      // and one honest narrowing reads better than five casts.
+      const entry = reward as Record<string, unknown>;
+
+      const tokenNode = entry.token;
+      const token =
+        typeof tokenNode === 'object' && tokenNode !== null
+          ? (tokenNode as Record<string, unknown>).address
+          : undefined;
       if (typeof token !== 'string' || token.toLowerCase() !== MERKL_WRAPPER.toLowerCase()) continue;
 
-      const amount = asBigInt((reward as { amount?: unknown; accumulatedAmount?: unknown }).amount) ??
-        asBigInt((reward as { accumulatedAmount?: unknown }).accumulatedAmount) ??
-        BigInt(0);
-      const claimed = asBigInt((reward as { claimed?: unknown }).claimed) ?? BigInt(0);
-      const proofs = Array.isArray((reward as { proofs?: unknown }).proofs)
-        ? ((reward as { proofs: unknown[] }).proofs.filter((p) => typeof p === 'string') as string[])
+      const amount = asBigInt(entry.amount ?? entry.accumulatedAmount) ?? BigInt(0);
+      const claimed = asBigInt(entry.claimed) ?? BigInt(0);
+      const proofsNode = entry.proofs;
+      const proofs = Array.isArray(proofsNode)
+        ? proofsNode.filter((proof): proof is string => typeof proof === 'string')
         : [];
 
       const claimable = amount > claimed ? amount - claimed : BigInt(0);
