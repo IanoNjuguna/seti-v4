@@ -40,6 +40,50 @@ const EARN_VAULT_REDEEM_ABI = [
   },
 ] as const;
 
+/**
+ * The STANDARD ERC-4626 entry points, for a vault that speaks it.
+ *
+ * The veda Earn vault takes a floor as its third argument on both calls; a Morpho vault
+ * takes the ERC-4626 shape, where the third argument of `redeem` is the OWNER and there
+ * is no floor anywhere. Two different contracts, so two different encodings, chosen by
+ * the caller rather than guessed from the address.
+ *
+ * `shares` decimals differ too: veda's share token was 6dp, a Morpho vault's is 18dp,
+ * which is why `shareDecimals` is a parameter and not `ASSET_DECIMALS.pathusd`.
+ */
+const ERC4626_DEPOSIT_ABI = [
+  {
+    name: 'deposit',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { type: 'uint256', name: 'assets' },
+      { type: 'address', name: 'receiver' },
+    ],
+    outputs: [{ type: 'uint256', name: 'shares' }],
+  },
+] as const;
+
+const ERC4626_REDEEM_ABI = [
+  {
+    name: 'redeem',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { type: 'uint256', name: 'shares' },
+      { type: 'address', name: 'receiver' },
+      { type: 'address', name: 'owner' },
+    ],
+    outputs: [{ type: 'uint256', name: 'assets' }],
+  },
+] as const;
+
+/** The asset a vault takes, and therefore the leg that may not need a swap at all. */
+export type VaultAsset = 'ousd' | 'pathusd';
+
+/** Which deposit/exit shape the vault exposes. */
+export type VaultInterface = 'earn' | 'erc4626';
+
 const DEX_SWAP_ABI = [
   {
     name: 'swapExactAmountIn',
@@ -88,13 +132,21 @@ export function buildDepositCalls(input: {
   recipient: Address;
   vault: Address;
   network: Network;
+  /** The asset the vault takes. Defaults to pathUSD, the veda Earn vault's asset. */
+  vaultAsset?: VaultAsset;
+  /** Which entry point the vault exposes. Defaults to the veda Earn shape. */
+  vaultInterface?: VaultInterface;
+  /** Share decimals, when the share token is not 6dp. A Morpho vault's is 18. */
+  shareDecimals?: number;
 }): TempoCall[] {
-  const pathUsd = getTokenContractFor('pathusd', input.network);
+  const vaultAsset = input.vaultAsset ?? 'pathusd';
+  const vaultInterface = input.vaultInterface ?? 'earn';
+  const assetToken = getTokenContractFor(vaultAsset, input.network);
 
   const amountIn = parseUnits(input.amountIn, ASSET_DECIMALS.ousd);
-  const depositAmount = parseUnits(input.depositAmount, ASSET_DECIMALS.pathusd);
-  const minSwapOut = parseUnits(input.minSwapOut, ASSET_DECIMALS.pathusd);
-  const minShares = parseUnits(input.minShares, ASSET_DECIMALS.pathusd);
+  const depositAmount = parseUnits(input.depositAmount, ASSET_DECIMALS[vaultAsset]);
+  const minSwapOut = parseUnits(input.minSwapOut, ASSET_DECIMALS[vaultAsset]);
+  const minShares = parseUnits(input.minShares, input.shareDecimals ?? ASSET_DECIMALS.pathusd);
 
   if (amountIn <= BigInt(0) || depositAmount <= BigInt(0)) {
     throw new Error('Refusing to sign a deposit with no input or no amount.');
@@ -112,7 +164,7 @@ export function buildDepositCalls(input: {
    * no exposure to the book at all.
    */
   const swap: TempoCall[] =
-    input.assetIn === 'pathusd'
+    input.assetIn === vaultAsset
       ? []
       : [
           {
@@ -122,7 +174,7 @@ export function buildDepositCalls(input: {
               functionName: 'swapExactAmountIn',
               args: [
                 getTokenContractFor(input.assetIn, input.network),
-                pathUsd,
+                assetToken,
                 amountIn,
                 minSwapOut,
               ],
@@ -132,7 +184,7 @@ export function buildDepositCalls(input: {
         ];
 
   const approve: TempoCall = {
-    to: pathUsd,
+    to: assetToken,
     data: encodeFunctionData({
       abi: erc20Abi,
       functionName: 'approve',
@@ -141,13 +193,26 @@ export function buildDepositCalls(input: {
     value: BigInt(0),
   };
 
+  /*
+   * The deposit legs, in the vault's own shape. An ERC-4626 vault takes `(assets,
+   * receiver)` and computes the shares itself, so `minShares` is no longer a parameter
+   * it accepts: it stays in the quote as the number the RECORDER asserts against the
+   * receipt, which is where a floor can still refuse a shortfall.
+   */
   const deposit: TempoCall = {
     to: input.vault,
-    data: encodeFunctionData({
-      abi: EARN_VAULT_ABI,
-      functionName: 'deposit',
-      args: [depositAmount, input.recipient, minShares],
-    }),
+    data:
+      vaultInterface === 'erc4626'
+        ? encodeFunctionData({
+            abi: ERC4626_DEPOSIT_ABI,
+            functionName: 'deposit',
+            args: [depositAmount, input.recipient],
+          })
+        : encodeFunctionData({
+            abi: EARN_VAULT_ABI,
+            functionName: 'deposit',
+            args: [depositAmount, input.recipient, minShares],
+          }),
     value: BigInt(0),
   };
 
@@ -182,12 +247,20 @@ export function buildWithdrawCalls(input: {
   vault: Address;
   shareToken: Address;
   network: Network;
+  /** The asset the vault pays out. Defaults to pathUSD, the veda Earn vault's asset. */
+  vaultAsset?: VaultAsset;
+  /** Which exit shape the vault exposes. Defaults to the veda Earn shape. */
+  vaultInterface?: VaultInterface;
+  /** Share decimals, when the share token is not 6dp. A Morpho vault's is 18. */
+  shareDecimals?: number;
 }): TempoCall[] {
-  const pathUsd = getTokenContractFor('pathusd', input.network);
+  const vaultAsset = input.vaultAsset ?? 'pathusd';
+  const vaultInterface = input.vaultInterface ?? 'earn';
+  const assetToken = getTokenContractFor(vaultAsset, input.network);
   const ousd = getTokenContractFor('ousd', input.network);
 
-  const shares = parseUnits(input.shares, ASSET_DECIMALS.pathusd);
-  const minAssets = parseUnits(input.minAssets, ASSET_DECIMALS.pathusd);
+  const shares = parseUnits(input.shares, input.shareDecimals ?? ASSET_DECIMALS.pathusd);
+  const minAssets = parseUnits(input.minAssets, ASSET_DECIMALS[vaultAsset]);
   const minSwapOut = parseUnits(input.minSwapOut, ASSET_DECIMALS.ousd);
 
   if (shares <= BigInt(0)) {
@@ -212,11 +285,18 @@ export function buildWithdrawCalls(input: {
 
   const redeem: TempoCall = {
     to: input.vault,
-    data: encodeFunctionData({
-      abi: EARN_VAULT_REDEEM_ABI,
-      functionName: 'redeem',
-      args: [shares, input.recipient, minAssets],
-    }),
+    data:
+      vaultInterface === 'erc4626'
+        ? encodeFunctionData({
+            abi: ERC4626_REDEEM_ABI,
+            functionName: 'redeem',
+            args: [shares, input.recipient, input.recipient],
+          })
+        : encodeFunctionData({
+            abi: EARN_VAULT_REDEEM_ABI,
+            functionName: 'redeem',
+            args: [shares, input.recipient, minAssets],
+          }),
     value: BigInt(0),
   };
 
@@ -231,15 +311,25 @@ export function buildWithdrawCalls(input: {
    * dust beats a swap that tries to spend more than the redeem paid and reverts the
    * whole withdrawal.
    */
-  const swapHome: TempoCall = {
-    to: STABLECOIN_DEX_ADDRESS,
-    data: encodeFunctionData({
-      abi: DEX_SWAP_ABI,
-      functionName: 'swapExactAmountIn',
-      args: [pathUsd, ousd, minAssets, minSwapOut],
-    }),
-    value: BigInt(0),
-  };
+  /*
+   * The swap home exists only when the vault's asset is not OUSD. A vault that pays OUSD
+   * needs no way home at all: the redeem already delivered the spendable asset, so there
+   * is no floor to spend, no book to cross and no dust left behind (#319).
+   */
+  const swapHome: TempoCall[] =
+    vaultAsset === 'ousd'
+      ? []
+      : [
+          {
+            to: STABLECOIN_DEX_ADDRESS,
+            data: encodeFunctionData({
+              abi: DEX_SWAP_ABI,
+              functionName: 'swapExactAmountIn',
+              args: [assetToken, ousd, minAssets, minSwapOut],
+            }),
+            value: BigInt(0),
+          },
+        ];
 
-  return [approveShares, redeem, swapHome];
+  return [approveShares, redeem, ...swapHome];
 }
