@@ -9,6 +9,8 @@ import {
   SavingsNotLiveError,
 } from '../services/savings.js';
 import { recordSavingsDeposit, recordSavingsWithdrawal } from '../services/transactions.js';
+import { walletAddressFor } from '../services/savings.js';
+import { getSavingsRewards } from '../services/savings-rewards.js';
 import { PaymentRefusalError } from '../services/payment-refusal.js';
 import { refusalResponse } from './refusal-response.js';
 
@@ -97,6 +99,26 @@ export async function savingsRoutes(app: FastifyInstance) {
     const summary = await getSavingsSummary({ userId: user.id, network: user.network });
 
     return { savings: summary };
+  });
+
+  /**
+   * The Merkl campaign's claimable rewards for this wallet (#322).
+   *
+   * A read, and a payload: `amount` is the campaign's cumulative figure, the Distributor
+   * subtracts what was already paid, and `claimableAmount` is `amount - claimed` with
+   * pending excluded. The customer signs the claim themselves, so this route never needs
+   * an operator and never moves anything.
+   *
+   * No rewards is a normal answer, not an error: `claimable: false` with a reason, so the
+   * screen offers no button instead of an error.
+   */
+  app.get('/rewards', async (request: FastifyRequest) => {
+    const user = request.user;
+    if (!user) throw new Error('savings route reached without an authenticated user');
+
+    const address = await walletAddressFor(user.id, user.network);
+    const rewards = await getSavingsRewards({ address, network: user.network });
+    return { rewards };
   });
 
   /**
