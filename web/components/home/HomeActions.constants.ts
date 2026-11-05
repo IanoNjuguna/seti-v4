@@ -1,4 +1,5 @@
 import type { ButtonVariant } from '@/lib/types';
+import type { ICON_PATHS } from '@/components/ui/icon-paths.constants';
 
 /** One of Home's two actions: a label, a destination, and the weight it wears. */
 export interface HomeAction {
@@ -18,6 +19,12 @@ export interface HomeAction {
    * the signal stays with it; a removed door is a feature nobody discovers later.
    */
   badge?: string;
+  /**
+   * The glyph above the label, from the hand-drawn set (#328). The label STAYS: at 20px
+   * nothing in the set distinguishes paying from receiving from exchanging, so the glyph
+   * carries the rhythm and the words carry the meaning.
+   */
+  icon: keyof typeof ICON_PATHS;
 }
 
 /**
@@ -41,8 +48,8 @@ export interface HomeAction {
  * takings into anything, they are being paid").
  */
 export const HOME_ACTIONS: HomeAction[] = [
-  { key: 'pay', label: 'Pay', href: '/app/pay', variant: 'primary' },
-  { key: 'receive', label: 'Receive', href: '/app/receive', variant: 'secondary' },
+  { key: 'pay', label: 'Pay', href: '/app/pay', variant: 'primary', icon: 'send' },
+  { key: 'receive', label: 'Receive', href: '/app/receive', variant: 'secondary', icon: 'scan' },
   /*
    * Save is the third door, and it is here because the strip this replaces had it:
    * it is the one thing a funded account can do with money it is NOT spending, and
@@ -59,5 +66,11 @@ export const HOME_ACTIONS: HomeAction[] = [
    * so the door stays and the badge says why. Hiding it would lose the signal that the
    * feature exists; greying it out would read as broken.
    */
-  { key: 'save', label: 'Save', href: '/app/save', variant: 'secondary', badge: 'Soon' },
+  { key: 'save', label: 'Save', href: '/app/save', variant: 'secondary', badge: 'Soon', icon: 'save' },
+  /*
+   * Swap becomes a door here and stops being a control on the balance card (#328,
+   * slice 2 removes that affordance). It belongs beside Pay and Receive because it is
+   * the fourth thing an account does with money: move it between its own assets.
+   */
+  { key: 'swap', label: 'Swap', href: '/app/swap', variant: 'secondary', icon: 'swap' },
 ];

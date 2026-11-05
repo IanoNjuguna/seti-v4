@@ -17,13 +17,17 @@ import type { HomeActionsProps } from './HomeActions.types';
  * second navigation on the screen (the rail is the first); an unlabelled group of
  * links is announced as links with no context.
  *
- * No icons. The strip had an `add` and a `send` glyph, and at this size a glyph
- * beside a two-word label is decoration competing with the label; the words are
- * short enough to be the whole control.
+ * THE ICONS ARE BACK, and the paragraph that removed them stays here because it was
+ * right about its own case (#328). With two doors and short labels, a glyph beside the
+ * word competed with it. With four — pay, receive, save, swap — the row is a set, and a
+ * set is what a glyph is for: it separates an exchange from a verb at a glance, which
+ * four words in one weight cannot. What did NOT come back is the strip's other habit:
+ * the label stays under every glyph, because at 20px `send`, `scan` and two arrows do not
+ * distinguish paying from receiving from exchanging, so the meaning stays in the word.
  */
 export function HomeActions({ actions = HOME_ACTIONS }: HomeActionsProps) {
   return (
-    <nav aria-label={HOME_PAGE_COPY.actionsLabel} className="flex gap-3">
+    <nav aria-label={HOME_PAGE_COPY.actionsLabel} className="flex flex-wrap gap-3">
       {actions.map((action) => (
         <HomeAction key={action.key} action={action} />
       ))}
