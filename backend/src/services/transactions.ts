@@ -16,7 +16,12 @@ import {
   type ReceiptFailureCode,
 } from './payment-refusal.js';
 import { isAllowedPair } from './convert.js';
-import { SAVINGS_ASSET, SAVINGS_VAULT, SAVINGS_SHARE_TOKEN } from './savings.js';
+import {
+  SAVINGS_ASSET,
+  SAVINGS_SHARE_DECIMALS,
+  SAVINGS_SHARE_TOKEN,
+  SAVINGS_VAULT,
+} from './savings.js';
 import {
   assetDecimals,
   formatUnits,
@@ -474,7 +479,13 @@ export function readTransferredAmount(
   receipt: TransactionReceipt,
   tokenAddress: Hex,
   expectedRecipient: string,
-  asset: SupportedAsset
+  asset: SupportedAsset,
+  /**
+   * Decimals for a token that is not one of the four (#340). A vault's share token is an
+   * 18dp ERC-20, and reading a mint at the asset's six turned a share into a millionth of
+   * one, which silently made every floor comparison meaningless.
+   */
+  decimals: number = assetDecimals[asset]
 ): { ok: true; value: number } | { ok: false; code: ReceiptFailureCode; reason: string } {
   const token = tokenAddress.toLowerCase();
 
@@ -489,7 +500,7 @@ export function readTransferredAmount(
 
       return {
         ok: true,
-        value: Number(formatUnits(decoded.args.value, assetDecimals[asset])),
+        value: Number(formatUnits(decoded.args.value, decimals)),
       };
     } catch {
       // Not a Transfer log we can decode; keep looking.
@@ -1265,34 +1276,42 @@ export async function recordSavingsDeposit(input: RecordSavingsDepositInput) {
   }
   const receipt = found.receipt;
 
-  // 1. the OUSD left the wallet, for the DEX.
+  /*
+   * THE LEGS FOLLOW THE VAULT'S SHAPE (#340).
+   *
+   * A vault whose asset is OUSD is funded by ONE transfer: the wallet pays the vault, and
+   * `deposit` mints shares in the same call. The old vault took pathUSD, so the money went
+   * wallet → DEX → vault and the input leg had to look for the DEX. This recorder still
+   * asked for the DEX leg, so every correct OUSD deposit was refused after it landed:
+   * "No OUSD transfer to the DEX in this transaction".
+   */
+  const vaultPaysOusd = SAVINGS_ASSET === 'ousd';
   const assetIn: SupportedAsset = input.assetIn ?? 'ousd';
-  const inLeg = readTransferredAmount(
-    receipt,
-    getTokenContract(assetIn, network),
-    STABLECOIN_DEX_ADDRESS,
-    'ousd'
-  );
-  if (!inLeg.ok || Math.abs(inLeg.value - claimedIn) > claimedIn * 0.01) {
+
+  const inLeg = vaultPaysOusd
+    ? readTransferredAmount(receipt, getTokenContract('ousd', network), vault, 'ousd')
+    : readTransferredAmount(receipt, getTokenContract(assetIn, network), STABLECOIN_DEX_ADDRESS, 'ousd');
+  const inExpected = vaultPaysOusd ? claimedDeposit : claimedIn;
+  if (!inLeg.ok || Math.abs(inLeg.value - inExpected) > inExpected * 0.01) {
     throw await refusal({
       userId: input.userId,
       txHash: input.txHash,
       code: 'savings-leg-unverified',
       reason: inLeg.ok
-        ? `OUSD spent does not match: claimed ${claimedIn}, chain ${inLeg.value}.`
-        : `No OUSD transfer to the DEX in this transaction: ${inLeg.reason}.`,
-      claimedAmount: claimedIn,
+        ? `The deposit does not match what left the wallet: claimed ${inExpected}, chain ${inLeg.value}.`
+        : vaultPaysOusd
+          ? `No OUSD transfer to the vault in this transaction: ${inLeg.reason}.`
+          : `No OUSD transfer to the DEX in this transaction: ${inLeg.reason}.`,
+      claimedAmount: inExpected,
       ...(inLeg.ok ? { observedAmount: inLeg.value } : {}),
     });
   }
 
-  // 2. the pathUSD reached the vault.
-  const vaultLeg = readTransferredAmount(
-    receipt,
-    getTokenContract(SAVINGS_ASSET, network),
-    vault,
-    SAVINGS_ASSET
-  );
+  // The vault's own receipt of the money. For an OUSD vault that is the same transfer the
+  // wallet made, so it is the same leg rather than a second one nobody can find.
+  const vaultLeg = vaultPaysOusd
+    ? inLeg
+    : readTransferredAmount(receipt, getTokenContract(SAVINGS_ASSET, network), vault, SAVINGS_ASSET);
   if (!vaultLeg.ok || Math.abs(vaultLeg.value - claimedDeposit) > claimedDeposit * 0.01) {
     throw await refusal({
       userId: input.userId,
@@ -1312,7 +1331,8 @@ export async function recordSavingsDeposit(input: RecordSavingsDepositInput) {
     receipt,
     shareToken as Hex,
     wallet.address,
-    SAVINGS_ASSET
+    SAVINGS_ASSET,
+    SAVINGS_SHARE_DECIMALS
   );
   if (!shareLeg.ok) {
     throw await refusal({
@@ -1371,13 +1391,19 @@ export async function recordSavingsDeposit(input: RecordSavingsDepositInput) {
           shareToken,
           shares: shareLeg.value.toFixed(8),
           minShares: floor.toFixed(8),
-          swap: {
-            assetIn: 'ousd',
-            amountIn: inLeg.value.toFixed(8),
-            assetOut: SAVINGS_ASSET,
-            amountOut: vaultLeg.value.toFixed(8),
-            venue: 'tempo-dex',
-          },
+          // The mechanism, recorded only when there was one: an OUSD vault is funded by a
+          // plain transfer, and a "swap" row for it would describe a call nobody made.
+          ...(vaultPaysOusd
+            ? { deposit: { asset: 'ousd', amount: vaultLeg.value.toFixed(8) } }
+            : {
+                swap: {
+                  assetIn,
+                  amountIn: inLeg.value.toFixed(8),
+                  assetOut: SAVINGS_ASSET,
+                  amountOut: vaultLeg.value.toFixed(8),
+                  venue: 'tempo-dex',
+                },
+              }),
         },
       } as never,
     },
@@ -1484,8 +1510,20 @@ export async function recordSavingsWithdrawal(input: RecordSavingsWithdrawalInpu
   }
   const receipt = found.receipt;
 
-  // 1. the shares left the wallet, for the vault.
-  const shareLeg = readTransferredAmount(receipt, shareToken as Hex, vault, SAVINGS_ASSET);
+  /*
+   * 1. the shares left the wallet (#340). An ERC-4626 redeem BURNS them from the owner, so
+   *    the leg that proves it is a Transfer to the zero address, read at the share token's
+   *    eighteen decimals. The veda vault pulled shares into itself, which is what this used
+   *    to look for, and it read them at six decimals besides.
+   */
+  const vaultPaysOusd = SAVINGS_ASSET === 'ousd';
+  const shareLeg = readTransferredAmount(
+    receipt,
+    shareToken as Hex,
+    vaultPaysOusd ? '0x0000000000000000000000000000000000000000' : vault,
+    SAVINGS_ASSET,
+    SAVINGS_SHARE_DECIMALS
+  );
   if (!shareLeg.ok || Math.abs(shareLeg.value - shares) > shares * 0.01) {
     throw await refusal({
       userId: input.userId,
@@ -1516,13 +1554,11 @@ export async function recordSavingsWithdrawal(input: RecordSavingsWithdrawalInpu
     });
   }
 
-  // 3. the OUSD arrived, above the floor that was signed.
-  const ousdLeg = readTransferredAmount(
-    receipt,
-    getTokenContract('ousd', network),
-    wallet.address,
-    'ousd'
-  );
+  // 3. the OUSD arrived, above the floor that was signed. When the vault pays OUSD this is
+  //    the same payout the leg above already read: one transfer, not two.
+  const ousdLeg = vaultPaysOusd
+    ? assetLeg
+    : readTransferredAmount(receipt, getTokenContract('ousd', network), wallet.address, 'ousd');
   if (!ousdLeg.ok) {
     throw await refusal({
       userId: input.userId,

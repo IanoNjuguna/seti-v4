@@ -14,6 +14,7 @@ import {
   orderDepositAssets,
   SAVINGS_ASSET,
   SAVINGS_LIVE,
+  SAVINGS_SHARE_DECIMALS,
   SavingsFundingError,
   SavingsNotLiveError,
   sharesForDeposit,
@@ -22,6 +23,7 @@ import {
 } from './savings.js';
 import { quoteSavingsDeposit } from './savings.js';
 import { claimableFiatFor } from './savings-rewards.js';
+import { readFileSync } from 'node:fs';
 import { formatUnits } from 'viem';
 import type { SupportedAsset } from '../config/assets.js';
 
@@ -254,6 +256,39 @@ check(
   'a zero share price yields no shares rather than dividing',
   sharesForWithdrawal(10, 0) === BigInt(0)
 );
+
+
+// ---------------------------------------------------------------------------
+// THE RECORD PATHS (#340). They verify a receipt, so the assertions are about the SHAPE
+// they look for: an OUSD vault funds a deposit with one transfer and proves a withdrawal
+// with a burn, and a share is always eighteen decimals.
+// ---------------------------------------------------------------------------
+console.log('\nthe record paths follow the vault, not the vault that used to be here\n');
+
+// The recorder runs against a receipt, so the assertions are about the shape it looks
+// for; the file is read from the process's own directory, which `check:save` sets to
+// `backend/`.
+const recorder = readFileSync('src/services/transactions.ts', 'utf8')
+  .replace(/\/\*[\s\S]*?\*\//g, '');
+
+check(
+  'a deposit funded by an OUSD vault is checked wallet to vault, with no DEX leg',
+  recorder.includes("vaultPaysOusd\n    ? readTransferredAmount(receipt, getTokenContract('ousd', network), vault, 'ousd')")
+);
+check(
+  'and the vault leg is that same transfer rather than a second one',
+  recorder.includes('const vaultLeg = vaultPaysOusd\n    ? inLeg')
+);
+check(
+  'a withdrawal proves the burn, which is a transfer to the zero address',
+  recorder.includes("'0x0000000000000000000000000000000000000000'")
+);
+check(
+  'both recorders read shares at the share token\'s decimals, not the asset\'s',
+  (recorder.match(/SAVINGS_SHARE_DECIMALS/g) ?? []).length >= 2,
+  String((recorder.match(/SAVINGS_SHARE_DECIMALS/g) ?? []).length)
+);
+check('and that unit is eighteen', SAVINGS_SHARE_DECIMALS === 18, String(SAVINGS_SHARE_DECIMALS));
 
 // ---------------------------------------------------------------------------
 // The share floor (#134). This is the assertion that would have caught a bug that
