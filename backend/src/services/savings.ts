@@ -48,26 +48,106 @@ import { publicClientFor, estimateNetworkFee } from './chain.js';
 
 const EARN_API = 'https://api.tempo.xyz/v1/earn';
 
-/** The vault customer money goes into, per network. Absent means savings are off. */
+/**
+ * The vault customer money goes into, per network. Absent means savings are off.
+ *
+ * SENTORA OUSD MAIN on Tempo, and it is the only vault savings uses (#322). Chosen over
+ * the pathUSD Earn vault that used to sit here because it is 44.5M deep against that
+ * vault's ~$150, it takes OUSD (the token every Seti balance is already in, so a deposit
+ * needs no swap and a withdrawal leaves no dust), and it carries a funded Merkl campaign
+ * that pays 3.5994% until 2027-01-06.
+ *
+ * WHAT IT COSTS. The vault's own yield measured 0.0000% over seven days, so the whole of
+ * that 3.6% is the campaign, and the campaign has an end date. Plain ERC-4626: the vault
+ * contract IS the share token, shares are 18dp, and neither `deposit` nor `redeem` takes
+ * a floor (the builders take `vaultInterface: 'erc4626'` for that).
+ */
 export const SAVINGS_VAULT: Partial<Record<Network, string>> = {
-  mainnet: '0x79a5ee4e9fb8bc3a6c0dc13525ec8ed4872de07a',
+  mainnet: '0x0D136e26B4D9e4836fc5cb202baeb49Cb6f5df48',
 };
 
-/** The asset the chosen vault takes. Savings are denominated in it, not in OUSD. */
-export const SAVINGS_ASSET: SupportedAsset = 'pathusd';
+/**
+ * The asset the chosen vault takes. Savings are denominated in it.
+ *
+ * OUSD now, which is the same token a customer's balance is already in: the deposit's
+ * swap leg and the withdrawal's way home both disappear, and with them the two hops of
+ * churn (#318) and the dust every exit used to leave (#319).
+ */
+export const SAVINGS_ASSET: SupportedAsset = 'ousd';
 
 /**
  * The vault's SHARE token, per network.
  *
- * A constant like the vault, and for the same reason: it is the contract whose
- * Transfer events prove shares were minted to the customer, so it must not be
- * something a caller can name. Mainnet shares are `tvSENPATHUSDTest1E` at this
- * address (the vault's own label carries "Test", which is Tempo's naming — it is
- * the live, funded vault).
+ * A constant like the vault, and for the same reason: it is the contract whose Transfer
+ * events prove shares were minted to the customer, so it must not be something a caller
+ * can name.
+ *
+ * IT IS THE VAULT ADDRESS HERE, and that is not a copy-paste slip: the Sentora OUSD Main
+ * vault is plain ERC-4626, so the vault contract itself is the ERC-20 share token. Read
+ * `name()`, `symbol()`, `decimals()` and `totalSupply()` off that address and they answer
+ * `Sentora OUSD Main`, `senOUSDmain`, `18` and the share count.
  */
 export const SAVINGS_SHARE_TOKEN: Partial<Record<Network, string>> = {
-  mainnet: '0x20c000000000000000000000732df315102e4518',
+  mainnet: '0x0D136e26B4D9e4836fc5cb202baeb49Cb6f5df48',
 };
+
+/**
+ * The vault, read from the chain rather than from Tempo Earn.
+ *
+ * Tempo's Earn API answers `earn_vault_not_found` for the Morpho vault (#322), so every
+ * figure savings needs comes from the contract: the share price is
+ * `convertToAssets(1e18) / 1e18`, and a position is the share token's balance of the
+ * signing wallet. The vault IS the share token, so both calls go to one address.
+ *
+ * Returns null rather than throwing: an unreadable vault is a state the summary reports
+ * (`status: 'unreadable'`) and must not crash a page for.
+ */
+const ERC4626_READ_ABI = [
+  {
+    name: 'convertToAssets',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ type: 'uint256', name: 'shares' }],
+    outputs: [{ type: 'uint256', name: 'assets' }],
+  },
+  {
+    name: 'balanceOf',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ type: 'address', name: 'holder' }],
+    outputs: [{ type: 'uint256', name: 'shares' }],
+  },
+] as const;
+
+async function readVaultOnChain(
+  vault: `0x${string}`,
+  holder: `0x${string}` | null,
+  network: Network
+): Promise<{ sharePrice: number; shares: bigint } | null> {
+  try {
+    const client = publicClientFor(network);
+    const [perShare, held] = await Promise.all([
+      client.readContract({
+        address: vault,
+        abi: ERC4626_READ_ABI,
+        functionName: 'convertToAssets',
+        args: [10n ** 18n],
+      }),
+      holder
+        ? client.readContract({
+            address: vault,
+            abi: ERC4626_READ_ABI,
+            functionName: 'balanceOf',
+            args: [holder],
+          })
+        : Promise.resolve(BigInt(0)),
+    ]);
+
+    return { sharePrice: Number(formatUnits(perShare, ASSET_DECIMALS)), shares: BigInt(held) };
+  } catch {
+    return null;
+  }
+}
 
 export interface SavingsEarnings {
   /** Lifetime earnings in the vault's asset units. */
@@ -228,47 +308,30 @@ export async function getSavingsSummary(input: {
 
   if (!vaultAddress || !address) return empty;
 
-  const [vault, position, earnings] = await Promise.all([
-    earnGet<EarnVault>(`/vaults/${vaultAddress}?chainId=${network === 'mainnet' ? 4217 : 42431}`),
-    earnGet<EarnPosition>(
-      `/vaults/${vaultAddress}/positions/${address}?chainId=${network === 'mainnet' ? 4217 : 42431}`
-    ),
-    earnGet<EarnEarnings>(
-      `/vaults/${vaultAddress}/earnings/${address}?chainId=${network === 'mainnet' ? 4217 : 42431}`
-    ),
-  ]);
+  /*
+   * Read from the CHAIN, not from Tempo Earn. Tempo answers `earn_vault_not_found` for
+   * this vault: it is a Morpho vault and that API only knows Earn vaults (#322). Share
+   * price is `convertToAssets(1e18) / 1e18`, the position is the share token's balance of
+   * the signing wallet, and the vault IS the share token.
+   */
+  const vaultHex = vaultAddress as `0x${string}`;
+  const holderHex = address as `0x${string}`;
+  const onChain = await readVaultOnChain(vaultHex, holderHex, network);
 
-  // A vault we cannot read is a vault we cannot offer: no deposit button on a
-  // paused or unreadable vault, because the tap would fail after the customer has
-  // already typed an amount.
-  // The vault exists (we named it) but did not answer: a read failure, not an
-  // absence. The surface can offer a retry for this and must not for the other.
-  if (!vault) return { ...empty, status: 'unreadable' };
+  // A vault we cannot read is a vault we cannot offer: no deposit button on a paused or
+  // unreadable vault, because the tap would fail after the customer has typed an amount.
+  if (!onChain) return { ...empty, status: 'unreadable' };
 
-  const paused = vault.state?.depositsPaused === true;
-  const aligned = vault.state?.isAccountingAligned !== false;
+  const sharePrice = onChain.sharePrice;
+  const shares = onChain.shares;
+  // Shares are 18dp and the asset is 6dp, so one conversion settles the position's worth.
+  const perShare = BigInt(Math.round(sharePrice * 10 ** ASSET_DECIMALS));
+  const positionAssets = (shares * perShare) / 10n ** 18n;
+  const savedUnits = Number(formatUnits(positionAssets, ASSET_DECIMALS));
 
-  const savedValue = position?.value ?? '0';
-  const savedUnits = Number(formatUnits(BigInt(savedValue), ASSET_DECIMALS));
-  const shares = position?.shareBalance ?? '0';
-
-  const measured =
-    earnings && earnings.status === 'complete'
-      ? {
-          lifetime: formatUnits(BigInt(earnings.lifetimeEarnings), ASSET_DECIMALS),
-          status: earnings.status,
-          lifetimeFiat: (
-            Number(formatUnits(BigInt(earnings.lifetimeEarnings), ASSET_DECIMALS)) * fiatPerUsd
-          ).toFixed(2),
-        }
-      : earnings
-        ? {
-            lifetime: '0',
-            status: earnings.status,
-            // Unmeasurable is not zero: the surface must say so.
-            lifetimeFiat: null,
-          }
-        : null;
+  // No earnings figure: a cost basis is the vendor's to attribute, this vault has none
+  // exposed, and "unmeasurable" is not "zero". The surface says so.
+  const measured: SavingsSummary['earnings'] = null;
 
   return {
     network,
@@ -277,22 +340,26 @@ export async function getSavingsSummary(input: {
     vault: {
       address: vaultAddress,
       asset: SAVINGS_ASSET,
-      sharePrice: vault.sharePrice?.formatted ?? '1',
-      depositsPaused: paused,
+      // Share price is a ratio, and this is the first place it is a ratio we computed
+      // rather than a vendor's formatted string.
+      sharePrice: String(sharePrice),
+      // An ERC-4626 vault exposes no pause flag we read, and deposits are gated by
+      // `SAVINGS_LIVE` anyway. Withdrawals are never gated: closing deposits must never
+      // trap a position.
+      depositsPaused: false,
     },
     spendableFiat,
     fiatCurrency,
-    savedValue: formatUnits(BigInt(savedValue), ASSET_DECIMALS),
+    savedValue: formatUnits(positionAssets, ASSET_DECIMALS),
     savedFiat: (savedUnits * fiatPerUsd).toFixed(2),
-    shares: formatUnits(BigInt(shares), ASSET_DECIMALS),
+    shares: formatUnits(shares, 18),
     earnings: measured,
-    // Tempo's vault responses carry no measurable rate for this vault today. Null
-    // here is rendered as "unavailable", never as 0%.
+    // The vault's own yield measured 0.0000% over seven days (#322). The campaign APR is
+    // a separate surface with its own end date; this field is the vault's rate, and it is
+    // null rather than 0 so the screen says "unavailable" instead of "0%".
     apy: null,
-    // The flag and the vault's own state both have to agree. Withdrawals are not
-    // gated: closing deposits must never trap a position.
-    canDeposit: SAVINGS_LIVE && !paused && aligned,
-    canWithdraw: BigInt(shares) > BigInt(0),
+    canDeposit: SAVINGS_LIVE,
+    canWithdraw: shares > BigInt(0),
     live: SAVINGS_LIVE,
   };
 }
@@ -524,8 +591,12 @@ export async function quoteSavingsDeposit(input: {
   // Shares are priced by the vault, not by us: at a share price of P, one unit buys
   // 1/P shares. The floor is the same 50bps the swap gets, so a vault fee taken at
   // deposit cannot reduce the position below what the customer was shown.
-  const vaultRecord = await earnGet<EarnVault>(`/vaults/${vault}?chainId=${network === 'mainnet' ? 4217 : 42431}`);
-  const sharePrice = Number(vaultRecord?.sharePrice?.formatted ?? '1');
+  const vaultRecord = await readVaultOnChain(
+    vault as `0x${string}`,
+    null,
+    network
+  );
+  const sharePrice = vaultRecord?.sharePrice ?? 0;
   const minShares = sharesForDeposit(amountOut, sharePrice);
 
   /*
