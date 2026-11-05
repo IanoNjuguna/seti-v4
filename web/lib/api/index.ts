@@ -57,3 +57,5 @@ export type { StatementFile, StatementFormat } from './statement';
 export { merchantVerification } from './merchant-verification';
 export { fetchMyReferrals } from './referrals';
 export type { ReferralJoin, ReferralSummary } from './referrals.types';
+
+export * from './savings';

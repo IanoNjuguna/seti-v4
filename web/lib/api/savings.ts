@@ -134,3 +134,25 @@ export async function recordSavingsDeposit(
   );
   return transaction;
 }
+
+/** One wallet's Merkl position in the campaign that pays the vault's rate (#322). */
+export interface SavingsRewards {
+  claimable: boolean;
+  wrapper: string;
+  distributor: string | null;
+  /** Cumulative campaign amount for this wallet, in wrapped-OUSD units. */
+  amount: string;
+  /** Already paid out by the Distributor. */
+  claimed: string;
+  /** `amount - claimed`, pending excluded: what the button may offer. */
+  claimableAmount: string;
+  proofs: string[];
+  /** The campaign's published end, so copy names a date instead of a bare rate. */
+  campaignEnds: string;
+  reason: string | null;
+}
+
+export async function fetchSavingsRewards(): Promise<SavingsRewards> {
+  const { rewards } = await get<{ rewards: SavingsRewards }>('/savings/rewards');
+  return rewards;
+}

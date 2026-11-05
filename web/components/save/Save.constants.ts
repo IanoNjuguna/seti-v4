@@ -38,6 +38,8 @@ export const SAVE_COPY = {
   earnedUnknown: 'Earnings not measurable yet',
   addAction: 'Add money',
   withdrawAction: 'Withdraw',
+  /** The claim, named as a campaign reward so it is never read as a vault rate. */
+  claimAction: 'Claim rewards',
   withdrawUnavailable: 'Nothing saved yet',
   amountTitle: 'How much are you saving?',
   amountLabel: 'Amount to save',
@@ -69,6 +71,10 @@ export const SAVE_COPY = {
   soonBody:
     'Put money aside and earn on it, once the vault pays a rate worth your time. We will turn it on then.',
   soonNote: 'Nothing here can hold your money in the meantime.',
+  rewardsLabel: 'Campaign rewards',
+  /** The date is the promise: the rate belongs to the campaign, not to the vault. */
+  rewardsEnds: 'ends',
+  rewardsClaimed: 'Claimed. The rewards are in your wallet.',
   /** The custody sentence: the thing a customer most wants to know. */
   custodyNote: 'Your money sits in a Tempo vault in your own name. Seti never holds it.',
 } as const;
