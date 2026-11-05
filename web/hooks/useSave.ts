@@ -153,6 +153,11 @@ export function useSave(): UseSaveReturn {
             recipient: wallet.address as Address,
             vault: fresh.vault as Address,
             network,
+            // The vault is a Morpho ERC-4626 vault taking OUSD (#322): no swap leg in,
+            // 18-decimal shares, and no floor parameter for the vault to enforce.
+            vaultAsset: 'ousd',
+            vaultInterface: 'erc4626',
+            shareDecimals: 18,
           });
 
           const txHash = await sendTempoTransaction(
@@ -187,10 +192,15 @@ export function useSave(): UseSaveReturn {
             vault: fresh.vault as Address,
             shareToken: fresh.shareToken as Address,
             network,
+            // Same vault as the deposit: OUSD out, ERC-4626 redeem, 18-decimal shares.
+            // There is no swap home, so the payout is already the spendable asset.
+            vaultAsset: 'ousd',
+            vaultInterface: 'erc4626',
+            shareDecimals: 18,
           });
 
           const txHash = await sendTempoTransaction(
-            buildTempoTransaction({ asset: 'pathusd', calls, network })
+            buildTempoTransaction({ asset: 'ousd', calls, network })
           );
 
           await recordSavingsWithdrawal({
