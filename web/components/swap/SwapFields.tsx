@@ -3,6 +3,7 @@
 import { SWAP_FORM_COPY } from './SwapForm.constants';
 import { SwapAmountField } from './SwapAmountField';
 import { SwapFigures } from './SwapFigures';
+import { SwapRateLine } from './SwapRateLine';
 import { SwapSelect } from './SwapSelect';
 import { SwapSubmit } from './SwapSubmit';
 import type { SwapFieldsProps } from './SwapForm.types';
@@ -22,6 +23,11 @@ import type { SwapFieldsProps } from './SwapForm.types';
  * whether a quote is shown and whether the button can be pressed are all the hook's.
  */
 export function SwapFields({ form }: SwapFieldsProps) {
+  // The source's own spelling, for the ceiling caption. Read from the row the quote is
+  // spending, never typed here: a symbol this app made up is a token name we claimed.
+  const sourceSymbol =
+    form.sourceOptions.find((option) => option.asset === form.assetIn)?.symbol ?? '';
+
   return (
     <form className="flex flex-col gap-4" onSubmit={form.onSubmit}>
       <SwapSelect
@@ -42,10 +48,15 @@ export function SwapFields({ form }: SwapFieldsProps) {
         onChoose={form.onTarget}
       />
 
+      {/* The price of the pair, under the two pickers it belongs to (#337). */}
+      {form.quote !== null && <SwapRateLine quote={form.quote} />}
+
       <SwapAmountField
         id={form.amountFieldId}
         amount={form.amount}
         error={form.amountError}
+        spendable={form.spendable}
+        symbol={sourceSymbol}
         busy={form.busy}
         refocus={form.refocusAmount}
         onAmount={form.onAmount}

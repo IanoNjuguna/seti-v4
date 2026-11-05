@@ -79,6 +79,7 @@ import {
   isAllowedPair,
   previewConvert,
   quoteDexConvert,
+  rateLine,
   resolveConvertAmount,
   type ConvertQuote,
 } from './convert.js';
@@ -910,6 +911,22 @@ async function main(): Promise<void> {
     'no quote wrote a row: asking what a swap would pay is a read',
     quotesAfter === quotesBefore,
     `${quotesBefore} → ${quotesAfter}`
+  );
+
+  /*
+   * The quote's rate (#337). One unit of the input, at the book's own answer for this
+   * size: a ratio of the two figures the quote already carries, so it cannot disagree with
+   * them, and it must not divide by an amount of zero.
+   */
+  check(
+    'the rate is the book answer per unit in',
+    rateLine(1_000_000n, 999_500n) === '0.999500',
+    rateLine(1_000_000n, 999_500n)
+  );
+  check(
+    'a zero amount yields a zero rate rather than dividing',
+    rateLine(0n, 999_500n) === '0.000000',
+    rateLine(0n, 999_500n)
   );
 
   console.log('-'.repeat(74));

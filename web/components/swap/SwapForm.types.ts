@@ -46,6 +46,14 @@ export interface SwapAmountFieldProps {
   amount: string;
   /** The field's own message, when the figure cannot be asked about. */
   error: string | null;
+  /**
+   * What this balance can actually swap, in its own units: the server's `max` resolution,
+   * gas already subtracted (#337). Null while that quote is in flight or was refused, and
+   * the ceiling is simply absent rather than guessed from the balance row.
+   */
+  spendable: string | null;
+  /** The symbol `spendable` is in, for the caption beside `All`. */
+  symbol: string;
   busy: boolean;
   /**
    * Take the cursor. Set when the refusal in the state line is one that tells the
@@ -58,6 +66,11 @@ export interface SwapAmountFieldProps {
 
 export interface SwapFiguresProps {
   /** The server's quote for the amount on screen. Every figure below is its own. */
+  quote: ConvertQuote;
+}
+
+/** The pair's rate, printed between the pickers and the amount (#337). */
+export interface SwapRateLineProps {
   quote: ConvertQuote;
 }
 
@@ -104,6 +117,11 @@ export interface SwapFormState {
   amountError: string | null;
   /** The server's quote for the amount on screen, or null. */
   quote: ConvertQuote | null;
+  /**
+   * The most this balance can swap, in its own units, from the server's `max` answer
+   * (#337). Null while that request is in flight or was refused.
+   */
+  spendable: string | null;
   /** One sentence about where the swap stands, or null when the figures speak. */
   stateLine: SwapStateLineModel | null;
   /** The amount field should take the cursor. */

@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect } from 'react';
-import { Input } from '@/components/ui';
-import { SWAP_FORM_COPY, SWAP_LINK_CLASS } from './SwapForm.constants';
+import { Input, Text } from '@/components/ui';
+import { SWAP_FORM_COPY, SWAP_LINK_CLASS, spendableLine } from './SwapForm.constants';
 import type { SwapAmountFieldProps } from './SwapForm.types';
 
 /**
@@ -23,6 +23,8 @@ export function SwapAmountField({
   id,
   amount,
   error,
+  spendable,
+  symbol,
   busy,
   refocus,
   onAmount,
@@ -39,7 +41,19 @@ export function SwapAmountField({
 
   return (
     <div className="flex flex-col">
-      <div className="flex items-center justify-end">
+      {/*
+        The ceiling beside the control that fills it (#337). `All` has always resolved the
+        server's `max`; what was missing is that nothing said what that figure was until
+        it was pressed. It is the server's own resolution, gas subtracted, so the caption
+        and the button cannot disagree. Absent while the answer is in flight: a caption
+        invented from the balance row would overstate it by the fee.
+      */}
+      <div className="flex items-baseline justify-end gap-2">
+        {spendable !== null && symbol !== '' && (
+          <Text variant="micro" as="span" color="secondary" tabular>
+            {spendableLine(spendable, symbol)}
+          </Text>
+        )}
         <button type="button" className={SWAP_LINK_CLASS} onClick={onAll} disabled={busy}>
           {SWAP_FORM_COPY.all}
         </button>
