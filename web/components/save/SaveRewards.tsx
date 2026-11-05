@@ -95,7 +95,7 @@ export function SaveRewards() {
         {SAVE_COPY.rewardsLabel}
       </Text>
       <Text variant="card-title" tabular as="p" className="mt-1">
-        {amount} OUSD
+        {amount}
       </Text>
       <Text variant="micro" color="secondary" as="p" className="mt-1">
         {SAVE_COPY.rewardsEnds} {ends}. Paid by the campaign, not by the vault.
