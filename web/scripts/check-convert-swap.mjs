@@ -1,14 +1,16 @@
 /**
- * `npm run check:convert-swap` — the control on a balance row, and the path a swap takes
- * once it is pressed (#240).
+ * `npm run check:convert-swap` — how a swap is reached, and the path it takes once it is
+ * pressed (#240, #328).
  *
  * The issue's acceptance criteria are four claims about CODE, and this file asserts each
  * one where it can actually be broken:
  *
- *  1. **The control is ABSENT when the book cannot fill it, not disabled.** Rendered
- *     through the real component and read as markup, because "disabled" and "absent" are
- *     one attribute apart in source and a world apart to a customer: a disabled button
- *     promises a feature nobody measured, and every customer presses it once.
+ *  1. **The balance card offers NO swap, and the tile is the only door.** Asserted by
+ *     READING the card's own sources (#328 slice 2) and by checking that the page the tile
+ *     names exists — a tile pointing at a deleted page is a door to nowhere, and a control
+ *     left on the card is a second one. It reads source rather than markup because the
+ *     claim is now an ABSENCE, and because the components that drew the control are
+ *     deleted: a check that imports them would only prove they still exist.
  *  2. **Signing goes through Privy's Tempo hook, never an EIP-1193 provider.** Asserted by
  *     READING the swap path's sources for `getEthereumProvider`, `eth_signTypedData_v4`
  *     and `eth_sendTransaction` — the way `check:claim-states` pins the claim — because
@@ -30,9 +32,7 @@
  *
  * Run from `web/`: npm run check:convert-swap.
  */
-import { readFileSync } from 'node:fs';
-import { createElement } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { existsSync, readFileSync } from 'node:fs';
 
 /**
  * The served chain, set BEFORE anything imports the app's chain table.
@@ -46,10 +46,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 process.env.NEXT_PUBLIC_TEMPO_CHAIN_ID ??= '42431';
 
 /** Loaded AFTER the line above, for the reason given there. */
-const { BalanceTokenSwap } = await import('../components/home/BalanceTokenSwap.tsx');
-const { BalanceTokenSwapConfirm } = await import('../components/home/BalanceTokenSwapConfirm.tsx');
 const { SWAP_COPY } = await import('../lib/pay/convert-swap.constants.ts');
-const { buildSwapCall, STABLECOIN_DEX_ADDRESS, SWAP_TARGET_ASSET } = await import('../lib/pay/build-swap.ts');
+const { buildSwapCall, STABLECOIN_DEX_ADDRESS } = await import('../lib/pay/build-swap.ts');
 const { getTokenContractFor } = await import('../lib/chain/index.ts');
 const { REFUSAL_BY_CODE, REFUSAL_UNKNOWN } = await import('../lib/api/refusal.constants.ts');
 const { decodeFunctionData } = await import('viem');
@@ -76,130 +74,80 @@ function stripComments(source) {
   return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 }
 
-const NOOP = () => {};
-
-/** The swap control's own files: everything a swap touches on its way to a signature. */
+/** The swap path's files: everything a swap touches on its way to a signature. */
 const SWAP_PATH = [
   '../hooks/useConvertSwap.ts',
   '../hooks/useConvertQuote.ts',
   '../lib/pay/build-swap.ts',
   '../lib/api/convert.ts',
-  '../components/home/BalanceTokenSwap.tsx',
-  '../components/home/BalanceTokenSwapAction.tsx',
-  '../components/home/BalanceTokenSwapConfirm.tsx',
 ];
 
-/** A quote in the shape the route returns, for the presentational assertions. */
-const QUOTE = {
-  network: 'testnet',
-  assetIn: 'pathusd',
-  assetOut: 'ousd',
-  amountIn: '10.000000',
-  amountOut: '9.999000',
-  minAmountOut: '9.949005',
-  toleranceBps: 50,
-  networkFee: '0.000474',
-  fiatCurrency: 'KES',
-  fiatAmountIn: '1298.74',
-  fiatAmountOut: '1291.99',
-  fxRate: '129.874192',
-  fxRateSource: 'memory',
-  fxRateStale: false,
-  networkFeeFiat: '0.06',
-  networkFeeSource: 'estimate',
-  quoteId: 'body.signature',
-};
+/**
+ * The balance card's own files, named rather than globbed: `HomeActions.constants.ts`
+ * lives in the same directory and DOES link to the swap page, because the tile is the
+ * door that replaced these. A directory scan would have to subtract it and would pass
+ * for the wrong reason the day another file gained a link too.
+ */
+const CARD_FILES = ['BalanceCard.tsx', 'BalanceTokens.tsx', 'BalanceTokenRow.tsx'];
 
-console.log('the control is absent, not disabled, when the book cannot fill it:');
+/** The components that drew the control, deleted in #328 slice 2. */
+const REMOVED = [
+  'BalanceTokenSwap.tsx',
+  'BalanceTokenSwapAction.tsx',
+  'BalanceTokenSwapConfirm.tsx',
+  'BalanceTokenSwap.types.ts',
+  'BalanceTokenSwap.constants.ts',
+];
+
+console.log('the balance card offers no swap, and the tile is the only door:');
 {
-  const withoutOffer = renderToStaticMarkup(
-    createElement(BalanceTokenSwap, { offer: null, onSwapped: NOOP })
-  );
-  check('a refused quote renders nothing at all', withoutOffer === '', JSON.stringify(withoutOffer));
+  const sources = CARD_FILES.map((name) => ({
+    name,
+    source: stripComments(readFileSync(new URL(`../components/home/${name}`, import.meta.url), 'utf8')),
+  }));
 
-  /**
-   * The one exception, added in #304: two refusal codes now speak on the row. The
-   * assertion above still holds for `offer: null` with no code, and these two pin the
-   * edge that made it necessary. Without them the older assertion would quietly keep
-   * passing while the row learned to say a sentence, which is exactly the kind of
-   * stale green a check exists to prevent.
-   */
-  for (const code of ['convert-no-liquidity', 'convert-pair-unavailable']) {
-    const refused = renderToStaticMarkup(
-      createElement(BalanceTokenSwap, { offer: null, code, onSwapped: NOOP })
-    );
-    check(
-      `a row refused for ${code} prints the code's own sentence, and no control`,
-      refused !== '' && refused.indexOf('<button') === -1 && refused.indexOf('Swap') === -1,
-      refused
-    );
-  }
-
-  const otherRefusal = renderToStaticMarkup(
-    createElement(BalanceTokenSwap, { offer: null, code: 'unauthorized', onSwapped: NOOP })
-  );
+  const doors = sources.filter(({ source }) => source.includes('/app/swap'));
   check(
-    'every other refusal still draws nothing, because it is not news about the row',
-    otherRefusal === '',
-    JSON.stringify(otherRefusal)
+    'nothing on the card links to the swap page',
+    doors.length === 0,
+    doors.map(({ name }) => name).join(', ')
   );
 
   /**
-   * The OFFERED state is asserted from source rather than rendered, and the reason is
-   * worth writing down: the action reads the account's network, so rendering it here
-   * would need the session and account providers — and a check that has to stand up the
-   * app's whole provider tree to read one label is a check that will one day fail for a
-   * reason unrelated to swaps. The gate itself, which is what the criterion is about,
-   * renders for real above.
+   * The quote request is the half that costs something: the row asked the book about
+   * every non-zero balance on mount (#240), so removing the control without removing the
+   * read would leave four requests answering a question nobody displays.
    */
-  const gate = stripComments(readSource('../components/home/BalanceTokenSwap.tsx'));
+  const asking = sources.filter(({ source }) => /useConvertQuote|<BalanceTokenSwap/.test(source));
   check(
-    'and the refusal is decided before any hook, so it costs no request',
-    gate.indexOf('if (!offer) return null;') !== -1
+    'and nothing there asks the book for a quote, so a card costs no requests',
+    asking.length === 0,
+    asking.map(({ name }) => name).join(', ')
+  );
+
+  const orphans = REMOVED.filter((name) =>
+    existsSync(new URL(`../components/home/${name}`, import.meta.url))
   );
   check(
-    'an offer is what reaches the action, and nothing else',
-    gate.includes('<BalanceTokenSwapAction offer={offer} onSwapped={onSwapped} />')
+    'the control and its confirm step are deleted, not orphaned',
+    orphans.length === 0,
+    orphans.join(', ')
+  );
+
+  /**
+   * The tile is now the ONLY way in, so this half is about the door that remains: it has
+   * to name the swap page, and the swap page has to exist. A tile pointing at a deleted
+   * route is a door to nowhere, and no assertion about the card can catch it.
+   */
+  const actions = stripComments(readSource('../components/home/HomeActions.constants.ts'));
+  check(
+    'the Swap tile is the one door, and it names the swap page',
+    /key: 'swap'[^}]*href: '\/app\/swap'/.test(actions)
   );
   check(
-    'the row offers one only for a quote the server answered with',
-    stripComments(readSource('../components/home/BalanceTokenRow.tsx')).includes(
-      "convert.status === 'ready' ? convert.quote : null"
-    )
+    'and that page exists',
+    existsSync(new URL('../app/(product)/app/swap/page.tsx', import.meta.url))
   );
-
-  const action = stripComments(readSource('../components/home/BalanceTokenSwapAction.tsx'));
-  check(
-    'the action is a button, labelled for a screen reader',
-    /<button/.test(action) && action.includes('aria-label={`${SWAP_COPY.action} this balance`}')
-  );
-  check('with no `disabled` on the open path at all', !/disabled=/.test(action));
-}
-
-console.log('\nwhat the confirm step promises:');
-{
-  const markup = renderToStaticMarkup(
-    createElement(BalanceTokenSwapConfirm, { quote: QUOTE, busy: false, error: null, done: false, onConfirm: NOOP, onCancel: NOOP })
-  );
-  check('the floor is stated as a minimum, in the token it belongs to', markup.includes('You get at least') && markup.includes('9.949005') && markup.includes('OUSD'), markup.includes('9.949005'));
-  check('the network fee is stated in the token being spent', markup.includes('Network fee') && markup.includes('0.000474') && markup.includes('pathUSD'));
-  check('nothing is disabled before anything is in flight', !markup.includes('disabled=""'));
-  check('both controls are offered', markup.includes(SWAP_COPY.confirm) && markup.includes(SWAP_COPY.cancel));
-
-  const busy = renderToStaticMarkup(
-    createElement(BalanceTokenSwapConfirm, { quote: QUOTE, busy: true, error: null, done: false, onConfirm: NOOP, onCancel: NOOP })
-  );
-  check('while a signature is in flight the cancel control is disabled', busy.includes('disabled'));
-
-  const done = renderToStaticMarkup(
-    createElement(BalanceTokenSwapConfirm, { quote: QUOTE, busy: false, error: null, done: true, onConfirm: NOOP, onCancel: NOOP })
-  );
-  check('a finished swap says so and cannot be signed a second time', done.includes(SWAP_COPY.done) && !done.includes(SWAP_COPY.confirm));
-
-  const failed = renderToStaticMarkup(
-    createElement(BalanceTokenSwapConfirm, { quote: QUOTE, busy: false, error: SWAP_COPY.recordFailed, done: false, onConfirm: NOOP, onCancel: NOOP })
-  );
-  check('a post-signature failure says the money moved, and offers the retry that is honest', failed.includes(SWAP_COPY.recordFailed) && /went through on-chain/i.test(failed));
 }
 
 console.log('\nthe floor that reaches the chain is the one that was shown:');
@@ -223,8 +171,8 @@ console.log('\nthe floor that reaches the chain is the one that was shown:');
   const call = buildSwapCall({
     assetIn: 'pathusd',
     assetOut: 'ousd',
-    amountIn: QUOTE.amountIn,
-    minAmountOut: QUOTE.minAmountOut,
+    amountIn: '10.000000',
+    minAmountOut: '9.949005',
     network: 'testnet',
   });
 
@@ -320,22 +268,6 @@ console.log('\nnothing is written until the receipt is verified:');
   check(
     'and the quote is re-fetched at sign time, so an expired promise cannot reach the ledger',
     signing.indexOf('fetchConvertQuote(') !== -1
-  );
-}
-
-console.log('\nthe row converts into the same asset the server decided on:');
-{
-  const backend = stripComments(readSource('../../backend/src/services/convert.ts'));
-  const declared = /CONVERT_ROW_TARGET: SupportedAsset = '([a-z.]+)'/.exec(backend)?.[1] ?? 'not-found';
-  check(
-    'the backend still declares what a row converts into',
-    declared !== 'not-found',
-    declared
-  );
-  check(
-    'and the control asks for exactly that asset, not its own opinion',
-    SWAP_TARGET_ASSET === declared,
-    `${SWAP_TARGET_ASSET} vs ${declared}`
   );
 }
 

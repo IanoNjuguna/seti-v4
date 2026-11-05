@@ -9,16 +9,20 @@ import type { ConvertQuoteState, UseConvertQuoteInput } from './useConvertQuote.
 const NOT_ASKED: ConvertQuoteState = { status: 'refused', quote: null, code: null };
 
 /**
- * Ask the book whether this balance can be swapped at all.
+ * Ask the book what a swap would pay.
  *
- * ## Why a request decides whether a control EXISTS
+ * ## Why a request decides what the page shows
  *
  * The allowlist is a measurement with a date on it, and the book moves: USDT0 had no
  * market one lunchtime and quoted 1–2bps by the evening, and a pair that filled
- * 100,000 units on mainnet refused a fraction of that on practice. So the offer cannot
- * be read off a token list, and it must not be inferred from which assets exist — it
- * is the book's own answer, for THIS balance, asked now. A pair that cannot be quoted
- * therefore has nothing to press, and the row stays quiet (#240).
+ * 100,000 units on mainnet refused a fraction of that on practice. So a pair cannot be
+ * read off a token list, and it must not be inferred from which assets exist — it is
+ * the book's own answer, for THIS amount, asked now. A pair that cannot be quoted has
+ * no figures to print, and the page says so in the refusal's own words (#240).
+ *
+ * This used to answer a smaller question too: whether a balance row drew a control at
+ * all. That control is gone (#328 slice 2), so the swap page is the only caller and
+ * every refusal it carries now lands on a screen that asked.
  *
  * ## Why `max` rather than the balance
  *
@@ -32,17 +36,17 @@ const NOT_ASKED: ConvertQuoteState = { status: 'refused', quote: null, code: nul
  * Written only from the request's callbacks, guarded by `active` —
  * `react-hooks/set-state-in-effect` is an error in this package and it is right: a
  * synchronous setState in an effect cascades a render. A failure is `refused`, not an
- * error to show: the row has no control to put a sentence under, and a read that
- * failed must not block a swap that would have worked.
+ * error to show: a read that failed must not block a swap that would have worked.
  *
  * ## `amount`: one figure, still the server's
  *
- * `max` is the default, so a balance row asks the question it has always asked. A page
- * where the customer types a figure passes it here instead, and it is passed through
- * untouched: the quote that comes back is the quote for the amount that was asked about,
- * so `amountOut`, `minAmountOut` and `networkFee` are the server's answer for the figure
- * on screen rather than a number this hook derived. Nothing here computes a fee, a floor
- * or a spendable maximum, and an amount the customer owns is still asked of the server.
+ * `max` is the default, so the page opens on the amount the balance can actually
+ * spend. A page where the customer types a figure passes it here instead, and it is
+ * passed through untouched: the quote that comes back is the quote for the amount that
+ * was asked about, so `amountOut`, `minAmountOut` and `networkFee` are the server's
+ * answer for the figure on screen rather than a number this hook derived. Nothing here
+ * computes a fee, a floor or a spendable maximum, and an amount the customer owns is
+ * still asked of the server.
  */
 export function useConvertQuote({
   assetIn,

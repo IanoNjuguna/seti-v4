@@ -17,6 +17,11 @@ export interface HomeAction {
   /**
    * A short marker for a door that exists but cannot be used yet. The door stays so
    * the signal stays with it; a removed door is a feature nobody discovers later.
+   *
+   * Rendered as a dot in the tile's corner rather than as this word (#328): the word
+   * beside a label needed more width than a quarter of a 390px row has. The word is not
+   * lost with it, `HomeAction` puts it in the link's accessible name, so "Save, Soon" is
+   * what a screen reader hears, and the page behind the door says it in a sentence.
    */
   badge?: string;
   /**
@@ -57,14 +62,14 @@ export const HOME_ACTIONS: HomeAction[] = [
    * Profile only). Removing the strip without carrying this across would have
    * orphaned a shipped page.
    *
-   * Three short labels in one row, at the system's button height: `Pay` and
-   * `Receive` and `Save` measure far inside a third of the column at 360px, so the
-   * row still reads as three doors rather than as a cramped set.
+   * Four short labels in one row, at the system's button height: a quarter of the
+   * column each, which `Receive` is the widest of and still clears at 360px.
    */
   /*
    * Saving is closed (#137): deposits revert on an unverified vault with a zero rate,
-   * so the door stays and the badge says why. Hiding it would lose the signal that the
-   * feature exists; greying it out would read as broken.
+   * so the door stays and the badge marks why. Hiding it would lose the signal that the
+   * feature exists; greying it out would read as broken. The mark is a corner dot and
+   * the word lives in the accessible name (#328): `Save Soon` as text did not fit.
    */
   { key: 'save', label: 'Save', href: '/app/save', variant: 'secondary', badge: 'Soon', icon: 'save' },
   /*

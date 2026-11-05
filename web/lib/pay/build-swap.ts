@@ -13,16 +13,13 @@ import type { TempoCall } from './build-transfer.types';
  */
 export const STABLECOIN_DEX_ADDRESS: Address = '0xdec0000000000000000000000000000000000000';
 
-/**
- * What the control on a balance row converts INTO.
- *
- * OUSD is the asset to hold, and that decision is made once: the backend's
- * `CONVERT_ROW_TARGET` names the same one for the same reason (see
- * `backend/src/services/convert.ts`, and `SETTLE_TARGET` in `settlement.ts`). The
- * route is general — any allowed pair, either direction — but a row offers one
- * action, not a pair picker.
+/*
+ * `SWAP_TARGET_ASSET` used to live here: the asset a balance row's control converted
+ * into, pinned to the backend's `CONVERT_ROW_TARGET` by `check:convert-swap`. The
+ * control is gone (#328 slice 2) and the swap page makes the pair the customer's
+ * choice, so a constant naming one target would be a decision nothing reads. The
+ * backend still declares it, because the route it documents is still reachable.
  */
-export const SWAP_TARGET_ASSET: SupportedAsset = 'ousd';
 
 /**
  * The one function settlement calls: "spend exactly `amountIn`, take no less than

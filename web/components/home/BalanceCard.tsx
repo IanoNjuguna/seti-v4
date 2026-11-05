@@ -31,10 +31,10 @@ import type { BalanceCardProps } from './BalanceCard.types';
  * the sentence and the rows are the composition: one owns the label and the eye, the
  * other owns the breakdown. Both inside this surface, so the card reads as one object.
  *
- * One thing, the balance. Pay and Receive — and the panels they open — are the two
- * buttons below, each on a page of its own. A hero that is also a menu is neither.
+ * One thing, the balance. Pay, Receive, Save and Swap are the doors below, each on a page
+ * of its own. A hero that is also a menu is neither.
  */
-export function BalanceCard({ data, view, onSwapped }: BalanceCardProps) {
+export function BalanceCard({ data, view }: BalanceCardProps) {
   return (
     <section
       aria-labelledby="balance-heading"
@@ -44,7 +44,7 @@ export function BalanceCard({ data, view, onSwapped }: BalanceCardProps) {
       {view === 'signed-in' ? (
         <>
           <BalanceFigure data={data} />
-          <BalanceTokens assets={data?.assets} currency={data?.currency} onSwapped={onSwapped} />
+          <BalanceTokens assets={data?.assets} currency={data?.currency} />
         </>
       ) : (
         <BalanceNote view={view} />
