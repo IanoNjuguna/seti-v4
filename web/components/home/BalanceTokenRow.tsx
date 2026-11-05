@@ -4,9 +4,6 @@ import { Text } from '@/components/ui';
 import { MaskedAmount } from '@/components/ui/MaskedAmount';
 import { formatFiat } from '@/lib/formatCurrency';
 import { useAmountPrivacy } from '@/lib/privacy/amount-privacy.context';
-import { SWAP_TARGET_ASSET } from '@/lib/pay/build-swap';
-import { useConvertQuote } from '@/hooks/useConvertQuote';
-import { BalanceTokenSwap } from './BalanceTokenSwap';
 import type { BalanceTokenRowProps } from './BalanceTokens.types';
 
 /**
@@ -31,27 +28,18 @@ import type { BalanceTokenRowProps } from './BalanceTokens.types';
  * card, so a card whose total is hidden and whose rows are not would be the leak the
  * control exists to prevent (`check:amount-privacy`).
  *
- * THE SWAP ACTION IS ASKED FOR, not drawn blindly (#240). The row asks the book what
- * its whole spendable balance would fetch, and `BalanceTokenSwap` draws no control when
- * the answer is a refusal: the absence IS the book's answer, which is the only honest way
- * to offer a pair whose liquidity comes and goes. Two refusals say why in a line under
- * the row instead of leaving it blank (#304); the rest still draw nothing. A zero row
- * never asks, so an account holding three of four tokens costs one request, not four.
+ * THE ROW REPORTS, IT DOES NOT OFFER (#328). It carried the swap control per row
+ * (#240), asking the book what the balance would fetch and printing the answer, with
+ * two refusals saying why in a line under it (#304). With the card's way into
+ * `/app/swap` gone, so is this: a row is a figure, and the cost it leaves behind is one
+ * quote request per non-zero row that is no longer made on mount.
  */
-export function BalanceTokenRow({ row, currency, onSwapped }: BalanceTokenRowProps) {
+export function BalanceTokenRow({ row, currency }: BalanceTokenRowProps) {
   const { hidden } = useAmountPrivacy();
 
   // The payload's own string, converted by the one formatter that owns currency
   // decimals. Nothing here re-values the row.
   const value = formatFiat(Number(row.value), currency);
-
-  // The units the row already prints are the trigger, so a balance that changed — after
-  // a swap, or a deposit landing — re-asks instead of offering last minute's figure.
-  const convert = useConvertQuote({
-    assetIn: row.asset,
-    assetOut: SWAP_TARGET_ASSET,
-    balance: row.zero ? '' : row.units,
-  });
 
   return (
     <li className="flex flex-col py-1.5">
@@ -84,19 +72,6 @@ export function BalanceTokenRow({ row, currency, onSwapped }: BalanceTokenRowPro
           </MaskedAmount>
         </span>
       </div>
-
-      {/*
-        The control is a SIBLING of the row's line, not a column inside it: the confirm
-        step carries two figures and two controls, and a money confirm squeezed into the
-        width of an amount would either wrap its label or overflow the card. Under the
-        line it has the row's full width, and it still disappears entirely when the book
-        has nothing to offer — the row then ends on its answer.
-      */}
-      <BalanceTokenSwap
-        offer={convert.status === 'ready' ? convert.quote : null}
-        code={convert.code}
-        onSwapped={onSwapped}
-      />
     </li>
   );
 }

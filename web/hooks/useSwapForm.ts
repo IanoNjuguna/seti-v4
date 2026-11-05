@@ -6,7 +6,7 @@ import { CONVERT_AMOUNT_MAX, fetchConvertPairs, type ConvertPair } from '@/lib/a
 import type { AssetBalanceRow } from '@/lib/api/home.types';
 import { useSession } from '@/lib/auth';
 import { SWAP_COPY } from '@/lib/pay/convert-swap.constants';
-import { swapAssetSymbol } from '@/components/home/BalanceTokenSwap.constants';
+import { swapAssetSymbol } from '@/components/swap/swap-symbol.constants';
 import { formatAssetUnits } from '@/components/home/home.format';
 import {
   SWAP_AMOUNT_DECIMALS,

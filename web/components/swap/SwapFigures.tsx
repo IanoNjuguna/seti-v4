@@ -1,7 +1,7 @@
 'use client';
 
 import { Text } from '@/components/ui';
-import { swapAssetSymbol } from '@/components/home/BalanceTokenSwap.constants';
+import { swapAssetSymbol } from './swap-symbol.constants';
 import { formatAssetUnits } from '@/components/home/home.format';
 import { SWAP_FORM_COPY } from './SwapForm.constants';
 import type { SwapFiguresProps } from './SwapForm.types';
