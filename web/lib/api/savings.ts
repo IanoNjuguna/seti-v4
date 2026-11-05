@@ -140,12 +140,16 @@ export interface SavingsRewards {
   claimable: boolean;
   wrapper: string;
   distributor: string | null;
-  /** Cumulative campaign amount for this wallet, in wrapped-OUSD units. */
+  /** Cumulative campaign amount for this wallet, in token units. */
   amount: string;
   /** Already paid out by the Distributor. */
   claimed: string;
-  /** `amount - claimed`, pending excluded: what the button may offer. */
+  /** `amount - claimed`, pending excluded: what the claim signs. */
   claimableAmount: string;
+  /** The customer's own currency, the unit of `claimableFiat`. */
+  fiatCurrency: string;
+  /** The claimable figure in that currency, to the minor unit. Display only. */
+  claimableFiat: string;
   proofs: string[];
   /** The campaign's published end, so copy names a date instead of a bare rate. */
   campaignEnds: string;
