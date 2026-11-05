@@ -197,6 +197,24 @@ export function useSwapForm(): SwapFormState {
   const swap = useConvertSwap();
   const done = swap.step === 'done';
 
+  /*
+   * The ceiling (#337): what this balance could swap at all, asked with `max`.
+   *
+   * While the field IS at `max`, the quote above is that answer already, so this asks
+   * nothing and the caption reads the same figure the field holds. Once a figure is typed,
+   * that quote answers a smaller question and nothing on screen says how far the balance
+   * could go, so one `max` quote per PAIR (`max` is a constant, so typing does not re-ask)
+   * supplies the caption beside `All`. The figure is the server's either way: the balance
+   * row would overstate it by the gas, which is exactly the subtraction `resolveConvertAmount`
+   * owns.
+   */
+  const ceiling = useConvertQuote({
+    assetIn,
+    assetOut,
+    balance: quotable && sourceRow && typed ? sourceRow.amount : '',
+    amount: CONVERT_AMOUNT_MAX,
+  });
+
   // The quote the page may show, sign and promise: this pair, this amount.
   const quote =
     convert.status === 'ready' &&
@@ -301,6 +319,18 @@ export function useSwapForm(): SwapFormState {
     amount: typed ? draft : (shown?.amountIn ?? ''),
     amountError: typed ? asked.problem : null,
     quote: shown,
+    /*
+     * What `All` would put in the field (#337). At `max` the quote on screen IS that
+     * answer, so the caption and the field can never disagree; once a figure is typed it
+     * comes from the max quote for the same pair. Null when neither has answered, and the
+     * caption is then simply absent rather than a figure this hook made up.
+     */
+    spendable:
+      asked.value === CONVERT_AMOUNT_MAX
+        ? (shown?.amountIn ?? null)
+        : ceiling.status === 'ready'
+          ? (ceiling.quote?.amountIn ?? null)
+          : null,
     stateLine,
     refocusAmount: convert.code === 'convert-no-liquidity',
     busy: swap.busy,

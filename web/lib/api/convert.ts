@@ -45,6 +45,8 @@ export interface ConvertQuote {
   /** The floor to SIGN: the quote less `toleranceBps`. Never a figure to recompute. */
   minAmountOut: string;
   toleranceBps: number;
+  /** Units of `assetOut` per 1 unit of `assetIn`, at this size. Display only. */
+  rate: string;
   /** Gas for the swap, in `assetIn` units — the asset the sender pays it in. */
   networkFee: string;
   fiatCurrency: string;

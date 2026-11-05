@@ -246,6 +246,55 @@ console.log('\nsigning goes through the Tempo hook, never a provider:');
   );
 }
 
+console.log('\nthe page says what the pair is worth, and how much can be swapped (#337):');
+{
+  /**
+   * The rate is the server's, and this half of the suite only proves the page reads it:
+   * the arithmetic itself is asserted in `check:convert`, where the quote lives.
+   */
+  const quoteSource = stripComments(readSource('../../backend/src/services/convert.ts'));
+  check(
+    'the quote answers with a rate',
+    /rate: string;/.test(quoteSource) && quoteSource.includes('rate: rateLine(amountIn, amountOut)')
+  );
+
+  /**
+   * The line must be printed, not derived: a component that divided `amountOut` by
+   * `amountIn` would be a second opinion about the quote on screen, and the two would
+   * disagree the moment one of them rounded.
+   */
+  const rate = stripComments(readSource('../components/swap/SwapRateLine.tsx'));
+  check('the rate line prints the quote\'s own `rate`', rate.includes('quote.rate') && rate.includes('swapRateLine('));
+  check('and never recomputes it from the two amounts', !/amountIn|amountOut/.test(rate));
+
+  const fields = stripComments(readSource('../components/swap/SwapFields.tsx'));
+  check(
+    'the page puts that line under the two pickers it describes',
+    fields.includes('<SwapRateLine quote={form.quote} />')
+  );
+
+  /**
+   * The ceiling is the server's `max` resolution — balance less the gas the swap costs —
+   * so it is asked once per pair, and never read off the balance row, which would
+   * overstate it by exactly the fee.
+   */
+  const form = stripComments(readSource('../hooks/useSwapForm.ts'));
+  check(
+    'the ceiling is asked with `max`, so typing does not re-ask it',
+    form.includes('const ceiling = useConvertQuote({') && form.includes('amount: CONVERT_AMOUNT_MAX')
+  );
+  check(
+    'and the state carries the server\'s figure for it',
+    form.includes('ceiling.quote?.amountIn') && form.includes('shown?.amountIn ?? null')
+  );
+
+  const field = stripComments(readSource('../components/swap/SwapAmountField.tsx'));
+  check(
+    'the amount field prints it beside All, and only when the server has answered',
+    field.includes('spendable !== null') && field.includes('spendableLine(spendable, symbol)')
+  );
+}
+
 console.log('\nnothing is written until the receipt is verified:');
 {
   const signing = stripComments(readSource('../hooks/useConvertSwap.ts'));

@@ -378,6 +378,23 @@ export async function previewConvert(input: ConvertPreviewInput): Promise<Conver
 const DECIMAL_AMOUNT = /^\d+(\.\d+)?$/;
 
 /**
+ * What one unit of the input buys, at the size that was priced (#337).
+ *
+ * A ratio, not a price: `amountOut / amountIn` for THIS quote, so it is computed from the
+ * two figures the quote already carries rather than asked for separately. It is display
+ * only; nothing signs a rate. Exported so `check:convert` can hold it to the pair it
+ * claims to describe, at a size where a division by a rounded figure would show.
+ */
+export function rateLine(amountIn: bigint, amountOut: bigint): string {
+  if (amountIn === BigInt(0)) return '0.000000';
+
+  const perUnit =
+    Number(formatUnits(amountOut, ASSET_DECIMALS)) / Number(formatUnits(amountIn, ASSET_DECIMALS));
+
+  return perUnit.toFixed(ASSET_DECIMALS);
+}
+
+/**
  * The whole number and the fractional part, so the decimals can be counted.
  *
  * `parseUnits` is not enough on its own: it accepts more decimals than the token
@@ -499,6 +516,15 @@ export interface ConvertQuote {
   minAmountOut: string;
   toleranceBps: number;
   /**
+   * What one unit of `assetIn` buys, in `assetOut` units (#337).
+   *
+   * The book's own answer for this quote divided by the amount that was priced, to the
+   * asset's decimals. It exists so a surface can print `1 X ≈ Y Z` without dividing two
+   * figures itself: the client shows money the server computed, and a rate recomputed in
+   * the browser would be a second opinion about the same quote.
+   */
+  rate: string;
+  /**
    * Gas for the swap, in `assetIn` units — the asset the sender pays it in.
    *
    * Shown, and never signed: `amountIn` above is the entire amount that leaves,
@@ -607,6 +633,8 @@ export async function quoteConvert(input: ConvertQuoteInput): Promise<ConvertQuo
     amountOut: formatUnits(amountOut, ASSET_DECIMALS),
     minAmountOut: formatUnits(minAmountOut, ASSET_DECIMALS),
     toleranceBps: CONVERT_TOLERANCE_BPS,
+    // One unit in, at the book's own answer. Display only: nothing signs a rate.
+    rate: rateLine(amountIn, amountOut),
     networkFee: estimate.feeAsset,
     fiatCurrency,
     fiatAmountIn: (Number(formatUnits(amountIn, ASSET_DECIMALS)) * fiatPerUsd).toFixed(2),

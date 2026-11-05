@@ -1,4 +1,5 @@
 import { SWAP_COPY } from '@/lib/pay/convert-swap.constants';
+import { formatAssetUnits } from '@/components/home/home.format';
 
 /**
  * The swap page's words.
@@ -62,6 +63,29 @@ export const SWAP_SIGNED_OUT_COPY = {
 
 /** How many decimals an amount field may carry. Every supported asset is 6dp. */
 export const SWAP_AMOUNT_DECIMALS = 6;
+
+/**
+ * The pair's rate as one line: `1 OUSD ≈ 0.999900 pathUSD` (#337).
+ *
+ * The figure is the quote's own `rate`, and this function only puts the two symbols
+ * around it, so the rule that a sentence carries no figure still holds where it matters:
+ * nothing here divides one amount by another. Every swap surface in the reference set
+ * prints this line, and without it a customer sees two quantities and no price.
+ */
+export function swapRateLine(inSymbol: string, rate: string, outSymbol: string): string {
+  return `1 ${inSymbol} ≈ ${formatAssetUnits(rate)} ${outSymbol}`;
+}
+
+/**
+ * The ceiling beside `All`: what the balance can actually spend, in its own units.
+ *
+ * The figure is the server's `max` resolution (balance less the gas the swap costs), so
+ * it is the same number `All` puts in the field. A balance row would overstate it by the
+ * fee, which is why it is never read from there.
+ */
+export function spendableLine(units: string, symbol: string): string {
+  return `up to ${formatAssetUnits(units)} ${symbol}`;
+}
 
 export const SWAP_SOURCE_FIELD_ID = 'swap-source';
 export const SWAP_TARGET_FIELD_ID = 'swap-target';
