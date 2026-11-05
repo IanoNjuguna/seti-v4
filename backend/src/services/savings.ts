@@ -201,19 +201,6 @@ export interface SavingsSummary {
   live: boolean;
 }
 
-interface EarnPosition {
-  shareBalance: string;
-  value: string;
-  assetBalance: string;
-}
-
-interface EarnEarnings {
-  lifetimeEarnings: string;
-  currentValue: string;
-  totalDeposited: string;
-  status: 'complete' | 'incomplete_cost_basis';
-}
-
 interface EarnVault {
   sharePrice?: { formatted?: string };
   instantLiquidity?: string | null;
