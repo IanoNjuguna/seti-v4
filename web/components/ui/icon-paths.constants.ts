@@ -13,6 +13,11 @@ export const ICON_PATHS = {
   scan: ['M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8', 'M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8', 'M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16', 'M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16', 'M4 12h16'],
   send: ['m4 12 16-8-6 16-2.5-6.5L4 12Z'],
   add: ['M12 5.5v13', 'M5.5 12h13'],
+  /* Two actions the strip did not have (#328). Both are primitives: opposing arrows
+     for an exchange, a tray with a lip for "set aside" — NOT a plus, because `add`
+     already means Add money and two glyphs for one verb is how a set rots. */
+  swap: ['M6 9h12', 'm15 5.5 3.5 3.5L15 12.5', 'M18 15H6', 'm9 11.5-3.5 3.5L9 18.5'],
+  save: ['M4 11h16', 'M5.5 11 7 19h10l1.5-8', 'M9.5 7.5a2.5 2.5 0 0 1 5 0'],
   eye: ['M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z'],
   eyeOff: ['m3 3 18 18', 'M10.6 5.2A9.9 9.9 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.3 4.1', 'M6.6 7.7A16.4 16.4 0 0 0 2 12s3.6 7 10 7a10 10 0 0 0 4.2-.9'],
   bell: ['M18 8.5a6 6 0 1 0-12 0c0 5.5-2.5 7-2.5 7h17S18 14 18 8.5', 'M13.7 20a2 2 0 0 1-3.4 0'],
