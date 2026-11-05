@@ -46,8 +46,6 @@ import { isValidEvmAddress } from '../lib/address.js';
 import { ASSET_DECIMALS, type SupportedAsset } from '../config/assets.js';
 import { publicClientFor, estimateNetworkFee } from './chain.js';
 
-const EARN_API = 'https://api.tempo.xyz/v1/earn';
-
 /**
  * The vault customer money goes into, per network. Absent means savings are off.
  *
@@ -90,6 +88,15 @@ export const SAVINGS_ASSET: SupportedAsset = 'ousd';
 export const SAVINGS_SHARE_TOKEN: Partial<Record<Network, string>> = {
   mainnet: '0x0D136e26B4D9e4836fc5cb202baeb49Cb6f5df48',
 };
+
+/**
+ * How many decimals a share carries: EIGHTEEN, not the asset's six.
+ *
+ * A Morpho vault's share token is 18dp while OUSD is 6dp, and the two are not
+ * interchangeable: parsing a share count at six decimals asks to redeem a millionth of the
+ * position, and formatting one at six prints a figure a million times too small (#339).
+ */
+export const SAVINGS_SHARE_DECIMALS = 18;
 
 /**
  * The vault, read from the chain rather than from Tempo Earn.
@@ -201,18 +208,7 @@ export interface SavingsSummary {
   live: boolean;
 }
 
-interface EarnVault {
-  sharePrice?: { formatted?: string };
-  instantLiquidity?: string | null;
-  capabilities?: {
-    syncRedeem?: boolean;
-    asyncRedeem?: boolean;
-    exactWithdraw?: boolean;
-  };
-  state?: { depositsPaused?: boolean; isAccountingAligned?: boolean };
-}
-
-/** The two read functions a withdrawal needs from the vault. */
+/** The two read functions a withdrawal needs from the vault itself. */
 const VAULT_REDEEM_ABI = [
   {
     name: 'previewRedeem',
@@ -223,21 +219,41 @@ const VAULT_REDEEM_ABI = [
   },
 ] as const;
 
-/** A read from Tempo's Earn API, or null — a failed read is "unknown", not "zero". */
-async function earnGet<T>(path: string): Promise<T | null> {
-  try {
-    const response = await fetch(`${EARN_API}${path}`, {
-      signal: AbortSignal.timeout(8_000),
-      headers: { accept: 'application/json' },
-    });
-    if (!response.ok) return null;
-    return (await response.json()) as T;
-  } catch {
-    return null;
+/**
+ * The vault's own limit for THIS holder: shares it will redeem in this transaction.
+ *
+ * The ERC-4626 capability that decides whether an exit is possible. Tempo's Earn API used
+ * to answer this with `capabilities.syncRedeem`, which it does not publish for a Morpho
+ * vault, so every withdrawal was refused as if the vault could not pay (#339).
+ */
+const VAULT_LIMITS_ABI = [
+  {
+    name: 'maxRedeem',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ type: 'address', name: 'owner' }],
+    outputs: [{ type: 'uint256', name: 'shares' }],
+  },
+] as const;
+
+/**
+ * How many shares a withdrawal of `assets` needs, at the vault's own share price.
+ *
+ * Eighteen decimals, because a Morpho share is an 18dp token: the veda-era code parsed and
+ * formatted shares at the asset's six, which asked the vault to redeem a millionth of the
+ * position and printed a count a million times too small (#339).
+ *
+ * Pure and exported so `check:save` can hold the unit, which is the part that was wrong.
+ */
+export function sharesForWithdrawal(assets: number, sharePrice: number): bigint {
+  if (!Number.isFinite(assets) || assets <= 0 || !Number.isFinite(sharePrice) || sharePrice <= 0) {
+    return BigInt(0);
   }
+
+  return parseUnits((assets / sharePrice).toFixed(SAVINGS_SHARE_DECIMALS), SAVINGS_SHARE_DECIMALS);
 }
 
-/** The address that holds this account's money on this network. */
+/** The amount that holds this account's money on this network. */
 export async function walletAddressFor(userId: string, network: Network): Promise<string | null> {
   const wallet = await prisma.wallet.findFirst({
     where: { userId, status: 'active', network },
@@ -769,31 +785,42 @@ export async function quoteSavingsWithdraw(input: {
 
   const amountFiat = Number(input.amountFiat);
   if (!Number.isFinite(amountFiat) || amountFiat <= 0) {
-    throw new Error('The amount to withdraw must be a positive number.');
+    throw new SavingsInputError('The amount to withdraw must be a positive number.');
   }
-
-  const chainId = network === 'mainnet' ? 4217 : 42431;
-  const vaultRecord = await earnGet<EarnVault>(`/vaults/${vault}?chainId=${chainId}`);
-  const address = await walletAddressFor(input.userId, network);
 
   const fiatCurrency = await resolveUserFiat(input.userId);
   const fx = await getFxQuote(fiatCurrency);
   const fiatPerUsd = fx.fiatPerUsd;
 
-  const sharePrice = Number(vaultRecord?.sharePrice?.formatted ?? '1');
-  const synced = vaultRecord?.capabilities?.syncRedeem === true;
+  const address = await walletAddressFor(input.userId, network);
+  const client = publicClientFor(network);
 
-  // Shares to redeem for this fiat amount. The vault's own preview is the authority
-  // on what they are worth, so this only decides HOW MANY.
-  const assetsWanted = amountFiat / fiatPerUsd;
-  const shares = sharePrice > 0 ? assetsWanted / sharePrice : 0;
-  const shareAmount = parseUnits(shares.toFixed(ASSET_DECIMALS), ASSET_DECIMALS);
+  /*
+   * EVERY FIGURE COMES FROM THE CHAIN (#339).
+   *
+   * This quote used to read Tempo's Earn API for the share price, the position and
+   * `capabilities.syncRedeem`. That API does not list this Morpho vault at all
+   * (`earn_vault_not_found`, #322), and `earnGet` turns a failure into null, so the share
+   * price silently defaulted to 1 and `canWithdraw` was false for every customer: the
+   * exit could never be offered, and nothing said why. The vault IS the share token, so
+   * one address answers the price, the holding and the limit.
+   */
+  const onChain = address
+    ? await readVaultOnChain(vault as `0x${string}`, address as `0x${string}`, network)
+    : null;
+  const sharePrice = onChain?.sharePrice ?? 0;
+  const positionShares = onChain?.shares ?? BigInt(0);
+
+  // HOW MANY shares this amount needs. The vault's own preview decides what they are
+  // worth; this only turns the customer's figure into the unit `redeem` takes. Shares are
+  // 18dp while the asset is 6dp, which is the conversion the veda-era code got wrong.
+  const assetsWanted = fiatPerUsd > 0 ? amountFiat / fiatPerUsd : 0;
+  const shareAmount = sharesForWithdrawal(assetsWanted, sharePrice);
 
   let assetOut = BigInt(0);
   if (address && shareAmount > BigInt(0)) {
     try {
-      // The ABI's return type is `uint256`, so viem already types this as bigint.
-      assetOut = await publicClientFor(network).readContract({
+      assetOut = await client.readContract({
         address: vault as `0x${string}`,
         abi: VAULT_REDEEM_ABI,
         functionName: 'previewRedeem',
@@ -806,11 +833,40 @@ export async function quoteSavingsWithdraw(input: {
 
   const minAssets = (assetOut * BigInt(10_000 - SAVINGS_TOLERANCE_BPS)) / BigInt(10_000);
 
-  // The swap home: the vault's asset back to OUSD, priced on the same book the
-  // deposit came through.
-  let swapOut = BigInt(0);
-  let minSwapOut = BigInt(0);
-  if (assetOut > BigInt(0) && isAllowedPair(SAVINGS_ASSET, 'ousd', network)) {
+  /*
+   * CAN IT PAY NOW, asked of the contract that would pay (#339).
+   *
+   * `maxRedeem` is the vault's own answer for this holder: shares it will redeem in this
+   * transaction. Zero means queued or illiquid, and the screen refuses instead of offering
+   * an exit that reverts. An unreadable limit is also a no: a promise we cannot measure is
+   * the thing #137 exists to prevent.
+   */
+  let maxRedeem: bigint | null = null;
+  if (address) {
+    try {
+      maxRedeem = await client.readContract({
+        address: vault as `0x${string}`,
+        abi: VAULT_LIMITS_ABI,
+        functionName: 'maxRedeem',
+        args: [address as `0x${string}`],
+      });
+    } catch {
+      maxRedeem = null;
+    }
+  }
+
+  /*
+   * THE WAY HOME IS ONLY A SWAP WHEN THE VAULT'S ASSET IS NOT OUSD (#319).
+   *
+   * This vault pays OUSD, so the redeem already delivers the spendable asset: there is no
+   * book to cross and no second floor to invent. `minSwapOut` therefore carries the
+   * PAYOUT floor, which is the same promise in the same units, and the builder's guard
+   * against signing a zero floor still has something true to hold.
+   */
+  const hasSwapHome = SAVINGS_ASSET !== 'ousd';
+  let swapOut = assetOut;
+  let minSwapOut = minAssets;
+  if (hasSwapHome && assetOut > BigInt(0) && isAllowedPair(SAVINGS_ASSET, 'ousd', network)) {
     const quoted = await quoteDexConvert({
       assetIn: SAVINGS_ASSET,
       assetOut: 'ousd',
@@ -820,10 +876,6 @@ export async function quoteSavingsWithdraw(input: {
     swapOut = quoted.amountOut;
     minSwapOut = quoted.minAmountOut;
   }
-
-  const position = address
-    ? await earnGet<{ shareBalance: string }>(`/vaults/${vault}/positions/${address}?chainId=${chainId}`)
-    : null;
 
   const quoteId = issueQuote({
     userId: input.userId,
@@ -838,7 +890,7 @@ export async function quoteSavingsWithdraw(input: {
     network,
     fiatCurrency,
     fiatAmount: amountFiat.toFixed(2),
-    shares: formatUnits(shareAmount, ASSET_DECIMALS),
+    shares: formatUnits(shareAmount, SAVINGS_SHARE_DECIMALS),
     assetOut: formatUnits(assetOut, ASSET_DECIMALS),
     minAssets: formatUnits(minAssets, ASSET_DECIMALS),
     swapOut: formatUnits(swapOut, ASSET_DECIMALS),
@@ -847,8 +899,10 @@ export async function quoteSavingsWithdraw(input: {
     vault,
     shareToken,
     quoteId,
-    canWithdraw: synced && assetOut > BigInt(0),
-    instantLiquidity: vaultRecord?.instantLiquidity ?? null,
-    positionShares: position ? formatUnits(BigInt(position.shareBalance), ASSET_DECIMALS) : '0',
+    // Both halves, because either alone is a promise: what the vault says this size pays,
+    // and whether it will pay it in this transaction.
+    canWithdraw: address !== null && assetOut > BigInt(0) && maxRedeem !== null && maxRedeem >= shareAmount,
+    instantLiquidity: null,
+    positionShares: formatUnits(positionShares, SAVINGS_SHARE_DECIMALS),
   };
 }
