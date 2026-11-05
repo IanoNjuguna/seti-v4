@@ -35,6 +35,10 @@ export const REFUSAL_BY_CODE: Record<string, string> = {
     'We could not reach the vault just now. Nothing was moved. Try again in a moment.',
   'savings-quote-unavailable':
     'We could not price that just now. Nothing was moved. Try again in a moment.',
+  // The balances they hold cannot reach the vault's asset (#335). Not a retry sentence:
+  // retrying fails identically while the book is empty, so this one names the holding.
+  'savings-funding-unavailable':
+    'We cannot turn what you hold into savings right now. Nothing was moved.',
   // --- entry the customer can correct -------------------------------------
   'amount-invalid':
     'That is not an amount we can send. Enter a figure with up to two decimal places.',
