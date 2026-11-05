@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Button, Text } from '@/components/ui';
 import { ApiError, fetchSavingsRewards, refusalMessage, type SavingsRewards } from '@/lib/api';
+import { formatFiat } from '@/lib/formatCurrency';
 import { buildClaimCalls } from '@/lib/pay/build-savings';
 import { buildTempoTransaction } from '@/lib/pay/build-transfer';
 import { useEmbeddedWallet } from '@/hooks/useEmbeddedWallet';
@@ -46,7 +47,10 @@ export function SaveRewards() {
 
   if (!rewards?.claimable || !rewards.distributor) return null;
 
-  const amount = (Number(rewards.claimableAmount) / 1_000_000).toFixed(2);
+  // The server's own conversion, printed by the one money formatter. A bare number here
+  // read as money in whatever currency the screen was already speaking, and the token's
+  // name is not a unit a customer counts in (#331).
+  const amount = formatFiat(Number(rewards.claimableFiat), rewards.fiatCurrency);
   const ends = rewards.campaignEnds;
 
   const claim = () => {
@@ -76,7 +80,7 @@ export function SaveRewards() {
 
         await sendTempoTransaction(buildTempoTransaction({ asset: 'ousd', calls, network }));
         setNote(SAVE_COPY.rewardsClaimed);
-        setRewards({ ...fresh, claimable: false, claimableAmount: '0', proofs: [], reason: null });
+        setRewards({ ...fresh, claimable: false, claimableAmount: '0', claimableFiat: '0.00', proofs: [], reason: null });
       } catch (caught: unknown) {
         setNote(
           caught instanceof ApiError

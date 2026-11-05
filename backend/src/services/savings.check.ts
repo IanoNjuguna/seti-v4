@@ -17,6 +17,7 @@ import {
   spendableAfterFee,
 } from './savings.js';
 import { quoteSavingsDeposit } from './savings.js';
+import { claimableFiatFor } from './savings-rewards.js';
 import type { SupportedAsset } from '../config/assets.js';
 
 const U = (value: number) => BigInt(Math.round(value * 1_000_000));
@@ -127,6 +128,39 @@ check('spendable sums every asset that can reach the vault', spendable === U(9_2
 check(
   'spendable includes USDT0, which has a book',
   spendable === balances.pathusd + balances.ousd + balances['usdc.e'] + balances.usdt0
+);
+
+console.log('the claim figure is money, in the customer\'s own currency\n');
+
+/**
+ * The conversion the rewards read composes (#331). These are the numbers from the issue:
+ * 9.615385 wrapped OUSD is 1,250.00 at 130 KES per USD, and the screen used to print
+ * `9.62` with no unit at all.
+ */
+check(
+  'a claimable 9.615385 at 130 KES per USD is KES 1,250.00',
+  claimableFiatFor(9_615_385n, 130) === '1250.00',
+  claimableFiatFor(9_615_385n, 130)
+);
+
+check(
+  'nothing claimable is 0.00, never a bare empty string',
+  claimableFiatFor(0n, 130) === '0.00',
+  claimableFiatFor(0n, 130)
+);
+
+check(
+  'the conversion follows the rate it is given rather than assuming KES',
+  claimableFiatFor(1_000_000n, 83.5) === '83.50',
+  claimableFiatFor(1_000_000n, 83.5)
+);
+
+// The claim signs TOKEN UNITS, so the fiat figure must stay a label. A route that signed
+// the converted number would send a signature worth a hundred times the reward.
+check(
+  'and it never rounds a dust amount up to something claimable',
+  claimableFiatFor(1n, 130) === '0.00',
+  claimableFiatFor(1n, 130)
 );
 
 // The tally is printed by the async probe when the gate is closed, so that its

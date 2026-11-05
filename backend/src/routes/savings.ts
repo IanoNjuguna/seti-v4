@@ -109,6 +109,10 @@ export async function savingsRoutes(app: FastifyInstance) {
    * pending excluded. The customer signs the claim themselves, so this route never needs
    * an operator and never moves anything.
    *
+   * `claimableAmount` is in token units because that is what the claim signs, and
+   * `claimableFiat` is the same figure in the customer's currency (#331): the screen
+   * prints money, not a number whose unit the reader has to supply.
+   *
    * No rewards is a normal answer, not an error: `claimable: false` with a reason, so the
    * screen offers no button instead of an error.
    */
@@ -117,7 +121,7 @@ export async function savingsRoutes(app: FastifyInstance) {
     if (!user) throw new Error('savings route reached without an authenticated user');
 
     const address = await walletAddressFor(user.id, user.network);
-    const rewards = await getSavingsRewards({ address, network: user.network });
+    const rewards = await getSavingsRewards({ userId: user.id, address, network: user.network });
     return { rewards };
   });
 
