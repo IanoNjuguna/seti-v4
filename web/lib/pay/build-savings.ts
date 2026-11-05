@@ -333,3 +333,66 @@ export function buildWithdrawCalls(input: {
 
   return [approveShares, redeem, ...swapHome];
 }
+
+/**
+ * The Merkl claim, as one call the CUSTOMER signs.
+ *
+ * `claim(users, tokens, amounts, proofs)` on the wrapper's own Distributor. The token
+ * argument is the WRAPPER, not OUSD: the Distributor holds wrapped OUSD against proofs,
+ * and claiming against the underlying is the mistake that pays nothing (#322).
+ *
+ * Seti never claims on a customer's behalf, which is why there is no operator path here
+ * and why nothing in this file needs an authorisation.
+ */
+const DISTRIBUTOR_CLAIM_ABI = [
+  {
+    name: 'claim',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { type: 'address[]', name: 'users' },
+      { type: 'address[]', name: 'tokens' },
+      { type: 'uint256[]', name: 'amounts' },
+      { type: 'bytes32[][]', name: 'proofs' },
+    ],
+    outputs: [],
+  },
+] as const;
+
+export function buildClaimCalls(input: {
+  /** Read off the wrapper on the server; never a constant on the client. */
+  distributor: Address;
+  /** The signing wallet: rewards are owed to it, and only it can claim them. */
+  user: Address;
+  /** The Merkl reward token for this campaign: wrapped OUSD. */
+  wrapper: Address;
+  /** The claimable amount, already `amount - claimed`. */
+  amount: string;
+  proofs: readonly string[];
+}): TempoCall[] {
+  if (input.proofs.length === 0) {
+    throw new Error('Refusing to claim without proofs: the Distributor would revert.');
+  }
+
+  const amount = BigInt(input.amount);
+  if (amount <= BigInt(0)) {
+    throw new Error('Refusing to claim nothing.');
+  }
+
+  return [
+    {
+      to: input.distributor,
+      data: encodeFunctionData({
+        abi: DISTRIBUTOR_CLAIM_ABI,
+        functionName: 'claim',
+        args: [
+          [input.user],
+          [input.wrapper],
+          [amount],
+          [input.proofs as readonly `0x${string}`[]],
+        ],
+      }),
+      value: BigInt(0),
+    },
+  ];
+}

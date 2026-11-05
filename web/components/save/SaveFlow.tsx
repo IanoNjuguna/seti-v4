@@ -8,6 +8,7 @@ import { SAVE_COPY } from './Save.constants';
 import { SaveActions } from './SaveActions';
 import { SaveAmount } from './SaveAmount';
 import { SaveFigure } from './SaveFigure';
+import { SaveRewards } from './SaveRewards';
 
 /**
  * The Save page, in Cash App's shape: the figure, the two actions, and the amount
@@ -127,6 +128,8 @@ export function SaveFlow() {
               {save.error}
             </Text>
           ) : null}
+
+          <SaveRewards />
 
           <SaveActions
             canWithdraw={Boolean(save.summary?.canWithdraw)}

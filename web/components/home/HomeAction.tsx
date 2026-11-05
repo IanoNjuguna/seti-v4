@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Text } from '@/components/ui';
 import { TEXT_COLOR, TEXT_VARIANT, VARIANT_CLASSES } from '@/components/ui/Button.constants';
+import { Icon } from '@/components/ui/Icon';
 import { cn } from '@/lib/cn';
 import type { HomeActionProps } from './HomeActions.types';
 
@@ -19,7 +20,16 @@ import type { HomeActionProps } from './HomeActions.types';
  */
 export function HomeAction({ action }: HomeActionProps) {
   return (
-    <Link href={action.href} className={cn(VARIANT_CLASSES[action.variant], 'flex-1')}>
+    <Link
+      href={action.href}
+      className={cn(
+        VARIANT_CLASSES[action.variant],
+        // A tile, not a label: the glyph sits above the word, and the button height the
+        // recipe already sets keeps a 48px target under both.
+        'flex-1 flex-col gap-1 px-2'
+      )}
+    >
+      <Icon name={action.icon} className="h-5 w-5" />
       <Text as="span" variant={TEXT_VARIANT[action.variant]} color={TEXT_COLOR[action.variant]}>
         {action.label}
       </Text>
