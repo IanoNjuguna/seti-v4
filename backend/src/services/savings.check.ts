@@ -12,14 +12,17 @@ import {
   chooseDepositAsset,
   depositFitsWithFee,
   orderDepositAssets,
+  SAVINGS_ASSET,
   SAVINGS_LIVE,
   SavingsFundingError,
   SavingsNotLiveError,
   sharesForDeposit,
+  sharesForWithdrawal,
   spendableAfterFee,
 } from './savings.js';
 import { quoteSavingsDeposit } from './savings.js';
 import { claimableFiatFor } from './savings-rewards.js';
+import { formatUnits } from 'viem';
 import type { SupportedAsset } from '../config/assets.js';
 
 const U = (value: number) => BigInt(Math.round(value * 1_000_000));
@@ -222,6 +225,35 @@ if (SAVINGS_LIVE) {
   console.log(`\n${run - failed}/${run} checks passed\n`);
   if (failed > 0) process.exit(1);
 }
+
+// ---------------------------------------------------------------------------
+// THE EXIT (#339). Two things were wrong in units rather than in logic: the share
+// count was parsed at the asset's six decimals instead of the share token's eighteen,
+// and "can this vault pay" was read from an API that does not list the vault at all.
+// ---------------------------------------------------------------------------
+console.log('\nwithdrawals: eighteen-decimal shares, and a vault that pays OUSD\n');
+
+check(
+  'the vault pays OUSD, so a withdrawal has no swap home to floor',
+  SAVINGS_ASSET === 'ousd',
+  SAVINGS_ASSET
+);
+
+const sharesOut = sharesForWithdrawal(9.6153846, 1.000375);
+check(
+  'a withdrawal asks for 18dp shares, not the asset\'s six',
+  sharesOut > BigInt(9_600_000_000_000_000_000n) && sharesOut < BigInt(9_620_000_000_000_000_000n),
+  String(sharesOut)
+);
+check(
+  'and that count is a share amount, not a millionth of one',
+  Number(formatUnits(sharesOut, 18)) > 9.5 && Number(formatUnits(sharesOut, 18)) < 9.7,
+  String(Number(formatUnits(sharesOut, 18)))
+);
+check(
+  'a zero share price yields no shares rather than dividing',
+  sharesForWithdrawal(10, 0) === BigInt(0)
+);
 
 // ---------------------------------------------------------------------------
 // The share floor (#134). This is the assertion that would have caught a bug that
