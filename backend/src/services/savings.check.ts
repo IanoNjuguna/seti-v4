@@ -11,7 +11,9 @@
 import {
   chooseDepositAsset,
   depositFitsWithFee,
+  orderDepositAssets,
   SAVINGS_LIVE,
+  SavingsFundingError,
   SavingsNotLiveError,
   sharesForDeposit,
   spendableAfterFee,
@@ -97,6 +99,57 @@ check(
 );
 
 check('no funding assets at all is null, not a crash', chooseDepositAsset([], U(10)) === null);
+
+console.log('\nthe funding order, when a balance cannot be sold (#335)\n');
+
+/**
+ * On 2026-11-05 a wallet could not save because the quote priced ONE candidate and that
+ * candidate's market was empty. The order is what a deposit now walks: clearing balances
+ * first, in table order, then the rest largest first. Only the service's pricing loop
+ * decides which of them actually pays, so this function must not filter.
+ */
+const HOLDINGS: { asset: SupportedAsset; balance: bigint }[] = [
+  { asset: 'pathusd', balance: U(500) },
+  { asset: 'ousd', balance: U(100) },
+  { asset: 'usdt0', balance: U(5_000) },
+];
+
+const coveringOrder = orderDepositAssets(HOLDINGS, U(10));
+check(
+  'a covering balance comes first, in table order',
+  coveringOrder[0].asset === 'pathusd' && coveringOrder[1].asset === 'ousd' && coveringOrder[2].asset === 'usdt0',
+  coveringOrder.map((c) => c.asset).join(', ')
+);
+
+const shortOrder = orderDepositAssets(HOLDINGS, U(1_000));
+check(
+  'when nothing covers, the largest balance is tried first',
+  shortOrder[0].asset === 'usdt0',
+  shortOrder.map((c) => c.asset).join(', ')
+);
+
+check(
+  'every holding is a candidate, so a dead market cannot drop one',
+  shortOrder.length === HOLDINGS.length
+);
+
+check(
+  'and `chooseDepositAsset` is the head of that same order, not a second rule',
+  chooseDepositAsset(HOLDINGS, U(10))?.asset === coveringOrder[0].asset &&
+    chooseDepositAsset(HOLDINGS, U(1_000))?.asset === shortOrder[0].asset
+);
+
+const funding: SavingsFundingError = new SavingsFundingError(['usdt0']);
+check(
+  'nothing convertible is its own refusal code, not the vault being unreachable',
+  funding.code === 'savings-funding-unavailable' && funding.unpriced[0] === 'usdt0',
+  funding.code
+);
+check(
+  'and the sentence does not ask for a retry that would fail the same way',
+  /you/i.test(funding.message) && !/[—–!?]/.test(funding.message) && funding.message.endsWith('.'),
+  funding.message
+);
 
 // USDT0 used to be excluded here because it had no book anywhere. Measured again on
 // mainnet it now reaches pathUSD at 2bps out to 50,000 units, so a customer holding

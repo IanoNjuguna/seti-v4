@@ -35,7 +35,7 @@
  */
 
 import { prisma } from '../lib/prisma.js';
-import { isAllowedPair, quoteDexConvert } from './convert.js';
+import { isAllowedPair, quoteDexConvert, ConvertRefusalError } from './convert.js';
 import { issueQuote } from './quote.js';
 import { formatUnits, parseUnits } from 'viem';
 import { servedNetwork } from '../config/networks.js';
@@ -427,14 +427,53 @@ export function chooseDepositAsset(
   funding: { asset: SupportedAsset; balance: bigint }[],
   amountIn: bigint
 ): { asset: SupportedAsset; balance: bigint } | null {
-  if (funding.length === 0) return null;
+  return orderDepositAssets(funding, amountIn)[0] ?? null;
+}
 
-  const covering = funding.find((candidate) => candidate.balance >= amountIn);
-  if (covering) return covering;
+/**
+ * The funding candidates, in the order they should be TRIED.
+ *
+ * Same rule as `chooseDepositAsset` has always applied, extended from one answer to the
+ * whole list, because a balance that covers the amount is not the same thing as a balance
+ * that can be SOLD into the vault's asset. On 2026-11-05 a wallet holding USDT0 could not
+ * save: `usdt0 -> ousd` and `usdt0 -> pathusd` both revert `InsufficientLiquidity` on the
+ * DEX, so the single candidate the quote had chosen was unfillable and the whole deposit
+ * failed, even though it also held pathUSD whose pair prices fine (#335).
+ *
+ * Covering balances first, in table order (deterministic: the same wallet quotes the same
+ * way whichever balance read answered first), then everything else largest first, which is
+ * the balance the "you have X" line names.
+ */
+export function orderDepositAssets(
+  funding: { asset: SupportedAsset; balance: bigint }[],
+  amountIn: bigint
+): { asset: SupportedAsset; balance: bigint }[] {
+  const covering = funding.filter((candidate) => candidate.balance >= amountIn);
+  const short = funding
+    .filter((candidate) => candidate.balance < amountIn)
+    .sort((a, b) => (a.balance === b.balance ? 0 : a.balance > b.balance ? -1 : 1));
 
-  return funding.reduce((largest, candidate) =>
-    candidate.balance > largest.balance ? candidate : largest
-  );
+  return [...covering, ...short];
+}
+
+/**
+ * Nothing the customer holds can be turned into the vault's asset right now.
+ *
+ * A TYPED refusal rather than the generic 502, because the fact is about which balances
+ * they hold and about the book, not about the vault being unreachable. The old answer
+ * asked them to try again in a moment, which fails identically for as long as USDT0 has
+ * no sell side. `unpriced` is carried for the logs: the customer gets the sentence, an
+ * operator gets the assets.
+ */
+export class SavingsFundingError extends Error {
+  readonly code = 'savings-funding-unavailable';
+  readonly unpriced: SupportedAsset[];
+
+  constructor(unpriced: SupportedAsset[]) {
+    super('We cannot turn what you hold into savings right now. Nothing was moved.');
+    this.name = 'SavingsFundingError';
+    this.unpriced = unpriced;
+  }
 }
 
 /**
@@ -560,20 +599,56 @@ export async function quoteSavingsDeposit(input: {
     funding.push({ asset, balance: parseUnits(balance, ASSET_DECIMALS) });
   }
 
-  const chosen = chooseDepositAsset(funding, amountIn);
-  if (!chosen) throw new Error(`No asset can reach ${SAVINGS_ASSET} on ${network}.`);
-  const assetIn = chosen.asset;
+  const order = orderDepositAssets(funding, amountIn);
+  if (order.length === 0) throw new Error(`No asset can reach ${SAVINGS_ASSET} on ${network}.`);
 
-  // Already the vault's asset: nothing to swap, and the deposit is exact.
-  const { amountOut, minAmountOut } =
-    assetIn === SAVINGS_ASSET
-      ? { amountOut: amountIn, minAmountOut: amountIn }
-      : await quoteDexConvert({
-          assetIn,
-          assetOut: SAVINGS_ASSET,
-          amountIn,
-          network,
-        });
+  /*
+   * Price the candidates in turn and take the FIRST the book can fill (#335).
+   *
+   * The vault's own asset needs no swap, so it is priced without a call; every other
+   * candidate is asked of the DEX in the same order the old selection rule implied. Only
+   * a refusal that says the BOOK cannot fill it advances to the next candidate: a network
+   * error, a bad amount or a bug still stops the quote here, because none of those is an
+   * argument for spending a different token.
+   */
+  let chosen: { asset: SupportedAsset; balance: bigint } | null = null;
+  let priced: { amountOut: bigint; minAmountOut: bigint } | null = null;
+  const unpriced: SupportedAsset[] = [];
+
+  for (const candidate of order) {
+    if (candidate.asset === SAVINGS_ASSET) {
+      // Already the vault's asset: nothing to swap, and the deposit is exact.
+      chosen = candidate;
+      priced = { amountOut: amountIn, minAmountOut: amountIn };
+      break;
+    }
+
+    try {
+      const quote = await quoteDexConvert({
+        assetIn: candidate.asset,
+        assetOut: SAVINGS_ASSET,
+        amountIn,
+        network,
+      });
+      chosen = candidate;
+      priced = quote;
+      break;
+    } catch (error) {
+      if (
+        error instanceof ConvertRefusalError &&
+        (error.code === 'convert-no-liquidity' || error.code === 'convert-pair-unavailable')
+      ) {
+        unpriced.push(candidate.asset);
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  if (!chosen || !priced) throw new SavingsFundingError(unpriced);
+
+  const assetIn = chosen.asset;
+  const { amountOut, minAmountOut } = priced;
 
   // Shares are priced by the vault, not by us: at a share price of P, one unit buys
   // 1/P shares. The floor is the same 50bps the swap gets, so a vault fee taken at

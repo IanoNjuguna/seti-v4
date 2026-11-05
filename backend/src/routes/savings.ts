@@ -5,6 +5,7 @@ import {
   getSavingsSummary,
   quoteSavingsDeposit,
   quoteSavingsWithdraw,
+  SavingsFundingError,
   SavingsInputError,
   SavingsNotLiveError,
 } from '../services/savings.js';
@@ -67,6 +68,16 @@ function savingsRefusal(reply: FastifyReply, error: unknown): FastifyReply {
     return reply.status(503).send({ error: error.message, code: error.code });
   }
   if (error instanceof SavingsInputError) {
+    return reply.status(422).send({ error: error.message, code: error.code });
+  }
+  /*
+   * The customer's holdings cannot reach the vault's asset (#335). A 422 with its own
+   * code, because the fix is theirs to make — hold something convertible, or try a size
+   * the book can fill — and a 502 would call a liquidity fact an outage and tell them to
+   * retry a request that fails identically.
+   */
+  if (error instanceof SavingsFundingError) {
+    reply.log.warn({ unpriced: error.unpriced }, 'savings deposit has no convertible funding asset');
     return reply.status(422).send({ error: error.message, code: error.code });
   }
   reply.log.error({ err: error }, 'savings request failed');
