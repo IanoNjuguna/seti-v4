@@ -238,7 +238,7 @@ async function earnGet<T>(path: string): Promise<T | null> {
 }
 
 /** The address that holds this account's money on this network. */
-async function walletAddressFor(userId: string, network: Network): Promise<string | null> {
+export async function walletAddressFor(userId: string, network: Network): Promise<string | null> {
   const wallet = await prisma.wallet.findFirst({
     where: { userId, status: 'active', network },
     orderBy: { createdAt: 'asc' },
