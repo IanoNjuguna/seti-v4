@@ -69,6 +69,10 @@ export interface AnalyticsRow {
   createdAt: Date;
   /** The merchant's name for a payment, null for everything else. */
   merchantName: string | null;
+  /** Who the money came from, for an inbound row. The only identity a payer has. */
+  counterparty?: string | null;
+  /** The customer-funded fee attributed to a payment, in the asset's units. */
+  fee?: string | null;
 }
 
 export interface MerchantTotal {
@@ -94,6 +98,10 @@ export interface WindowTotals {
   skipped: number;
   /** Payments to a named merchant, most paid first, capped at three. */
   merchants: MerchantTotal[];
+  /** What arrived from other people in this window (#396). */
+  received: { count: number; total: number; amounts: number[] };
+  /** What left to merchants in this window, with the fee attributed to it. */
+  paidOut: { count: number; total: number; fees: number; amounts: number[] };
   /**
    * One entry per day in the window, oldest first, zero-filled (#369).
    *
@@ -147,6 +155,13 @@ export function summariseWindow(rows: AnalyticsRow[], days: number, now: Date): 
   let moneyOut = 0;
   let count = 0;
   let skipped = 0;
+  let paidOut = 0;
+  let paidOutFees = 0;
+  let paidOutCount = 0;
+  let received = 0;
+  let receivedCount = 0;
+  const paidOutAmounts: number[] = [];
+  const receivedAmounts: number[] = [];
   const merchants = new Map<string, MerchantTotal>();
   const perDay = new Map<string, number>();
 
@@ -167,6 +182,25 @@ export function summariseWindow(rows: AnalyticsRow[], days: number, now: Date): 
     if (direction === 'in') moneyIn += amount;
     else moneyOut += amount;
 
+    /*
+     * The same rows, read twice more (#396): what a merchant took and what they spent, with the
+     * ticket sizes those two halves have. `payment` is money leaving to a merchant and
+     * `p2p_receive` is money arriving from one; a `top_up` is a bridge deposit, so it is money in
+     * but not income, and it is deliberately not in either half.
+     */
+    if (row.type === 'payment') {
+      paidOut += amount;
+      paidOutCount += 1;
+      paidOutAmounts.push(amount);
+      const fee = Number(row.fee ?? 0);
+      if (Number.isFinite(fee) && fee > 0) paidOutFees += fee;
+    }
+    if (row.type === 'p2p_receive') {
+      received += amount;
+      receivedCount += 1;
+      receivedAmounts.push(amount);
+    }
+
     const day = dayKey(row.createdAt);
     perDay.set(day, (perDay.get(day) ?? 0) + 1);
 
@@ -185,11 +219,36 @@ export function summariseWindow(rows: AnalyticsRow[], days: number, now: Date): 
     net: moneyIn - moneyOut,
     count,
     skipped,
+    received: { count: receivedCount, total: received, amounts: receivedAmounts },
+    paidOut: { count: paidOutCount, total: paidOut, fees: paidOutFees, amounts: paidOutAmounts },
     daily: fillDays(perDay, days, now),
     merchants: [...merchants.values()]
       .sort((a, b) => b.total - a.total)
       .slice(0, MERCHANT_LIMIT),
   };
+}
+
+/** One half of the ledger, printed: count, total, and the two ticket sizes (#396). */
+export function halfFigures(
+  half: { count: number; total: number; amounts: number[] },
+  fiatPerUsd: number
+): HalfSummary {
+  return {
+    count: half.count,
+    total: toFiat(half.total, fiatPerUsd),
+    average: half.count === 0 ? toFiat(0, fiatPerUsd) : toFiat(half.total / half.count, fiatPerUsd),
+    median: toFiat(medianOf(half.amounts), fiatPerUsd),
+  };
+}
+
+/** The middle of a sorted set: the middle value, or the mean of the two middles. */
+export function medianOf(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1
+    ? sorted[middle]
+    : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
 /** A window as the API prints it: converted once, two decimals, no token names. */
@@ -200,12 +259,40 @@ export interface WindowSummary {
   net: string;
   count: number;
   skipped: number;
+  /** What arrived from other people, and what it averages to (#396). */
+  received: HalfSummary;
+  /** What left to merchants, with the fee attributed to it. */
+  paidOut: HalfSummary & { fee: string };
   merchants: Array<{ name: string; count: number; total: string }>;
   daily: DailyCount[];
 }
 
+/** One half of the ledger as a window prints it: a count, a total, and its ticket sizes. */
+export interface HalfSummary {
+  count: number;
+  total: string;
+  average: string;
+  median: string;
+}
+
+/**
+ * The people on the other side (#396).
+ *
+ * A customer is a counterparty address on an inbound payment: the only identity a payer has in this
+ * ledger, because Seti never asks them for one. Counted over the ACCOUNT's whole life rather than the
+ * selected window, because "haven't paid in 30 days" is a fact about the relationship and not about
+ * the period the tab happens to be showing.
+ */
+export interface CustomersSummary {
+  count: number;
+  repeat: number;
+  lapsed: number;
+  top: Array<{ address: string; count: number; total: string }>;
+}
+
 export interface AnalyticsSummary {
   currency: string;
+  customers: CustomersSummary;
   windows: WindowSummary[];
   /**
    * The map's series: a full year of days, counted in the database (#371).
@@ -216,6 +303,12 @@ export interface AnalyticsSummary {
    */
   year: DayWindow;
 }
+
+/** How long without a payment turns a customer into a win-back (#396). */
+export const LAPSED_DAYS = 30;
+
+/** How many customers the tab names, by value. */
+export const CUSTOMER_LIMIT = 5;
 
 /** The map spans a year at most: enough to see seasons, short enough to keep one row of squares. */
 export const STREAK_DAYS = 365;
@@ -338,6 +431,69 @@ export function fillRange(perDay: Map<string, number>, from: Date, to: Date): Da
 }
 
 /**
+ * Who pays this account, and whether they come back (#396).
+ *
+ * Read over the account's whole life: a customer who paid once in March and never again is exactly
+ * the person a merchant wants named, and a thirty-day window would hide them. Nothing here is
+ * inferred: a customer is a `counterparty` address on a completed inbound row, and a repeat is one
+ * that appears twice.
+ *
+ * `lapsed` is the win-back list: last payment more than thirty days before `now`.
+ */
+export async function getCustomers(
+  userId: string,
+  network: Network,
+  now: Date,
+  fiatPerUsd: number
+): Promise<CustomersSummary> {
+  const rows = await prisma.transaction.findMany({
+    where: {
+      userId,
+      network,
+      status: 'completed',
+      type: 'p2p_receive',
+      counterparty: { not: null },
+    },
+    select: { counterparty: true, amount: true, createdAt: true },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  const perAddress = new Map<string, { count: number; total: number; last: Date }>();
+  for (const row of rows) {
+    const address = String(row.counterparty).toLowerCase();
+    const amount = Number(row.amount);
+    if (!Number.isFinite(amount)) continue;
+    const entry = perAddress.get(address) ?? { count: 0, total: 0, last: row.createdAt };
+    entry.count += 1;
+    entry.total += amount;
+    if (row.createdAt > entry.last) entry.last = row.createdAt;
+    perAddress.set(address, entry);
+  }
+
+  const lapsedBefore = now.getTime() - LAPSED_DAYS * DAY_MS;
+  let repeat = 0;
+  let lapsed = 0;
+  for (const entry of perAddress.values()) {
+    if (entry.count >= 2) repeat += 1;
+    if (entry.last.getTime() < lapsedBefore) lapsed += 1;
+  }
+
+  return {
+    count: perAddress.size,
+    repeat,
+    lapsed,
+    top: [...perAddress.entries()]
+      .sort((a, b) => b[1].total - a[1].total)
+      .slice(0, CUSTOMER_LIMIT)
+      .map(([address, entry]) => ({
+        address,
+        count: entry.count,
+        total: toFiat(entry.total, fiatPerUsd),
+      })),
+  };
+}
+
+/**
  * Read the account's own transactions and summarise them.
  *
  * Scoped by network, like every other money read: a practice balance is not a live one,
@@ -363,13 +519,17 @@ export async function getAnalytics(
     amount: row.amount.toString(),
     createdAt: row.createdAt,
     merchantName: row.merchant?.name ?? null,
+    counterparty: row.counterparty,
+    fee: row.feeAmount?.toString() ?? null,
   }));
 
   const fiatPerUsd = await getFiatPerUsd(currency);
   const year = await getDailyYear(userId, network, now);
+  const customers = await getCustomers(userId, network, now, fiatPerUsd);
 
   return {
     currency,
+    customers,
     windows: ANALYTICS_WINDOWS.map((days) => {
       const totals = summariseWindow(analyticsRows, days, now);
       const figures = convertWindow(totals, fiatPerUsd);
@@ -380,6 +540,11 @@ export async function getAnalytics(
         net: figures.net,
         count: totals.count,
         skipped: totals.skipped,
+        received: halfFigures(totals.received, fiatPerUsd),
+        paidOut: {
+          ...halfFigures(totals.paidOut, fiatPerUsd),
+          fee: toFiat(totals.paidOut.fees, fiatPerUsd),
+        },
         merchants: totals.merchants.map((merchant) => ({
           name: merchant.name,
           count: merchant.count,

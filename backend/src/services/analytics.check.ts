@@ -18,6 +18,8 @@ import {
   dayKey,
   directionOf,
   fillRange,
+  halfFigures,
+  medianOf,
   MONEY_TYPES,
   summariseWindow,
 } from './analytics.js';
@@ -263,6 +265,45 @@ console.log('the map is the year the account is living:');
   check('but not a swap between the customer\'s own assets', !MONEY_TYPES.includes('convert'));
   check('and not money moving into the vault', !MONEY_TYPES.includes('savings_deposit'));
   check('or out of it', !MONEY_TYPES.includes('savings_withdrawal'));
+}
+
+console.log('the two halves, and the person on the other side:');
+{
+  const row = (type: 'payment' | 'p2p_receive' | 'top_up', amount: string, daysAgo: number, fee = '0') => ({
+    type,
+    status: 'completed' as const,
+    amount,
+    createdAt: new Date(Date.UTC(2026, 10, 6 - daysAgo)),
+    merchantName: type === 'payment' ? 'Java House' : null,
+    counterparty: '0xabc',
+    fee,
+  });
+
+  const rows = [
+    row('payment', '100', 0, '2'),
+    row('payment', '300', 1, '6'),
+    row('payment', '200', 2, '4'),
+    row('p2p_receive', '50', 0),
+    row('p2p_receive', '70', 3),
+    row('top_up', '999', 1),
+  ];
+  const totals = summariseWindow(rows, 7, new Date(Date.UTC(2026, 10, 6)));
+
+  check('a payment is money out and a half of its own', totals.paidOut.count === 3 && totals.paidOut.total === 600, String(totals.paidOut.total));
+  check('the fee it carried is summed beside it', totals.paidOut.fees === 12, String(totals.paidOut.fees));
+  check('a receive is money in and the other half', totals.received.count === 2 && totals.received.total === 120, String(totals.received.total));
+  check('a bridge top-up is neither: money in, but not income', totals.paidOut.count + totals.received.count === 5);
+  check('the median is the middle value, not the mean', medianOf([100, 300, 200]) === 200, String(medianOf([100, 300, 200])));
+  check('an even set takes the mean of the two middles', medianOf([100, 200, 300, 400]) === 250, String(medianOf([100, 200, 300, 400])));
+  check('no rows is a zero, not a NaN', medianOf([]) === 0);
+
+  const half = halfFigures(totals.paidOut, 129);
+  check(
+    'the average is the total over the count, in the same money as the total',
+    half.average === convertWindow({ in: totals.paidOut.total / 3, out: 0 }, 129).in,
+    half.average
+  );
+  check('and both ticket sizes print money with two decimals', /[\d,]+\.\d{2}$/.test(half.average) && /[\d,]+\.\d{2}$/.test(half.median), `${half.average} / ${half.median}`);
 }
 
 console.log('-'.repeat(74));

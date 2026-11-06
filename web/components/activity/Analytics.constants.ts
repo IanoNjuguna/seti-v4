@@ -9,6 +9,20 @@ export const ANALYTICS_COPY = {
   errorTitle: "Couldn't load your figures",
   retry: 'Try again',
   loading: 'Loading your figures',
+  /* The two halves of the window (#396). */
+  halvesTitle: 'What moved',
+  received: 'Received',
+  spent: 'Spent',
+  fee: 'Fee',
+  feeNote: 'Funded by the customer inside their own transfer.',
+  ticket: (count: number, average: string, median: string): string =>
+    `${count === 1 ? '1 payment' : `${count} payments`} · average ${average} · median ${median}`,
+  /* The people on the other side (#396). */
+  customersTitle: 'Customers',
+  customersLine: (count: number, repeat: number, lapsed: number): string =>
+    `${count === 1 ? '1 wallet has' : `${count} wallets have`} paid you · ${repeat} came back · ${lapsed} not in 30 days`,
+  customerPayments: (count: number): string =>
+    count === 1 ? '1 payment' : `${count} payments`,
   /** Names the window switcher for a screen reader. */
   windowLabel: 'Period',
 } as const;
