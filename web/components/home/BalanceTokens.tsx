@@ -51,11 +51,10 @@ export function BalanceTokens({ assets, currency }: BalanceTokensProps) {
       </Text>
 
       {/*
-        A bordered card on the light canvas, not a block inside the dark hero (#383): this is a
-        list, and a list belongs on the page's own surface. `overflow-hidden` keeps the rows' first
-        and last hairlines inside the 12px radius.
+        On the canvas, not in a card (#385). A list is drawn the way every other list on this app
+        is: rows on the page's own surface, a hairline between them, none on the last.
       */}
-      <ul className="overflow-hidden rounded-md border border-hairline-light">
+      <ul className="flex flex-col">
         {rows.map((row) => (
           <BalanceTokenRow key={row.asset} row={row} currency={currency} />
         ))}
