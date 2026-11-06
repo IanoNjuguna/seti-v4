@@ -24,6 +24,17 @@ export interface StreakCell {
   /** `YYYY-MM-DD`, or null for the pads that keep the columns square. */
   date: string | null;
   count: number | null;
+  /**
+   * A day still to come (#389). The map is a full year from the day the account joined, so most of
+   * it is ahead for a new merchant: those cells are drawn as an outline, which is neither a quiet
+   * day nor a pad — the day exists, it just has not been lived yet.
+   */
+  ahead: boolean;
+}
+
+/** The UTC day a cell is compared against, so "ahead" cannot drift with the reader's clock. */
+export function todayKey(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 /** How many of the four steps a day takes. 0 is a quiet day inside the window. */
@@ -49,6 +60,21 @@ export function stripLabel(days: number, firstDate: string | undefined): string 
   if (!firstDate) return 'No payments yet';
   const month = Number(firstDate.slice(5, 7)) - 1;
   return `Since ${Number(firstDate.slice(8, 10))} ${MONTH_SHORT[month]}`;
+}
+
+/**
+ * What the map's own year is called (#389).
+ *
+ * The strip is always a full year now, and the FIRST year of an account is different from the last
+ * twelve months of an old one: its days ahead are unnamed. `Your first year` says that the empty
+ * squares on the right are days to come rather than days missed. Nothing paid yet still says so,
+ * because a label about a period is not an answer to "did anything happen".
+ */
+export function windowLabel(year: { days: number; daily: DailyCount[]; payments: number }, today = todayKey()): string {
+  if (year.payments === 0) return 'No payments yet';
+  const last = year.daily.at(-1)?.date;
+  if (last && last > today) return 'Your first year';
+  return stripLabel(year.days, year.daily[0]?.date);
 }
 
 /** Monday-first index of a `YYYY-MM-DD` key, in UTC, matching how the server buckets. */
@@ -78,16 +104,20 @@ export function levelFor(count: number): StreakLevel {
  * Column-major because that is what the grid draws: `grid-flow-col` fills down a column before
  * starting the next, which is the order the days arrived in.
  */
-export function streakColumns(daily: DailyCount[]): StreakCell[][] {
+export function streakColumns(daily: DailyCount[], today = todayKey()): StreakCell[][] {
   if (daily.length === 0) return [];
 
-  const cells: StreakCell[] = daily.map((day) => ({ date: day.date, count: day.count }));
+  const cells: StreakCell[] = daily.map((day) => ({
+    date: day.date,
+    count: day.count,
+    ahead: day.date > today,
+  }));
   const lead = weekdayIndex(cells[0].date as string);
   const padded: StreakCell[] = [
-    ...Array.from({ length: lead }, () => ({ date: null, count: null })),
+    ...Array.from({ length: lead }, () => ({ date: null, count: null, ahead: false })),
     ...cells,
   ];
-  while (padded.length % 7 !== 0) padded.push({ date: null, count: null });
+  while (padded.length % 7 !== 0) padded.push({ date: null, count: null, ahead: false });
 
   const columns: StreakCell[][] = [];
   for (let i = 0; i < padded.length; i += 7) columns.push(padded.slice(i, i + 7));

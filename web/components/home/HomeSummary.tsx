@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Icon } from '@/components/ui/Icon';
-import { stripLabel } from './home.streak';
+import { windowLabel } from './home.streak';
 import { StreakMap } from './StreakMap';
 import { HOME_PAGE_COPY } from './HomePage.constants';
 import type { HomeSummaryProps } from './HomeSummary.types';
@@ -49,7 +49,7 @@ export function HomeSummary({ year }: HomeSummaryProps) {
    * A grid of nothing is a picture of a year the account did not have, and it is the first thing a
    * new merchant sees on their home screen. The row keeps its tap-through either way.
    */
-  const label = stripLabel(year.days, year.daily[0]?.date);
+  const label = windowLabel(year);
 
   return (
     <Link

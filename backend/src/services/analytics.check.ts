@@ -16,8 +16,8 @@ import type { AnalyticsRow } from './analytics.js';
 import {
   convertWindow,
   dayKey,
-  daysBetween,
   directionOf,
+  fillRange,
   MONEY_TYPES,
   summariseWindow,
 } from './analytics.js';
@@ -244,12 +244,19 @@ console.log('the three figures reconcile:');
   );
 }
 
-console.log('the map starts where the account started:');
+console.log('the map is the year the account is living:');
 {
-  // Inclusive: the day of the first payment is day one, not day zero.
-  check('a payment today is a strip of one day', daysBetween(new Date('2026-11-06T09:00:00Z'), new Date('2026-11-06T21:00:00Z')) === 1);
-  check('a payment three days ago is four days', daysBetween(new Date('2026-11-03T09:00:00Z'), new Date('2026-11-06T21:00:00Z')) === 4);
-  check('hours do not change the length', daysBetween(new Date('2026-11-03T23:59:00Z'), new Date('2026-11-06T00:01:00Z')) === 4);
+  // A range is inclusive at both ends, so a year from 6 Nov runs to 5 Nov a year later.
+  const from = new Date(Date.UTC(2026, 10, 6));
+  const to = new Date(Date.UTC(2027, 10, 5));
+  const range = fillRange(new Map([['2026-11-06', 3]]), from, to);
+
+  check('a year of days is 365 entries', range.length === 365, `${range.length}`);
+  check('the first entry is the day the account joined', range[0]?.date === '2026-11-06', range[0]?.date);
+  check('the last entry is the day before its anniversary', range.at(-1)?.date === '2027-11-05', range.at(-1)?.date);
+  check('a day with money keeps its count', range[0]?.count === 3, `${range[0]?.count}`);
+  check('and a day without, including the days ahead, is a zero', range.at(-1)?.count === 0);
+  check('the entries are in date order, oldest first', range.every((day, index) => index === 0 || day.date > (range[index - 1]?.date ?? '')));
 
   check('the map counts a payment', MONEY_TYPES.includes('payment'));
   check('and a fee', MONEY_TYPES.includes('fee'));

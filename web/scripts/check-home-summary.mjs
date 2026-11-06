@@ -374,16 +374,21 @@ console.log('a new account is told what to do first:');
   const screen = readFileSync(path.join(WEB, 'components/home/HomeScreen.tsx'), 'utf8');
   const starter = readFileSync(path.join(WEB, 'components/home/HomeStarter.tsx'), 'utf8');
 
+  // `days` is always a year now, so "never been paid" is the window's own count (#389).
   check(
     'it renders only when no payment has ever landed',
-    screen.includes('summary.year.days === 0')
+    screen.includes('summary.year.payments === 0')
   );
   check(
     'and it points at Receive, the door that shows the code',
     screen.includes('<HomeStarter') && starter.includes('HOME_PAGE_COPY.starterHref')
   );
   check('the code it offers is a link, so it can be opened in a tab', starter.includes('<Link'));
-  check('it disappears the moment there is a payment', !screen.includes('days > 0 ? <HomeStarter'));
+  check('it disappears the moment there is a payment', !screen.includes('payments > 0 ? <HomeStarter'));
+  check(
+    'the map is labelled by the window it draws, not by a fixed period',
+    readFileSync(path.join(WEB, 'components/home/HomeSummary.tsx'), 'utf8').includes('windowLabel')
+  );
 }
 
 console.log('the label tells the truth about the window:');
