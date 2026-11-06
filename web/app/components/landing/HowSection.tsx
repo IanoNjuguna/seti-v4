@@ -1,4 +1,5 @@
 import { ButtonLink } from '@/components/ui/ButtonLink';
+import { SIGN_IN_PATH } from '@/lib/routes';
 import { Reveal } from './Reveal';
 import { SectionHeader } from './SectionHeader';
 import { PaymentStack } from './PaymentStack';
@@ -57,10 +58,16 @@ export function HowSection() {
           </ol>
         </div>
 
-        {/* One link for the reader who wants the whole mechanic rather than three rows
-            (#306): the page that carries it is `/how-it-works`, and this band is where a
-            reader is already asking. */}
-        <div className="mt-10">
+        {/* THE FIRST DECISION POINT INSIDE THE PAGE (#359). The hero asks for the action
+            before the reader knows what the product is; this row asks again at the moment
+            the mechanic has landed — three steps read, the stack seen. The ghost link
+            stays because it answers a different question (the whole mechanic, on its own
+            page), so the pair reads as one thing to do and one thing to read rather than
+            two buttons of equal weight. */}
+        <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-8">
+          <ButtonLink href={SIGN_IN_PATH} variant="accent">
+            Claim your name
+          </ButtonLink>
           <ButtonLink href="/how-it-works" variant="ghost">
             The whole payment, step by step
           </ButtonLink>

@@ -1,4 +1,5 @@
 import { cn } from '@/lib/cn';
+import { Icon } from '@/components/ui/Icon';
 import { formatFiat } from '@/lib/formatCurrency';
 import type { PaymentCardProps } from './PaymentStack.types';
 
@@ -54,6 +55,18 @@ export function PaymentCard({ payment, className }: PaymentCardProps) {
             isOutflow ? 'text-ink' : 'text-accent-light-green'
           )}
         >
+          {/*
+            A LANDED PAYMENT CARRIES A MARK, NOT ONLY A COLOUR (#359). The figure is already
+            green and signed, which is what a deuteranope reads, so this check is a second
+            honest signal rather than the only one: money IN is confirmed, money OUT is not
+            marked at all. The mark is decorative (`aria-hidden` in `Icon`) and the label
+            beside it says the same thing.
+          */}
+          {isOutflow ? null : (
+            <span className="mr-1 inline-flex translate-y-px align-middle">
+              <Icon name="check" className="h-3.5 w-3.5" />
+            </span>
+          )}
           {isOutflow ? '-' : '+'}
           {formatFiat(Math.abs(amount), currency)}
         </span>
