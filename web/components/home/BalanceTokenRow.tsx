@@ -53,9 +53,18 @@ export function BalanceTokenRow({ row, currency }: BalanceTokenRowProps) {
           >
             {row.name}
           </Text>
-          <Text variant="micro" as="span" color="inverse-muted" tabular className="block">
-            {row.units}
-          </Text>
+          {/*
+            THE UNITS ARE MASKED TOO (#379). Only the fiat figure on the right went through
+            `MaskedAmount`, so an account with the eye closed still printed `0.0045` under the
+            token's name: the control hid the total and the value column while the amount itself
+            stayed legible on the left. The mask is the same primitive, so the line keeps its
+            width and the row does not move when the eye is tapped.
+          */}
+          <MaskedAmount hidden={hidden} variant="micro" color="inverse-muted">
+            <Text variant="micro" as="span" color="inverse-muted" tabular className="block">
+              {row.units}
+            </Text>
+          </MaskedAmount>
         </span>
 
         <span className="shrink-0">
