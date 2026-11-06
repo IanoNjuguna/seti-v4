@@ -73,8 +73,9 @@ export function stripLabel(days: number, firstDate: string | undefined): string 
 export function windowLabel(year: { days: number; daily: DailyCount[]; payments: number }, today = todayKey()): string {
   if (year.payments === 0) return 'No payments yet';
   const last = year.daily.at(-1)?.date;
-  if (last && last > today) return 'Your first year';
-  return stripLabel(year.days, year.daily[0]?.date);
+  // A window that runs into the future starts where the account did, and says so by naming that day.
+  if (last && last > today) return stripLabel(12, year.daily[0]?.date);
+  return 'Last 12 months';
 }
 
 /** Monday-first index of a `YYYY-MM-DD` key, in UTC, matching how the server buckets. */

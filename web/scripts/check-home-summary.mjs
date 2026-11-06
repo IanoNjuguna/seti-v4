@@ -57,7 +57,7 @@ const { PAID_RECENTLY_LIMIT, longestWindow, paidRecently } = await import(
   '../components/home/home.summary.ts'
 );
 const { formatFiat } = await import('../lib/formatCurrency.ts');
-const { levelFor, monthMarks, streakColumns, streakTotals, stripLabel, weekdayIndex } = await import(
+const { levelFor, monthMarks, streakColumns, streakTotals, stripLabel, weekdayIndex, windowLabel } = await import(
   '../components/home/home.streak.ts'
 );
 
@@ -397,6 +397,26 @@ console.log('the label tells the truth about the window:');
   check('a young account names its first day', stripLabel(3, '2026-11-04') === 'Since 4 Nov', stripLabel(3, '2026-11-04'));
   check('a first day in December', stripLabel(9, '2026-12-29') === 'Since 29 Dec', stripLabel(9, '2026-12-29'));
   check('no history at all is a sentence, not a date', stripLabel(0, undefined) === 'No payments yet');
+
+  // The label names the window's START while it runs into the future, and the period once it does not.
+  const yearFrom = (first, last, payments) => ({
+    days: 365,
+    payments,
+    daily: [{ date: first, count: 0 }, { date: last, count: 0 }],
+  });
+  check(
+    'a window that runs into the future names the day it started',
+    windowLabel(yearFrom('2026-11-06', '2027-11-05', 3), '2026-11-20') === 'Since 6 Nov',
+    windowLabel(yearFrom('2026-11-06', '2027-11-05', 3), '2026-11-20')
+  );
+  check(
+    'a window that ends today is the last twelve months',
+    windowLabel(yearFrom('2025-11-06', '2026-11-05', 3), '2026-11-06') === 'Last 12 months'
+  );
+  check(
+    'and nothing paid in it says so',
+    windowLabel(yearFrom('2026-11-06', '2027-11-05', 0), '2026-11-20') === 'No payments yet'
+  );
 }
 
 console.log('-'.repeat(74));

@@ -1,6 +1,6 @@
 import { Text } from '@/components/ui';
 import { HOME_PAGE_COPY } from './HomePage.constants';
-import { levelFor, monthMarks, streakColumns, streakTotals, todayKey, type StreakCell } from './home.streak';
+import { levelFor, monthMarks, streakColumns, streakTotals, type StreakCell } from './home.streak';
 import type { StreakMapProps } from './StreakMap.types';
 
 /**
@@ -14,12 +14,12 @@ import type { StreakMapProps } from './StreakMap.types';
  * A year rotated the other way — a column a week, seven rows for the weekdays — fills the row, and
  * every day of the year has a place in it.
  *
- * ## The year on a laptop, half of it on a phone
+ * ## One year, every width
  *
- * Fifty-three columns in a 320px card is four-pixel squares: texture, not a calendar. So the phone
- * gets the last twenty-six weeks at twice the cell size and the laptop gets all fifty-three. Both
- * are rendered and CSS hides one — no media-query hook, no state, and the same first frame on the
- * server and in the browser.
+ * Fifty-three columns share whatever width they are given, so the same year is drawn on a laptop at
+ * about 11px a square and on a phone at about 5px. It used to be two grids with one hidden by CSS;
+ * a slice of the year on a phone meant the screen showed a different span from the one its own tap
+ * opens (#391).
  *
  * ## The colours, and why green
  *
@@ -46,8 +46,19 @@ const LEVEL_CLASSES: Record<0 | 1 | 2 | 3 | 4, string> = {
   4: 'bg-accent-light-green',
 };
 
-/** How many weeks a phone shows: half a year, at a cell size a thumb could point at. */
-const PHONE_WEEKS = 26;
+/**
+ * A day still to come: an outline, at every size (#391).
+ *
+ * A square that EXISTS and has not been lived. It cannot be a fill, because a fill is what a quiet
+ * day already is, and it cannot be a pad, because a pad is a day outside the window. The outline is
+ * the only shape left that says "this day is here, and empty on purpose".
+ *
+ * A half-strength fill was tried for the phone, where a square is about five pixels and a one-pixel
+ * ring is a fifth of it. It failed for the reason above: 50% of the quiet day's grey, at five pixels,
+ * is the quiet day. The ring stays at every size, and the legend swatch carries the same classes so
+ * the reader can pair the two.
+ */
+const AHEAD_CLASSES = 'ring-1 ring-inset ring-hairline-light';
 
 /** One grid of columns, with its month letters above it. */
 function Grid({ columns, className }: { columns: StreakCell[][]; className?: string }) {
@@ -98,7 +109,7 @@ function Grid({ columns, className }: { columns: StreakCell[][]; className?: str
               <span
                 key={cell.date}
                 title={`${cell.date}: ${HOME_PAGE_COPY.streakAhead}`}
-                className="aspect-square rounded-[2px] ring-1 ring-inset ring-hairline-light"
+                className={`aspect-square rounded-[2px] ${AHEAD_CLASSES}`}
               />
             ) : (
               <span
@@ -118,28 +129,20 @@ export function StreakMap({ daily }: StreakMapProps) {
   const columns = streakColumns(daily);
 
   /**
-   * Which half-year a phone shows is the half around TODAY, not the end of the window (#389).
+   * ONE GRID AT EVERY WIDTH (#391).
    *
-   * The window is a full year from the day the account joined, so its last twenty-six columns are
-   * the future: slicing from the end showed a brand-new merchant a screen of outlines with the three
-   * days they had actually traded cut off the left edge. Centring the slice on today keeps what has
-   * happened and what is coming both in view.
+   * A phone used to get a twenty-six week slice, because fifty-three columns at a readable cell size
+   * do not fit 390px. That was the wrong trade: the whole strip is a link into the year's figures,
+   * so the phone was showing a different half-year from the one the tap opens, and a young account
+   * saw only the future. The columns are `minmax(0,1fr)` with square cells, so the year simply gets
+   * smaller on a phone — about 5px a square — and it is the same year on every screen.
    */
-  const todayIndex = columns.findIndex((column) =>
-    column.some((cell) => cell.date !== null && !cell.ahead && cell.date === todayKey())
-  );
-  const phoneStart = Math.max(
-    0,
-    Math.min(todayIndex < 0 ? 0 : todayIndex - Math.floor(PHONE_WEEKS / 2), columns.length - PHONE_WEEKS)
-  );
-  const phoneColumns = todayIndex < 0 ? columns.slice(-PHONE_WEEKS) : columns.slice(phoneStart, phoneStart + PHONE_WEEKS);
   const hasAhead = columns.some((column) => column.some((cell) => cell.ahead));
   const { activeDays, payments } = streakTotals(daily);
 
   return (
     <div className="flex flex-col gap-1.5">
-      <Grid columns={phoneColumns} className="sm:hidden" />
-      <Grid columns={columns} className="hidden sm:flex" />
+      <Grid columns={columns} />
 
       <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
         <Text variant="micro" as="span" color="secondary">
@@ -157,7 +160,7 @@ export function StreakMap({ daily }: StreakMapProps) {
           </Text>
           {hasAhead ? (
             <span className="ml-1 flex items-center gap-1">
-              <span className="h-2.5 w-2.5 rounded-[2px] ring-1 ring-inset ring-hairline-light" />
+              <span className={`h-2.5 w-2.5 rounded-[2px] ${AHEAD_CLASSES}`} />
               <Text variant="micro" as="span" color="secondary">
                 {HOME_PAGE_COPY.streakAheadLabel}
               </Text>
