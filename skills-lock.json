@@ -258,7 +258,7 @@
       "source": "./local",
       "sourceType": "local",
       "skillPath": ".agents/skills/seo-and-ai-search/SKILL.md",
-      "computedHash": "00c3a54a66a7ca570b14bdf493a9466bd2d5b8844da3bdc720b30b9af4bb7d4d"
+      "computedHash": "0973f99e07912a0df1d032938d41e81bb909282b42e99c274e29e804be6a0128"
     },
     "skill-gardening": {
       "source": "./local",
