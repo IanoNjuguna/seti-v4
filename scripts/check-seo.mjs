@@ -331,13 +331,25 @@ if (layoutSource === null) {
         `name Kenya or Thika in the description in ${rel(LAYOUT)}: without a place the sentence could describe a payments app anywhere`,
       );
     }
-    if (description.includes('2%')) {
-      pass('1e. description states the price', '2%');
+    /*
+     * NO PERCENTAGE IN THE DESCRIPTION (#348, the owner's decision). The fee is still named,
+     * because a reader has to learn that paying costs something — just not as a rate. The
+     * percentage lives on the pay screen (what this customer is charged, before they sign)
+     * and in the terms.
+     */
+    if (/\d\s*%/.test(description)) {
+      fail(
+        '1e. description states no percentage',
+        description,
+        `remove the percentage from the description in ${rel(LAYOUT)}: marketing copy names the fee in words and the rate lives on the pay screen and in the terms (#348)`,
+      );
+    } else if (/\bfee\b/i.test(description)) {
+      pass('1e. description names the fee without a percentage', 'flat fee');
     } else {
       fail(
-        '1e. description states the price (2%)',
+        '1e. description says what it costs, in words',
         description,
-        `state "2%" in the description in ${rel(LAYOUT)}: it is the one number that separates Seti from a payment processor`,
+        `say what the fee is ("one flat fee, no monthly fee") in the description in ${rel(LAYOUT)}: the reader still has to learn that paying costs something (#348)`,
       );
     }
   }
@@ -1349,6 +1361,79 @@ if (faq === null) {
         `render <MarketingBreadcrumb path="${route}" label="…" /> exactly once in web/app${route}: a child page with no trail is a page a crawler reads without knowing where it sits`,
       );
     }
+  }
+}
+
+// ---------------------------------------------------------------------------------
+// 12. no percentage in public marketing copy (#348)
+// ---------------------------------------------------------------------------------
+
+/*
+ * The owner's decision: marketing states the fee in words or in money, never as a rate. The
+ * percentage is not hidden — the pay screen shows the customer exactly what they are charged
+ * before they sign, and the terms carry the number — but it is not advertising copy.
+ *
+ * Comments are stripped before the scan, because the record of this decision lives in
+ * comments that name the rate ("2% of each payment" was the old label). A check that
+ * punished the page's own record would teach the next reader to delete the record.
+ *
+ * This is a list of the surfaces that ARE marketing. The pay screen (`web/components/pay*`),
+ * the in-app quote rows, the fee breakdowns and `web/app/legal/**` are deliberately absent:
+ * they disclose a charge to the person paying it, which is a different job.
+ */
+const MARKETING_SURFACES = [
+  'web/app/layout.tsx',
+  'web/app/page.tsx',
+  'web/app/pricing',
+  'web/app/how-it-works',
+  'web/app/components/landing',
+  'web/public/llms.txt',
+];
+
+console.log('\nthe fee is named, never rated\n');
+
+const percentage = /\d+(?:[.,]\d+)?\s*%/;
+
+for (const surface of MARKETING_SURFACES) {
+  const target = path.join(ROOT, surface);
+  if (!existsSync(target)) {
+    fail(
+      `12. ${surface} states no percentage`,
+      'file or directory not found',
+      'update MARKETING_SURFACES in scripts/check-seo.mjs so the marketing surface is still covered',
+    );
+    continue;
+  }
+
+  const isFile = statSync(target).isFile();
+  /*
+   * Copy lives in `*.constants.ts` and `*.copy.ts`, and in the JSX children of `*.tsx`.
+   * Hooks and type modules are excluded on purpose: a hook carries CSS and layout values
+   * (`rootMargin: '0px 0px -8% 0px'`), which are percentages that no reader ever sees.
+   */
+  const files = isFile
+    ? [target]
+    : walk(target).filter((f) => /\.(constants|copy)\.tsx?$/.test(f) || f.endsWith('.tsx') || f.endsWith('.txt'));
+  const hits = [];
+
+  for (const file of files) {
+    const raw = read(file);
+    if (raw === null) continue;
+    // A `.txt` has no comment syntax to strip; everything in it ships.
+    const ships = path.extname(file) === '.txt' ? raw : stripComments(raw);
+    const match = ships.match(percentage);
+    if (!match) continue;
+    hits.push(`${rel(file)}:${lineOf(ships, ships.indexOf(match[0]))} (${match[0].trim()})`);
+  }
+
+  if (hits.length === 0) {
+    pass(`12. ${surface} states no percentage`, `${files.length} file(s)`);
+  } else {
+    fail(
+      `12. ${surface} states no percentage`,
+      hits.join(', '),
+      'name the fee in words or in KES on this surface: the rate belongs on the pay screen and in the terms (#348)',
+    );
   }
 }
 

@@ -14,7 +14,7 @@ export interface ClosingCopy {
    *
    * The button is the page's second and last decision point and it used to ask for the
    * action with nothing under it (#276). Both facts are the price list's, said again in
-   * the reader's own terms: there is no monthly fee, and the 2% is funded by the
+   * the reader's own terms: there is no monthly fee, and the fee is funded by the
    * customer inside the payment rather than billed to the merchant
    * (`backend/src/services/fees.ts` is the source of truth for that).
    */
@@ -45,5 +45,5 @@ export interface ClosingCopy {
 export const CLOSING_COPY: ClosingCopy = {
   heading: 'Sign in today',
   action: 'Claim your name',
-  reassurance: 'No monthly fee. Your customers cover the 2%.',
+  reassurance: 'No monthly fee. Your customer covers the fee.',
 };

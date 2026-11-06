@@ -6,7 +6,7 @@
 
 ## Facts
 
-- Fee: 2% of each payment, paid by the customer inside the payment. No monthly fee, no minimum.
+- Fee: one flat fee on every payment, paid by the customer inside the payment. No monthly fee, no minimum.
 - Balances are digital dollars. Seti supports OUSD, pathUSD, USDT0 and USDC.e, all with 6 decimals.
 - Where the money goes: straight to the merchant's own wallet. Seti never holds it.
 - Network: Tempo, chain id 4217.

@@ -29,7 +29,7 @@ export const FAQ_COPY: FaqSectionCopy = {
     {
       question: 'What does Seti cost?',
       answer:
-        '2% of each payment, paid by your customer in the same payment. There is no monthly fee and no minimum.',
+        'One flat fee on every payment, paid by your customer in the same payment. There is no monthly fee and no minimum, and you see the fee before you pay.',
     },
     {
       question: 'Who can use it?',
