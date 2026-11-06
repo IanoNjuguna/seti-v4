@@ -5,6 +5,7 @@ import { useHomeData } from '@/hooks/useHomeData';
 import { useHomeSummary } from '@/hooks/useHomeSummary';
 import { useSession } from '@/lib/auth';
 import { BalanceCard } from './BalanceCard';
+import { BalanceTokens } from './BalanceTokens';
 import { HomeActions } from './HomeActions';
 import { HomeLoading } from './HomeLoading';
 import { HomeMerchants } from './HomeMerchants';
@@ -59,6 +60,8 @@ export function HomeScreen() {
       <HomeActions />
 
       {summary.year ? <HomeSummary year={summary.year} /> : null}
+
+      <BalanceTokens assets={data?.assets} currency={data?.currency} />
 
       {summary.merchants.length > 0 ? (
         <HomeMerchants merchants={summary.merchants} currency={summary.currency} />

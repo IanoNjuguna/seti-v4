@@ -52,6 +52,7 @@ process.env.NEXT_PUBLIC_TEMPO_CHAIN_ID ??= '42431';
  */
 const { AmountPrivacyProvider } = await import('../lib/privacy/amount-privacy.context.tsx');
 const { BalanceCard } = await import('../components/home/BalanceCard.tsx');
+const { BalanceTokens } = await import('../components/home/BalanceTokens.tsx');
 const { PAID_RECENTLY_LIMIT, longestWindow, paidRecently } = await import(
   '../components/home/home.summary.ts'
 );
@@ -144,10 +145,22 @@ function dashboard(tokens) {
   return { balance, currency: CURRENCY, assets, monthToDateDelta: 0, recentTransactions: [] };
 }
 
-/** The card as it is served to a browser that has not run any JavaScript. */
+/**
+ * The hero and the tokens section as they are served to a browser that has not run any
+ * JavaScript.
+ *
+ * Two components since #383: the rows moved out of the dark card into a section of their own, and
+ * the arithmetic they prove — the figure equals the sum of the rows under it — is a claim about the
+ * screen, not about one file. Rendering both keeps the assertion about what a customer sees.
+ */
 function renderCard(payload) {
   return renderToStaticMarkup(
-    createElement(AmountPrivacyProvider, null, createElement(BalanceCard, { data: payload, view: 'signed-in' }))
+    createElement(
+      AmountPrivacyProvider,
+      null,
+      createElement(BalanceCard, { data: payload, view: 'signed-in' }),
+      createElement(BalanceTokens, { assets: payload?.assets, currency: payload?.currency })
+    )
   );
 }
 
@@ -229,10 +242,11 @@ console.log('\nthe card and the rows under it:');
     figure === payloadFigure && sumOf(rows) === cents(payloadFigure),
     `${figure} / ${payload.balance}`
   );
+  const firstRowValue = formatFiat(Number(payload.assets[0].value), CURRENCY);
   check(
-    'the rows print the units the ledger holds',
-    rowAt(rows, 0).cell.includes('120.00') && rowAt(rows, 1).cell.includes('30.50'),
-    rowAt(rows, 0).cell.slice(0, 160)
+    'a row prints one figure, not two: the units line is gone',
+    !rowAt(rows, 0).cell.includes('120.000000') && rowAt(rows, 0).cell.includes(firstRowValue),
+    `${rowAt(rows, 0).cell.slice(0, 120)} … expected ${firstRowValue}`
   );
   check('every row value sits inside the mask the card governs', rows.every((row) => row.cell.includes('••••••')));
 }
@@ -247,14 +261,14 @@ console.log('a zero is a row, and a quieter one:');
     String(rowAt(rows, 2).value)
   );
   check(
-    'a funded row keeps its name and value in the white ink',
-    /text-on-dark(?![-\w])/.test(rowAt(rows, 0).cell),
-    rowAt(rows, 0).cell.slice(0, 160)
+    'a funded row keeps its name and value in the primary ink',
+    /text-ink(?![-\w])/.test(rowAt(rows, 0).cell),
+    rowAt(rows, 0).cell.slice(0, 200)
   );
   check(
-    'a zero row recedes to the muted ink and never wears the white one',
-    rowAt(rows, 2).cell.includes('text-on-dark-mute') && !/text-on-dark(?![-\w])/.test(rowAt(rows, 2).cell),
-    rowAt(rows, 2).cell.slice(0, 200)
+    'a zero row recedes to the muted ink and never wears the primary one',
+    rowAt(rows, 2).cell.includes('text-mute') && !/text-ink(?![-\w])/.test(rowAt(rows, 2).cell),
+    rowAt(rows, 2).cell.slice(0, 240)
   );
 }
 
@@ -294,7 +308,7 @@ console.log('an account with nothing in it:');
     JSON.stringify(rows.map((row) => row.value))
   );
   check('the identity still holds at zero', cents(figure) === sumOf(rows));
-  check('the list is still labelled, so the surface is answered rather than empty', markup.includes('Held in'));
+  check('the list is still labelled, so the surface is answered rather than empty', markup.includes('Tokens'));
 }
 
 console.log('the rows are ink tokens, not colours:');

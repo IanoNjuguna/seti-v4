@@ -30,6 +30,13 @@ import type { HomeSummaryProps } from './HomeSummary.types';
  * It is drawn from the account's first payment to today, so a new merchant gets a narrow strip
  * rather than a year of nothing or, as once shipped, a sentence instead of the grid (#381).
  *
+ * ## A card, not a row on the canvas
+ *
+ * The map sits in its own bordered surface (#383, the owner's sketch): the page is now three
+ * objects — the balance, the doors, the streak — and a strip of squares floating between them read
+ * as a divider rather than as a thing. The border brightens one step on hover, and the label and
+ * chevron still carry the affordance.
+ *
  * ## No amounts, so nothing to mask
  *
  * The map counts DAYS, not money, so the amount-privacy toggle has nothing to hide here:
@@ -48,7 +55,7 @@ export function HomeSummary({ year }: HomeSummaryProps) {
   return (
     <Link
       href={HOME_PAGE_COPY.summaryHref}
-      className="group flex flex-col gap-3 pb-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      className="group flex flex-col gap-3 rounded-md border border-hairline-light p-4 transition-colors duration-(--duration-quick) ease-out hover:border-hairline-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
     >
       <span className="flex items-center justify-between gap-4">
         {/*

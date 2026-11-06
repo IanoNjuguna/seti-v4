@@ -7,80 +7,54 @@ import { useAmountPrivacy } from '@/lib/privacy/amount-privacy.context';
 import type { BalanceTokenRowProps } from './BalanceTokens.types';
 
 /**
- * One asset's share of the figure: the name, its units, and what they are worth.
+ * One asset's share of the figure: the name on the left, what it is worth on the right (#383).
  *
- * TWO LINES AND THREE FACTS. The name has to be read as a name (`pathUSD` is a word,
- * not a number) and the units as money, so they cannot share a line without one of
- * them shouting; stacking them puts the word on top and its number under it, which is
- * how a receipt noun is read everywhere else. The value sits on the right of both,
- * where the eye already goes for an amount, on the same edge every money figure on
- * this screen ends at.
+ * ## One number, and it is the fiat one
  *
- * THE INK IS THE HIERARCHY, and there is nothing else to spend: the system has no
- * coloured fill badge and no tinted row, so a row is either at `on-dark` or one step
- * down at `on-dark-mute`. Non-zero: the name and the money in `on-dark` (the two
- * things a customer came for), the units in `on-dark-mute` (the mechanics). Zero: both
- * at `on-dark-mute`, so the row recedes to a line of record and stays there. Muting
- * rather than hiding is the point of the issue — a row that vanishes is
- * indistinguishable from money that vanished.
+ * The row used to print two: the asset's own units under its name, and the fiat value on the
+ * right. Inside the dark hero that was a composition, read as a breakdown of the figure above it.
+ * As a section of its own it is a list of what the account holds, and a list wants one number per
+ * line — the one the balance is denominated in. The units are still one tap away on `/app/activity`;
+ * what is gone is a second column that made four rows read as a table.
  *
- * The value is masked with the figure above it: one eye governs every amount on the
- * card, so a card whose total is hidden and whose rows are not would be the leak the
- * control exists to prevent (`check:amount-privacy`).
+ * ## The row is a line, not a tile
  *
- * THE ROW REPORTS, IT DOES NOT OFFER (#328). It carried the swap control per row
- * (#240), asking the book what the balance would fetch and printing the answer, with
- * two refusals saying why in a line under it (#304). With the card's way into
- * `/app/swap` gone, so is this: a row is a figure, and the cost it leaves behind is one
- * quote request per non-zero row that is no longer made on mount.
+ * A hairline between rows (`border-b`, dropped on the last one), `py-3`, and no fill: the card's
+ * border already draws the object, and a row that painted itself would be a second box inside the
+ * first. Zero rows keep the same shape as funded ones — a row that vanished is how a customer
+ * concludes an asset disappeared — and they recede by colour alone.
+ *
+ * ## The value is masked with the figure above it
+ *
+ * One eye governs every amount on the screen, so a list whose total is hidden and whose rows are
+ * not would be the leak the control exists to prevent (`check:amount-privacy`).
  */
 export function BalanceTokenRow({ row, currency }: BalanceTokenRowProps) {
   const { hidden } = useAmountPrivacy();
 
-  // The payload's own string, converted by the one formatter that owns currency
-  // decimals. Nothing here re-values the row.
+  // The payload's own string, converted by the one formatter that owns currency decimals.
+  // Nothing here re-values the row.
   const value = formatFiat(Number(row.value), currency);
 
   return (
-    <li className="flex flex-col py-1.5">
-      <div className="flex items-baseline justify-between gap-4">
-        <span className="min-w-0">
-          <Text
-            variant="micro"
-            as="span"
-            color={row.zero ? 'inverse-muted' : 'inverse'}
-            className="block truncate"
-          >
-            {row.name}
-          </Text>
-          {/*
-            THE UNITS ARE MASKED TOO (#379). Only the fiat figure on the right went through
-            `MaskedAmount`, so an account with the eye closed still printed `0.0045` under the
-            token's name: the control hid the total and the value column while the amount itself
-            stayed legible on the left. The mask is the same primitive, so the line keeps its
-            width and the row does not move when the eye is tapped.
-          */}
-          <MaskedAmount hidden={hidden} variant="micro" color="inverse-muted">
-            <Text variant="micro" as="span" color="inverse-muted" tabular className="block">
-              {row.units}
-            </Text>
-          </MaskedAmount>
-        </span>
+    <li className="flex min-h-14 items-center justify-between gap-4 border-b border-hairline-light px-4 py-3 last:border-b-0">
+      <Text variant="body-medium" as="span" color={row.zero ? 'secondary' : 'primary'} className="truncate">
+        {row.name}
+      </Text>
 
-        <span className="shrink-0">
-          <MaskedAmount hidden={hidden} variant="micro" align="end">
-            <Text
-              variant="micro"
-              as="span"
-              tabular
-              color={row.zero ? 'inverse-muted' : 'inverse'}
-              className="whitespace-nowrap"
-            >
-              {value}
-            </Text>
-          </MaskedAmount>
-        </span>
-      </div>
+      <span className="shrink-0">
+        <MaskedAmount hidden={hidden} variant="body-medium" align="end" color={row.zero ? 'secondary' : 'primary'}>
+          <Text
+            variant="body-medium"
+            as="span"
+            tabular
+            color={row.zero ? 'secondary' : 'primary'}
+            className="whitespace-nowrap"
+          >
+            {value}
+          </Text>
+        </MaskedAmount>
+      </span>
     </li>
   );
 }
