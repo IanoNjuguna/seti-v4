@@ -7,6 +7,7 @@ import { useSession } from '@/lib/auth';
 import { BalanceCard } from './BalanceCard';
 import { BalanceTokens } from './BalanceTokens';
 import { HomeActions } from './HomeActions';
+import { HomeStarter } from './HomeStarter';
 import { HomeLoading } from './HomeLoading';
 import { HomeMerchants } from './HomeMerchants';
 import { HomeSummary } from './HomeSummary';
@@ -58,6 +59,9 @@ export function HomeScreen() {
       <BalanceCard data={data} view="signed-in" />
 
       <HomeActions />
+
+      {/* No payment has ever landed: say what to do first (#387). */}
+      {summary.year && summary.year.days === 0 ? <HomeStarter /> : null}
 
       {summary.year ? <HomeSummary year={summary.year} /> : null}
 

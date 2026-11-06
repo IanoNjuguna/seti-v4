@@ -20,6 +20,21 @@ export const HOME_PAGE_COPY = {
   summaryLabel: (days: number): string => `Last ${days} days`,
 
   /**
+   * The one instruction a new account gets (#387).
+   *
+   * Nothing after onboarding told a merchant what to do first. The doors are labelled and the empty
+   * states are honest, but "Pay / Receive / Save / Swap" on a screen with no money in it does not say
+   * which one starts the relationship. For this product it is Receive: the customer scans the code
+   * at the counter, and the first payment is what makes the rest of the screen mean anything.
+   *
+   * A sentence and its own verb, in the shape `EMPTY_ACTIVITY_COPY` already uses — invite the action
+   * rather than describe the outcome.
+   */
+  starterMessage: 'Show your code so the first payment can find you.',
+  starterAction: 'Show my code',
+  starterHref: '/app/receive',
+
+  /**
    * The map's period, named for what it draws (#371).
    *
    * Twelve months, not `Last 365 days`: a year is the unit a merchant thinks in, and the grid
