@@ -27,6 +27,22 @@ export const VARIANT_CLASSES: Record<ButtonVariant, string> = {
     'bg-accent-danger text-on-dark hover:bg-accent-deep-red rounded-md min-touch h-12 px-7 inline-flex items-center justify-center font-semibold transition-colors duration-200 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
   pill: 'bg-surface-soft text-ink hover:bg-faint rounded-md h-9 px-4 inline-flex items-center justify-center font-semibold transition-colors duration-200 active:scale-[0.98]',
   /*
+   * The money submit, and the only yellow control in the app.
+   *
+   * Yellow is a FILL and nothing else: `#d7cf07` measures 1.64:1 against
+   * `canvas-light`, so it is unreadable as type and invisible as an edge on a
+   * white band — hence the 1px `ink` border, the boundary WCAG 1.4.11 asks of a
+   * control that would otherwise have none. The label is `ink` (10.44:1); white
+   * (1.64:1) and cobalt (3.70:1) both fail on it.
+   *
+   * The focus ring is `ink`, not the system's cobalt: a ring is a boundary
+   * against the fill, and a yellow fill inside a cobalt ring reads as a smudge.
+   * Hover steps the fill down one notch (`accent-lime-deep`) so the label colour
+   * never has to change. Disabled goes grey, never a dimmed yellow.
+   */
+  accent:
+    'bg-accent-lime text-ink border border-ink hover:bg-accent-lime-deep rounded-md min-touch h-12 px-7 inline-flex items-center justify-center font-semibold transition-colors duration-(--duration-quick) ease-out active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 disabled:bg-surface-soft disabled:text-stone disabled:border-hairline-light',
+  /*
    * `button-primary` — white CTA on a dark band. The brand's loudest action per
    * `design/revolut.md`, and previously inexpressible: a caller could not reach
    * it through `primary` (which is `button-dark`, for white bands) and could not
@@ -69,6 +85,7 @@ export const TEXT_VARIANT: Record<ButtonVariant, 'button' | 'tab'> = {
   ghost: 'button',
   destructive: 'button',
   pill: 'tab',
+  accent: 'button',
   'on-dark': 'button',
   'outline-dark': 'button',
   'destructive-soft': 'button',
@@ -88,4 +105,6 @@ export const TEXT_COLOR: Record<ButtonVariant, 'inverse' | 'primary' | 'accent' 
   /* The `alert` ROLE on a soft surface: the doc's inline error red, taken one
      step to the text grade so it is legible on `surface-soft`. */
   'destructive-soft': 'alert',
+  /* Ink on the yellow: the only label that clears AA against that fill. */
+  accent: 'primary',
 };

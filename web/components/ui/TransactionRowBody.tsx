@@ -16,8 +16,9 @@ function formatDate(date: Date): string {
  * Money in `font-tabular` (the system's tabular-figure requirement). Inflows use
  * `accent-light-green` — the doc's reserved "success / positive" colour — and
  * outflows stay in `ink`, because a routine payment is not an event worth a
- * colour. Pending uses `accent-yellow` and failed `accent-danger`, each paired
- * with its word so colour is never the only signal. Every one of those colours is
+ * colour. Pending takes the `progress` role (cyan, in flight) and failed
+ * `accent-danger`; each is paired with its word so colour is never the only
+ * signal. Yellow is not a state in this app: it is the money button. Every colour here is
  * named through `color=`, never as a bare class the variant could outrank.
  *
  * Layout at 360px: the name column is the ONLY thing allowed to shrink
@@ -89,7 +90,7 @@ export function TransactionRowBody({ transaction, details }: TransactionRowBodyP
           <Text
             variant="micro"
             as="span"
-            color={status === 'pending' ? 'warning' : 'alert'}
+            color={status === 'pending' ? 'progress' : 'alert'}
           >
             {status === 'pending' ? 'Pending' : 'Failed'}
           </Text>

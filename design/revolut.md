@@ -39,14 +39,18 @@ colors:
   divider-soft: "rgba(255,255,255,0.06)"
   accent-teal: "#00a87e"
   accent-blue-link: "#376cd5"
-  accent-light-blue: "#007bc2"
+  accent-cyan: "#2d93ad"
+  accent-cyan-text: "#267e94"
   accent-light-green: "#428619"
   accent-green-text: "#006400"
-  accent-yellow: "#b09000"
+  accent-lime: "#d7cf07"
+  accent-lime-deep: "#b8b006"
+  accent-gold: "#c9a227"
+  accent-lime-text: "#665300"
   accent-warning: "#ec7e00"
   accent-pink: "#e61e49"
   accent-danger: "#e23b4a"
-  accent-deep-red: "#8b0000"
+  accent-brick: "#92140c"
   accent-brown: "#936d62"
   link: "#376cd5"
 
@@ -365,17 +369,52 @@ inside product mockups and feature illustrations — never as button surfaces.
 
 ### Semantic
 - **Accent Teal** (`{colors.accent-teal}` — `#00a87e`): used in product mockup illustrations.
-- **Accent Light Blue** (`{colors.accent-light-blue}` — `#007bc2`): inline link colour in dark photo headers.
+- **Accent Cyan** (`{colors.accent-cyan}` — `#2d93ad`): the in-flight state, a payment out and not yet
+  settled. 3.57:1 on white so it is a fill, border or icon there; text takes `accent-cyan-text`
+  (`#267e94`, 4.67:1). On black the fill itself is 5.55:1 and is used directly.
 - **Accent Blue Link** (`{colors.accent-blue-link}` — `#376cd5`): default inline link colour on white surfaces.
 - **Accent Light Green** (`{colors.accent-light-green}` — `#428619`): success / positive product callouts.
 - **Accent Green Text** (`{colors.accent-green-text}` — `#006400`): inline success text.
-- **Accent Yellow** (`{colors.accent-yellow}` — `#b09000`): caution / pending state in product mockups.
+- **Accent Lime** (`{colors.accent-lime}` — `#d7cf07`): the ACTION colour, a fill only. 1.64:1 on white,
+  12.08:1 on black, so it is never type and never a state. Carried by one control per view, the submit
+  that moves money. `accent-lime-deep` (`#b8b006`) is its hover step.
+- **Accent Gold** (`{colors.accent-gold}` — `#c9a227`): the caution ink inside a dark canvas, 8.7:1 on
+  black. Distinct from the lime by 27.8 dE, so a caution line never wears the action colour, and
+  distinct from the warning orange by 34.4, so it does not read as the practice marker.
 - **Accent Warning** (`{colors.accent-warning}` — `#ec7e00`): full-saturation orange used in warning illustrations.
 - **Accent Pink** (`{colors.accent-pink}` — `#e61e49`): deep pink — used inside product photography and category iconography.
 - **Accent Danger** (`{colors.accent-danger}` — `#e23b4a`): destructive / error state.
-- **Accent Deep Red** (`{colors.accent-deep-red}` — `#8b0000`): inline error text.
+- **Accent Brick** (`{colors.accent-brick}` — `#92140c`): inline error and refusal text. 9.02:1 on white,
+  so it carries a sentence; 2.19:1 on black, where the role re-points to `accent-danger` instead.
 - **Accent Brown** (`{colors.accent-brown}` — `#936d62`): a single warm-neutral used in metals tier card chrome.
 - **Link** (`{colors.link}` — `#376cd5`): default inline link colour. Same as `{colors.accent-blue-link}`.
+
+### Accent rules
+
+The accents are a functional palette, not a decorative one. Six rules, and the ink check
+(`npm run check:ink`) enforces the measurable half of them.
+
+1. **An accent names a state or an action. Nothing else.** If a colour has no state to name, it does
+   not ship. Decoration belongs in the surfaces and the type.
+2. **Cobalt is the primary action; lime is the money action; everything else is a status.** Cobalt
+   (`{colors.primary}`, `#494fdf`) remains the only "click here" colour. Lime is reserved for the
+   single submit that moves money, and it is the loudest object on the page it appears on.
+3. **One lime control per view, never disabled, never destructive.** Two yellow controls read as a
+   warning banner. Disabled is grey (`surface-soft` / `stone`); destructive is `accent-danger` with
+   `accent-brick` for its text.
+4. **A fill is not a text colour.** Every accent above is a fill, border or icon at its authored
+   value. Body-sized type takes the `*-text` step, which is the one the ink check measures. A label
+   on a lime fill is `ink` (10.44:1); white (1.64:1) and cobalt (3.70:1) both fail on it.
+5. **A fill with no edge needs one.** Lime against `canvas-light` is 1.64:1, under the 3:1 boundary
+   WCAG 1.4.11 asks for, so a lime control carries a 1px `ink` border. The same reasoning applies to
+   any pale fill on a white band.
+6. **A state is never drawn in the action colour.** Caution on a dark surface takes `accent-gold`,
+   not the lime, for the same reason a refusal does not take the cobalt: a state that shares a
+   colour with the thing you are meant to press is not a state.
+
+7. **Never on a QR.** A QR's colours are a machine-readable contrast specification: literal black on
+   white, per `components/qr/qr.constants.ts`. No accent, tint or brand colour reaches a code,
+   because a code that fails to scan is a payment that fails.
 
 ## Typography
 

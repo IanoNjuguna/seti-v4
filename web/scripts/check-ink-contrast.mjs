@@ -235,6 +235,8 @@ const PAIRS = [
   ['--color-ink-warning', CANVAS_DARK, 'dark', 'warning: a caution inside the dark quote'],
   ['--color-ink-attention', CANVAS_LIGHT, 'light', 'attention: the practice marker on white'],
   ['--color-ink-attention', CANVAS_DARK, 'dark', 'attention: the practice marker on the chrome'],
+  ['--color-ink-progress', CANVAS_LIGHT, 'light', 'progress: a pending row on a white band'],
+  ['--color-ink-progress', CANVAS_DARK, 'dark', 'progress: a pending row on the receipt card'],
   ['--color-ink-success', CANVAS_LIGHT, 'light', 'success: an inflow amount on a white band'],
   ['--color-ink-success', CANVAS_DARK, 'dark', 'success: the receipt status line'],
 ];

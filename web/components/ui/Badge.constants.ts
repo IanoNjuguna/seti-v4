@@ -7,7 +7,7 @@ import type { BadgeVariant } from '@/lib/types';
  * The system has no coloured-background badge token — only `surface-soft`
  * neutrals — so a tag is a soft pill whose *text* carries the semantic colour,
  * drawn from the doc's Semantic palette: `accent-light-green` (success/positive),
- * `accent-yellow` (caution/pending), `accent-danger` (error). Colour is never the
+ * `accent-lime` (caution), `accent-danger` (error). Colour is never the
  * only signal: the label says it.
  *
  * The colour is a role on the label `Text`, not a class on the pill's wrapper.

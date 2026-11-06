@@ -25,7 +25,7 @@ import type { SendResultProps } from './SendPanel.types';
  * transfer it is the only independent proof, and it is how the row in Activity can
  * be checked against the chain. It sits in a `surface-soft` well under a label, in
  * the mono face at which hashes align, and it wears the link role for this canvas
- * (`text-link`) — `accent-light-blue` was only correct while that well was black.
+ * (`text-link`) — `accent-cyan` was only correct while that well was black.
  *
  * The receipt draws on the same white canvas the amount step draws on, because the
  * panel's card is gone: every figure and the hash well take the ink/secondary roles,

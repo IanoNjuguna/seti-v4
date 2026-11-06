@@ -174,20 +174,36 @@
   --color-divider-soft: rgba(255, 255, 255, 0.06);
   --color-accent-teal: #00a87e;
   --color-accent-blue-link: #376cd5;
-  --color-accent-light-blue: #007bc2;
+  --color-accent-cyan: #2d93ad;
+  /* The cyan's TEXT step. The fill is 3.57:1 on `canvas-light`, under AA for
+     type, so body-sized text takes the same hue two steps down: 4.67:1, and
+     4.86:1 on `surface-soft`. On black the fill itself is 5.55:1 and is used
+     directly. */
+  --color-accent-cyan-text: #267e94;
   --color-accent-light-green: #428619;
   --color-accent-green-text: #006400;
-  --color-accent-yellow: #b09000;
+  --color-accent-lime: #d7cf07;
+  /* The lime's hover step: the same hue, one notch down, so a yellow button
+     can answer a press without changing its label colour (ink stays above
+     9:1 on it). */
+  --color-accent-lime-deep: #b8b006;
+  /* The caution ink INSIDE a dark canvas.
+     It cannot be the lime: lime is the action fill now, and a caution line wearing the colour of the
+     money button, or of that button's hover step, is the collision this replaced. Gold sits between
+     the lime and the warning orange in hue, 27.8 dE from the first and 34.4 from the second, and is
+     8.7:1 on `canvas-dark`. On a white canvas caution keeps its own olive text step
+     (`accent-lime-text`, 7.5:1), which is unchanged. */
+  --color-accent-gold: #c9a227;
   /* The caution accent's TEXT step. `design/revolut.md` names a text-grade
-     sibling for error (`accent-deep-red`, "inline error text", 10.0:1) and for
+     sibling for error (`accent-brick`, "inline error text", 9.0:1) and for
      success (`accent-green-text`, 7.4:1) but names none for caution or for the
      practice marker, so these two are DERIVED from the palette's own hue rather
      than given a new one: hold the hue, drop the lightness, which is the exact
-     move the doc's own pairs make (#428619 -> #006400, #e23b4a -> #8b0000).
+     move the doc's own pairs make (#428619 -> #006400, #e23b4a -> #92140c).
      49.1deg -> 48.8deg at the same saturation; 7.5:1 against `canvas-light`,
      the same grade as `accent-green-text`. The fill token above is untouched and
      remains the caution colour for mockups, borders and icons. */
-  --color-accent-yellow-text: #665300;
+  --color-accent-lime-text: #665300;
   --color-accent-warning: #ec7e00;
   /* The practice marker's TEXT step, derived the same way (32.0deg -> 31.8deg);
      7.1:1 against `canvas-light`. `accent-warning` remains what the dark chrome
@@ -195,7 +211,7 @@
   --color-accent-warning-text: #884800;
   --color-accent-pink: #e61e49;
   --color-accent-danger: #e23b4a;
-  --color-accent-deep-red: #8b0000;
+  --color-accent-brick: #92140c;
   --color-accent-brown: #936d62;
   --color-link: #376cd5;
 
@@ -206,24 +222,25 @@
 
      These are the values on the WHITE canvas: each status role takes the
      text-grade step of its accent. The doc already reserved exactly this pair
-     for one role: `accent-deep-red` is "inline error text" while
+     for one role: `accent-brick` is "inline error text" while
      `accent-danger` is the error STATE. The app had simply never applied it,
      so the roles pointed at fill tokens that are only legible on black
      (`alert` 4.24:1, `warning` 3.07:1, `attention` 2.78:1 on white; all three
      clear AA on `canvas-dark`). Repointing the role alone would fix the white
      bands and take the receipt with it: the receipt paints `alert` and
-     `success` on `canvas-dark`, where `accent-deep-red` is 2.10:1 and
+     `success` on `canvas-dark`, where `accent-brick` is 2.19:1 and
      `accent-green-text` 2.82:1. So the role carries a value for each canvas
      instead, and `@layer base` below re-points these four inside every
      dark-canvas surface the app draws.
 
      The fills, borders and icons keep the accents themselves
-     (`accent-danger`, `accent-light-green`, `accent-yellow`, `accent-warning`):
+     (`accent-danger`, `accent-light-green`, `accent-lime`, `accent-warning`):
      that is the split the audit named. */
-  --color-ink-alert: var(--color-accent-deep-red);
-  --color-ink-warning: var(--color-accent-yellow-text);
+  --color-ink-alert: var(--color-accent-brick);
+  --color-ink-warning: var(--color-accent-lime-text);
   --color-ink-attention: var(--color-accent-warning-text);
   --color-ink-success: var(--color-accent-green-text);
+  --color-ink-progress: var(--color-accent-cyan-text);
 }
 
 @theme inline {
@@ -253,16 +270,19 @@
   --color-divider-soft: var(--color-divider-soft);
   --color-accent-teal: var(--color-accent-teal);
   --color-accent-blue-link: var(--color-accent-blue-link);
-  --color-accent-light-blue: var(--color-accent-light-blue);
+  --color-accent-cyan: var(--color-accent-cyan);
+  --color-accent-cyan-text: var(--color-accent-cyan-text);
   --color-accent-light-green: var(--color-accent-light-green);
   --color-accent-green-text: var(--color-accent-green-text);
-  --color-accent-yellow: var(--color-accent-yellow);
-  --color-accent-yellow-text: var(--color-accent-yellow-text);
+  --color-accent-lime: var(--color-accent-lime);
+  --color-accent-lime-text: var(--color-accent-lime-text);
+  --color-accent-lime-deep: var(--color-accent-lime-deep);
+  --color-accent-gold: var(--color-accent-gold);
   --color-accent-warning: var(--color-accent-warning);
   --color-accent-warning-text: var(--color-accent-warning-text);
   --color-accent-pink: var(--color-accent-pink);
   --color-accent-danger: var(--color-accent-danger);
-  --color-accent-deep-red: var(--color-accent-deep-red);
+  --color-accent-brick: var(--color-accent-brick);
   --color-accent-brown: var(--color-accent-brown);
   --color-link: var(--color-link);
   /* Status ink roles. Mapped here so `text-ink-alert` and friends are utilities;
@@ -272,6 +292,7 @@
   --color-ink-warning: var(--color-ink-warning);
   --color-ink-attention: var(--color-ink-attention);
   --color-ink-success: var(--color-ink-success);
+  --color-ink-progress: var(--color-ink-progress);
 
   /* Typography. Poppins carries text, headings and the wordmark; JetBrains Mono
      carries figures, hashes and addresses. Both are served from
@@ -419,8 +440,9 @@
   .bg-canvas-light,
   [class~='bg-surface-soft'],
   [class~='bg-surface-card'] {
-    --color-ink-alert: var(--color-accent-deep-red);
-    --color-ink-warning: var(--color-accent-yellow-text);
+    --color-ink-progress: var(--color-accent-cyan-text);
+    --color-ink-alert: var(--color-accent-brick);
+    --color-ink-warning: var(--color-accent-lime-text);
     --color-ink-attention: var(--color-accent-warning-text);
     --color-ink-success: var(--color-accent-green-text);
   }
@@ -429,8 +451,9 @@
   [class~='bg-canvas-dark'],
   [class~='bg-surface-deep'],
   [class~='bg-surface-elevated'] {
+    --color-ink-progress: var(--color-accent-cyan);
     --color-ink-alert: var(--color-accent-danger);
-    --color-ink-warning: var(--color-accent-yellow);
+    --color-ink-warning: var(--color-accent-gold);
     --color-ink-attention: var(--color-accent-warning);
     --color-ink-success: var(--color-accent-light-green);
   }
