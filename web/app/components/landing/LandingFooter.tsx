@@ -3,6 +3,7 @@ import { FooterIndex } from './FooterIndex';
 import { FooterLegal } from './FooterLegal';
 import { FooterRail } from './FooterRail';
 import { FooterStatement } from './FooterStatement';
+import { FooterWordmark } from './FooterWordmark';
 import {
   FOOTER_FACTS,
   FOOTER_INDEX,
@@ -72,6 +73,9 @@ export function LandingFooter() {
 
         <FooterRail />
       </div>
+      {/* Full-bleed on purpose: the band is the page's edge, so it sits outside the content
+          column's padding and is clipped by the footer's own bottom. */}
+      <FooterWordmark />
     </footer>
   );
 }
