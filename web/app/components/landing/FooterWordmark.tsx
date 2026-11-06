@@ -27,9 +27,13 @@ import { WORDMARK_TEXT } from './FooterWordmark.constants';
  *     line box's top.
  *
  * So `--wm` is the size, `59vw` makes the ink 0.97 of the viewport at 390 and 768, `700px` is
- * the cap because 1152 (the content column) ÷ 1.648 is 699, and the band is 0.69 of the size:
- * it crops the bottom 12% of the ink, which is the move. `pr-[0.045em]` compensates the
- * trailing letter-space, without which a centred word loses 6px of its right edge to the clip.
+ * the cap because 1152 (the content column) ÷ 1.648 is 699, and the band is 0.52 of the size:
+ * that is the line through the MIDDLE of the letters (#357). The x-height letters start at
+ * 0.243em and the baseline sits at 0.797em, so (0.243 + 0.797) ÷ 2 = 0.52 crops `s`, `e`, `t`
+ * and `i` at half and keeps the `i` dot whole, which is the move: the name is read and
+ * unfinished at the same time, rather than sitting on the edge like a footer signature.
+ * `pr-[0.045em]` compensates the trailing letter-space, without which a centred word loses 6px
+ * of its right edge to the clip.
  *
  * ## What it is not
  *
@@ -41,7 +45,7 @@ export function FooterWordmark() {
   return (
     <div
       aria-hidden="true"
-      className="relative h-[calc(var(--wm)*0.69)] overflow-hidden [--wm:clamp(3.5rem,59vw,700px)]"
+      className="relative h-[calc(var(--wm)*0.52)] overflow-hidden [--wm:clamp(3.5rem,59vw,700px)]"
     >
       <p className="mx-auto mt-[calc(var(--wm)*-0.053)] w-max cursor-default select-none whitespace-nowrap pr-[0.045em] font-brand text-[length:var(--wm)] font-semibold leading-none tracking-[-0.045em] text-on-dark/10">
         {WORDMARK_TEXT}
