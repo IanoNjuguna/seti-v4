@@ -37,13 +37,13 @@
 import { prisma } from '../lib/prisma.js';
 import { isAllowedPair, quoteDexConvert, ConvertRefusalError } from './convert.js';
 import { issueQuote } from './quote.js';
-import { formatUnits, parseUnits } from 'viem';
-import { servedNetwork } from '../config/networks.js';
+import { ContractFunctionRevertedError, formatUnits, parseUnits } from 'viem';
+import { networkConfigFor, servedNetwork } from '../config/networks.js';
 import { getUserBalance } from './balance.js';
 import { getFxQuote, resolveUserFiat } from './payments.js';
 import { normalizeNetwork, type Network } from '../lib/network.js';
 import { isValidEvmAddress } from '../lib/address.js';
-import { ASSET_DECIMALS, type SupportedAsset } from '../config/assets.js';
+import { ASSET_DECIMALS, tokenAddressFor, type SupportedAsset } from '../config/assets.js';
 import { publicClientFor, estimateNetworkFee } from './chain.js';
 
 /**
@@ -220,21 +220,115 @@ const VAULT_REDEEM_ABI = [
 ] as const;
 
 /**
- * The vault's own limit for THIS holder: shares it will redeem in this transaction.
+ * The call a withdrawal actually makes on the vault: `redeem(shares, receiver, owner)`.
  *
- * The ERC-4626 capability that decides whether an exit is possible. Tempo's Earn API used
- * to answer this with `capabilities.syncRedeem`, which it does not publish for a Morpho
- * vault, so every withdrawal was refused as if the vault could not pay (#339).
+ * Kept as a write ABI on purpose: the only honest way to know the vault will pay is to
+ * ask it to run the call. `simulateContract` does exactly that, reads-only, and a revert
+ * is the vault's own answer rather than ours.
  */
-const VAULT_LIMITS_ABI = [
+const VAULT_EXIT_ABI = [
   {
-    name: 'maxRedeem',
+    name: 'redeem',
     type: 'function',
-    stateMutability: 'view',
-    inputs: [{ type: 'address', name: 'owner' }],
-    outputs: [{ type: 'uint256', name: 'shares' }],
+    stateMutability: 'nonpayable',
+    inputs: [
+      { type: 'uint256', name: 'shares' },
+      { type: 'address', name: 'receiver' },
+      { type: 'address', name: 'owner' },
+    ],
+    outputs: [{ type: 'uint256', name: 'assets' }],
   },
 ] as const;
+
+/** The asset's own `balanceOf`, read on the vault's address: the cash it can pay now. */
+const ERC20_BALANCE_ABI = [
+  {
+    name: 'balanceOf',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ type: 'address', name: 'holder' }],
+    outputs: [{ type: 'uint256', name: 'balance' }],
+  },
+] as const;
+
+/**
+ * Whether the exit can be offered, from the evidence we could actually gather (#343).
+ *
+ * `maxRedeem` is NOT that evidence. Sentora OUSD Main answers zero for every holder while
+ * simulating a redeem clean — read on 2026-11-06 against eight live holders, including
+ * ones funded minutes earlier, with 44.7M OUSD idle in the vault and 5,839 withdrawals
+ * already paid. Gating on it made `canWithdraw` false for everyone, forever: #339's shape
+ * of bug, one layer down. The rule that a promise we cannot measure is a "no" still holds,
+ * so this stays fail-closed — but it must be a refusal backed by something the vault said.
+ *
+ * Order of evidence:
+ *   1. A simulated `redeem` that succeeds is proof, whatever `maxRedeem` claims.
+ *   2. A simulated revert is a no, even when the vault holds enough cash: it refuses for a
+ *      reason the simulation already saw.
+ *   3. With no simulation either way, the vault's idle balance covering the payout is
+ *      enough to offer it. Unknown on both counts is a no.
+ */
+export function exitIsAvailable(input: {
+  shares: bigint;
+  payout: bigint;
+  simulated: boolean | null;
+  vaultAssetBalance: bigint | null;
+}): boolean {
+  if (input.shares <= BigInt(0) || input.payout <= BigInt(0)) return false;
+  if (input.simulated === true) return true;
+  if (input.simulated === false) return false;
+
+  return input.vaultAssetBalance !== null && input.vaultAssetBalance >= input.payout;
+}
+
+/**
+ * The vault's answer to the exact call the customer would sign, without signing it.
+ *
+ * Null means "the node would not tell us", which is different from a revert and must not be
+ * read as a yes: only a revert is the vault refusing.
+ */
+async function simulateRedeem(
+  vault: `0x${string}`,
+  holder: `0x${string}`,
+  shares: bigint,
+  network: Network
+): Promise<boolean | null> {
+  try {
+    await publicClientFor(network).simulateContract({
+      address: vault,
+      abi: VAULT_EXIT_ABI,
+      functionName: 'redeem',
+      args: [shares, holder, holder],
+      account: holder,
+    });
+
+    return true;
+  } catch (error) {
+    if (error instanceof ContractFunctionRevertedError) return false;
+
+    return null;
+  }
+}
+
+/** The asset the vault is holding, as a number of tokens it could pay out immediately. */
+async function readVaultIdleAssets(
+  vault: `0x${string}`,
+  asset: `0x${string}`,
+  network: Network
+): Promise<bigint | null> {
+  try {
+    return BigInt(
+      await publicClientFor(network).readContract({
+        address: asset,
+        abi: ERC20_BALANCE_ABI,
+        functionName: 'balanceOf',
+        args: [vault],
+      })
+    );
+  } catch {
+    return null;
+  }
+}
 
 /**
  * How many shares a withdrawal of `assets` needs, at the vault's own share price.
@@ -834,25 +928,22 @@ export async function quoteSavingsWithdraw(input: {
   const minAssets = (assetOut * BigInt(10_000 - SAVINGS_TOLERANCE_BPS)) / BigInt(10_000);
 
   /*
-   * CAN IT PAY NOW, asked of the contract that would pay (#339).
+   * CAN IT PAY NOW, asked of the call that would pay (#343).
    *
-   * `maxRedeem` is the vault's own answer for this holder: shares it will redeem in this
-   * transaction. Zero means queued or illiquid, and the screen refuses instead of offering
-   * an exit that reverts. An unreadable limit is also a no: a promise we cannot measure is
-   * the thing #137 exists to prevent.
+   * This used to read `maxRedeem(owner)` and require it to cover the shares. That vault
+   * answers zero for every holder while simulating the same redeem clean, so every
+   * withdrawal was refused and nothing said why — #339 again, one layer down. The evidence
+   * is now the simulation of the exact call, with the vault's idle cash as the fallback
+   * when a node will not simulate. Both unmeasurable is still a no.
    */
-  let maxRedeem: bigint | null = null;
-  if (address) {
-    try {
-      maxRedeem = await client.readContract({
-        address: vault as `0x${string}`,
-        abi: VAULT_LIMITS_ABI,
-        functionName: 'maxRedeem',
-        args: [address as `0x${string}`],
-      });
-    } catch {
-      maxRedeem = null;
-    }
+  const assetToken = tokenAddressFor(SAVINGS_ASSET, networkConfigFor(network).chainId);
+  let simulated: boolean | null = null;
+  let vaultIdle: bigint | null = null;
+  if (address && shareAmount > BigInt(0)) {
+    [simulated, vaultIdle] = await Promise.all([
+      simulateRedeem(vault as `0x${string}`, address as `0x${string}`, shareAmount, network),
+      assetToken ? readVaultIdleAssets(vault as `0x${string}`, assetToken, network) : Promise.resolve(null),
+    ]);
   }
 
   /*
@@ -899,9 +990,8 @@ export async function quoteSavingsWithdraw(input: {
     vault,
     shareToken,
     quoteId,
-    // Both halves, because either alone is a promise: what the vault says this size pays,
-    // and whether it will pay it in this transaction.
-    canWithdraw: address !== null && assetOut > BigInt(0) && maxRedeem !== null && maxRedeem >= shareAmount,
+    // What the vault says this size pays, and whether it will actually run the call (#343).
+    canWithdraw: exitIsAvailable({ shares: shareAmount, payout: assetOut, simulated, vaultAssetBalance: vaultIdle }),
     instantLiquidity: null,
     positionShares: formatUnits(positionShares, SAVINGS_SHARE_DECIMALS),
   };
