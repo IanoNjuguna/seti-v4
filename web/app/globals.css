@@ -573,14 +573,12 @@
     background-image:
       radial-gradient(58% 52% at 26% 28%, var(--field-glow-cobalt), transparent 74%),
       radial-gradient(46% 42% at 74% 68%, var(--field-glow-cobalt), transparent 76%);
-    animation: field-drift var(--duration-field) var(--ease-linear) infinite;
   }
 
   .field-layer::after {
     background-image: radial-gradient(36% 32% at 64% 22%, var(--field-glow-phoenix), transparent 78%);
     /* A second, slower copy of the same motion. Two periods never re-sync
        inside a session, so the field does not visibly loop. */
-    animation: field-drift-reverse var(--duration-field-slow) var(--ease-linear) infinite;
   }
 
   /* The grain. Fine fractal noise, tiled, never animated — it is texture, not
@@ -704,97 +702,7 @@
     opacity: var(--field-grain-shadow);
   }
 
-  /* A section rising once. The hidden state is armed by JS (`data-reveal`), so
-     the server-rendered HTML is visible: a page that never hydrates still
-     shows every word, which a marketing page must. */
-  .reveal {
-    transition:
-      opacity var(--duration-slow) var(--ease-out),
-      transform var(--duration-slow) var(--ease-out);
-  }
-
-  .reveal[data-reveal]:not([data-revealed]) {
-    opacity: 0;
-    transform: translate3d(0, var(--distance-small), 0);
-  }
-
-  /* -------------------------------------------------------------------------
-   * The footer statement's word by word activation (`FooterStatement.tsx`).
-   *
-   * One device, once, on the page's last band. Words start at 0.3 opacity — inside
-   * the 25 to 35% range `landing-page-design` B11 asks for — and arrive at full
-   * `on-dark` in reading order, 40ms apart, over `--duration-slow` on `--ease-out`.
-   *
-   * THE MUTED START IS ARMED BY JS AND BY NOTHING ELSE (`useFooterStatement`), so a
-   * server render, or a browser with no JavaScript, shows the finished sentence and
-   * `prefers-reduced-motion` skips the stagger entirely. The same arrangement as
-   * `.reveal` above, for the same reason.
-   *
-   * The delay is read from each word's own `--word-index`, set in the component, which
-   * keeps ten transition-delays out of the markup and the timing in one place here.
-   * ---------------------------------------------------------------------- */
-  .footer-word {
-    opacity: 1;
-    transition: opacity var(--duration-slow) var(--ease-out);
-  }
-
-  [data-statement-armed] .footer-word {
-    opacity: 0.3;
-  }
-
-  [data-statement-armed][data-statement-shown] .footer-word {
-    opacity: 1;
-    transition-delay: calc(var(--word-index, 0) * 40ms);
-  }
-
-  /* The hero's entrance: the same rise, staggered and capped at three lines. */
-  .entrance {
-    animation: entrance-rise var(--duration-slow) var(--ease-out) both;
-  }
-
-  .entrance-2 {
-    animation-delay: var(--stagger);
-  }
-
-  .entrance-3 {
-    animation-delay: calc(var(--stagger) * 2);
-  }
-
-  /* -------------------------------------------------------------------------
-   * The hero asset's float (`HeroVisualSlot.tsx`).
-   *
-   * `translate` rather than `transform`: the slot positions the canvas with a
-   * NEGATIVE MARGIN, and a keyframe that wrote `transform` would silently
-   * override any `translate-x-*` utility on the same element. `translate` is its
-   * own property, so the two cannot collide — same compositor-cheap treatment as
-   * `transform` (guardrail 1), no transform stack to untangle.
-   * ---------------------------------------------------------------------- */
-  .hero-float {
-    animation: hero-float var(--duration-float) var(--ease-in-out) infinite;
-  }
-
-  /* -------------------------------------------------------------------------
-   * The payment stack's entrance (`design/motion.md`, DIAL ONE).
-   *
-   * The band's own reveal arms this: `data-revealed` is set ONCE, by JS, on the
-   * section, so the cards stagger on the way in and never replay. Without
-   * `data-reveal` — no JS, or the server render — none of these rules match and
-   * the cards are simply visible, which is why the page still reads with
-   * JavaScript disabled.
-   * ---------------------------------------------------------------------- */
-  .reveal[data-revealed] .stack-item {
-    animation: stack-rise var(--duration-base) var(--ease-out) both;
-  }
-
-  .reveal[data-revealed] .stack-item-2 {
-    animation-delay: var(--stagger);
-  }
-
-  .reveal[data-revealed] .stack-item-3 {
-    animation-delay: calc(var(--stagger) * 2);
-  }
-
-  /* -------------------------------------------------------------------------
+        /* -------------------------------------------------------------------------
    * THE LANDING NAVBAR, AND WHAT SCROLLING DOES TO IT (issue #187).
    *
    * The effect is the one minisend.xyz ships, read out of its bundle: ONE
@@ -915,99 +823,11 @@
   }
 }
 
-@keyframes field-drift {
-  0%,
-  100% {
-    transform: translate3d(-1.5%, -1%, 0) scale(1.06) rotate(-2deg);
-  }
-  33% {
-    transform: translate3d(2.5%, 2%, 0) scale(1.14) rotate(3deg);
-  }
-  66% {
-    transform: translate3d(-2%, 2.5%, 0) scale(1.08) rotate(-1deg);
-  }
-}
-
-@keyframes field-drift-reverse {
-  0%,
-  100% {
-    transform: translate3d(2%, 2%, 0) scale(1.1) rotate(2deg);
-  }
-  40% {
-    transform: translate3d(-2%, 1%, 0) scale(1.04) rotate(-2deg);
-  }
-  70% {
-    transform: translate3d(1%, 3%, 0) scale(1.12) rotate(1deg);
-  }
-}
-
-@keyframes entrance-rise {
-  from {
-    opacity: 0;
-    transform: translate3d(0, var(--distance-small), 0);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-/* The hero asset's float. `translate` only, so it composes with the slot's
-   negative-margin positioning and overrides nothing. */
-@keyframes hero-float {
-  0%,
-  100% {
-    translate: 0 calc(var(--float-distance) * -1);
-  }
-  50% {
-    translate: 0 var(--float-distance);
-  }
-}
-
-/* A card of the payment stack arriving: 4px and a fade, the same rise the
-   sections use, one step smaller because a card is not a band. */
-@keyframes stack-rise {
-  from {
-    opacity: 0;
-    transform: translate3d(0, var(--distance-micro), 0);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-/* Guardrail 4: less motion freezes the ambient layer and turns every entrance
-   into an instant appearance — it never just slows them down. */
+/* Guardrail 4: less motion is honoured as NO motion. The page ships no entrance
+   animation, no float and no ambient drift, so what is left to switch off is the
+   navbar's own travel between its two states: reduced motion never means "slower",
+   it means the thing is already in place. */
 @media (prefers-reduced-motion: reduce) {
-  .field-layer::before,
-  .field-layer::after {
-    animation: none;
-  }
-
-  .entrance,
-  .entrance-2,
-  .entrance-3 {
-    animation: none;
-  }
-
-  /* The asset holds still, and the stack's cards are simply there. Reduced
-     motion never means "slower" — it means the thing is already in place. */
-  .hero-float,
-  .reveal[data-revealed] .stack-item {
-    animation: none;
-  }
-
-  .reveal[data-reveal]:not([data-revealed]) {
-    opacity: 1;
-    transform: none;
-  }
-
-  /* The navbar still reaches both of its states; it just arrives instead of
-     travelling. Reduced motion asks for "no motion", never "slower motion", and
-     both states are fully legible on their own — the inset bar with its edge and
-     the full-bleed bar without one. The transition is removed rather than
-     shortened, so there is no window in which a reader sees a half-width bar. */
   .landing-nav,
   .landing-nav-bar,
   .landing-nav-bar::before {

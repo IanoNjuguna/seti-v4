@@ -1,6 +1,6 @@
 import { ButtonLink } from '@/components/ui';
 import { SIGN_IN_PATH } from '@/lib/routes';
-import { Reveal } from './Reveal';
+import { Band } from './Band';
 import { CLOSING_COPY } from './ClosingSection.constants';
 
 /**
@@ -27,7 +27,7 @@ import { CLOSING_COPY } from './ClosingSection.constants';
  */
 export function ClosingSection() {
   return (
-    <Reveal id="open" className="border-t border-hairline-dark bg-canvas-dark py-[var(--band-pad-block)]">
+    <Band id="open" className="bg-canvas-dark py-[var(--band-pad-block)]">
       <div className="mx-auto max-w-6xl px-6">
         <div className="grid items-end gap-12 md:grid-cols-12 md:gap-16">
           <div className="md:col-span-7">
@@ -49,6 +49,6 @@ export function ClosingSection() {
           </div>
         </div>
       </div>
-    </Reveal>
+    </Band>
   );
 }

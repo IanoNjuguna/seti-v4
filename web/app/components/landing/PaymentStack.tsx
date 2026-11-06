@@ -1,6 +1,6 @@
 import { cn } from '@/lib/cn';
 import { PaymentCard } from './PaymentCard';
-import { STACKED_PAYMENTS, STACK_ENTRANCE_CLASSES } from './PaymentStack.constants';
+import { STACKED_PAYMENTS } from './PaymentStack.constants';
 
 /**
  * The payment stack — the object that replaced the single "example payment"
@@ -17,7 +17,7 @@ import { STACKED_PAYMENTS, STACK_ENTRANCE_CLASSES } from './PaymentStack.constan
  *
  * `hidden md:flex` rather than `md:block`, deliberately: the card's own display
  * is `flex`, so a `md:block` would win at md and collapse the row into a stack.
- * The entrance classes come from the constants file, capped at three.
+ *
  */
 export function PaymentStack() {
   return (
@@ -26,10 +26,7 @@ export function PaymentStack() {
         <PaymentCard
           key={payment.id}
           payment={payment}
-          className={cn(
-            STACK_ENTRANCE_CLASSES[Math.min(index, STACK_ENTRANCE_CLASSES.length - 1)],
-            index > 0 && 'hidden md:flex'
-          )}
+          className={cn(index > 0 && 'hidden md:flex')}
         />
       ))}
     </div>

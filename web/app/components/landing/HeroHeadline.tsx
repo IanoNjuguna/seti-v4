@@ -32,7 +32,7 @@ import { HERO_COPY } from './HeroCopy.constants';
  */
 export function HeroHeadline() {
   return (
-    <h1 className="entrance text-balance font-brand text-display-xl font-medium text-on-dark">
+    <h1 className="text-balance font-brand text-display-xl font-medium text-on-dark">
       {HERO_COPY.headline}
     </h1>
   );

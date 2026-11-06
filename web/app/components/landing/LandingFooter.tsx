@@ -44,9 +44,9 @@ import {
  */
 export function LandingFooter() {
   return (
-    <footer className="relative z-10 border-t border-hairline-dark bg-canvas-dark">
+    <footer className="relative z-10 bg-canvas-dark">
       <div className="mx-auto max-w-6xl px-6">
-        <div className="grid gap-12 pb-14 pt-20 md:grid-cols-12 md:gap-16 md:pb-0 md:pt-24">
+        <div className="grid gap-12 pb-14 pt-[var(--band-pad-block)] md:grid-cols-12 md:gap-16 md:pb-0">
           <div className="md:col-span-8 md:pb-16">
             <FooterStatement lines={FOOTER_STATEMENT} />
           </div>

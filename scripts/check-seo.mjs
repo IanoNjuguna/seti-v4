@@ -862,13 +862,13 @@ if (prose.words >= WORD_FLOOR.min && prose.words <= WORD_FLOOR.max) {
 // ---------------------------------------------------------------------------------
 /**
  * A BAND IS DISCOVERED BY SHAPE, NOT BY NAME. A band opens a section of the page, which
- * it does by rendering the shared `Reveal` wrapper or a bare `<section>`. Names are
+ * it does by rendering the shared `Band` wrapper or a bare `<section>`. Names are
  * avoided on purpose: a band added under a name this file did not predict is the case
- * this assertion has to survive, and `Reveal` itself is excluded because it renders the
+ * this assertion has to survive, and `Band` itself is excluded because it renders the
  * `<section>` it is handed rather than a band of its own.
  */
-const BAND_SHELL = /<Reveal\b|<section\b/;
-const LANDING_INFRA = new Set(['Reveal', 'SectionHeader', 'SectionEyebrow', 'LandingBackdrop']);
+const BAND_SHELL = /<Band\b|<section\b/;
+const LANDING_INFRA = new Set(['Band', 'SectionHeader', 'SectionEyebrow', 'LandingBackdrop']);
 
 const bandFiles = walkTree(LANDING)
   .filter((f) => path.dirname(f) === LANDING && f.endsWith('.tsx'))
@@ -878,7 +878,7 @@ const bandFiles = walkTree(LANDING)
 if (bandFiles.length === 0) {
   fail(
     '9a. the landing tree has bands to outline',
-    `no top-level component under ${rel(LANDING)} renders <Reveal> or <section>`,
+    `no top-level component under ${rel(LANDING)} renders <Band> or <section>`,
     'the bands moved or lost their wrapper: point LANDING in scripts/check-seo.mjs at them. A page with no band is a page with no outline, whatever its h1 says',
   );
 } else {

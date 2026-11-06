@@ -74,3 +74,24 @@ and it is short enough that a user never waits for it.
 Every motion change is reviewed against `.agents/skills/review-animations` and rendered at
 360px and desktop. Each one must be justifiable in a single line: *what does this
 communicate?* If the answer is "it feels nice", delete it.
+
+## The landing page's dial is now zero (#367)
+
+The owner's call: the landing does not animate. No band rises on entry, the hero's lines do not
+stagger, the payment stack does not stagger behind them, the QR plate does not float, the footer
+statement does not arrive word by word, and the ambient field behind the hero is static.
+
+The reason is the reader it is for. A merchant deciding whether to be paid in dollars is reading a
+document, and a section that fades in is a section they are told to wait for. The same restraint
+the app has — motion only where it explains a change of state — applied to a page whose states
+are all "already there".
+
+What this changes in code: `Reveal` became `Band` and is a server component; `.reveal`,
+`.entrance*`, `.stack-item*`, `.footer-word`, `.hero-float` and the `field-drift` keyframes are
+removed from `globals.css`; `useRevealOnce` and `useFooterStatement` are gone. What remains under
+`prefers-reduced-motion` is the navbar's own travel, which is still removed rather than shortened.
+
+The band seams changed with it. A rule at a boundary where the canvas also changes is a line doing
+no work, so those are gone: the colour change is the separator. Two bands on the same canvas keep
+one — `who` and `customer` still carry a hairline — because nothing else tells a reader that one
+white band has ended.
