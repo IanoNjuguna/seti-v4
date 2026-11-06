@@ -27,7 +27,9 @@ import type { HomeActionsProps } from './HomeActions.types';
  */
 export function HomeActions({ actions = HOME_ACTIONS }: HomeActionsProps) {
   return (
-    <nav aria-label={HOME_PAGE_COPY.actionsLabel} className="flex flex-wrap gap-3">
+    // `pt-2` is room for the corner tag (#377): the `New` chip hangs 8px above the tile it
+    // belongs to, and without the gap it would sit against whatever is above the row.
+    <nav aria-label={HOME_PAGE_COPY.actionsLabel} className="flex flex-wrap gap-3 pt-2">
       {actions.map((action) => (
         <HomeAction key={action.key} action={action} />
       ))}

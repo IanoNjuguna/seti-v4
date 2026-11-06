@@ -15,13 +15,11 @@ export interface HomeAction {
    */
   variant: Extract<ButtonVariant, 'primary' | 'secondary'>;
   /**
-   * A short marker for a door that exists but cannot be used yet. The door stays so
-   * the signal stays with it; a removed door is a feature nobody discovers later.
+   * A short marker for a door that is new or not open yet. The door stays so the signal
+   * stays with it; a removed door is a feature nobody discovers later.
    *
-   * Rendered as a dot in the tile's corner rather than as this word (#328): the word
-   * beside a label needed more width than a quarter of a 390px row has. The word is not
-   * lost with it, `HomeAction` puts it in the link's accessible name, so "Save, Soon" is
-   * what a screen reader hears, and the page behind the door says it in a sentence.
+   * It is drawn as a glowing chip in the tile's corner and spoken as part of the link's
+   * name, so "Save, New" is what a screen reader hears (#328, #377).
    */
   badge?: string;
   /**
@@ -31,6 +29,20 @@ export interface HomeAction {
    */
   icon: keyof typeof ICON_PATHS;
 }
+
+/**
+ * The grain plate on the primary action (#377).
+ *
+ * A flat `canvas-dark` tile beside three white ones is a black rectangle; the owner asked for
+ * tooth on it. Fractal noise, desaturated and laid over the fill with `overlay`, reads as printed
+ * card stock rather than as a texture sticker, and because it is an inline SVG the whole thing is
+ * one cached raster at any size, with no image request and no third-party asset.
+ *
+ * The baseFrequency is high enough to be grain at 79px wide and not read as a pattern; `stitchTiles`
+ * keeps the 120px tile from showing its own seams when the browser repeats it.
+ */
+export const ACTION_GRAIN =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23g)'/%3E%3C/svg%3E\")";
 
 /**
  * The two things a customer opens their account to do, side by side and full width.
@@ -71,7 +83,7 @@ export const HOME_ACTIONS: HomeAction[] = [
    * feature exists; greying it out would read as broken. The mark is a corner dot and
    * the word lives in the accessible name (#328): `Save Soon` as text did not fit.
    */
-  { key: 'save', label: 'Save', href: '/app/save', variant: 'secondary', badge: 'Soon', icon: 'save' },
+  { key: 'save', label: 'Save', href: '/app/save', variant: 'secondary', badge: 'New', icon: 'save' },
   /*
    * Swap becomes a door here and stops being a control on the balance card (#328,
    * slice 2 removes that affordance). It belongs beside Pay and Receive because it is
