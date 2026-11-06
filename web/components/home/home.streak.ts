@@ -1,27 +1,27 @@
 import type { DailyCount } from '@/lib/api/analytics';
 
 /**
- * The last-n-days series as a calendar grid, and the four steps a cell can take (#369).
+ * A year of days as columns of seven, and the four steps a cell can take (#371).
  *
- * ## Why weeks are ROWS here, when GitHub's are columns
+ * ## Weeks are COLUMNS here, because the span is a year
  *
- * GitHub plots a year, so its columns are weeks and the shape is wide. A merchant's home
- * card plots thirty days, and a three-column-tall strip of thirty squares reads as a
- * sparkline rather than as a calendar. Rotated the other way — weekdays across the top,
- * one row per week — it fills a phone's width, reads like the month grid everyone already
- * knows, and a run of busy days is a run of filled squares sideways instead of a column.
+ * The first cut plotted thirty days with weeks as rows, which is right for a month: seven
+ * columns across a phone is the grid a reader already knows. A year drawn that way is three
+ * hundred rows deep. Rotated — one column per week, seven rows for the weekdays, the way a
+ * contribution graph is drawn everywhere — a year is fifty-three columns wide and fills the
+ * card it sits in instead of leaving two thirds of the row empty.
  *
- * ## Blank cells are part of the grid
+ * ## Blank cells are the ends of the first and last week
  *
- * The first and last weeks are padded so every row holds seven cells: without the pads the
- * squares are not under their weekday letters and a Monday looks like a Tuesday. Pads carry
- * `count: null`, which is different from `count: 0`: one is a day outside the window, the
- * other is a day inside it where nothing happened.
+ * The first column starts on the weekday the series starts on, so the cells above it are pads.
+ * Without them a Monday sits in the Tuesday row and every day after it is a day out. A pad
+ * carries `count: null`, which is different from `count: 0`: one is a day outside the window,
+ * the other is a day inside it where nothing happened.
  */
 
-/** One cell of the calendar grid. `null` is a pad outside the window, not a quiet day. */
+/** One cell of the grid. `null` is a pad outside the window, not a quiet day. */
 export interface StreakCell {
-  /** `YYYY-MM-DD`, or null for the pads that keep the weeks square. */
+  /** `YYYY-MM-DD`, or null for the pads that keep the columns square. */
   date: string | null;
   count: number | null;
 }
@@ -30,6 +30,9 @@ export interface StreakCell {
 export type StreakLevel = 0 | 1 | 2 | 3 | 4;
 
 const MONDAY = 1;
+
+/** One letter per month, for the row above the grid. */
+export const MONTH_INITIALS = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'] as const;
 
 /** Monday-first index of a `YYYY-MM-DD` key, in UTC, matching how the server buckets. */
 export function weekdayIndex(date: string): number {
@@ -40,9 +43,9 @@ export function weekdayIndex(date: string): number {
 /**
  * The four steps, from a day's count.
  *
- * Absolute, not scaled to the busiest day: a merchant who takes one payment a day should
- * not see every square full because one Saturday was a market day. Four or more is the top
- * step, and the legend says four steps rather than a ratio.
+ * Absolute, not scaled to the busiest day: a merchant who takes one payment a day should not see
+ * every square full because one Saturday was a market day. Four or more is the top step, and the
+ * legend says four steps rather than a ratio.
  */
 export function levelFor(count: number): StreakLevel {
   if (count <= 0) return 0;
@@ -52,8 +55,13 @@ export function levelFor(count: number): StreakLevel {
   return 4;
 }
 
-/** The series as rows of seven, Monday first, padded at both ends. */
-export function streakWeeks(daily: DailyCount[]): StreakCell[][] {
+/**
+ * The series as columns of seven, Monday first, padded at the start and the end.
+ *
+ * Column-major because that is what the grid draws: `grid-flow-col` fills down a column before
+ * starting the next, which is the order the days arrived in.
+ */
+export function streakColumns(daily: DailyCount[]): StreakCell[][] {
   if (daily.length === 0) return [];
 
   const cells: StreakCell[] = daily.map((day) => ({ date: day.date, count: day.count }));
@@ -64,9 +72,33 @@ export function streakWeeks(daily: DailyCount[]): StreakCell[][] {
   ];
   while (padded.length % 7 !== 0) padded.push({ date: null, count: null });
 
-  const weeks: StreakCell[][] = [];
-  for (let i = 0; i < padded.length; i += 7) weeks.push(padded.slice(i, i + 7));
-  return weeks;
+  const columns: StreakCell[][] = [];
+  for (let i = 0; i < padded.length; i += 7) columns.push(padded.slice(i, i + 7));
+  return columns;
+}
+
+/**
+ * Which column each month starts in, for the row above the grid.
+ *
+ * A month is labelled at the first cell that belongs to it, and a month that starts in the first
+ * column is dropped: a label under the very first square is where the eye already is, and the
+ * grid's own left edge says the same thing.
+ */
+export function monthMarks(columns: StreakCell[][]): Array<{ column: number; label: string }> {
+  const marks: Array<{ column: number; label: string }> = [];
+  let lastMonth = -1;
+
+  columns.forEach((column, index) => {
+    const first = column.find((cell) => cell.date !== null);
+    if (!first?.date) return;
+    const month = Number(first.date.slice(5, 7)) - 1;
+    if (month === lastMonth) return;
+    lastMonth = month;
+    if (index === 0) return;
+    marks.push({ column: index + 1, label: MONTH_INITIALS[month] });
+  });
+
+  return marks;
 }
 
 /** How many days in the window carried at least one payment, and how many there were. */

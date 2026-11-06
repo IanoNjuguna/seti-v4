@@ -41,6 +41,8 @@ export interface AnalyticsWindow {
 export interface AnalyticsSummary {
   currency: string;
   windows: AnalyticsWindow[];
+  /** A year of days for the streak map, counted in the database (#371). */
+  year: { days: number; daily: DailyCount[] };
 }
 
 /** Mirrors `backend/src/services/analytics.ts`. */

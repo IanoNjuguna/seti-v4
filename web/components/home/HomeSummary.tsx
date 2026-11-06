@@ -31,20 +31,20 @@ import type { HomeSummaryProps } from './HomeSummary.types';
  * hiding a figure is a privacy control, and there are no figures left in this row. The
  * reconciled totals it used to print are still on `/app/activity?view=analytics`.
  */
-export function HomeSummary({ window }: HomeSummaryProps) {
+export function HomeSummary({ year }: HomeSummaryProps) {
   return (
     <Link
       href={HOME_PAGE_COPY.summaryHref}
-      className="flex flex-col gap-3 border-b border-hairline-light pb-4 transition-colors duration-(--duration-quick) ease-out hover:bg-surface-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      className="flex flex-col gap-3 pb-1 transition-colors duration-(--duration-quick) ease-out hover:bg-surface-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
     >
       <span className="flex items-center justify-between gap-4">
         <Text variant="micro" as="span" color="secondary">
-          {HOME_PAGE_COPY.summaryLabel(window.days)}
+          {HOME_PAGE_COPY.streakLabel}
         </Text>
         <Icon name="chevronRight" className="h-4 w-4 text-ash" />
       </span>
 
-      <StreakMap daily={window.daily} />
+      <StreakMap daily={year.daily} />
     </Link>
   );
 }
