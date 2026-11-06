@@ -38,14 +38,14 @@ export function FaqSection() {
   return (
     <Reveal
       id="questions"
-      className="border-t border-hairline-light bg-canvas-light py-[var(--band-pad-block)]"
+      className="border-t border-hairline-dark bg-canvas-dark py-[var(--band-pad-block)]"
     >
       <div className="mx-auto max-w-6xl px-6">
-        <SectionHeader eyebrow={FAQ_COPY.heading} />
+        <SectionHeader eyebrow={FAQ_COPY.heading} onDark />
 
         <div className="mt-12">
-          {FAQ_COPY.items.map((entry) => (
-            <FaqItem key={entry.question} entry={entry} />
+          {FAQ_COPY.items.map((entry, index) => (
+            <FaqItem key={entry.question} entry={entry} open={index === 0} />
           ))}
         </div>
       </div>

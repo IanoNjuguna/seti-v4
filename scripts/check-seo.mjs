@@ -1277,13 +1277,24 @@ if (faq === null) {
     }
   }
 
-  // 10i. the answers are in the tree, not behind an interaction
+  /*
+   * 10i. THE COLLAPSE IS MARKUP, NOT JAVASCRIPT (#363).
+   *
+   * This assertion used to forbid `<details>` and `<summary>` outright, on the grounds that an
+   * answer behind a control is an answer a crawler cannot read. That premise is about WHICH
+   * mechanism: a native `<details>` ships the answer in the server HTML, so the bytes are the
+   * same ones an assistant quotes. What actually removes an answer from the page is state and
+   * a client component — the answer mounted after a tap.
+   *
+   * So this pins the property instead of the shape: no `useState`, no `useReducer`, no
+   * `'use client'`, the answer still read from the band's own constants, and `<details>`
+   * present, so the band cannot drift into a JS accordion or back into a flat list by accident.
+   */
   const faqFilePaths = new Set(faqComponents);
   for (const file of faqComponents) {
     const code = stripComments(read(file) ?? '');
     for (const block of mapBlocks(code)) {
-      // The row can live in a child (FaqItem), so the row's file is part of the band for
-      // this question: a control there hides the answer just as effectively.
+      // The row can live in a child (FaqItem), so the row's file is part of the band.
       for (const match of block.body.matchAll(/<([A-Z][\w]*)\b/g)) {
         const childPath = path.join(LANDING, `${match[1]}.tsx`);
         if (existsSync(childPath)) faqFilePaths.add(childPath);
@@ -1291,23 +1302,26 @@ if (faq === null) {
     }
   }
   const uniqueFaqFiles = [...faqFilePaths];
-  const gatedIn = uniqueFaqFiles.filter((f) => {
+  const interactive = uniqueFaqFiles.filter((f) => {
     const code = stripComments(read(f) ?? '');
-    return /<details\b|<summary\b|\buseState\b|\buseReducer\b|['"]use client['"]/.test(code);
+    return /\buseState\b|\buseReducer\b|['"]use client['"]/.test(code);
   });
+  const collapsed = uniqueFaqFiles.some((f) => /<details\b/.test(stripComments(read(f) ?? '')));
   const answerRead = uniqueFaqFiles.some((f) => /\.answer\b/.test(stripComments(read(f) ?? '')));
-  if (gatedIn.length === 0 && answerRead) {
-    pass('10i. every FAQ answer is rendered, not hidden behind a control', `${uniqueFaqFiles.length} files, no details/summary/useState/client`);
+
+  if (interactive.length === 0 && collapsed && answerRead) {
+    pass('10i. the answers are server-rendered details, not a JS accordion', `${uniqueFaqFiles.length} files, no state, details present`);
   } else {
     fail(
-      '10i. every FAQ answer is rendered, not hidden behind a control',
+      '10i. the answers are server-rendered details, not a JS accordion',
       [
-        gatedIn.length ? `interaction in ${gatedIn.map(rel).join(', ')}` : null,
+        interactive.length ? `state or a client component in ${interactive.map(rel).join(', ')}` : null,
+        collapsed ? null : 'no <details> in the band',
         answerRead ? null : 'no file reads the answer field',
       ]
         .filter(Boolean)
         .join('; '),
-      `render the answers as static text in the FAQ band: a <details>, a useState or a client component means the answer is not in the HTML a crawler and an assistant read, which is the whole reason the FAQ is on the page`,
+      `render the FAQ as native <details> reading FAQ_COPY: state, a client component or a missing <details> means the answer is not in the HTML a crawler and an assistant read, which is the whole reason the FAQ is on the page (#363)`,
     );
   }
 }
