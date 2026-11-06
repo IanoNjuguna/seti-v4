@@ -1,4 +1,7 @@
 import { ButtonLink } from '@/components/ui/ButtonLink';
+import Link from 'next/link';
+import { SIGN_IN_PATH } from '@/lib/routes';
+import { QUIET_ACTION_CLASSES } from './HeroActions.constants';
 import { Reveal } from './Reveal';
 import { SectionHeader } from './SectionHeader';
 import { FEE_COPY } from './FeesSection.constants';
@@ -37,30 +40,38 @@ import { FEE_COPY } from './FeesSection.constants';
  */
 export function FeesSection() {
   return (
-    <Reveal id="fees" className="bg-canvas-light py-[var(--band-pad-block)]">
+    <Reveal id="fees" className="bg-canvas-dark py-[var(--band-pad-block)]">
       <div className="mx-auto max-w-6xl px-6">
-        <SectionHeader eyebrow="What it costs" />
+        <SectionHeader eyebrow="What it costs" onDark />
 
         <dl className="mt-12">
           {FEE_COPY.map((row) => (
             <div
               key={row.label}
-              className="border-t border-hairline-light py-6 first:border-t-0 first:pt-0 sm:grid sm:grid-cols-[minmax(0,1fr)_22rem] sm:items-baseline sm:gap-10"
+              className="border-t border-hairline-dark py-6 first:border-t-0 first:pt-0 sm:grid sm:grid-cols-[minmax(0,1fr)_22rem] sm:items-baseline sm:gap-10"
             >
-              <dt className="font-brand text-heading-md font-medium text-ink">{row.label}</dt>
-              <dd className="mt-2 text-body-sm text-mute sm:mt-0 sm:text-right">{row.detail}</dd>
+              <dt className="font-brand text-heading-md font-medium text-on-dark">{row.label}</dt>
+              <dd className="mt-2 text-body-sm text-on-dark-mute sm:mt-0 sm:text-right">{row.detail}</dd>
             </div>
           ))}
         </dl>
 
-        {/* The one way out of the band for a reader who is pricing (#306): the list above
-            is what we charge, and `/pricing` is the same list beside a till and a
-            remittance route, with the dates those two numbers were measured. A ghost link,
-            not a second button: the decision on this page is the close, not this. */}
-        <div className="mt-10">
-          <ButtonLink href="/pricing" variant="ghost">
-            What that costs against a till
+        {/* THE SECOND DECISION POINT ON THE PAGE (#359), and the band is dark on purpose:
+            `Your money` and the price are one movement — what it is, then what it costs —
+            and this is the second half of it. Two flips back to white between them broke
+            the page into eight white bands with nothing changing for three thousand pixels.
+
+            THE WAY OUT TO `/pricing` IS A QUIET LINK, not a ghost button: the ghost
+            variant draws its label in cobalt, which measures 4.27:1 on black and fails AA
+            at this size, so this band uses the hero's dark-canvas recipe instead. One
+            filled action, one thing to read. */}
+        <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-8">
+          <ButtonLink href={SIGN_IN_PATH} variant="accent">
+            Claim your name
           </ButtonLink>
+          <Link href="/pricing" className={QUIET_ACTION_CLASSES}>
+            What that costs against a till
+          </Link>
         </div>
       </div>
     </Reveal>
