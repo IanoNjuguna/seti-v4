@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Icon } from '@/components/ui/Icon';
-import { streakTotals, stripLabel } from './home.streak';
+import { stripLabel } from './home.streak';
 import { StreakMap } from './StreakMap';
 import { HOME_PAGE_COPY } from './HomePage.constants';
 import type { HomeSummaryProps } from './HomeSummary.types';
@@ -25,6 +25,11 @@ import type { HomeSummaryProps } from './HomeSummary.types';
  * printing the word would be a money claim that is wrong in the first and last week of every
  * month, the same class of error as the rounded balance #91 removed.
  *
+ * ## The map is never hidden, only short
+ *
+ * It is drawn from the account's first payment to today, so a new merchant gets a narrow strip
+ * rather than a year of nothing or, as once shipped, a sentence instead of the grid (#381).
+ *
  * ## No amounts, so nothing to mask
  *
  * The map counts DAYS, not money, so the amount-privacy toggle has nothing to hide here:
@@ -39,15 +44,6 @@ export function HomeSummary({ year }: HomeSummaryProps) {
    * new merchant sees on their home screen. The row keeps its tap-through either way.
    */
   const label = stripLabel(year.days, year.daily[0]?.date);
-  /**
-   * Under eight weeks there is no shape to draw, only a column or two of squares (#375).
-   *
-   * A merchant three days in was shown one column of dots standing in a card of white, which reads
-   * as a broken chart rather than as "you are new". Below eight weeks the row says the numbers in
-   * a sentence and leaves the grid for a strip that can carry it.
-   */
-  const drawable = year.days >= 56;
-  const totals = streakTotals(year.daily);
 
   return (
     <Link
@@ -72,13 +68,15 @@ export function HomeSummary({ year }: HomeSummaryProps) {
         />
       </span>
 
-      {drawable ? (
-        <StreakMap daily={year.daily} />
-      ) : totals.payments > 0 ? (
-        <span className="text-body-sm text-ash">
-          {HOME_PAGE_COPY.streakSummary(totals.payments, totals.activeDays)}
-        </span>
-      ) : null}
+      {/*
+        THE MAP IS ALWAYS DRAWN, however short it is (#381).
+
+        An eight-week floor hid the whole feature for a new account, and a home screen without it
+        read as cold: a row of text where the one visual thing on the page used to be. A merchant
+        three days in now gets one column of squares, which is a truthful picture of a three-day
+        account, rather than a sentence standing in for it.
+      */}
+      {year.days > 0 ? <StreakMap daily={year.daily} /> : null}
     </Link>
   );
 }
