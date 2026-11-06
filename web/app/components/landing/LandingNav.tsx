@@ -54,7 +54,10 @@ import { useScrollNav } from './useScrollNav';
  *
  * The menu is a disclosure, not a drawer: `useNavMenu` owns its state and its two
  * dismissals, the panel is a sibling of its own control, and nothing is trapped.
- * `Sign in` stays the right edge — the doc's own mobile rule.
+ * `Sign in` stays the right edge, and it is a WORD there, not a white pill: it goes to the same
+ * place as the hero's `Claim your name`, so a filled box of its own put a second, brighter-looking
+ * door above the fold beside the only action the page is asking for. It keeps the row's 48px tap
+ * height and its focus ring; it loses the fill, the padding and the black label.
  */
 export function LandingNav() {
   const scrollRef = useScrollNav();
@@ -105,7 +108,7 @@ export function LandingNav() {
 
               <Link
                 href={SIGN_IN_PATH}
-                className="inline-flex h-12 items-center rounded-md bg-canvas-light px-6 text-body-sm font-semibold text-canvas-dark transition-colors duration-(--duration-quick) ease-out hover:bg-faint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-dark focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-dark"
+                className="inline-flex h-12 items-center rounded-sm text-body-sm font-semibold text-on-dark-mute transition-colors duration-(--duration-quick) ease-out hover:text-on-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-dark focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-dark"
               >
                 Sign in
               </Link>
