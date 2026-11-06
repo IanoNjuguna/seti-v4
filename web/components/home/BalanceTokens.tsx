@@ -45,16 +45,21 @@ export function BalanceTokens({ assets, currency }: BalanceTokensProps) {
   if (rows.length === 0 || !currency) return null;
 
   return (
-    <div className="mt-6 border-t border-hairline-dark pt-4">
-      <Text variant="micro" as="p" color="inverse-muted">
-        {BALANCE_TOKENS_COPY.label}
+    <section aria-labelledby="tokens-heading" className="flex flex-col gap-2">
+      <Text variant="section" as="h2">
+        <span id="tokens-heading">{BALANCE_TOKENS_COPY.label}</span>
       </Text>
 
-      <ul className="mt-1 flex flex-col">
+      {/*
+        A bordered card on the light canvas, not a block inside the dark hero (#383): this is a
+        list, and a list belongs on the page's own surface. `overflow-hidden` keeps the rows' first
+        and last hairlines inside the 12px radius.
+      */}
+      <ul className="overflow-hidden rounded-md border border-hairline-light">
         {rows.map((row) => (
           <BalanceTokenRow key={row.asset} row={row} currency={currency} />
         ))}
       </ul>
-    </div>
+    </section>
   );
 }

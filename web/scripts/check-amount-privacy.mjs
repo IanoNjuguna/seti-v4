@@ -113,7 +113,10 @@ console.log('every figure that reaches the screen goes through the mask:');
     }
   }
 
-  check('the scan found figures to guard', scanned >= 3, `${scanned}`);
+  // Two, since #383: the balance figure and each token row's value. The token row's units line was
+  // the third figure, and it is gone — one number per row now. A scan that finds fewer than this
+  // is not guarding the surface it claims to.
+  check('the scan found figures to guard', scanned >= 2, `${scanned}`);
 }
 
 console.log('the flag lives in the shell, and is not stored:');

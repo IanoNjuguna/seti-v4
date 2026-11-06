@@ -2,7 +2,6 @@
 
 import { BalanceFigure } from './BalanceFigure';
 import { BalanceNote } from './BalanceNote';
-import { BalanceTokens } from './BalanceTokens';
 import type { BalanceCardProps } from './BalanceCard.types';
 
 /**
@@ -20,16 +19,17 @@ import type { BalanceCardProps } from './BalanceCard.types';
  * `overflow-hidden` keeps the noise inside the 12px radius, and `relative` is
  * what the layer is positioned against.
  *
- * The card is the SURFACE and one of two bodies, which is the whole of this
- * file: a confirmed account gets its figure (`BalanceFigure`) and, under it, what that
- * figure is made of (`BalanceTokens`); everybody else gets one sentence where the
- * figure would be (`BalanceNote`). Splitting the body out is what keeps the dark
- * surface, the label and the place on the screen identical in both — a visitor is shown
- * the product, not a different card.
+ * The card is the SURFACE and one of two bodies: a confirmed account gets its figure
+ * (`BalanceFigure`); everybody else gets one sentence where the figure would be
+ * (`BalanceNote`). Splitting the body out is what keeps the dark surface, the label and
+ * the place on the screen identical in both — a visitor is shown the product, not a
+ * different card.
  *
- * The list is a SIBLING of the figure rather than a prop of it, because the figure is
- * the sentence and the rows are the composition: one owns the label and the eye, the
- * other owns the breakdown. Both inside this surface, so the card reads as one object.
+ * THE BREAKDOWN MOVED OUT (#383). The four token rows used to sit under the figure inside
+ * this surface, on the argument that a total and its parts are one object. The cost was a
+ * hero that grew a list: the card became the tallest thing on the screen and the balance
+ * had to share its weight with four zeros. It is now its own section below, under its own
+ * heading, on the light canvas where a list belongs (`BalanceTokens`).
  *
  * One thing, the balance. Pay, Receive, Save and Swap are the doors below, each on a page
  * of its own. A hero that is also a menu is neither.
@@ -44,7 +44,6 @@ export function BalanceCard({ data, view }: BalanceCardProps) {
       {view === 'signed-in' ? (
         <>
           <BalanceFigure data={data} />
-          <BalanceTokens assets={data?.assets} currency={data?.currency} />
         </>
       ) : (
         <BalanceNote view={view} />
