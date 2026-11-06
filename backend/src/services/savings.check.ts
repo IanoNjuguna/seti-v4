@@ -11,6 +11,7 @@
 import {
   chooseDepositAsset,
   depositFitsWithFee,
+  exitIsAvailable,
   orderDepositAssets,
   SAVINGS_ASSET,
   SAVINGS_LIVE,
@@ -229,8 +230,8 @@ if (SAVINGS_LIVE) {
 }
 
 // ---------------------------------------------------------------------------
-// THE EXIT (#339). Two things were wrong in units rather than in logic: the share
-// count was parsed at the asset's six decimals instead of the share token's eighteen,
+// THE WITHDRAWAL'S UNITS (#339). Two things were wrong in units rather than in logic: the
+// share count was parsed at the asset's six decimals instead of the share token's eighteen,
 // and "can this vault pay" was read from an API that does not list the vault at all.
 // ---------------------------------------------------------------------------
 console.log('\nwithdrawals: eighteen-decimal shares, and a vault that pays OUSD\n');
@@ -257,6 +258,68 @@ check(
   sharesForWithdrawal(10, 0) === BigInt(0)
 );
 
+
+// ---------------------------------------------------------------------------
+// THE EXIT (#343). `maxRedeem` is not evidence: Sentora OUSD Main answers zero for
+// every holder while simulating the same redeem clean, so gating on it made the
+// exit impossible for everyone. These pin the evidence ORDER instead.
+// ---------------------------------------------------------------------------
+console.log('\nthe exit is decided by the call, not by a limit this vault leaves at zero\n');
+
+const NO_SIMULATION: boolean | null = null;
+
+check(
+  'a simulated redeem is an exit even with no cash reading and no redeemable-shares limit',
+  exitIsAvailable({ shares: U(1), payout: U(1), simulated: true, vaultAssetBalance: null })
+);
+
+check(
+  'a simulated revert is a no even when the vault is sitting on the cash',
+  exitIsAvailable({ shares: U(1), payout: U(1), simulated: false, vaultAssetBalance: U(44_000_000) }) === false
+);
+
+check(
+  'with no simulation, idle cash that covers the payout is enough to offer it',
+  exitIsAvailable({ shares: U(1), payout: U(1), simulated: NO_SIMULATION, vaultAssetBalance: U(1) })
+);
+
+check(
+  'with no simulation, cash short of the payout is not',
+  exitIsAvailable({ shares: U(1), payout: U(2), simulated: NO_SIMULATION, vaultAssetBalance: U(1) }) === false
+);
+
+check(
+  'nothing measurable at all is a no, not an optimistic yes',
+  exitIsAvailable({ shares: U(1), payout: U(1), simulated: NO_SIMULATION, vaultAssetBalance: null }) === false
+);
+
+check(
+  'a zero-share or zero-payout quote is never an exit',
+  exitIsAvailable({ shares: BigInt(0), payout: U(1), simulated: true, vaultAssetBalance: U(1) }) === false &&
+    exitIsAvailable({ shares: U(1), payout: BigInt(0), simulated: true, vaultAssetBalance: U(1) }) === false
+);
+
+/*
+ * The position read, exercised against a REAL holder (#320). This is the arithmetic the
+ * summary runs, with the numbers the vault gave for 0x5e08…fc55 on 2026-11-06: the holder's
+ * share balance is 18dp, the asset is 6dp, and the vault's own previewRedeem agrees to one
+ * unit at six decimals. Before #339 the same figures were read a million times apart.
+ */
+const realHolderShares = BigInt('3788578740267929260');
+const realHolderPrice = BigInt(1_000_375); // convertToAssets(1e18), in 6dp asset units
+const positionAssets = (realHolderShares * realHolderPrice) / 10n ** 18n;
+
+check(
+  'a real holder\u2019s 18dp shares price at the vault\u2019s own 6dp payout',
+  positionAssets === BigInt(3_789_999),
+  String(positionAssets)
+);
+
+check(
+  'and that figure agrees with the vault\u2019s previewRedeem to one unit',
+  BigInt(3_790_000) - positionAssets <= BigInt(1) && positionAssets <= BigInt(3_790_000),
+  `${positionAssets} vs 3790000`
+);
 
 // ---------------------------------------------------------------------------
 // THE RECORD PATHS (#340). They verify a receipt, so the assertions are about the SHAPE
