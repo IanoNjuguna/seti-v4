@@ -37,7 +37,7 @@ export function ClosingSection() {
           </div>
 
           <div className="flex flex-col gap-4 md:col-span-5 md:items-end">
-            <ButtonLink href={SIGN_IN_PATH} variant="on-dark" fullWidth className="sm:w-auto">
+            <ButtonLink href={SIGN_IN_PATH} variant="accent" fullWidth className="sm:w-auto">
               {CLOSING_COPY.action}
             </ButtonLink>
             {/* Under the button, where the decision is made: the two facts a merchant

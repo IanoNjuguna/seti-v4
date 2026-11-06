@@ -8,8 +8,9 @@ import { QUIET_ACTION_CLASSES } from './HeroActions.constants';
  * The hero's right column under the promise: the sentence that says how it works, and
  * the one action that opens the product.
  *
- * A ROW ON A WIDE SCREEN, A STACK ON A PHONE. "Claim your name" is the filled white
- * pill (`on-dark`, the doc's `button-primary`); "See how it works" is a quiet text
+ * A ROW ON A WIDE SCREEN, A STACK ON A PHONE. "Claim your name" is the filled pill in
+ * the product's action colour (`accent`), the same one the in-app submit wears, so the
+ * action is recognisable before anyone has signed in; "See how it works" is a quiet text
  * link, not a second button — an outlined box beside the filled CTA makes the row two
  * actions of equal weight and sets the reader choosing between them instead of being
  * offered one thing to do and one thing to read. They sat stacked when this column
@@ -40,7 +41,7 @@ export function HeroActions() {
       </p>
 
       <div className="entrance entrance-3 mt-8 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-6">
-        <ButtonLink href={SIGN_IN_PATH} variant="on-dark">
+        <ButtonLink href={SIGN_IN_PATH} variant="accent">
           {HERO_COPY.primaryAction}
         </ButtonLink>
 

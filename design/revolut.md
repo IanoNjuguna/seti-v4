@@ -399,8 +399,10 @@ The accents are a functional palette, not a decorative one. Six rules, and the i
 2. **Cobalt is the primary action; lime is the money action; everything else is a status.** Cobalt
    (`{colors.primary}`, `#494fdf`) remains the only "click here" colour. Lime is reserved for the
    single submit that moves money, and it is the loudest object on the page it appears on.
-3. **One lime control per view, never disabled, never destructive.** Two yellow controls read as a
-   warning banner. Disabled is grey (`surface-soft` / `stone`); destructive is `accent-danger` with
+3. **One lime control per screenful, never disabled, never destructive.** Two yellow controls in one
+   view read as a warning banner. The marketing page's primary CTA is one of the places it belongs:
+   the same action wears the same colour before and after sign-in, five screens apart from its own
+   repeat. Disabled is grey (`surface-soft` / `stone`); destructive is `accent-danger` with
    `accent-brick` for its text.
 4. **A fill is not a text colour.** Every accent above is a fill, border or icon at its authored
    value. Body-sized type takes the `*-text` step, which is the one the ink check measures. A label
