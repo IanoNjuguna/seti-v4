@@ -38,7 +38,7 @@ full table. Read that file before quoting a range as if it were a standard.
 | H1 | exactly one, the page's promise | 1 | the page component |
 | H2 | one per band, describing the band under it | 3 | `SectionHeader` |
 | H3 | items inside a band, never empty, never nav labels | 6 | the item components |
-| Words on an indexable page | 600 to 800 | 235 | the page |
+| Words on an indexable page | 600 to 800 | 235 (682 by 2026-11-06) | the page |
 | Structured data | Organization and WebSite global, FAQPage where an FAQ exists, BreadcrumbList on child pages | none | `layout.tsx` and child routes |
 | Sitemap | generated at `/sitemap.xml` | 404 | `web/app/sitemap.ts` |
 | robots.txt | directives, and a `Sitemap:` line | comment-only Cloudflare file, no directives | `web/app/robots.ts` |
@@ -149,12 +149,12 @@ One primary term per URL, which is how the arithmetic gets fixed: one page canno
 cluster. Each child page links to `/pricing` and to signup, and the blog posts link to the page
 they support.
 
-| URL | Primary term | Words | State |
+| URL | Primary term | Words | State, 2026-11-06 |
 | --- | --- | --- | --- |
-| `/` | get paid by QR, Kenya | 600 to 800 | exists, 235 words, no schema |
+| `/` | get paid by QR, Kenya | 600 to 800 | ships: 682 words, 9-question FAQ with `FAQPage` |
 | `/receive-from-abroad` | receive money from abroad in dollars | 600 | to build, first, the avatar page |
-| `/pricing` | 2% fee payments Kenya, M-Pesa alternative | 500 to 700 | to build |
-| `/how-it-works` | how to accept dollar payments in Kenya | 600 | to build |
+| `/pricing` | 2% fee payments Kenya, M-Pesa alternative | 500 to 700 | ships (#306), `BreadcrumbList` |
+| `/how-it-works` | how to accept dollar payments in Kenya | 600 | ships (#306), `BreadcrumbList` |
 | `/for/shops-and-traders` | QR payments for shops in Kenya | 500 | to build |
 | `/for/online-sellers` | accept payments online in Kenya | 500 | to build |
 | `/learn` | dollar payments in Kenya (hub) | index | to build |
@@ -303,17 +303,38 @@ Run this on every copy or structure change. Each line has caught a real defect h
 `scripts/check-seo.mjs` before changing a page: its docstring states what it checks and, more
 usefully, what green does not mean.
 
-It asserts, over the repository's own files:
+It asserts, over the repository's own files, in eleven groups and 49 assertions (measured
+2026-11-06 by running it; count them from `scripts/check-seo.mjs`, never from memory):
 
-- the landing `description` is 140 to 155 characters, names a place, and states `2%`;
-- the landing `title` is 45 to 60 characters and ends with the brand;
-- the landing tree carries exactly one `h1`;
-- `app/sitemap.ts` lists exactly the four public paths, and `app/robots.ts` names the sitemap;
-- `layout.tsx` renders a `ld+json` script, and the structured-data module names `Organization`
-  and `WebSite`;
-- `public/llms.txt` exists and says something;
-- the five private surfaces carry `index: false`;
-- the claims the copy cut stay cut: "No hidden charges", "Neo-Bank", "settles instantly".
+1. **Title and description** — the landing `title` is 45 to 60 characters and ends with the
+   brand; the `description` is 140 to 155, names a place, and states `2%`.
+2. **One `h1`** — the landing tree carries exactly one, and `app/page.tsx` has none of its own.
+3. **Sitemap and robots** — `app/sitemap.ts` names exactly the six public paths and no private
+   surface, every path it names is a route, and `app/robots.ts` names the sitemap.
+4. **Structured data at the root** — `layout.tsx` renders a `ld+json` script and the
+   structured-data module names `Organization` and `WebSite`.
+5. **`public/llms.txt`** exists and says something.
+6. **The five private surfaces** carry `index: false`.
+7. **The claims the copy cut stay cut** — "No hidden charges", "Neo-Bank", "settles instantly".
+8. **Enough copy to be quotable** — the landing ships 600 to 800 words of copy, from constants
+   only (682 in 19 files today), not counting a component's own prose.
+9. **The heading outline** — every band yields exactly one `h2`, each item is an `h3`, and
+   nothing goes deeper than `h3`.
+10. **The FAQ's structured data** — one `Question` node per question the band actually renders,
+    built from the band's own constants, one copy of each answer, every answer rendered rather
+    than hidden behind a control, and the `FAQPage` node published by the home page only.
+11. **The trail a child page publishes** — `BreadcrumbList` with absolute `item` URLs built
+    from `SITE_ORIGIN`, and `/pricing` and `/how-it-works` each publishing their own.
+
+Two rules came out of the day that produced most of those groups, and both are the kind a
+reviewer will not catch:
+
+- **Structured data describes its own document.** The `FAQPage` node was on every route, so
+  `/pricing` published a FAQ it does not show. A page's schema may only describe what that page
+  contains: `FAQPage` on the home page, a `BreadcrumbList` per child page.
+- **A sitemap entry must have a route behind it.** A path in `app/sitemap.ts` with no route is a
+  promise to a crawler that answers 404. Assertion 3d exists because that is exactly what
+  happened when `/pricing` and `/how-it-works` were planned before they were built.
 
 Two properties of it are deliberate and worth keeping:
 
@@ -327,24 +348,38 @@ recording that "No hidden charges" was deleted, and `sitemap.ts` naming `/app` t
 excluded. A check that punishes the page's own record of a decision teaches people to delete the
 record.
 
-**Still to come:** the 600 to 800 word floor is not asserted, because no page reaches it yet. Add it
-with the copy that earns it, never before, and prove it red first. A gate nobody has seen red is a
-gate that is not running.
+**The word floor is asserted now, and only because the copy earned it.** Group 8 arrived with the
+copy that reached it, not before, and was proved red first. That order is the rule for the next
+assertion as well: add a gate with the change that satisfies it, and watch it fail once. A gate
+nobody has seen red is a gate that is not running.
 
-## Where the site stands, 2026-11-03
+## Where the site stands, 2026-11-06
 
-The table above is a measurement taken on 2026-10-31 and kept as a measurement, not as current
-state. After #299 the landing page reads:
+Every figure below was read on 2026-11-06: the copy counts from `npm run check:seo`'s own output,
+the paths from `app/sitemap.ts`. It is a measurement with a date, not a promise, and it is wrong the
+moment a page changes: re-run the gate before quoting it.
 
 | Field | Now | Where |
 | --- | --- | --- |
 | `title` | 46, "Get paid in dollars by QR code in Kenya · Seti" | `web/app/layout.tsx` |
 | `description` | 153, states the 2% and Thika | same |
-| Sitemap | generated, four entries: `/`, `/privacy`, `/terms`, `/cookies` | `web/app/sitemap.ts` |
+| Public routes | six: `/`, `/pricing`, `/how-it-works`, `/privacy`, `/terms`, `/cookies` | `web/app/sitemap.ts` |
 | robots.txt | generated, allows crawling, names the sitemap | `web/app/robots.ts` |
-| Structured data | `Organization` and `WebSite`, `areaServed` Kenya, no `sameAs` | `web/lib/structured-data.ts` |
-| `llms.txt` | exists, pointers plus what Seti does not do | `web/public/llms.txt` |
-| Words | still 235 | `web/app/page.tsx` |
-| Hidden from crawlers | `/app/*`, `/signin`, `/r/*`, `/pay/*`, `/u/*` | `robots` in each route |
+| Structured data | `Organization` and `WebSite` at the root; `BreadcrumbList` on `/pricing` and `/how-it-works`; `FAQPage` on the home page only | `web/lib/structured-data.ts`, `web/lib/faq-schema.ts`, `MarketingBreadcrumb.tsx` |
+| `llms.txt` | exists, 1141 characters, pointers plus what Seti does not do | `web/public/llms.txt` |
+| Words | 682, from constants only, across 19 files | `web/app/components/landing/*.constants.ts` |
+| FAQ | 9 questions, one copy of each answer | `FaqSection.constants.ts` |
+| Hidden from crawlers | `/app/*`, `/signin`, `/r/*`, `/pay/*`, `/u/*` — the five group 6 pins | `robots` in each route |
+| Gate | 49 assertions in 11 groups | `scripts/check-seo.mjs` |
 
-The word count and the FAQ are the next copy change, and the child pages after them.
+Two things this table deliberately records as gaps rather than as state:
+
+- **`/m/[handle]` is indexable and not in the sitemap.** The merchant page a printed sticker opens
+  publishes a title and description and no `robots` rule, so a search engine may index a per-merchant
+  page that the sitemap does not enumerate and group 6 does not pin. It is a decision waiting to be
+  made, not a fact that is settled.
+- **`/app/swap` is inside the `/app` tree,** so it inherits `index: false` from that layout and adds
+  its own; nothing about it is crawlable, and that is deliberate while it is a product screen.
+
+An undated "where the site stands" that drifts is the defect this skill exists to prevent, applied
+to itself: if you change a page, change the row, or delete the row.
