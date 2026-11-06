@@ -53,11 +53,13 @@ const PHONE_WEEKS = 26;
 function Grid({ columns, className }: { columns: StreakCell[][]; className?: string }) {
   const marks = monthMarks(columns);
   /**
-   * Columns share the card's width, but only up to 14px each.
+   * Columns share the card's width, and none of them exceeds 14px.
    *
-   * The strip starts at the account's first payment, so a merchant three days in has a handful of
-   * columns. Left to `1fr` alone those columns became 300px squares; the cap keeps a short strip a
-   * short strip, and a full year still divides whatever width it is given.
+   * The cap is what keeps the map the same HEIGHT at every span. Left to `1fr` alone, a
+   * three-day account drew one column as wide as the card and seven rows of it were 300px tall.
+   * Growing the cap instead (40px) made the same column 290px tall, which is worse than the empty
+   * space it was meant to fill. At 14px the strip is always about 100px tall and a young account
+   * simply has a narrow strip (#381).
    */
   const track = {
     gridTemplateColumns: `repeat(${columns.length || 1}, minmax(0, 1fr))`,
