@@ -30,12 +30,11 @@ import type { HomeSummaryProps } from './HomeSummary.types';
  * It is drawn from the account's first payment to today, so a new merchant gets a narrow strip
  * rather than a year of nothing or, as once shipped, a sentence instead of the grid (#381).
  *
- * ## A card, not a row on the canvas
+ * ## On the canvas, not in a card
  *
- * The map sits in its own bordered surface (#383, the owner's sketch): the page is now three
- * objects — the balance, the doors, the streak — and a strip of squares floating between them read
- * as a divider rather than as a thing. The border brightens one step on hover, and the label and
- * chevron still carry the affordance.
+ * It is a row, not a surface (#385). A border here made the streak a fourth object competing with
+ * the balance card above it; the map is a picture of the account's activity and the page's own
+ * surface is enough to hold it.
  *
  * ## No amounts, so nothing to mask
  *
@@ -55,7 +54,7 @@ export function HomeSummary({ year }: HomeSummaryProps) {
   return (
     <Link
       href={HOME_PAGE_COPY.summaryHref}
-      className="group flex flex-col gap-3 rounded-md border border-hairline-light p-4 transition-colors duration-(--duration-quick) ease-out hover:border-hairline-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      className="group flex flex-col gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
     >
       <span className="flex items-center justify-between gap-4">
         {/*

@@ -19,9 +19,8 @@ import type { BalanceTokenRowProps } from './BalanceTokens.types';
  *
  * ## The row is a line, not a tile
  *
- * A hairline between rows (`border-b`, dropped on the last one), `py-3`, and no fill: the card's
- * border already draws the object, and a row that painted itself would be a second box inside the
- * first. Zero rows keep the same shape as funded ones — a row that vanished is how a customer
+ * A hairline between rows (`border-b`, dropped on the last one), `py-3`, and no fill: with the card
+ * gone there is no second box inside a first, and the rule is the only thing separating the rows. Zero rows keep the same shape as funded ones — a row that vanished is how a customer
  * concludes an asset disappeared — and they recede by colour alone.
  *
  * ## The value is masked with the figure above it
@@ -37,7 +36,7 @@ export function BalanceTokenRow({ row, currency }: BalanceTokenRowProps) {
   const value = formatFiat(Number(row.value), currency);
 
   return (
-    <li className="flex min-h-14 items-center justify-between gap-4 border-b border-hairline-light px-4 py-3 last:border-b-0">
+    <li className="flex min-h-14 items-center justify-between gap-4 border-b border-hairline-light py-3 last:border-b-0">
       <Text variant="body-medium" as="span" color={row.zero ? 'secondary' : 'primary'} className="truncate">
         {row.name}
       </Text>
