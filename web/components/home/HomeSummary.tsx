@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Icon } from '@/components/ui/Icon';
+import { streakTotals, stripLabel } from './home.streak';
 import { StreakMap } from './StreakMap';
 import { HOME_PAGE_COPY } from './HomePage.constants';
 import type { HomeSummaryProps } from './HomeSummary.types';
@@ -31,6 +32,23 @@ import type { HomeSummaryProps } from './HomeSummary.types';
  * reconciled totals it used to print are still on `/app/activity?view=analytics`.
  */
 export function HomeSummary({ year }: HomeSummaryProps) {
+  /**
+   * No payments yet is a sentence, not a year of pale squares.
+   *
+   * A grid of nothing is a picture of a year the account did not have, and it is the first thing a
+   * new merchant sees on their home screen. The row keeps its tap-through either way.
+   */
+  const label = stripLabel(year.days, year.daily[0]?.date);
+  /**
+   * Under eight weeks there is no shape to draw, only a column or two of squares (#375).
+   *
+   * A merchant three days in was shown one column of dots standing in a card of white, which reads
+   * as a broken chart rather than as "you are new". Below eight weeks the row says the numbers in
+   * a sentence and leaves the grid for a strip that can carry it.
+   */
+  const drawable = year.days >= 56;
+  const totals = streakTotals(year.daily);
+
   return (
     <Link
       href={HOME_PAGE_COPY.summaryHref}
@@ -46,7 +64,7 @@ export function HomeSummary({ year }: HomeSummaryProps) {
           "in flight" in this system, so borrowing either would say something untrue about the row.
         */}
         <span className="text-body-sm text-ash underline-offset-4 transition-colors duration-(--duration-quick) ease-out group-hover:text-ink group-hover:underline">
-          {HOME_PAGE_COPY.streakLabel}
+          {label}
         </span>
         <Icon
           name="chevronRight"
@@ -54,7 +72,13 @@ export function HomeSummary({ year }: HomeSummaryProps) {
         />
       </span>
 
-      <StreakMap daily={year.daily} />
+      {drawable ? (
+        <StreakMap daily={year.daily} />
+      ) : totals.payments > 0 ? (
+        <span className="text-body-sm text-ash">
+          {HOME_PAGE_COPY.streakSummary(totals.payments, totals.activeDays)}
+        </span>
+      ) : null}
     </Link>
   );
 }

@@ -34,6 +34,23 @@ const MONDAY = 1;
 /** One letter per month, for the row above the grid. */
 export const MONTH_INITIALS = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'] as const;
 
+/** Spelled out for the period label, where `4 Nov` has room to be a date. */
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
+
+/**
+ * What period the strip covers, in the words the strip deserves (#375).
+ *
+ * A merchant three days old was shown `Last 12 months` over a year of empty squares. The window
+ * now starts at their first payment, so the label says what it is: `Since 4 Nov` while the account
+ * is young, `Last 12 months` once the window is a full year.
+ */
+export function stripLabel(days: number, firstDate: string | undefined): string {
+  if (days >= 365) return 'Last 12 months';
+  if (!firstDate) return 'No payments yet';
+  const month = Number(firstDate.slice(5, 7)) - 1;
+  return `Since ${Number(firstDate.slice(8, 10))} ${MONTH_SHORT[month]}`;
+}
+
 /** Monday-first index of a `YYYY-MM-DD` key, in UTC, matching how the server buckets. */
 export function weekdayIndex(date: string): number {
   const at = new Date(`${date}T00:00:00Z`).getUTCDay(); // 0 = Sunday

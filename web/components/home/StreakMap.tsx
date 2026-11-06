@@ -23,7 +23,10 @@ import type { StreakMapProps } from './StreakMap.types';
  *
  * ## The colours, and why green
  *
- * Five steps: a quiet day is `surface-soft`, then `accent-light-green` at 25, 50, 75 and 100.
+ * Five steps: a quiet day is `hairline-light`, then `accent-light-green` at 25, 50, 75 and 100.
+ * The quiet day darkened a step (#375): on a white card `surface-soft` (#f4f4f4) was so close to
+ * the paper that a year of empty Sundays read as blank space rather than as squares that are
+ * there. `hairline-light` is the lightest rule in the system and the only grey between the two.
  * Green is the app's money-in role — the colour a received payment's figure already wears in the
  * stack and the ledger — so the map needs no legend to say what it counts and no new token enters
  * the system. The levels are absolute (1, 2, 3, 4+), never scaled to the busiest day: one busy
@@ -36,7 +39,7 @@ import type { StreakMapProps } from './StreakMap.types';
  * reconciled totals stays the row's action.
  */
 const LEVEL_CLASSES: Record<0 | 1 | 2 | 3 | 4, string> = {
-  0: 'bg-surface-soft',
+  0: 'bg-hairline-light',
   1: 'bg-accent-light-green/25',
   2: 'bg-accent-light-green/50',
   3: 'bg-accent-light-green/75',
@@ -49,7 +52,17 @@ const PHONE_WEEKS = 26;
 /** One grid of columns, with its month letters above it. */
 function Grid({ columns, className }: { columns: StreakCell[][]; className?: string }) {
   const marks = monthMarks(columns);
-  const track = { gridTemplateColumns: `repeat(${columns.length || 1}, minmax(0, 1fr))` };
+  /**
+   * Columns share the card's width, but only up to 14px each.
+   *
+   * The strip starts at the account's first payment, so a merchant three days in has a handful of
+   * columns. Left to `1fr` alone those columns became 300px squares; the cap keeps a short strip a
+   * short strip, and a full year still divides whatever width it is given.
+   */
+  const track = {
+    gridTemplateColumns: `repeat(${columns.length || 1}, minmax(0, 1fr))`,
+    maxWidth: `${(columns.length || 1) * 14}px`,
+  };
 
   return (
     <div aria-hidden className={`flex flex-col gap-[3px] ${className ?? ''}`}>
