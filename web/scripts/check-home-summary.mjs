@@ -56,6 +56,9 @@ const { PAID_RECENTLY_LIMIT, longestWindow, paidRecently } = await import(
   '../components/home/home.summary.ts'
 );
 const { formatFiat } = await import('../lib/formatCurrency.ts');
+const { levelFor, streakTotals, streakWeeks, weekdayIndex } = await import(
+  '../components/home/home.streak.ts'
+);
 
 const WEB = path.resolve(import.meta.dirname, '..');
 
@@ -308,6 +311,38 @@ console.log('the rows are ink tokens, not colours:');
     const source = stripComments(readFileSync(path.join(WEB, 'components/home', file), 'utf8'));
     check(`${file} has no raw hex`, !/#[0-9a-f]{3,8}\b/i.test(source));
   }
+}
+
+/*
+ * The streak map (#369). The grid is drawn from the server's daily series, so what has to be
+ * true is that a calendar comes out of it: seven cells a row, the days under their own weekday
+ * letters, and the quiet days shown rather than skipped.
+ */
+console.log('the streak map fits a calendar:');
+{
+  const day = (date, count) => ({ date, count });
+
+  // 2026-10-08 is a Thursday (index 3), so the first row pads Mon..Wed and starts at 3.
+  const daily = [
+    day('2026-10-08', 2), day('2026-10-09', 0), day('2026-10-10', 1), day('2026-10-11', 4),
+    day('2026-10-12', 0), day('2026-10-13', 3), day('2026-10-14', 1),
+  ];
+  const weeks = streakWeeks(daily);
+
+  check('every row holds seven cells', weeks.every((week) => week.length === 7), String(weeks.length));
+  check('the leading pads are outside the window, not quiet days', weeks[0][0].count === null && weeks[0][2].count === null);
+  check('the first day lands under its own weekday', weeks[0][3].date === '2026-10-08', weeks[0][3].date);
+  check('and the row after it starts on a Monday', weeks[1][0].date === '2026-10-12', weeks[1][0].date);
+  check('a Thursday is index 3 in a Monday-first week', weekdayIndex('2026-10-08') === 3, String(weekdayIndex('2026-10-08')));
+  check('a Sunday closes the week at index 6', weekdayIndex('2026-10-11') === 6, String(weekdayIndex('2026-10-11')));
+
+  check('no payments is the empty step', levelFor(0) === 0);
+  check('the steps are absolute: 1, 2, 3, then everything above', levelFor(1) === 1 && levelFor(2) === 2 && levelFor(3) === 3 && levelFor(9) === 4);
+
+  const totals = streakTotals(daily);
+  check('the sentence counts quiet days out', totals.activeDays === 5, String(totals.activeDays));
+  check('and the payments in', totals.payments === 11, String(totals.payments));
+  check('an empty series is an empty grid', streakWeeks([]).length === 0);
 }
 
 console.log('-'.repeat(74));

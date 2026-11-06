@@ -13,7 +13,7 @@
  * No database: `summariseWindow` takes rows, so the behaviour is provable without one.
  */
 import type { AnalyticsRow } from './analytics.js';
-import { convertWindow, directionOf, summariseWindow } from './analytics.js';
+import { convertWindow, dayKey, directionOf, summariseWindow } from './analytics.js';
 
 let passed = 0;
 let failures = 0;
@@ -189,6 +189,52 @@ console.log('the three figures reconcile:');
 
   const empty = convertWindow({ in: 0, out: 0 }, rate);
   check('an empty window is three zeros', empty.in === '0.00' && empty.out === '0.00' && empty.net === '0.00');
+}
+
+/*
+ * The daily series (#369). The streak map draws one square per day, so what matters is that
+ * the series is a CALENDAR: n entries, oldest first, one per day, with the quiet days present
+ * as zeros rather than missing.
+ */
+{
+  const now = new Date('2026-11-06T12:00:00Z');
+  const at = (daysAgo: number, hours = 9) =>
+    new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000 + hours * 60 * 60 * 1000);
+  const row = (type: AnalyticsRow['type'], daysAgo: number, amount = 10): AnalyticsRow => ({
+    type,
+    status: 'completed',
+    amount: String(amount),
+    createdAt: at(daysAgo),
+    merchantName: 'Shop',
+  });
+
+  const totals = summariseWindow(
+    [row('payment', 0), row('payment', 0), row('p2p_receive', 2), row('payment', 29)],
+    30,
+    now
+  );
+
+  check('a 30-day window returns exactly 30 days', totals.daily.length === 30, String(totals.daily.length));
+  check(
+    'the series is oldest first and ends on the day it was measured',
+    totals.daily[0].date === dayKey(at(29)) && totals.daily[29].date === dayKey(at(0)),
+    `${totals.daily[0].date} … ${totals.daily[29].date}`
+  );
+  check(
+    'a quiet day is a zero, not a missing row',
+    totals.daily.every((day) => typeof day.count === 'number') &&
+      totals.daily.reduce((sum, day) => sum + day.count, 0) === 4,
+    String(totals.daily.reduce((sum, day) => sum + day.count, 0))
+  );
+  check(
+    'two payments on one day count as two, not one',
+    totals.daily[29].count === 2,
+    String(totals.daily[29].count)
+  );
+  check(
+    'a pending row is absent from the series as well as the totals',
+    summariseWindow([{ ...row('payment', 0), status: 'pending' }], 30, now).daily.every((d) => d.count === 0)
+  );
 }
 
 console.log('-'.repeat(74));

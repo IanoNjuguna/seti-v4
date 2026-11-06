@@ -19,6 +19,13 @@ export interface AnalyticsMerchant {
   total: string;
 }
 
+export interface DailyCount {
+  /** `YYYY-MM-DD`, UTC — the same calendar day the server buckets on. */
+  date: string;
+  /** Money movements that day. Zero is a fact: the day was inside the window and quiet. */
+  count: number;
+}
+
 export interface AnalyticsWindow {
   days: number;
   in: string;
@@ -27,6 +34,8 @@ export interface AnalyticsWindow {
   count: number;
   skipped: number;
   merchants: AnalyticsMerchant[];
+  /** One entry per day in the window, oldest first, zero-filled (#369). */
+  daily: DailyCount[];
 }
 
 export interface AnalyticsSummary {

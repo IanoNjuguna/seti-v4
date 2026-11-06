@@ -33,6 +33,26 @@ export const HOME_PAGE_COPY = {
   seeAll: 'See all',
   /** What makes a total legible: one payment and nine are different facts. */
   paymentCount: (count: number): string => (count === 1 ? '1 payment' : `${count} payments`),
+  /**
+   * The streak map's own words (#369).
+   *
+   * The sentence carries the measurement for a screen reader and for a reader who does not
+   * decode five shades of green; the grid itself is decorative. `payments across N days`
+   * rather than `N active days` because a merchant thinks in payments, not in active days.
+   */
+  streakSummary: (payments: number, activeDays: number): string =>
+    `${payments} ${payments === 1 ? 'payment' : 'payments'} · ${activeDays} ${
+      activeDays === 1 ? 'day' : 'days'
+    }`,
+  /** One day's count, for the hover title on a square. */
+  streakDay: (count: number): string =>
+    count === 0 ? 'no payments' : count === 1 ? '1 payment' : `${count} payments`,
+  /** The ramp's own labels, as short as the squares they sit between. */
+  streakFewer: 'Fewer',
+  streakMore: 'More',
+  /** Monday first, three letters, matching the grid's columns. */
+  streakWeekdays: ['M', 'T', 'W', 'T', 'F', 'S', 'S'] as const,
+
   /** The invite that brought this visitor names nobody (see `HomeSignedOutGate`). */
   inviteNotLive: 'That invite link is not live.',
 } as const;
