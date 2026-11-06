@@ -53,7 +53,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_ORIGIN),
   title: "Get paid in dollars by QR code in Kenya · Seti",
   description:
-    "A customer scans the code on your counter or types your name, and the dollars land in your own wallet. 2% of each payment, no monthly fee. Made in Thika.",
+    "A customer scans the code on your counter or types your name, and the dollars land in your own wallet. One flat fee, no monthly fee. Made in Thika.",
   keywords: ["get paid", "dollar payments", "QR payments", "Kenya", "Thika", "Tempo", "OUSD", "pathUSD"],
   /* The preview card restates the title and description rather than inventing
      a shorter variant: a link that says something different from the page it
@@ -63,7 +63,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Get paid in dollars by QR code in Kenya · Seti",
     description:
-      "A customer scans the code on your counter or types your name, and the dollars land in your own wallet. 2% of each payment, no monthly fee. Made in Thika.",
+      "A customer scans the code on your counter or types your name, and the dollars land in your own wallet. One flat fee, no monthly fee. Made in Thika.",
     url: SITE_ORIGIN,
     siteName: "Seti",
     locale: "en_KE",
@@ -76,7 +76,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Get paid in dollars by QR code in Kenya · Seti",
     description:
-      "A customer scans the code on your counter or types your name, and the dollars land in your own wallet. 2% of each payment, no monthly fee. Made in Thika.",
+      "A customer scans the code on your counter or types your name, and the dollars land in your own wallet. One flat fee, no monthly fee. Made in Thika.",
   },
   /* The tab: the mark on its own, no tile. The tab is chrome the mark does not
      own, and it is the one place the alien is all a visitor sees, so a black

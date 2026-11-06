@@ -22,11 +22,12 @@ import { FEE_COPY } from './FeesSection.constants';
  * `minmax(0,1fr) 22rem` with a 40px gap. The detail column is fixed because its
  * strings are the long ones and a column that gave width away would wrap them into
  * the label's baseline; the label column takes whatever is left, and its widest
- * label ("2% of each payment") renders 236px, so it has hundreds of pixels of
- * slack. The column grew to 22rem while the first row was carrying the payer's
- * wording (the longer of the two); that wording is gone with the personal reading,
- * and the column is left at the width the pair was measured at rather than quietly
- * narrowed. Re-measure this pair if the fee copy moves again.
+ * label ("One flat fee a payment", which replaced "2% of each payment" in #348 and is
+ * wider than the 236px that one measured) has not been re-measured since. The column
+ * grew to 22rem while the first row was carrying the payer's wording (the longer of
+ * the two); that wording is gone with the personal reading, and the column is left at
+ * the width the pair was measured at rather than quietly narrowed. Re-measure this
+ * pair when the fee copy moves again: it moved in #348.
  *
  * IT USED TO CARRY A LINK. "Where the 2% goes" pointed at the footer's treasury
  * block, which published the address the fee is collected to, the one claim on this

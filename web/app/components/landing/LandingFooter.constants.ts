@@ -93,7 +93,7 @@ export const FOOTER_STATEMENT: readonly string[] = [
  * register a reader checking a footer is already in.
  */
 export const FOOTER_FACTS: readonly FooterFact[] = [
-  { label: 'Flat fee', value: '2%' },
+  { label: 'Fee', value: 'Flat' },
   { label: 'Monthly fee', value: 'None' },
   { label: 'Holds your money', value: 'Never' },
 ];

@@ -7,7 +7,7 @@ import type { FooterFactsProps } from './LandingFooter.types';
  *
  * `dl` and not three `<p>`s, because these are termin-value pairs and a screen
  * reader should read them as such. The figures are `font-tabular` — the design
- * system's rule for anything numeric — so the `2%` sits in the mono face with the
+ * system's rule for anything numeric — so the fee's answer sits in the mono face with the
  * rest of the page's numbers rather than in the brand face by accident.
  *
  * THE THREE ANSWERS ARE THE PRODUCT'S OWN FACTS, not a pitch: the fee is 2% flat
