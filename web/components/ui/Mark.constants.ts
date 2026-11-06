@@ -13,7 +13,7 @@ import type { MarkSize, MarkTone } from './Mark.types';
  * accent-blue-link 4.92:1, accent-brown 4.56:1.
  *
  * Three colours from the same accent family were deliberately left out: accent-teal
- * (3.04:1), accent-danger (4.24:1) and accent-yellow (well under 4:1). They are fine as
+ * (3.04:1), accent-danger (4.24:1) and accent-lime (well under 4:1). They are fine as
  * an accent on white, which is how the system uses them, and too weak as a surface with
  * white text on top.
  */

@@ -100,11 +100,11 @@ export const DEFAULT_COLOR_CLASSES: Record<TextVariant, string> = {
  * THE STATUS ROLES NAME INK TOKENS, NOT FILL TOKENS, and those tokens resolve
  * per canvas (`--color-ink-*` in `app/globals.css`). That split is the fix for
  * three of the app's text colours being below AA: the roles used to point
- * straight at the accents (`accent-danger`, `accent-yellow`, `accent-warning`),
+ * straight at the accents (`accent-danger`, `accent-lime`, `accent-warning`),
  * which are the colours the doc reserves for illustrations, chrome and fills and
  * which READ ON BLACK, so as text on a white band they measured 4.24:1,
  * 3.07:1 and 2.78:1. `design/revolut.md` already names the pattern
- * (`accent-deep-red` is "inline error text", `accent-danger` the error state),
+ * (`accent-brick` is "inline error text", `accent-danger` the error state),
  * and the same pair exists for success (`accent-green-text`); the roles now use
  * the text-grade step on white and keep the fill accent inside a dark canvas,
  * where the receipt draws two of them. Every fill, border and icon in the app
@@ -119,6 +119,7 @@ export const COLOR_CLASSES: Record<TextColor, string> = {
   accent: 'text-primary',
   success: 'text-ink-success',
   warning: 'text-ink-warning',
+  progress: 'text-ink-progress',
   // The doc's warning orange, used where the app marks a STATE rather than a
   // problem — the practice marks on the frame and the rail. It takes its
   // text-grade step on a white canvas and stays `accent-warning` on the black

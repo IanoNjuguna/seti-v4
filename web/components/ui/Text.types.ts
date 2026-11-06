@@ -38,6 +38,13 @@ export type TextColor =
   | 'success'
   | 'warning'
   /**
+   * A payment that is OUT and not yet settled. Distinct from `warning`,
+   * which is a caution about something the reader can still change: this is
+   * a fact about a row in flight, and it takes the cyan so the product's
+   * yellow stays reserved for the one control that moves money.
+   */
+  | 'progress'
+  /**
    * The reserved warning-ORANGE product accent. Distinct from `warning`, which is
    * the status role a caution line wears on a light card: this is the colour the
    * chrome marks PRACTICE in, where yellow would read as a status and orange
