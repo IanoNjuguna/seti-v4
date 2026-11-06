@@ -58,7 +58,7 @@ export function HomeScreen() {
 
       <HomeActions />
 
-      {summary.window ? <HomeSummary window={summary.window} currency={summary.currency} /> : null}
+      {summary.year ? <HomeSummary year={summary.year} /> : null}
 
       {summary.merchants.length > 0 ? (
         <HomeMerchants merchants={summary.merchants} currency={summary.currency} />

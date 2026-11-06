@@ -1,36 +1,39 @@
 import { Text } from '@/components/ui';
 import { HOME_PAGE_COPY } from './HomePage.constants';
-import { levelFor, streakTotals, streakWeeks } from './home.streak';
+import { levelFor, monthMarks, streakColumns, streakTotals, type StreakCell } from './home.streak';
 import type { StreakMapProps } from './StreakMap.types';
 
 /**
- * The last thirty days as a calendar of squares: the money's year, one day at a time (#369).
+ * A year of payments as a contribution graph: one square a day (#371).
  *
- * It replaces the row that printed `-KES 486.02 · +KES 96.82`. That row was two totals and no
- * shape: a customer could read how much moved and not whether the week was good, and the
- * figure told them nothing about the days between the two. The map says both, and the totals
- * still live one tap away on Activity's analytics view, which is where they were reconciled.
+ * ## What it replaced, twice
  *
- * ## The layout, and where it came from
+ * First the row printed `-KES 486.02 · +KES 96.82` — two totals with no shape, and nothing about
+ * the days between them. Then it plotted thirty days with weeks as rows, which was right for a
+ * month and wrong for the space: seven columns of five squares left two thirds of the row empty.
+ * A year rotated the other way — a column a week, seven rows for the weekdays — fills the row, and
+ * every day of the year has a place in it.
  *
- * Weekdays across the top, one row per week, from a survey of how this is drawn elsewhere
- * (Cursor's and Gorgias' contribution grids draw weekdays down the side; that shape is wide
- * because it plots a year). Thirty days rotated to seven columns fills a phone's width, and
- * it is the orientation of the month grid the reader already knows.
+ * ## The year on a laptop, half of it on a phone
+ *
+ * Fifty-three columns in a 320px card is four-pixel squares: texture, not a calendar. So the phone
+ * gets the last twenty-six weeks at twice the cell size and the laptop gets all fifty-three. Both
+ * are rendered and CSS hides one — no media-query hook, no state, and the same first frame on the
+ * server and in the browser.
  *
  * ## The colours, and why green
  *
- * Five steps: an empty day is `surface-soft`, then `accent-light-green` at 25, 50, 75 and
- * 100. Green is the app's money-in role — the same colour a received payment's figure wears
- * in the stack and the ledger — so the map needs no legend to say what it is counting, and
- * no new token enters the system. The levels are absolute (1, 2, 3, 4+), not scaled to the
- * busiest day: a busy Saturday must not make a one-payment Tuesday look empty.
+ * Five steps: a quiet day is `surface-soft`, then `accent-light-green` at 25, 50, 75 and 100.
+ * Green is the app's money-in role — the colour a received payment's figure already wears in the
+ * stack and the ledger — so the map needs no legend to say what it counts and no new token enters
+ * the system. The levels are absolute (1, 2, 3, 4+), never scaled to the busiest day: one busy
+ * Saturday must not make every ordinary day look empty.
  *
  * ## What a screen reader gets
  *
- * The grid is `aria-hidden`: thirty squares with a date each is a table nobody asked to hear.
- * The sentence above it carries the measurement ("14 payments across 9 days"), which is the
- * same fact in one clause. The tap-through to the figures stays the row's action.
+ * Both grids are `aria-hidden`. Three hundred squares with a date each is a table nobody asked to
+ * hear; the sentence under them carries the same fact in one clause, and the tap-through to the
+ * reconciled totals stays the row's action.
  */
 const LEVEL_CLASSES: Record<0 | 1 | 2 | 3 | 4, string> = {
   0: 'bg-surface-soft',
@@ -40,43 +43,59 @@ const LEVEL_CLASSES: Record<0 | 1 | 2 | 3 | 4, string> = {
   4: 'bg-accent-light-green',
 };
 
+/** How many weeks a phone shows: half a year, at a cell size a thumb could point at. */
+const PHONE_WEEKS = 26;
+
+/** One grid of columns, with its month letters above it. */
+function Grid({ columns, className }: { columns: StreakCell[][]; className?: string }) {
+  const marks = monthMarks(columns);
+  const track = { gridTemplateColumns: `repeat(${columns.length || 1}, minmax(0, 1fr))` };
+
+  return (
+    <div aria-hidden className={`flex flex-col gap-[3px] ${className ?? ''}`}>
+      <div className="grid gap-[2px] sm:gap-[3px]" style={track}>
+        {marks.map((mark) => (
+          <span
+            key={`${mark.column}-${mark.label}`}
+            style={{ gridColumnStart: mark.column }}
+            className="justify-self-start text-body-sm leading-none text-ash"
+          >
+            {mark.label}
+          </span>
+        ))}
+      </div>
+
+      <div className="grid grid-flow-col grid-rows-7 gap-[2px] sm:gap-[3px]" style={track}>
+        {columns.flatMap((column) =>
+          column.map((cell, rowIndex) =>
+            cell.count === null ? (
+              <span
+                key={`pad-${column[0].date ?? rowIndex}-${rowIndex}`}
+                className="aspect-square rounded-[2px] opacity-0"
+              />
+            ) : (
+              <span
+                key={cell.date}
+                title={`${cell.date}: ${HOME_PAGE_COPY.streakDay(cell.count)}`}
+                className={`aspect-square rounded-[2px] ${LEVEL_CLASSES[levelFor(cell.count)]}`}
+              />
+            )
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function StreakMap({ daily }: StreakMapProps) {
-  const weeks = streakWeeks(daily);
+  const columns = streakColumns(daily);
+  const phoneColumns = columns.slice(-PHONE_WEEKS);
   const { activeDays, payments } = streakTotals(daily);
 
   return (
-    <div className="flex flex-col gap-2">
-      <div aria-hidden className="flex flex-col gap-1">
-        <div className="grid w-fit grid-cols-7 gap-1">
-          {HOME_PAGE_COPY.streakWeekdays.map((label, index) => (
-            <Text
-              key={`${label}-${index}`}
-              variant="micro"
-              as="span"
-              color="secondary"
-              className="w-5 text-center"
-            >
-              {label}
-            </Text>
-          ))}
-        </div>
-
-        {weeks.map((week, index) => (
-          <div key={index} className="grid w-fit grid-cols-7 gap-1">
-            {week.map((cell, cellIndex) =>
-              cell.count === null ? (
-                <span key={`pad-${cellIndex}`} className="h-5 w-5 rounded-[4px] opacity-0" />
-              ) : (
-                <span
-                  key={cell.date}
-                  title={`${cell.date}: ${HOME_PAGE_COPY.streakDay(cell.count)}`}
-                  className={`h-5 w-5 rounded-[4px] ${LEVEL_CLASSES[levelFor(cell.count)]}`}
-                />
-              )
-            )}
-          </div>
-        ))}
-      </div>
+    <div className="flex flex-col gap-1.5">
+      <Grid columns={phoneColumns} className="sm:hidden" />
+      <Grid columns={columns} className="hidden sm:flex" />
 
       <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
         <Text variant="micro" as="span" color="secondary">
@@ -87,7 +106,7 @@ export function StreakMap({ daily }: StreakMapProps) {
             {HOME_PAGE_COPY.streakFewer}
           </Text>
           {([0, 1, 2, 3, 4] as const).map((level) => (
-            <span key={level} className={`h-2.5 w-2.5 rounded-[3px] ${LEVEL_CLASSES[level]}`} />
+            <span key={level} className={`h-2.5 w-2.5 rounded-[2px] ${LEVEL_CLASSES[level]}`} />
           ))}
           <Text variant="micro" as="span" color="secondary">
             {HOME_PAGE_COPY.streakMore}

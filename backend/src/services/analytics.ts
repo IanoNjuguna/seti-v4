@@ -1,4 +1,5 @@
 import type { TransactionStatus, TransactionType } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { getFiatPerUsd } from './payments.js';
 import type { Network } from '../lib/network.js';
@@ -27,23 +28,36 @@ export type AnalyticsDays = (typeof ANALYTICS_WINDOWS)[number];
 /**
  * Which way money moved for a ledger type.
  *
- * `null` means "this type does not move money the customer counts" — and, importantly,
- * a type added later lands here rather than being counted twice by a default branch.
+ * `null` means "this type does not move money the customer counts". This is a TOTAL record
+ * over the enum rather than a switch with a default, so a type added to the schema fails the
+ * typecheck until somebody decides which way it moves — the default branch it replaced would
+ * have quietly ignored it, and a new money type that nobody classifies is money missing from
+ * every total on the surface.
  */
+const DIRECTION: Record<TransactionType, 'in' | 'out' | null> = {
+  p2p_receive: 'in',
+  top_up: 'in',
+  payment: 'out',
+  p2p_send: 'out',
+  withdrawal: 'out',
+  fee: 'out',
+  /* The customer's own money changing shape inside their account, not money arriving or
+     leaving: a swap between two of their assets, a deposit into the vault, a withdrawal from
+     it. Counting any of these would double-count the same dollars on a screen that claims to
+     show what the money did. */
+  convert: null,
+  savings_deposit: null,
+  savings_withdrawal: null,
+};
+
 export function directionOf(type: TransactionType): 'in' | 'out' | null {
-  switch (type) {
-    case 'p2p_receive':
-    case 'top_up':
-      return 'in';
-    case 'payment':
-    case 'p2p_send':
-    case 'withdrawal':
-    case 'fee':
-      return 'out';
-    default:
-      return null;
-  }
+  return DIRECTION[type] ?? null;
 }
+
+/** The types that move money, derived rather than listed twice — the SQL below needs them. */
+export const MONEY_TYPES = (Object.keys(DIRECTION) as TransactionType[]).filter(
+  (type) => DIRECTION[type] !== null
+);
 
 /** The shape this module needs from a transaction. Narrow on purpose, so it can be
  * built by hand in a check without a database. */
@@ -193,7 +207,18 @@ export interface WindowSummary {
 export interface AnalyticsSummary {
   currency: string;
   windows: WindowSummary[];
+  /**
+   * The map's series: a full year of days, counted in the database (#371).
+   *
+   * The windows above are totals; this is one number per day for a year, so it is a
+   * `GROUP BY` rather than the rows: a merchant with a busy year would otherwise load every
+   * transaction they have ever taken to draw a picture of which days they worked.
+   */
+  year: { days: number; daily: DailyCount[] };
 }
+
+/** The map spans a year: enough to see seasons, short enough to keep one row of squares. */
+export const STREAK_DAYS = 365;
 
 /** The widest window, so one query serves every window the surface shows. */
 const WIDEST = Math.max(...ANALYTICS_WINDOWS);
@@ -234,6 +259,36 @@ export function convertWindow(totals: Pick<WindowTotals, 'in' | 'out'>, fiatPerU
 }
 
 /**
+ * One year of days, counted where the data is.
+ *
+ * `Prisma.join(MONEY_TYPES)` rather than a hand-written list: the types that count are
+ * `directionOf`'s own, so the map cannot disagree with the totals about which movements are
+ * money. `to_char` pins the bucket to UTC, the same calendar day the windows count on.
+ */
+export async function getDailyYear(
+  userId: string,
+  network: Network,
+  now: Date
+): Promise<DailyCount[]> {
+  const since = new Date(now.getTime() - (STREAK_DAYS - 1) * DAY_MS);
+  const rows = await prisma.$queryRaw<Array<{ date: string; count: bigint }>>`
+    SELECT to_char(date_trunc('day', "createdAt" AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS date,
+           count(*) AS count
+    FROM transactions
+    WHERE "userId" = ${userId}
+      AND network = ${network}
+      AND status = 'completed'
+      AND "createdAt" >= ${since}
+      AND type::text IN (${Prisma.join(MONEY_TYPES)})
+    GROUP BY 1
+    ORDER BY 1
+  `;
+
+  const perDay = new Map<string, number>(rows.map((row) => [row.date, Number(row.count)]));
+  return fillDays(perDay, STREAK_DAYS, now);
+}
+
+/**
  * Read the account's own transactions and summarise them.
  *
  * Scoped by network, like every other money read: a practice balance is not a live one,
@@ -262,6 +317,7 @@ export async function getAnalytics(
   }));
 
   const fiatPerUsd = await getFiatPerUsd(currency);
+  const year = await getDailyYear(userId, network, now);
 
   return {
     currency,
@@ -283,5 +339,6 @@ export async function getAnalytics(
         daily: totals.daily,
       };
     }),
+    year: { days: STREAK_DAYS, daily: year },
   };
 }

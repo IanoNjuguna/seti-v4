@@ -59,13 +59,14 @@ export function useHomeSummary(userId?: string): UseHomeSummaryReturn {
   }, []);
 
   if (!userId) {
-    return { window: null, merchants: [], currency: '', loading: false, error: null, retry };
+    return { window: null, year: null, merchants: [], currency: '', loading: false, error: null, retry };
   }
 
   const window = longestWindow(data?.windows ?? []);
 
   return {
     window,
+    year: data?.year ?? null,
     merchants: paidRecently(window),
     currency: data?.currency ?? '',
     loading: !settled,

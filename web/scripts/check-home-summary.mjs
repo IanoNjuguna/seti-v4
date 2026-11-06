@@ -56,7 +56,7 @@ const { PAID_RECENTLY_LIMIT, longestWindow, paidRecently } = await import(
   '../components/home/home.summary.ts'
 );
 const { formatFiat } = await import('../lib/formatCurrency.ts');
-const { levelFor, streakTotals, streakWeeks, weekdayIndex } = await import(
+const { levelFor, monthMarks, streakColumns, streakTotals, weekdayIndex } = await import(
   '../components/home/home.streak.ts'
 );
 
@@ -318,21 +318,21 @@ console.log('the rows are ink tokens, not colours:');
  * true is that a calendar comes out of it: seven cells a row, the days under their own weekday
  * letters, and the quiet days shown rather than skipped.
  */
-console.log('the streak map fits a calendar:');
+console.log('the streak map fits a year:');
 {
   const day = (date, count) => ({ date, count });
 
-  // 2026-10-08 is a Thursday (index 3), so the first row pads Mon..Wed and starts at 3.
+  // 2026-10-08 is a Thursday (index 3), so the first column pads Mon..Wed and starts at 3.
   const daily = [
     day('2026-10-08', 2), day('2026-10-09', 0), day('2026-10-10', 1), day('2026-10-11', 4),
     day('2026-10-12', 0), day('2026-10-13', 3), day('2026-10-14', 1),
   ];
-  const weeks = streakWeeks(daily);
+  const columns = streakColumns(daily);
 
-  check('every row holds seven cells', weeks.every((week) => week.length === 7), String(weeks.length));
-  check('the leading pads are outside the window, not quiet days', weeks[0][0].count === null && weeks[0][2].count === null);
-  check('the first day lands under its own weekday', weeks[0][3].date === '2026-10-08', weeks[0][3].date);
-  check('and the row after it starts on a Monday', weeks[1][0].date === '2026-10-12', weeks[1][0].date);
+  check('every column holds seven cells', columns.every((column) => column.length === 7), String(columns.length));
+  check('the leading pads are outside the window, not quiet days', columns[0][0].count === null && columns[0][2].count === null);
+  check('the first day lands under its own weekday', columns[0][3].date === '2026-10-08', columns[0][3].date);
+  check('and the column after it starts on a Monday', columns[1][0].date === '2026-10-12', columns[1][0].date);
   check('a Thursday is index 3 in a Monday-first week', weekdayIndex('2026-10-08') === 3, String(weekdayIndex('2026-10-08')));
   check('a Sunday closes the week at index 6', weekdayIndex('2026-10-11') === 6, String(weekdayIndex('2026-10-11')));
 
@@ -340,11 +340,21 @@ console.log('the streak map fits a calendar:');
   check('the steps are absolute: 1, 2, 3, then everything above', levelFor(1) === 1 && levelFor(2) === 2 && levelFor(3) === 3 && levelFor(9) === 4);
 
   const totals = streakTotals(daily);
-  check('the sentence counts quiet days out', totals.activeDays === 5, String(totals.activeDays));
+  check('a quiet day is counted out of the days', totals.activeDays === 5, String(totals.activeDays));
   check('and the payments in', totals.payments === 11, String(totals.payments));
-  check('an empty series is an empty grid', streakWeeks([]).length === 0);
-}
+  check('an empty series is an empty grid', streakColumns([]).length === 0);
 
+  // A year of days: 53 columns, a letter where each month first appears.
+  const year = Array.from({ length: 365 }, (_, index) => {
+    const at = new Date(Date.UTC(2025, 10, 7) + index * 86_400_000);
+    return day(at.toISOString().slice(0, 10), index % 4);
+  });
+  const yearColumns = streakColumns(year);
+  const marks = monthMarks(yearColumns);
+  check('a year is 53 columns of seven', yearColumns.length === 53 && yearColumns.every((c) => c.length === 7), String(yearColumns.length));
+  check('twelve month marks, none of them in the first column', marks.length >= 11 && marks.every((m) => m.column > 1), String(marks.length));
+  check('and they are initials', marks.every((m) => /^[JFMAMJJASOND]$/.test(m.label)));
+}
 console.log('-'.repeat(74));
 console.log(`${passed} assertions passed${failed ? `, ${failed} failed` : ''}.`);
 process.exit(failed === 0 ? 0 : 1);
