@@ -16,7 +16,8 @@ import { SITE_ORIGIN } from '@/lib/site';
  * - `/m/[handle]` and `/u/[handle]` are a merchant's payment page and a person's
  *   profile. They are per entity, so there is no fixed set of them to enumerate,
  *   and any sample would be a list of real people's handles published as a
- *   sitemap.
+ *   sitemap. Both also carry `index: false` at the route, so the index cannot
+ *   assemble that list by a slower route (#346).
  * - `/r/[id]` and `/pay/[id]` carry an opaque id, and a pay page carries a token.
  *   A receipt and a payment request must never be discoverable: an indexed
  *   receipt is a customer's payment readable by any stranger who finds it, and

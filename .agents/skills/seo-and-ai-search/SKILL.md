@@ -303,7 +303,7 @@ Run this on every copy or structure change. Each line has caught a real defect h
 `scripts/check-seo.mjs` before changing a page: its docstring states what it checks and, more
 usefully, what green does not mean.
 
-It asserts, over the repository's own files, in eleven groups and 49 assertions (measured
+It asserts, over the repository's own files, in eleven groups and 50 assertions (measured
 2026-11-06 by running it; count them from `scripts/check-seo.mjs`, never from memory):
 
 1. **Title and description** — the landing `title` is 45 to 60 characters and ends with the
@@ -314,7 +314,8 @@ It asserts, over the repository's own files, in eleven groups and 49 assertions 
 4. **Structured data at the root** — `layout.tsx` renders a `ld+json` script and the
    structured-data module names `Organization` and `WebSite`.
 5. **`public/llms.txt`** exists and says something.
-6. **The five private surfaces** carry `index: false`.
+6. **The six private surfaces** carry `index: false` — the `/app` tree, `/signin`, `/r/*`,
+   `/pay/*`, `/u/*` and `/m/*`, the last two being the two sides of one handle namespace.
 7. **The claims the copy cut stay cut** — "No hidden charges", "Neo-Bank", "settles instantly".
 8. **Enough copy to be quotable** — the landing ships 600 to 800 words of copy, from constants
    only (682 in 19 files today), not counting a component's own prose.
@@ -369,17 +370,18 @@ moment a page changes: re-run the gate before quoting it.
 | `llms.txt` | exists, 1141 characters, pointers plus what Seti does not do | `web/public/llms.txt` |
 | Words | 682, from constants only, across 19 files | `web/app/components/landing/*.constants.ts` |
 | FAQ | 9 questions, one copy of each answer | `FaqSection.constants.ts` |
-| Hidden from crawlers | `/app/*`, `/signin`, `/r/*`, `/pay/*`, `/u/*` — the five group 6 pins | `robots` in each route |
-| Gate | 49 assertions in 11 groups | `scripts/check-seo.mjs` |
+| Hidden from crawlers | `/app/*`, `/signin`, `/r/*`, `/pay/*`, `/u/*`, `/m/*` — the six group 6 pins | `robots` in each route |
+| Gate | 50 assertions in 11 groups | `scripts/check-seo.mjs` |
 
-Two things this table deliberately records as gaps rather than as state:
+One thing this table records as a gap rather than as state:
 
-- **`/m/[handle]` is indexable and not in the sitemap.** The merchant page a printed sticker opens
-  publishes a title and description and no `robots` rule, so a search engine may index a per-merchant
-  page that the sitemap does not enumerate and group 6 does not pin. It is a decision waiting to be
-  made, not a fact that is settled.
 - **`/app/swap` is inside the `/app` tree,** so it inherits `index: false` from that layout and adds
   its own; nothing about it is crawlable, and that is deliberate while it is a product screen.
+
+The merchant side of the handle namespace (`/m/*`) was the other gap: it published a title and a
+description with no `robots` rule, so a per-merchant page could be indexed while the sitemap
+refuses to list it and the person page beside it was already excluded. #346 closed it and put the
+route in group 6, so the gate now catches that class rather than this instance.
 
 An undated "where the site stands" that drifts is the defect this skill exists to prevent, applied
 to itself: if you change a page, change the row, or delete the row.
