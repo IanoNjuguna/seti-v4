@@ -29,9 +29,19 @@ export async function generateMetadata({ params }: MerchantLinkPageProps): Promi
   const { handle } = await params;
   const merchant = await loadMerchant(handle);
 
+  /*
+   * NOT CONTENT TO BE FOUND (#346). A merchant's link page exists to be opened from a
+   * sticker or a shared link, and it is one sentence of template with a name substituted:
+   * thin, per-merchant, and near-identical to every other one. `app/sitemap.ts` already
+   * refuses to publish a list of these, and `/u/[handle]` excludes the person side of the
+   * same namespace, so indexing the shop side would undo that decision by a slower route.
+   * A merchant who later wants to rank on their own name needs a real page, not this one.
+   */
+  const robots = { index: false, follow: false };
+
   return merchant
-    ? { title: `${merchant.name} — Seti`, description: `Pay ${merchant.name} with Seti.` }
-    : { title: 'Merchant not found — Seti' };
+    ? { title: `${merchant.name} — Seti`, description: `Pay ${merchant.name} with Seti.`, robots }
+    : { title: 'Merchant not found — Seti', robots };
 }
 
 export default async function MerchantLinkPage({ params }: MerchantLinkPageProps) {

@@ -102,6 +102,9 @@ const PRIVATE_SURFACES = [
   'web/app/r/[id]/page.tsx',
   'web/app/pay/[id]/page.tsx',
   'web/app/u/[handle]/page.tsx',
+  // The shop side of the same link shape (#346): a per-merchant page a sticker opens, not
+  // content to be found. It was indexable while the person side was not.
+  'web/app/m/[handle]/page.tsx',
 ];
 
 /** Public paths the sitemap is allowed to name, and the prefixes it is never allowed to. */
