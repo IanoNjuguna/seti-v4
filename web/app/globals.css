@@ -187,6 +187,13 @@
      can answer a press without changing its label colour (ink stays above
      9:1 on it). */
   --color-accent-lime-deep: #b8b006;
+  /* The caution ink INSIDE a dark canvas.
+     It cannot be the lime: lime is the action fill now, and a caution line wearing the colour of the
+     money button, or of that button's hover step, is the collision this replaced. Gold sits between
+     the lime and the warning orange in hue, 27.8 dE from the first and 34.4 from the second, and is
+     8.7:1 on `canvas-dark`. On a white canvas caution keeps its own olive text step
+     (`accent-lime-text`, 7.5:1), which is unchanged. */
+  --color-accent-gold: #c9a227;
   /* The caution accent's TEXT step. `design/revolut.md` names a text-grade
      sibling for error (`accent-brick`, "inline error text", 9.0:1) and for
      success (`accent-green-text`, 7.4:1) but names none for caution or for the
@@ -270,6 +277,7 @@
   --color-accent-lime: var(--color-accent-lime);
   --color-accent-lime-text: var(--color-accent-lime-text);
   --color-accent-lime-deep: var(--color-accent-lime-deep);
+  --color-accent-gold: var(--color-accent-gold);
   --color-accent-warning: var(--color-accent-warning);
   --color-accent-warning-text: var(--color-accent-warning-text);
   --color-accent-pink: var(--color-accent-pink);
@@ -445,7 +453,7 @@
   [class~='bg-surface-elevated'] {
     --color-ink-progress: var(--color-accent-cyan);
     --color-ink-alert: var(--color-accent-danger);
-    --color-ink-warning: var(--color-accent-lime);
+    --color-ink-warning: var(--color-accent-gold);
     --color-ink-attention: var(--color-accent-warning);
     --color-ink-success: var(--color-accent-light-green);
   }

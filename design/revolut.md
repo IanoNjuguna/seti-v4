@@ -45,6 +45,7 @@ colors:
   accent-green-text: "#006400"
   accent-lime: "#d7cf07"
   accent-lime-deep: "#b8b006"
+  accent-gold: "#c9a227"
   accent-lime-text: "#665300"
   accent-warning: "#ec7e00"
   accent-pink: "#e61e49"
@@ -377,6 +378,9 @@ inside product mockups and feature illustrations — never as button surfaces.
 - **Accent Lime** (`{colors.accent-lime}` — `#d7cf07`): the ACTION colour, a fill only. 1.64:1 on white,
   12.08:1 on black, so it is never type and never a state. Carried by one control per view, the submit
   that moves money. `accent-lime-deep` (`#b8b006`) is its hover step.
+- **Accent Gold** (`{colors.accent-gold}` — `#c9a227`): the caution ink inside a dark canvas, 8.7:1 on
+  black. Distinct from the lime by 27.8 dE, so a caution line never wears the action colour, and
+  distinct from the warning orange by 34.4, so it does not read as the practice marker.
 - **Accent Warning** (`{colors.accent-warning}` — `#ec7e00`): full-saturation orange used in warning illustrations.
 - **Accent Pink** (`{colors.accent-pink}` — `#e61e49`): deep pink — used inside product photography and category iconography.
 - **Accent Danger** (`{colors.accent-danger}` — `#e23b4a`): destructive / error state.
@@ -404,7 +408,11 @@ The accents are a functional palette, not a decorative one. Six rules, and the i
 5. **A fill with no edge needs one.** Lime against `canvas-light` is 1.64:1, under the 3:1 boundary
    WCAG 1.4.11 asks for, so a lime control carries a 1px `ink` border. The same reasoning applies to
    any pale fill on a white band.
-6. **Never on a QR.** A QR's colours are a machine-readable contrast specification: literal black on
+6. **A state is never drawn in the action colour.** Caution on a dark surface takes `accent-gold`,
+   not the lime, for the same reason a refusal does not take the cobalt: a state that shares a
+   colour with the thing you are meant to press is not a state.
+
+7. **Never on a QR.** A QR's colours are a machine-readable contrast specification: literal black on
    white, per `components/qr/qr.constants.ts`. No accent, tint or brand colour reaches a code,
    because a code that fails to scan is a payment that fails.
 
