@@ -70,7 +70,7 @@ export const SEARCH_SECTIONS: SearchSection[] = [
   { id: 'hero', label: 'Home', keywords: 'home top start seti pay name' },
   { id: 'how', label: 'How it works', keywords: 'pay code name link username counter customer balance queue' },
   { id: 'money', label: 'Your money', keywords: 'spend send hold dollars shop person code print' },
-  { id: 'fees', label: 'Fees', keywords: 'fee 2% cost price monthly minimum' },
+  { id: 'fees', label: 'Fees', keywords: 'fee flat cost price monthly minimum' },
   { id: 'partners', label: 'Integrations', keywords: 'integrations tempo privy bridge stripe stack what seti runs on' },
   { id: 'open', label: 'Sign in today', keywords: 'open start browser sign in claim name testnet' },
 ];

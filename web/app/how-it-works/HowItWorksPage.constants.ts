@@ -66,7 +66,7 @@ export const STEPS: MarketingStep[] = [
   {
     index: '3',
     title: 'They pay from their own balance',
-    detail: 'The dollars leave their balance and land in yours, with the 2% included.',
+    detail: 'The dollars leave their balance and land in yours, with the fee included.',
   },
 ];
 
@@ -86,7 +86,7 @@ export const LANDS_ROWS: MarketingRow[] = [
     detail: 'Not a pending figure. It is yours as soon as the payment is confirmed.',
   },
   {
-    title: 'The 2%',
+    title: 'The fee',
     detail: 'Your customer pays it inside the same payment. You keep the ticket.',
   },
   {

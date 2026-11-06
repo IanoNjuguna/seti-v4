@@ -131,7 +131,7 @@ is winnable with a page whose product cannot take a bank deposit. A reader who l
 query and finds a scanner does not convert, they leave, and the bounce tells the crawler the page
 is the wrong answer. So those terms belong to the page that ships with the rail, and until then
 the site keeps the terms it can honour: "get paid by QR, Kenya", "accept dollar payments in
-Kenya", "2% fee payments Kenya".
+Kenya", "flat fee payments Kenya".
 
 **What it does to the competitor work.** The category page is teardowned against the Privy cohort,
 not against a till. `/for/shops-and-traders` and the fee argument stay against decaf, beans and
@@ -153,12 +153,12 @@ they support.
 | --- | --- | --- | --- |
 | `/` | get paid by QR, Kenya | 600 to 800 | ships: 682 words, 9-question FAQ with `FAQPage` |
 | `/receive-from-abroad` | receive money from abroad in dollars | 600 | to build, first, the avatar page |
-| `/pricing` | 2% fee payments Kenya, M-Pesa alternative | 500 to 700 | ships (#306), `BreadcrumbList` |
+| `/pricing` | flat fee payments Kenya, M-Pesa alternative | 500 to 700 | ships (#306), `BreadcrumbList`, the fee in KES |
 | `/how-it-works` | how to accept dollar payments in Kenya | 600 | ships (#306), `BreadcrumbList` |
 | `/for/shops-and-traders` | QR payments for shops in Kenya | 500 | to build |
 | `/for/online-sellers` | accept payments online in Kenya | 500 | to build |
 | `/learn` | dollar payments in Kenya (hub) | index | to build |
-| `/learn/*` | is USDC legal in Kenya, how to accept USDC as a merchant, what a 2% fee avoids that a card and a transfer do not, what a stablecoin payment is | 1,000+ each | to build |
+| `/learn/*` | is USDC legal in Kenya, how to accept USDC as a merchant, what a flat per-payment fee avoids that a card and a transfer do not, what a stablecoin payment is | 1,000+ each | to build |
 
 Ship the first two child pages before the rest. A segment page with no `/pricing` behind it has
 nowhere to send the reader who is ready to decide.
@@ -182,8 +182,10 @@ because they sell payouts and APIs to treasury teams and we sell to a shop in Th
 ## KES is the unit
 
 Every price and every figure in copy, metadata, FAQ and schema is written in KES. Dollars are
-what the money IS; KES is how it is quoted. The fee sentence reads "2% of a KES 1,250 payment
-is KES 25", never "a 2% fee on your dollars". A search snippet, an FAQ answer or a schema
+what the money IS; KES is how it is quoted. The fee sentence is money, never a rate: "a KES
+1,250 payment costs your customer KES 1,275", not "2% of a KES 1,250 payment". A percentage
+in marketing copy is vetoed (#348, `seti-voice`): the rate is printed on the pay screen and in
+the terms, where the person paying it reads it. A search snippet, an FAQ answer or a schema
 `price` that quotes a USD amount is wrong even when the product holds dollars, because the
 reader we are ranking for prices things in shillings. Amounts that a person typed are KES
 too: the receipt, the sticker, the FAQ example.
@@ -198,8 +200,8 @@ For both, the page needs the same four things, in plain sentences, near the top:
 1. **What it is and who it is for.** One paragraph a stranger could repeat: "Seti is a
    payments app for Kenyan shops and traders. A customer pays by the merchant's name or by
    scanning the code on the counter. The money goes straight to the merchant's own balance."
-2. **What it costs, in KES**, with the two negatives that make the number complete: 2% per
-   payment, no monthly fee, no minimum.
+2. **What it costs, in KES**, with the two negatives that make it complete: one flat fee per
+   payment, no monthly fee, no minimum, and no percentage anywhere in the sentence.
 3. **Where the money goes.** The one claim a competitor cannot copy cheaply, in the words the
    voice skill allows.
 4. **A question and a direct answer.** An FAQ item whose first sentence answers it, because
@@ -303,11 +305,12 @@ Run this on every copy or structure change. Each line has caught a real defect h
 `scripts/check-seo.mjs` before changing a page: its docstring states what it checks and, more
 usefully, what green does not mean.
 
-It asserts, over the repository's own files, in eleven groups and 50 assertions (measured
+It asserts, over the repository's own files, in twelve groups and 56 assertions (measured
 2026-11-06 by running it; count them from `scripts/check-seo.mjs`, never from memory):
 
 1. **Title and description** — the landing `title` is 45 to 60 characters and ends with the
-   brand; the `description` is 140 to 155, names a place, and states `2%`.
+   brand; the `description` is 140 to 155, names a place, names the fee in words, and states no
+   percentage.
 2. **One `h1`** — the landing tree carries exactly one, and `app/page.tsx` has none of its own.
 3. **Sitemap and robots** — `app/sitemap.ts` names exactly the six public paths and no private
    surface, every path it names is a route, and `app/robots.ts` names the sitemap.
@@ -318,7 +321,7 @@ It asserts, over the repository's own files, in eleven groups and 50 assertions 
    `/pay/*`, `/u/*` and `/m/*`, the last two being the two sides of one handle namespace.
 7. **The claims the copy cut stay cut** — "No hidden charges", "Neo-Bank", "settles instantly".
 8. **Enough copy to be quotable** — the landing ships 600 to 800 words of copy, from constants
-   only (682 in 19 files today), not counting a component's own prose.
+   only (697 in 19 files today), not counting a component's own prose.
 9. **The heading outline** — every band yields exactly one `h2`, each item is an `h3`, and
    nothing goes deeper than `h3`.
 10. **The FAQ's structured data** — one `Question` node per question the band actually renders,
@@ -326,6 +329,9 @@ It asserts, over the repository's own files, in eleven groups and 50 assertions 
     than hidden behind a control, and the `FAQPage` node published by the home page only.
 11. **The trail a child page publishes** — `BreadcrumbList` with absolute `item` URLs built
     from `SITE_ORIGIN`, and `/pricing` and `/how-it-works` each publishing their own.
+12. **No percentage in marketing copy** — `layout.tsx`, `page.tsx`, `/pricing`, `/how-it-works`,
+    the landing components and `public/llms.txt` ship no `N%` in rendered text, comments
+    excepted. Hooks and type modules are not scanned: they carry CSS values, not copy.
 
 Two rules came out of the day that produced most of those groups, and both are the kind a
 reviewer will not catch:
@@ -363,15 +369,15 @@ moment a page changes: re-run the gate before quoting it.
 | Field | Now | Where |
 | --- | --- | --- |
 | `title` | 46, "Get paid in dollars by QR code in Kenya · Seti" | `web/app/layout.tsx` |
-| `description` | 153, states the 2% and Thika | same |
+| `description` | 147, names the fee and Thika, no percentage | same |
 | Public routes | six: `/`, `/pricing`, `/how-it-works`, `/privacy`, `/terms`, `/cookies` | `web/app/sitemap.ts` |
 | robots.txt | generated, allows crawling, names the sitemap | `web/app/robots.ts` |
 | Structured data | `Organization` and `WebSite` at the root; `BreadcrumbList` on `/pricing` and `/how-it-works`; `FAQPage` on the home page only | `web/lib/structured-data.ts`, `web/lib/faq-schema.ts`, `MarketingBreadcrumb.tsx` |
 | `llms.txt` | exists, 1141 characters, pointers plus what Seti does not do | `web/public/llms.txt` |
-| Words | 682, from constants only, across 19 files | `web/app/components/landing/*.constants.ts` |
+| Words | 697, from constants only, across 19 files | `web/app/components/landing/*.constants.ts` |
 | FAQ | 9 questions, one copy of each answer | `FaqSection.constants.ts` |
 | Hidden from crawlers | `/app/*`, `/signin`, `/r/*`, `/pay/*`, `/u/*`, `/m/*` — the six group 6 pins | `robots` in each route |
-| Gate | 50 assertions in 11 groups | `scripts/check-seo.mjs` |
+| Gate | 56 assertions in 12 groups | `scripts/check-seo.mjs` |
 
 One thing this table records as a gap rather than as state:
 

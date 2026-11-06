@@ -3,10 +3,12 @@ import type { FeeRow } from './FeesSection.types';
 /**
  * The whole price list.
  *
- * THE PRICE IS THE SAME AND IS STATED ONCE. 2% of each payment, no monthly fee, no
- * minimum, with no floor and no cap, charged the same on a small ticket as on a
- * large one. The rows exist as three because two of them say what is NOT charged,
- * which is the question a reader actually has after the word "fee".
+ * THE PRICE IS THE SAME AND IS STATED ONCE. One flat fee on every payment, no monthly
+ * fee, no minimum, with no floor and no cap, charged the same on a small ticket as on a
+ * large one. The rate itself is not printed here (#348): the fee a customer hands over
+ * is shown on the pay screen, and the legal pages carry the percentage. The rows exist
+ * as three because two of them say what is NOT charged, which is the question a reader
+ * actually has after the word "fee".
  *
  * THE FIRST ROW'S DETAIL IS THE MERCHANT'S SENTENCE. The fee is attributed to the
  * merchant but FUNDED BY THE PAYER inside their own transfer
@@ -16,14 +18,14 @@ import type { FeeRow } from './FeesSection.types';
  * (`HeroCopy.constants.ts`) the merchant's row is the row. The fact is identical
  * either way; only the noun ever changed.
  *
- * The figure appears twice in the band, and both times it is the same 2%: once as
- * the price and once inside "Small payments are charged the same 2%", which is
+ * The claim appears twice in the band, and both times it is the same promise: once as
+ * the price and once inside "A small payment is charged the same flat fee", which is
  * what makes "No minimum" a claim rather than a slogan. That repetition is the
  * owner's copy and it is doing work.
  */
 export const FEE_COPY: FeeRow[] = [
   {
-    label: '2% of each payment',
+    label: 'One flat fee a payment',
     detail: 'Your customer pays it, in the same payment.',
   },
   {
@@ -32,6 +34,6 @@ export const FEE_COPY: FeeRow[] = [
   },
   {
     label: 'No minimum',
-    detail: 'Small payments are charged the same 2%.',
+    detail: 'A small payment is charged the same flat fee.',
   },
 ];
