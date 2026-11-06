@@ -218,3 +218,28 @@ including print and social variants. They are other people's marks, the site
 renders four of them, and the reason the kit exists is that a variant you need
 already exists so nobody recolours one by hand. `icon.png` (512) is also kept: no
 manifest serves it yet, and it is the file a manifest should point at.
+
+## The wordmark, as vector (`seti-wordmark.svg`)
+
+The face used here is Poppins SemiBold, and the file is drawn FROM the font rather than from
+a supplied artwork, because there is no supplied wordmark artwork: the lockup PNG is the only
+source, and it is 308×112, which is a four-times upscale at the width the footer now uses it.
+
+How it was made (2026-11-06, reproducible):
+
+    # glyph outlines out of the shipped webfont, not a guess at the letterforms
+    /usr/bin/python3.14  (fontTools 4.63, brotli)
+    TTFont('web/app/fonts/poppins-600.woff2')
+    glyphs  s e t i  ->  SVGPathPen, y flipped, advanced by hmtx
+    tracking -45/1000em  (-0.045em), the setting the lockup's word reads as
+    viewBox  = the INK bbox, not the advance box: 39 -784 1602 793
+
+What the numbers mean: the ink of `seti` is 1602 units wide and 793 tall at -0.045em, so the
+word is 1.602em wide by 0.793em tall, with the `i` dot at the top and the baseline inside the
+box. `fill="currentColor"` on purpose: the file carries no colour, so it takes the token of
+whatever surface it lands on and cannot become a seventh colourway.
+
+This file is the drawn equivalent of the live type in `web/app/components/landing/FooterWordmark.tsx`.
+Both come from the same font and the same tracking, so they agree by construction: the footer
+sets type today, and swapping it to this file is an import, not a redraw. Do not hand-adjust
+one without re-deriving the other.
