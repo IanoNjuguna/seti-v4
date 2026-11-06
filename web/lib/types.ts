@@ -4,6 +4,11 @@ export type ButtonVariant =
   | 'ghost'
   | 'destructive'
   | 'pill'
+  /* The ONLY yellow control in the product: the submit that moves money. Ink
+     label, 1px ink edge (a yellow fill has 1.64:1 against the white canvas and
+     therefore no boundary of its own), ink focus ring. One per view, never
+     disabled, never destructive. See `design/revolut.md` → Accent rules. */
+  | 'accent'
   /* `button-primary` from `design/revolut.md` — the white CTA on a dark band,
      which is the brand's loudest action and had no variant in this app. */
   | 'on-dark'

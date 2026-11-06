@@ -29,7 +29,7 @@ export function SendSubmit({ step }: SendSubmitProps) {
 
   if (!copy) {
     return (
-      <Button type="submit" variant="primary" fullWidth>
+      <Button type="submit" variant="accent" fullWidth>
         {SEND_COPY.submit}
       </Button>
     );
