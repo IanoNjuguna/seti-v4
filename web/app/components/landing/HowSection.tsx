@@ -1,6 +1,6 @@
 import { ButtonLink } from '@/components/ui/ButtonLink';
 import { SIGN_IN_PATH } from '@/lib/routes';
-import { Reveal } from './Reveal';
+import { Band } from './Band';
 import { SectionHeader } from './SectionHeader';
 import { PaymentStack } from './PaymentStack';
 import { HOW_COPY } from './HowSection.constants';
@@ -28,9 +28,9 @@ import { HOW_COPY } from './HowSection.constants';
  */
 export function HowSection() {
   return (
-    <Reveal
+    <Band
       id="how"
-      className="border-t border-hairline-light bg-canvas-light py-[var(--band-pad-block)]"
+      className="bg-canvas-light py-[var(--band-pad-block)]"
     >
       <div className="mx-auto max-w-6xl px-6">
         <SectionHeader eyebrow="How it works" />
@@ -73,6 +73,6 @@ export function HowSection() {
           </ButtonLink>
         </div>
       </div>
-    </Reveal>
+    </Band>
   );
 }

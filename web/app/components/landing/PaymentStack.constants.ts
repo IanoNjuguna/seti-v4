@@ -45,19 +45,3 @@ export const STACKED_PAYMENTS: StackedPayment[] = [
     time: 'Yesterday',
   },
 ];
-
-/**
- * The entrance classes, and the cap, in one place.
- *
- * `design/motion.md` (DIAL ONE) staggers the hero's lines by `--stagger` and
- * then STOPS; this is the same vocabulary used once more, capped at three. The
- * stack's cards arrive 0 / 40ms / 80ms after the band's own reveal, run ONCE
- * (the section's reveal arms them and never replays), and a fourth card would
- * arrive with the third rather than queueing behind it. A stagger that keeps
- * going is decoration; the list is three, and the cap is three.
- */
-export const STACK_ENTRANCE_CLASSES = [
-  'stack-item',
-  'stack-item stack-item-2',
-  'stack-item stack-item-3',
-] as const;

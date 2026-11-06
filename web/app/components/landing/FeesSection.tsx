@@ -2,7 +2,7 @@ import { ButtonLink } from '@/components/ui/ButtonLink';
 import Link from 'next/link';
 import { SIGN_IN_PATH } from '@/lib/routes';
 import { QUIET_ACTION_CLASSES } from './HeroActions.constants';
-import { Reveal } from './Reveal';
+import { Band } from './Band';
 import { SectionHeader } from './SectionHeader';
 import { FEE_COPY } from './FeesSection.constants';
 
@@ -40,7 +40,7 @@ import { FEE_COPY } from './FeesSection.constants';
  */
 export function FeesSection() {
   return (
-    <Reveal id="fees" className="bg-canvas-dark py-[var(--band-pad-block)]">
+    <Band id="fees" className="bg-canvas-dark py-[var(--band-pad-block)]">
       <div className="mx-auto max-w-6xl px-6">
         <SectionHeader eyebrow="What it costs" onDark />
 
@@ -74,6 +74,6 @@ export function FeesSection() {
           </Link>
         </div>
       </div>
-    </Reveal>
+    </Band>
   );
 }

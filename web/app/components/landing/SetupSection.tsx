@@ -1,4 +1,4 @@
-import { Reveal } from './Reveal';
+import { Band } from './Band';
 import { SectionHeader } from './SectionHeader';
 import { SETUP_COPY } from './SetupSection.constants';
 
@@ -25,9 +25,9 @@ import { SETUP_COPY } from './SetupSection.constants';
  */
 export function SetupSection() {
   return (
-    <Reveal
+    <Band
       id="start"
-      className="border-t border-hairline-light bg-canvas-light py-[var(--band-pad-block)]"
+      className="bg-canvas-light py-[var(--band-pad-block)]"
     >
       <div className="mx-auto max-w-6xl px-6">
         <SectionHeader eyebrow={SETUP_COPY.eyebrow} />
@@ -53,6 +53,6 @@ export function SetupSection() {
           {SETUP_COPY.closing}
         </p>
       </div>
-    </Reveal>
+    </Band>
   );
 }

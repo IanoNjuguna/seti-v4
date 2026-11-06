@@ -1,4 +1,4 @@
-import { Reveal } from './Reveal';
+import { Band } from './Band';
 import { SectionHeader } from './SectionHeader';
 import { FaqItem } from './FaqItem';
 import { FAQ_COPY } from './FaqSection.constants';
@@ -36,9 +36,9 @@ import { FAQ_COPY } from './FaqSection.constants';
  */
 export function FaqSection() {
   return (
-    <Reveal
+    <Band
       id="questions"
-      className="border-t border-hairline-dark bg-canvas-dark py-[var(--band-pad-block)]"
+      className="bg-canvas-dark py-[var(--band-pad-block)]"
     >
       <div className="mx-auto max-w-6xl px-6">
         <SectionHeader eyebrow={FAQ_COPY.heading} onDark />
@@ -49,6 +49,6 @@ export function FaqSection() {
           ))}
         </div>
       </div>
-    </Reveal>
+    </Band>
   );
 }

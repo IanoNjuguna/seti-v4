@@ -60,7 +60,6 @@ export function HeroPaymentQr() {
       align="start"
       width="18rem"
       tone="dark"
-      className="hero-float"
     />
   );
 }

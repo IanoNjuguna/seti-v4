@@ -1,4 +1,4 @@
-import { Reveal } from './Reveal';
+import { Band } from './Band';
 import { SectionHeader } from './SectionHeader';
 import { WHO_ITS_FOR_COPY } from './WhoItsForSection.constants';
 
@@ -31,7 +31,7 @@ import { WHO_ITS_FOR_COPY } from './WhoItsForSection.constants';
  */
 export function WhoItsForSection() {
   return (
-    <Reveal
+    <Band
       id="who"
       className="border-t border-hairline-light bg-canvas-light py-[var(--band-pad-block)]"
     >
@@ -47,6 +47,6 @@ export function WhoItsForSection() {
           ))}
         </ul>
       </div>
-    </Reveal>
+    </Band>
   );
 }

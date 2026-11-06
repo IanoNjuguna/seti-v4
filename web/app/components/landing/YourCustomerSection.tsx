@@ -1,4 +1,4 @@
-import { Reveal } from './Reveal';
+import { Band } from './Band';
 import { SectionHeader } from './SectionHeader';
 import { YOUR_CUSTOMER_COPY } from './YourCustomerSection.constants';
 
@@ -37,7 +37,7 @@ import { YOUR_CUSTOMER_COPY } from './YourCustomerSection.constants';
  */
 export function YourCustomerSection() {
   return (
-    <Reveal
+    <Band
       id="customer"
       className="border-t border-hairline-light bg-canvas-light py-[var(--band-pad-block)]"
     >
@@ -56,6 +56,6 @@ export function YourCustomerSection() {
           ))}
         </div>
       </div>
-    </Reveal>
+    </Band>
   );
 }

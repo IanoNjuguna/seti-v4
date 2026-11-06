@@ -1,4 +1,4 @@
-import { Reveal } from './Reveal';
+import { Band } from './Band';
 import { SectionHeader } from './SectionHeader';
 import { MoneyCard } from './MoneyCard';
 import { MONEY_COPY } from './MoneySection.constants';
@@ -34,7 +34,7 @@ import { MONEY_COPY } from './MoneySection.constants';
  */
 export function MoneySection() {
   return (
-    <Reveal id="money" className="bg-canvas-dark py-[var(--band-pad-block)]">
+    <Band id="money" className="bg-canvas-dark py-[var(--band-pad-block)]">
       <div className="mx-auto max-w-6xl px-6">
         <SectionHeader eyebrow="Your money" onDark />
 
@@ -44,6 +44,6 @@ export function MoneySection() {
           ))}
         </ul>
       </div>
-    </Reveal>
+    </Band>
   );
 }

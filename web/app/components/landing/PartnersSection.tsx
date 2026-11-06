@@ -1,4 +1,4 @@
-import { Reveal } from './Reveal';
+import { Band } from './Band';
 import { SectionEyebrow } from './SectionEyebrow';
 import {
   PARTNER_ENTRIES,
@@ -102,7 +102,7 @@ import { cn } from '@/lib/cn';
  */
 export function PartnersSection() {
   return (
-    <Reveal id="partners" className="bg-canvas-dark py-[var(--band-pad-block)]">
+    <Band id="partners" className="bg-canvas-dark py-[var(--band-pad-block)]">
       <div className="mx-auto max-w-6xl px-6">
         <SectionEyebrow label={PARTNERS_EYEBROW} onDark />
 
@@ -132,6 +132,6 @@ export function PartnersSection() {
           ))}
         </ul>
       </div>
-    </Reveal>
+    </Band>
   );
 }
