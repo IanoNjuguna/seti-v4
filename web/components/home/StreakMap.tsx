@@ -1,6 +1,6 @@
 import { Text } from '@/components/ui';
 import { HOME_PAGE_COPY } from './HomePage.constants';
-import { levelFor, monthMarks, streakColumns, streakTotals, type StreakCell } from './home.streak';
+import { levelFor, monthMarks, streakColumns, streakTotals, todayKey, type StreakCell } from './home.streak';
 import type { StreakMapProps } from './StreakMap.types';
 
 /**
@@ -88,6 +88,18 @@ function Grid({ columns, className }: { columns: StreakCell[][]; className?: str
                 key={`pad-${column[0].date ?? rowIndex}-${rowIndex}`}
                 className="aspect-square rounded-[2px] opacity-0"
               />
+            ) : cell.ahead ? (
+              /*
+               * A day still to come (#389). The map is a full year from the day the account
+               * joined, so the right-hand side of it is the future: an outline says "this day
+               * exists and has not been lived", which is neither a quiet day (a filled grey one)
+               * nor a pad (no square at all).
+               */
+              <span
+                key={cell.date}
+                title={`${cell.date}: ${HOME_PAGE_COPY.streakAhead}`}
+                className="aspect-square rounded-[2px] ring-1 ring-inset ring-hairline-light"
+              />
             ) : (
               <span
                 key={cell.date}
@@ -104,7 +116,24 @@ function Grid({ columns, className }: { columns: StreakCell[][]; className?: str
 
 export function StreakMap({ daily }: StreakMapProps) {
   const columns = streakColumns(daily);
-  const phoneColumns = columns.slice(-PHONE_WEEKS);
+
+  /**
+   * Which half-year a phone shows is the half around TODAY, not the end of the window (#389).
+   *
+   * The window is a full year from the day the account joined, so its last twenty-six columns are
+   * the future: slicing from the end showed a brand-new merchant a screen of outlines with the three
+   * days they had actually traded cut off the left edge. Centring the slice on today keeps what has
+   * happened and what is coming both in view.
+   */
+  const todayIndex = columns.findIndex((column) =>
+    column.some((cell) => cell.date !== null && !cell.ahead && cell.date === todayKey())
+  );
+  const phoneStart = Math.max(
+    0,
+    Math.min(todayIndex < 0 ? 0 : todayIndex - Math.floor(PHONE_WEEKS / 2), columns.length - PHONE_WEEKS)
+  );
+  const phoneColumns = todayIndex < 0 ? columns.slice(-PHONE_WEEKS) : columns.slice(phoneStart, phoneStart + PHONE_WEEKS);
+  const hasAhead = columns.some((column) => column.some((cell) => cell.ahead));
   const { activeDays, payments } = streakTotals(daily);
 
   return (
@@ -126,6 +155,14 @@ export function StreakMap({ daily }: StreakMapProps) {
           <Text variant="micro" as="span" color="secondary">
             {HOME_PAGE_COPY.streakMore}
           </Text>
+          {hasAhead ? (
+            <span className="ml-1 flex items-center gap-1">
+              <span className="h-2.5 w-2.5 rounded-[2px] ring-1 ring-inset ring-hairline-light" />
+              <Text variant="micro" as="span" color="secondary">
+                {HOME_PAGE_COPY.streakAheadLabel}
+              </Text>
+            </span>
+          ) : null}
         </span>
       </div>
     </div>

@@ -61,7 +61,7 @@ export function HomeScreen() {
       <HomeActions />
 
       {/* No payment has ever landed: say what to do first (#387). */}
-      {summary.year && summary.year.days === 0 ? <HomeStarter /> : null}
+      {summary.year && summary.year.payments === 0 ? <HomeStarter /> : null}
 
       {summary.year ? <HomeSummary year={summary.year} /> : null}
 

@@ -71,8 +71,12 @@ export const HOME_PAGE_COPY = {
   streakDay: (count: number): string =>
     count === 0 ? 'no payments' : count === 1 ? '1 payment' : `${count} payments`,
   /** The ramp's own labels, as short as the squares they sit between. */
+  /** The title of a day still to come: the day exists, nothing has happened in it yet. */
+  streakAhead: 'still to come',
   streakFewer: 'Fewer',
   streakMore: 'More',
+  /** The outline in the legend: a day still to come, not a day that went unused. */
+  streakAheadLabel: 'to come',
   /** Monday first, three letters, matching the grid's columns. */
   streakWeekdays: ['M', 'T', 'W', 'T', 'F', 'S', 'S'] as const,
 

@@ -222,10 +222,15 @@ export const STREAK_DAYS = 365;
 
 /** A strip of days for the map: how many, and when the first one was. */
 export interface DayWindow {
-  /** How many days the strip covers. Zero when the account has never taken a payment. */
+  /** How many days the strip covers: a full year in both branches. */
   days: number;
-  /** One entry per day, oldest first, zero-filled. Empty when `days` is zero. */
+  /** One entry per day, oldest first, zero-filled. The days ahead carry zero. */
   daily: DailyCount[];
+  /**
+   * Payments in the window. The strip is always a year long now, so "the account has never been
+   * paid" is no longer `days === 0` — it is this, and both the starter line and the label read it.
+   */
+  payments: number;
 }
 
 /** The widest window, so one query serves every window the surface shows. */
@@ -279,30 +284,25 @@ export async function getDailyYear(
   now: Date
 ): Promise<DayWindow> {
   /*
-   * The map starts where the account started, not a year ago (#375).
+   * The map is the YEAR THE ACCOUNT IS LIVING (#389).
    *
-   * A fixed 365-day window drew 371 pale squares and one green dot for a merchant three days
-   * old, under a label that claimed a year of history that did not exist. So the span is
-   * `max(first payment, a year ago)`: a new account gets a short strip that grows as it trades,
-   * an established one gets the full year, and the label can say which it is.
+   * It starts on the day the account joined, and it runs a full year: fifty-three columns from the
+   * start, so the days ahead are visible as days still to come rather than the grid growing a
+   * column at a time. A merchant three days in sees the whole of their first year, with three days
+   * behind them and the rest waiting.
    *
-   * No payments at all returns zero days, and the caller hides the grid rather than drawing a
-   * year of nothing: the map is evidence, and a surface with no evidence says so in words.
+   * Once that first year is over the window slides to the last twelve months, so an established
+   * account keeps a year of history instead of a grid frozen at its first anniversary. Both cases
+   * are 365 days, so the map never changes shape.
    */
-  const first = await prisma.transaction.findFirst({
-    where: {
-      userId,
-      network,
-      status: 'completed',
-      type: { in: MONEY_TYPES },
-    },
-    orderBy: { createdAt: 'asc' },
-    select: { createdAt: true },
-  });
-  if (!first) return { days: 0, daily: [] };
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true } });
+  const joined = startOfUtcDay(user?.createdAt ?? now);
+  const firstYearEnd = new Date(joined.getTime() + (STREAK_DAYS - 1) * DAY_MS);
 
-  const oldest = new Date(now.getTime() - (STREAK_DAYS - 1) * DAY_MS);
-  const since = first.createdAt > oldest ? first.createdAt : oldest;
+  const spanFirstYear = now <= firstYearEnd;
+  const from = spanFirstYear ? joined : new Date(now.getTime() - (STREAK_DAYS - 1) * DAY_MS);
+  const to = spanFirstYear ? firstYearEnd : now;
+
   const rows = await prisma.$queryRaw<Array<{ date: string; count: bigint }>>`
     SELECT to_char(date_trunc('day', "createdAt" AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS date,
            count(*) AS count
@@ -310,22 +310,31 @@ export async function getDailyYear(
     WHERE "userId" = ${userId}
       AND network = ${network}
       AND status = 'completed'
-      AND "createdAt" >= ${since}
+      AND "createdAt" >= ${from}
       AND type::text IN (${Prisma.join(MONEY_TYPES)})
     GROUP BY 1
     ORDER BY 1
   `;
 
   const perDay = new Map<string, number>(rows.map((row) => [row.date, Number(row.count)]));
-  const daily = fillDays(perDay, STREAK_DAYS, now).slice(-daysBetween(since, now));
-  return { days: daily.length, daily };
+  const daily = fillRange(perDay, from, to);
+  const payments = daily.reduce((sum, day) => sum + day.count, 0);
+  return { days: daily.length, daily, payments };
 }
 
-/** Whole days from `since` to `now`, inclusive — the length of the strip the map draws. */
-export function daysBetween(since: Date, now: Date): number {
-  const start = Date.UTC(since.getUTCFullYear(), since.getUTCMonth(), since.getUTCDate());
-  const end = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-  return Math.floor((end - start) / DAY_MS) + 1;
+/** UTC midnight of a date, so a window never starts or ends mid-day. */
+function startOfUtcDay(at: Date): Date {
+  return new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate()));
+}
+
+/** One entry per day from `from` to `to`, inclusive, oldest first. */
+export function fillRange(perDay: Map<string, number>, from: Date, to: Date): DailyCount[] {
+  const out: DailyCount[] = [];
+  for (let at = from.getTime(); at <= to.getTime(); at += DAY_MS) {
+    const date = dayKey(new Date(at));
+    out.push({ date, count: perDay.get(date) ?? 0 });
+  }
+  return out;
 }
 
 /**

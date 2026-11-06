@@ -42,7 +42,7 @@ export interface AnalyticsSummary {
   currency: string;
   windows: AnalyticsWindow[];
   /** A year of days for the streak map, counted in the database (#371). */
-  year: { days: number; daily: DailyCount[] };
+  year: { days: number; daily: DailyCount[]; payments: number };
 }
 
 /** Mirrors `backend/src/services/analytics.ts`. */
