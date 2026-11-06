@@ -369,6 +369,23 @@ console.log('the streak map fits a year:');
   check('twelve month marks, none of them in the first column', marks.length >= 11 && marks.every((m) => m.column > 1), String(marks.length));
   check('and they are initials', marks.every((m) => /^[JFMAMJJASOND]$/.test(m.label)));
 }
+console.log('a new account is told what to do first:');
+{
+  const screen = readFileSync(path.join(WEB, 'components/home/HomeScreen.tsx'), 'utf8');
+  const starter = readFileSync(path.join(WEB, 'components/home/HomeStarter.tsx'), 'utf8');
+
+  check(
+    'it renders only when no payment has ever landed',
+    screen.includes('summary.year.days === 0')
+  );
+  check(
+    'and it points at Receive, the door that shows the code',
+    screen.includes('<HomeStarter') && starter.includes('HOME_PAGE_COPY.starterHref')
+  );
+  check('the code it offers is a link, so it can be opened in a tab', starter.includes('<Link'));
+  check('it disappears the moment there is a payment', !screen.includes('days > 0 ? <HomeStarter'));
+}
+
 console.log('the label tells the truth about the window:');
 {
   check('a full year says so', stripLabel(365, '2025-11-07') === 'Last 12 months');
