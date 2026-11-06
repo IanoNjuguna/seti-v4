@@ -68,6 +68,54 @@ console.log('every money figure on Home consults the flag:');
   }
 }
 
+console.log('every figure that reaches the screen goes through the mask:');
+{
+  /**
+   * Consulting the flag is not the same as masking every number (#379).
+   *
+   * `BalanceTokenRow` called `useAmountPrivacy` and masked the fiat value on the right while
+   * printing `0.0045` under the token's name on the left, so an account with the eye closed still
+   * showed how much it held. This block looks for the figure itself: every local declared from
+   * `formatFiat` / `formatBalance`, and every `{row.units}`, has to be rendered inside a
+   * `<MaskedAmount`.
+   */
+  const RENDERED = (name) => new RegExp(`\\{${name}\\}`, 'g');
+
+  const isMasked = (source, index) => {
+    const before = source.slice(0, index);
+    return before.lastIndexOf('<MaskedAmount') > before.lastIndexOf('</MaskedAmount>');
+  };
+
+  const figures = [
+    ...readdirSync(path.join(WEB, 'components/home'))
+      .filter((file) => file.endsWith('.tsx'))
+      .map((file) => `components/home/${file}`),
+  ];
+
+  let scanned = 0;
+  for (const relPath of figures) {
+    const source = read(relPath);
+    const names = [
+      ...source.matchAll(/const\s+(\w+)\s*=\s*format(?:Fiat|Balance)\(/g),
+    ].map((match) => match[1]);
+    // The token's units are a money figure with a different name.
+    const targets = [...new Set([...names, 'row.units'])];
+
+    for (const name of targets) {
+      for (const match of source.matchAll(RENDERED(name))) {
+        scanned += 1;
+        check(
+          `${path.basename(relPath)}: {${name}} is masked`,
+          isMasked(source, match.index),
+          `index ${match.index}`
+        );
+      }
+    }
+  }
+
+  check('the scan found figures to guard', scanned >= 3, `${scanned}`);
+}
+
 console.log('the flag lives in the shell, and is not stored:');
 {
   const layout = read('app/(product)/app/layout.tsx');
