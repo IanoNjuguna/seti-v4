@@ -13,6 +13,17 @@
 
 export const TERMS_CHECKBOX_ID = 'terms-acceptance';
 
+/**
+ * The sentence the checkbox is about, as one element.
+ *
+ * The input names itself by this instead of by its labels: the sentence's two text runs
+ * are `<label>`s (so both toggle the box) with the `Terms of Use` link BETWEEN them, and
+ * two labels concatenate into a name that drops the link's own words. A fixed string
+ * rather than `useId()` for the same reason as the ids above: greppable in the DOM and
+ * in a browser test.
+ */
+export const TERMS_STATEMENT_ID = `${TERMS_CHECKBOX_ID}-statement`;
+
 /** Describes the disabled state, and is only rendered while it is disabled. */
 export const TERMS_CHECKBOX_HINT_ID = `${TERMS_CHECKBOX_ID}-hint`;
 
