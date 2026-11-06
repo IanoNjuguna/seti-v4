@@ -11,6 +11,8 @@ is built and what is unresolved — not how to integrate with it.
 | [The charge object](./charge-object.md) | The frozen shape a hosted page, a public API and an MCP tool all render: the signed field set and why `scope` is outside it, the status transitions, and the pure classifier behind `check:charge` |
 | [Product requirements](./prd.md) | Scope, a per-area implementation status table, non-functional requirements, risks, resolved questions and what is still open |
 | [Fee routing](./fee-routing.md) | How the 2% merchant fee is meant to reach Seti's treasury: the options considered, the dead ends, and the current correction that batching is protocol-native |
+| [Product model](./product-model.md) | What happens to the business if the 2% becomes a subscription: why the take rate and the software posture cannot coexist, the ladder, the three shapes of a free tier, how a merchant moves up, and the comparables with the date they were read |
+| [ERP interoperability](./erp-interoperability.md) | The seven surfaces that make Seti usable inside Odoo, NetSuite, Sage, Xero and QuickBooks: what already exists in `backend/src`, the data model delta, the two ISO 20022 formats, the build order and the two traps that break reconciliation |
 
 ## The five facts these documents keep coming back to
 

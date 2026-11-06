@@ -22,6 +22,8 @@
 * [Fee routing](internal/fee-routing.md)
 * [The charge object](internal/charge-object.md)
 * [The mainnet flip (owner-run)](internal/mainnet-flip.md)
+* [Product model: packaging and pricing](internal/product-model.md)
+* [ERP interoperability](internal/erp-interoperability.md)
 
 ## Policy
 
