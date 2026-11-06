@@ -80,10 +80,46 @@ export interface WindowTotals {
   skipped: number;
   /** Payments to a named merchant, most paid first, capped at three. */
   merchants: MerchantTotal[];
+  /**
+   * One entry per day in the window, oldest first, zero-filled (#369).
+   *
+   * The surface draws a streak map from this, and a map with holes in it is a lie about
+   * the quiet days: a day with no payments is a fact, not a missing row. The date key is
+   * the UTC calendar day, which is the same basis the window itself counts on.
+   */
+  daily: DailyCount[];
+}
+
+/** How many money movements a UTC day carried. */
+export interface DailyCount {
+  /** `YYYY-MM-DD`, UTC. */
+  date: string;
+  count: number;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MERCHANT_LIMIT = 3;
+
+/** `YYYY-MM-DD` in UTC, the calendar day the window counts on. */
+export function dayKey(at: Date): string {
+  return at.toISOString().slice(0, 10);
+}
+
+/**
+ * The window as one entry per day, oldest first.
+ *
+ * Zero-filled on purpose: the streak map draws a square for every day, and a day the
+ * customer took no money is the absence the map is FOR. Dropping empty days would turn
+ * thirty days into a list of good days and make a sparse month look busy.
+ */
+export function fillDays(perDay: Map<string, number>, days: number, now: Date): DailyCount[] {
+  const out: DailyCount[] = [];
+  for (let offset = days - 1; offset >= 0; offset -= 1) {
+    const date = dayKey(new Date(now.getTime() - offset * DAY_MS));
+    out.push({ date, count: perDay.get(date) ?? 0 });
+  }
+  return out;
+}
 
 /**
  * One window over rows already in memory.
@@ -98,6 +134,7 @@ export function summariseWindow(rows: AnalyticsRow[], days: number, now: Date): 
   let count = 0;
   let skipped = 0;
   const merchants = new Map<string, MerchantTotal>();
+  const perDay = new Map<string, number>();
 
   for (const row of rows) {
     if (row.status !== 'completed') continue;
@@ -116,6 +153,9 @@ export function summariseWindow(rows: AnalyticsRow[], days: number, now: Date): 
     if (direction === 'in') moneyIn += amount;
     else moneyOut += amount;
 
+    const day = dayKey(row.createdAt);
+    perDay.set(day, (perDay.get(day) ?? 0) + 1);
+
     if (direction === 'out' && row.type === 'payment' && row.merchantName) {
       const entry = merchants.get(row.merchantName) ?? { name: row.merchantName, count: 0, total: 0 };
       entry.count += 1;
@@ -131,6 +171,7 @@ export function summariseWindow(rows: AnalyticsRow[], days: number, now: Date): 
     net: moneyIn - moneyOut,
     count,
     skipped,
+    daily: fillDays(perDay, days, now),
     merchants: [...merchants.values()]
       .sort((a, b) => b.total - a.total)
       .slice(0, MERCHANT_LIMIT),
@@ -146,6 +187,7 @@ export interface WindowSummary {
   count: number;
   skipped: number;
   merchants: Array<{ name: string; count: number; total: string }>;
+  daily: DailyCount[];
 }
 
 export interface AnalyticsSummary {
@@ -238,6 +280,7 @@ export async function getAnalytics(
           count: merchant.count,
           total: toFiat(merchant.total, fiatPerUsd),
         })),
+        daily: totals.daily,
       };
     }),
   };
