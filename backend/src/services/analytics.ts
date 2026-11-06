@@ -214,11 +214,19 @@ export interface AnalyticsSummary {
    * `GROUP BY` rather than the rows: a merchant with a busy year would otherwise load every
    * transaction they have ever taken to draw a picture of which days they worked.
    */
-  year: { days: number; daily: DailyCount[] };
+  year: DayWindow;
 }
 
-/** The map spans a year: enough to see seasons, short enough to keep one row of squares. */
+/** The map spans a year at most: enough to see seasons, short enough to keep one row of squares. */
 export const STREAK_DAYS = 365;
+
+/** A strip of days for the map: how many, and when the first one was. */
+export interface DayWindow {
+  /** How many days the strip covers. Zero when the account has never taken a payment. */
+  days: number;
+  /** One entry per day, oldest first, zero-filled. Empty when `days` is zero. */
+  daily: DailyCount[];
+}
 
 /** The widest window, so one query serves every window the surface shows. */
 const WIDEST = Math.max(...ANALYTICS_WINDOWS);
@@ -269,8 +277,32 @@ export async function getDailyYear(
   userId: string,
   network: Network,
   now: Date
-): Promise<DailyCount[]> {
-  const since = new Date(now.getTime() - (STREAK_DAYS - 1) * DAY_MS);
+): Promise<DayWindow> {
+  /*
+   * The map starts where the account started, not a year ago (#375).
+   *
+   * A fixed 365-day window drew 371 pale squares and one green dot for a merchant three days
+   * old, under a label that claimed a year of history that did not exist. So the span is
+   * `max(first payment, a year ago)`: a new account gets a short strip that grows as it trades,
+   * an established one gets the full year, and the label can say which it is.
+   *
+   * No payments at all returns zero days, and the caller hides the grid rather than drawing a
+   * year of nothing: the map is evidence, and a surface with no evidence says so in words.
+   */
+  const first = await prisma.transaction.findFirst({
+    where: {
+      userId,
+      network,
+      status: 'completed',
+      type: { in: MONEY_TYPES },
+    },
+    orderBy: { createdAt: 'asc' },
+    select: { createdAt: true },
+  });
+  if (!first) return { days: 0, daily: [] };
+
+  const oldest = new Date(now.getTime() - (STREAK_DAYS - 1) * DAY_MS);
+  const since = first.createdAt > oldest ? first.createdAt : oldest;
   const rows = await prisma.$queryRaw<Array<{ date: string; count: bigint }>>`
     SELECT to_char(date_trunc('day', "createdAt" AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS date,
            count(*) AS count
@@ -285,7 +317,15 @@ export async function getDailyYear(
   `;
 
   const perDay = new Map<string, number>(rows.map((row) => [row.date, Number(row.count)]));
-  return fillDays(perDay, STREAK_DAYS, now);
+  const daily = fillDays(perDay, STREAK_DAYS, now).slice(-daysBetween(since, now));
+  return { days: daily.length, daily };
+}
+
+/** Whole days from `since` to `now`, inclusive — the length of the strip the map draws. */
+export function daysBetween(since: Date, now: Date): number {
+  const start = Date.UTC(since.getUTCFullYear(), since.getUTCMonth(), since.getUTCDate());
+  const end = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Math.floor((end - start) / DAY_MS) + 1;
 }
 
 /**
@@ -339,6 +379,6 @@ export async function getAnalytics(
         daily: totals.daily,
       };
     }),
-    year: { days: STREAK_DAYS, daily: year },
+    year,
   };
 }

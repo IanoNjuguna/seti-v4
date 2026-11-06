@@ -13,7 +13,14 @@
  * No database: `summariseWindow` takes rows, so the behaviour is provable without one.
  */
 import type { AnalyticsRow } from './analytics.js';
-import { convertWindow, dayKey, directionOf, summariseWindow } from './analytics.js';
+import {
+  convertWindow,
+  dayKey,
+  daysBetween,
+  directionOf,
+  MONEY_TYPES,
+  summariseWindow,
+} from './analytics.js';
 
 let passed = 0;
 let failures = 0;
@@ -235,6 +242,20 @@ console.log('the three figures reconcile:');
     'a pending row is absent from the series as well as the totals',
     summariseWindow([{ ...row('payment', 0), status: 'pending' }], 30, now).daily.every((d) => d.count === 0)
   );
+}
+
+console.log('the map starts where the account started:');
+{
+  // Inclusive: the day of the first payment is day one, not day zero.
+  check('a payment today is a strip of one day', daysBetween(new Date('2026-11-06T09:00:00Z'), new Date('2026-11-06T21:00:00Z')) === 1);
+  check('a payment three days ago is four days', daysBetween(new Date('2026-11-03T09:00:00Z'), new Date('2026-11-06T21:00:00Z')) === 4);
+  check('hours do not change the length', daysBetween(new Date('2026-11-03T23:59:00Z'), new Date('2026-11-06T00:01:00Z')) === 4);
+
+  check('the map counts a payment', MONEY_TYPES.includes('payment'));
+  check('and a fee', MONEY_TYPES.includes('fee'));
+  check('but not a swap between the customer\'s own assets', !MONEY_TYPES.includes('convert'));
+  check('and not money moving into the vault', !MONEY_TYPES.includes('savings_deposit'));
+  check('or out of it', !MONEY_TYPES.includes('savings_withdrawal'));
 }
 
 console.log('-'.repeat(74));

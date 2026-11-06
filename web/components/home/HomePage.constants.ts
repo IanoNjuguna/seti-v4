@@ -26,7 +26,6 @@ export const HOME_PAGE_COPY = {
    * is exactly a year of days. The rolling-or-calendar rule still holds — this says how far back
    * it looks, not which twelve months they were.
    */
-  streakLabel: 'Last 12 months',
 
   /** The two actions are a set of destinations, so the group is named once. */
   actionsLabel: 'Actions',

@@ -56,7 +56,7 @@ const { PAID_RECENTLY_LIMIT, longestWindow, paidRecently } = await import(
   '../components/home/home.summary.ts'
 );
 const { formatFiat } = await import('../lib/formatCurrency.ts');
-const { levelFor, monthMarks, streakColumns, streakTotals, weekdayIndex } = await import(
+const { levelFor, monthMarks, streakColumns, streakTotals, stripLabel, weekdayIndex } = await import(
   '../components/home/home.streak.ts'
 );
 
@@ -355,6 +355,14 @@ console.log('the streak map fits a year:');
   check('twelve month marks, none of them in the first column', marks.length >= 11 && marks.every((m) => m.column > 1), String(marks.length));
   check('and they are initials', marks.every((m) => /^[JFMAMJJASOND]$/.test(m.label)));
 }
+console.log('the label tells the truth about the window:');
+{
+  check('a full year says so', stripLabel(365, '2025-11-07') === 'Last 12 months');
+  check('a young account names its first day', stripLabel(3, '2026-11-04') === 'Since 4 Nov', stripLabel(3, '2026-11-04'));
+  check('a first day in December', stripLabel(9, '2026-12-29') === 'Since 29 Dec', stripLabel(9, '2026-12-29'));
+  check('no history at all is a sentence, not a date', stripLabel(0, undefined) === 'No payments yet');
+}
+
 console.log('-'.repeat(74));
 console.log(`${passed} assertions passed${failed ? `, ${failed} failed` : ''}.`);
 process.exit(failed === 0 ? 0 : 1);
