@@ -26,6 +26,25 @@ export interface DailyCount {
   count: number;
 }
 
+/** One half of the ledger as a window prints it (#396). */
+export interface HalfFigure {
+  count: number;
+  total: string;
+  average: string;
+  median: string;
+}
+
+/**
+ * The people on the other side (#396): a counterparty address on an inbound payment, counted over
+ * the account's whole life rather than the selected window.
+ */
+export interface AnalyticsCustomers {
+  count: number;
+  repeat: number;
+  lapsed: number;
+  top: Array<{ address: string; count: number; total: string }>;
+}
+
 export interface AnalyticsWindow {
   days: number;
   in: string;
@@ -34,12 +53,17 @@ export interface AnalyticsWindow {
   count: number;
   skipped: number;
   merchants: AnalyticsMerchant[];
+  /** What arrived from other people in this window. */
+  received: HalfFigure;
+  /** What left to merchants, with the fee attributed to it. */
+  paidOut: HalfFigure & { fee: string };
   /** One entry per day in the window, oldest first, zero-filled (#369). */
   daily: DailyCount[];
 }
 
 export interface AnalyticsSummary {
   currency: string;
+  customers: AnalyticsCustomers;
   windows: AnalyticsWindow[];
   /** A year of days for the streak map, counted in the database (#371). */
   year: { days: number; daily: DailyCount[]; payments: number };

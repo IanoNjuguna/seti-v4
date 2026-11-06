@@ -1,7 +1,9 @@
 'use client';
 
 import { Text } from '@/components/ui';
+import { AnalyticsCustomers } from './AnalyticsCustomers';
 import { AnalyticsFigures } from './AnalyticsFigures';
+import { AnalyticsHalves } from './AnalyticsHalves';
 import { AnalyticsMerchants } from './AnalyticsMerchants';
 import { AnalyticsEmpty, AnalyticsError, AnalyticsLoading } from './AnalyticsStates';
 import { WindowPicker } from './WindowPicker';
@@ -48,6 +50,12 @@ export function ActivityAnalytics({ active }: { active: boolean }) {
           ) : (
             <>
               <AnalyticsFigures window={selected} currency={currency} />
+
+              <AnalyticsHalves window={selected} currency={currency} />
+
+              {analytics.data ? (
+                <AnalyticsCustomers customers={analytics.data.customers} currency={currency} />
+              ) : null}
 
               {selected.skipped > 0 ? (
                 <Text variant="micro" as="p" color="secondary">
