@@ -272,16 +272,17 @@ console.log('\nthe page says what the pair is worth, and how much can be swapped
   check('the rate line prints the quote\'s own `rate`', rate.includes('quote.rate') && rate.includes('swapRateLine('));
   check('and never recomputes it from the two amounts', !/amountIn|amountOut/.test(rate));
 
-  const fields = stripComments(readSource('../components/swap/SwapFields.tsx'));
+  const page = stripComments(readSource('../components/swap/SwapForm.tsx'));
   check(
-    'the page puts that line under the two pickers it describes',
-    fields.includes('<SwapRateLine quote={form.quote} />')
+    'the page puts that line directly under the heading (#417)',
+    page.includes('<SwapRateLine quote={form.quote} />') &&
+      page.indexOf('<SwapRateLine') > page.indexOf('SWAP_FORM_COPY.title')
   );
 
   /**
-   * The ceiling is the server's `max` resolution — balance less the gas the swap costs —
-   * so it is asked once per pair, and never read off the balance row, which would
-   * overstate it by exactly the fee.
+   * The ceiling is the server's `max` resolution — balance less the gas the swap costs — so
+   * it is asked once per pair, and never read off the balance row, which would overstate it
+   * by exactly the fee.
    */
   const form = stripComments(readSource('../hooks/useSwapForm.ts'));
   check(
@@ -293,10 +294,72 @@ console.log('\nthe page says what the pair is worth, and how much can be swapped
     form.includes('ceiling.quote?.amountIn') && form.includes('shown?.amountIn ?? null')
   );
 
-  const field = stripComments(readSource('../components/swap/SwapAmountField.tsx'));
+  /**
+   * `Max` fills the field with that figure and is unavailable until the server has answered
+   * (#417). It is no longer printed as a caption beside the amount: the caption moved into
+   * the card's footer as the balance, and the guarantee that survives is the one that
+   * matters — the control cannot offer a figure this build derived.
+   */
+  const fields = stripComments(readSource('../components/swap/SwapFields.tsx'));
   check(
-    'the amount field prints it beside All, and only when the server has answered',
-    field.includes('spendable !== null') && field.includes('spendableLine(spendable, symbol)')
+    'Max is unavailable until the server has resolved a spendable figure',
+    fields.includes('onClick={form.onAll}') && /disabled=\{form\.busy \|\| form\.spendable === null\}/.test(fields)
+  );
+}
+
+console.log('\nthe page is a pair and an amount, not four form fields (#417):');
+{
+  const fields = stripComments(readSource('../components/swap/SwapFields.tsx'));
+  const amountField = stripComments(readSource('../components/swap/SwapAmountField.tsx'));
+  const card = stripComments(readSource('../components/swap/SwapCard.tsx'));
+  const form = stripComments(readSource('../hooks/useSwapForm.ts'));
+
+  /*
+   * The amount is the figure the page is about, at figure size. Asserted as a CLASS on the
+   * one element: the defect was that it wore the same 16px recipe as the two pickers, so it
+   * read as the third form field rather than as the number being swapped.
+   */
+  check(
+    'the amount renders at the figure size, in the pay card',
+    amountField.includes('SWAP_FIGURE_CLASS') && !amountField.includes('text-body-md')
+  );
+  check(
+    'and that size is one class, so a second one cannot win by emission order',
+    /export const SWAP_FIGURE_CLASS =\s*'[^']*text-heading-md[^']*'/.test(
+      stripComments(readSource('../components/swap/SwapForm.constants.ts'))
+    )
+  );
+
+  /*
+   * The `get` side prints the SERVER's `amountOut`. A number computed here would be a second
+   * opinion about the quote on screen, and the two would disagree the moment one rounded.
+   */
+  check(
+    'the get card prints the quote\'s `amountOut`, and never a figure of its own',
+    fields.includes('formatAssetUnits(quote.amountOut)') && !fields.includes('parseUnits(')
+  );
+
+  check(
+    'the pair is two cards with the control between them',
+    fields.indexOf('<SwapCard') < fields.indexOf('<SwapFlipControl') &&
+      fields.indexOf('<SwapFlipControl') < fields.lastIndexOf('<SwapCard') &&
+      card.includes('<SwapTokenPill')
+  );
+
+  /*
+   * The flip is the one edit that sets BOTH choices: `onSource` clears the target because a
+   * new source invalidates the pair, so a flip routed through it would blank the side the
+   * customer just flipped to.
+   */
+  check(
+    'the flip sets both sides at once, and clears a figure that was in other units',
+    /onFlip[\s\S]*setSourceChoice\(assetOut\)[\s\S]*setTargetChoice\(assetIn\)[\s\S]*setDraft\(''\)/.test(
+      form
+    )
+  );
+  check(
+    'and it is offered only when the get side is a balance this account holds',
+    /const canFlip =[\s\S]*sources\.some\(\(option\) => option\.asset === assetOut\)/.test(form)
   );
 }
 
