@@ -45,6 +45,7 @@ import { normalizeNetwork, type Network } from '../lib/network.js';
 import { isValidEvmAddress } from '../lib/address.js';
 import { ASSET_DECIMALS, tokenAddressFor, type SupportedAsset } from '../config/assets.js';
 import { publicClientFor, estimateNetworkFee } from './chain.js';
+import { readVaultCampaign, type VaultCampaign } from './savings-rewards.js';
 
 /**
  * The vault customer money goes into, per network. Absent means savings are off.
@@ -197,8 +198,21 @@ export interface SavingsSummary {
   /** Share count. NEVER an amount of stablecoins — see the doc comment. */
   shares: string;
   earnings: SavingsEarnings | null;
-  /** Null when the vault publishes no measurable rate. Rendered as "unavailable". */
+  /**
+   * The VAULT's own annual rate, rewards excluded, as a percentage string (`0.0001`).
+   *
+   * Filled from Merkl's `nativeApr` when that read answers, and null otherwise. It is never
+   * the campaign's rate: a promotion printed in this field is how a customer comes to believe
+   * a vault pays 3.6% when it pays a ten-thousandth of one.
+   */
   apy: string | null;
+  /**
+   * The rewards campaign paying on top of the vault, or null when none is live today (#425).
+   *
+   * Null is the ordinary state on a quiet day and the ONLY state the screen may render when
+   * Merkl has ended, paused or cannot be read: a stale promotion is worse than no number.
+   */
+  campaign: VaultCampaign | null;
   canDeposit: boolean;
   canWithdraw: boolean;
   /**
@@ -398,6 +412,7 @@ export async function getSavingsSummary(input: {
     shares: '0',
     earnings: null,
     apy: null,
+    campaign: null,
     canDeposit: false,
     canWithdraw: false,
     live: SAVINGS_LIVE,
@@ -418,6 +433,14 @@ export async function getSavingsSummary(input: {
   // A vault we cannot read is a vault we cannot offer: no deposit button on a paused or
   // unreadable vault, because the tap would fail after the customer has typed an amount.
   if (!onChain) return { ...empty, status: 'unreadable' };
+
+  /*
+   * The vault's own rate and the campaign paying on top of it, from one Merkl read (#425).
+   * Cached for five minutes inside the reader, so this costs a customer one request per five
+   * minutes of page loads rather than one per render, and a null (no campaign today) is
+   * cached just the same.
+   */
+  const campaign = await readVaultCampaign(vaultHex, networkConfigFor(network).chainId);
 
   const sharePrice = onChain.sharePrice;
   const shares = onChain.shares;
@@ -451,10 +474,12 @@ export async function getSavingsSummary(input: {
     savedFiat: (savedUnits * fiatPerUsd).toFixed(2),
     shares: formatUnits(shares, 18),
     earnings: measured,
-    // The vault's own yield measured 0.0000% over seven days (#322). The campaign APR is
-    // a separate surface with its own end date; this field is the vault's rate, and it is
-    // null rather than 0 so the screen says "unavailable" instead of "0%".
-    apy: null,
+    // The vault's own rate, and the campaign that pays on top of it, from one Merkl read
+    // (#425). Before this the field was hard-nulled because nothing in the stack could price
+    // the vault: Morpho's API does not index chain 4217, DefiLlama has no pool, and Tempo's
+    // Earn API answers `earn_vault_not_found`. Merkl carries `nativeApr` beside `apr`.
+    apy: campaign?.nativeApr ?? null,
+    campaign,
     canDeposit: SAVINGS_LIVE,
     canWithdraw: shares > BigInt(0),
     live: SAVINGS_LIVE,

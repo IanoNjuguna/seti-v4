@@ -116,7 +116,6 @@ export function SaveFlow() {
       ) : (
         <>
           <SaveFigure summary={save.summary} loading={save.loading} />
-
           {save.summary?.status === 'ok' && save.summary.vault?.depositsPaused ? (
             <Text variant="micro" color="warning" as="p">
               {SAVE_COPY.paused}
@@ -129,7 +128,10 @@ export function SaveFlow() {
             </Text>
           ) : null}
 
-          <SaveRewards />
+          {/* The claim block exists only while a campaign is live (#425): with no campaign
+              there is nothing to claim, and a stale block under a rate that has stopped
+              paying is the worst kind of wrong. */}
+          {save.summary?.campaign ? <SaveRewards /> : null}
 
           <SaveActions
             canWithdraw={Boolean(save.summary?.canWithdraw)}

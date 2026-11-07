@@ -38,6 +38,105 @@ export const MERKL_CAMPAIGN_END = '2027-01-06';
 
 const MERKL_API = 'https://api.merkl.xyz/v4';
 
+/**
+ * The campaign as Merkl reports it for one vault, in the units the screen prints.
+ *
+ * WHY THE VAULT'S OWN RATE COMES FROM HERE TOO. Nobody else indexes this vault: Morpho's API
+ * answers `NOT_FOUND` for chain 4217, DefiLlama has no pool for it, and Tempo's Earn API does
+ * not know a Morpho vault. Merkl carries both numbers on one response, `apr` for the rewards
+ * it pays and `nativeApr` for the vault, and asserts the split in its own record titles
+ * ("Native APR (without rewards)"). So the page has one call to blame or to trust.
+ *
+ * BOTH ARE PERCENT NUMBERS, NOT FRACTIONS: `apr` 3.5996 and `nativeApr` 0.0001127 sum to
+ * `totalApr` 3.5997. Printing `nativeApr` as a fraction would overstate the vault's yield by a
+ * hundred and make a campaign look like a vault rate, which is the defect this shape exists to
+ * prevent.
+ */
+export interface VaultCampaign {
+  /** The rewards rate, as a percentage string the screen prints verbatim: `3.60`. */
+  apr: string;
+  /** The vault's own rate, rewards excluded: `0.0001`. */
+  nativeApr: string;
+  /** The last day the campaign pays, as `6 Jan 2027`. */
+  endsAt: string;
+}
+
+/** A percentage string at the precision the number deserves. */
+function asPercent(value: number): string {
+  if (!Number.isFinite(value)) return '0';
+  if (value < 0.01) return value.toFixed(4);
+  return value.toFixed(2);
+}
+
+/** `6 Jan 2027`, in UTC, because a campaign end is a date and not a moment. */
+function asDate(seconds: number): string {
+  return new Date(seconds * 1000).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+/**
+ * The campaign for one vault, or null when there is none paying today.
+ *
+ * Cached for five minutes: this is read on every savings summary, the APR moves slowly, and a
+ * customer re-opening the page should not cost Merkl a request. A null is cached too, so a
+ * campaign that has ended does not get re-asked on every render.
+ *
+ * A campaign is returned ONLY when Merkl says it is live and lists at least one live campaign.
+ * Anything else (ended, paused, a chain we do not serve, a shape we do not recognise) is null,
+ * and the screen then shows the vault's own rate alone rather than a stale promotion.
+ */
+let campaignCache: { at: number; value: VaultCampaign | null } | null = null;
+const CAMPAIGN_TTL_MS = 5 * 60 * 1000;
+
+export async function readVaultCampaign(vault: string, chainId: number): Promise<VaultCampaign | null> {
+  if (campaignCache && Date.now() - campaignCache.at < CAMPAIGN_TTL_MS) return campaignCache.value;
+
+  const remember = (value: VaultCampaign | null): VaultCampaign | null => {
+    campaignCache = { at: Date.now(), value };
+    return value;
+  };
+
+  let payload: unknown;
+  try {
+    const response = await fetch(
+      `${MERKL_API}/opportunities?chainId=${chainId}&mainProtocolId=morpho&items=50`
+    );
+    if (!response.ok) return remember(null);
+    payload = await response.json();
+  } catch {
+    return remember(null);
+  }
+
+  const items = Array.isArray(payload) ? payload : [];
+  for (const item of items) {
+    if (typeof item !== 'object' || item === null) continue;
+    const entry = item as Record<string, unknown>;
+    const identifier = entry.identifier;
+    if (typeof identifier !== 'string' || identifier.toLowerCase() !== vault.toLowerCase()) continue;
+
+    const live = entry.status === 'LIVE' && Number(entry.liveCampaigns ?? 0) > 0;
+    if (!live) return remember(null);
+
+    const apr = Number(entry.apr);
+    const nativeApr = Number(entry.nativeApr);
+    const ends = Number(entry.latestCampaignEnd);
+    if (!Number.isFinite(apr) || !Number.isFinite(ends) || ends <= 0) return remember(null);
+
+    return remember({
+      apr: asPercent(apr),
+      nativeApr: Number.isFinite(nativeApr) ? asPercent(nativeApr) : '0',
+      endsAt: asDate(ends),
+    });
+  }
+
+  return remember(null);
+}
+
+
 export interface SavingsRewards {
   /** True only when a claimable amount, a wrapper and a distributor were all read. */
   claimable: boolean;

@@ -30,11 +30,26 @@ export interface SavingsSummary {
   savedFiat: string;
   shares: string;
   earnings: SavingsEarnings | null;
+  /** The VAULT's own rate, rewards excluded, as a percentage string. Null when unread. */
   apy: string | null;
+  /** The campaign paying on top of the vault today, or null. See `rateLines`. */
+  campaign: SavingsCampaign | null;
   canDeposit: boolean;
   canWithdraw: boolean;
   /** False means saving is closed on purpose: show "coming soon", offer no deposit. */
   live: boolean;
+}
+
+/**
+ * A live rewards campaign on the vault (#425).
+ *
+ * Both numbers are percentages, already formatted by the server, and they are NOT
+ * interchangeable: `apr` is what the campaign pays, and the vault's own rate arrives as
+ * `SavingsSummary.apy`. A surface that prints one as the other turns a promotion into a yield.
+ */
+export interface SavingsCampaign {
+  apr: string;
+  endsAt: string;
 }
 
 export interface SavingsDepositQuote {
