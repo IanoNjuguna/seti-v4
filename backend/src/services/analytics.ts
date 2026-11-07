@@ -241,6 +241,40 @@ export function halfFigures(
   };
 }
 
+/**
+ * The last thirty days of a year series, read for rhythm (#393).
+ *
+ * Days ahead carry zero and are dropped rather than counted as quiet: a day that has not happened
+ * cannot be part of "how many days did you trade". `drySpellDays` falls back to the first day with a
+ * movement ever, so a brand-new account with nothing paid reports its age rather than an enormous gap.
+ */
+export function consistencyOf(daily: DailyCount[], today: string): ConsistencySummary {
+  const behind = daily.filter((day) => day.date <= today);
+  const last30 = behind.slice(-30);
+
+  let best: DailyCount | null = null;
+  for (const day of last30) {
+    if (day.count > 0 && (!best || day.count > best.count)) best = day;
+  }
+
+  const lastActive = [...behind].reverse().find((day) => day.count > 0);
+  const drySpellDays = lastActive ? daysBetweenKeys(lastActive.date, today) : null;
+
+  return {
+    activeDays: last30.filter((day) => day.count > 0).length,
+    bestDay: best ? { date: best.date, count: best.count } : null,
+    drySpellDays,
+  };
+}
+
+/** Whole days from one `YYYY-MM-DD` key to another, never negative. */
+export function daysBetweenKeys(from: string, to: string): number {
+  const start = Date.parse(`${from}T00:00:00Z`);
+  const end = Date.parse(`${to}T00:00:00Z`);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return 0;
+  return Math.max(0, Math.round((end - start) / DAY_MS));
+}
+
 /** The middle of a sorted set: the middle value, or the mean of the two middles. */
 export function medianOf(values: number[]): number {
   if (values.length === 0) return 0;
@@ -290,9 +324,30 @@ export interface CustomersSummary {
   top: Array<{ address: string; count: number; total: string }>;
 }
 
+/**
+ * How steady the account is (#393), read off the same year the streak map draws.
+ *
+ * The tab reports totals for a window; this reports whether the business is regular. `activeDays` is
+ * out of the last thirty days, `bestDay` is the busiest of them, and `drySpellDays` is how long since
+ * anything moved at all — a fact about the account, not about the selected window, so a quiet week
+ * after a busy month still shows a real gap rather than a zero.
+ */
+export interface ConsistencySummary {
+  activeDays: number;
+  bestDay: { date: string; count: number } | null;
+  /**
+   * Days since the last movement, or null when nothing has ever moved.
+   *
+   * Null rather than the account's age: "3 days" beside a new account reads as three days of not
+   * working, when what is true is that there has been no first payment yet.
+   */
+  drySpellDays: number | null;
+}
+
 export interface AnalyticsSummary {
   currency: string;
   customers: CustomersSummary;
+  consistency: ConsistencySummary;
   windows: WindowSummary[];
   /**
    * The map's series: a full year of days, counted in the database (#371).
@@ -526,10 +581,12 @@ export async function getAnalytics(
   const fiatPerUsd = await getFiatPerUsd(currency);
   const year = await getDailyYear(userId, network, now);
   const customers = await getCustomers(userId, network, now, fiatPerUsd);
+  const consistency = consistencyOf(year.daily, dayKey(now));
 
   return {
     currency,
     customers,
+    consistency,
     windows: ANALYTICS_WINDOWS.map((days) => {
       const totals = summariseWindow(analyticsRows, days, now);
       const figures = convertWindow(totals, fiatPerUsd);
