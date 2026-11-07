@@ -361,6 +361,32 @@ console.log('\nthe page is a pair and an amount, not four form fields (#417):');
     'and it is offered only when the get side is a balance this account holds',
     /const canFlip =[\s\S]*sources\.some\(\(option\) => option\.asset === assetOut\)/.test(form)
   );
+
+  /*
+   * SHAPE (#421). The pill and the doubled seam were both live: the radius scale forbids a
+   * control that is a pill, and two flush cards give a seam of two borders and two sets of
+   * rounded corners. Both are asserted here because neither is detectable in a screenshot
+   * diff, and both came back once already.
+   */
+  const constants = stripComments(readSource('../components/swap/SwapForm.constants.ts'));
+  check(
+    'the token control uses the system radius, not a pill',
+    /export const SWAP_PILL_CLASS =\s*'[^']*rounded-md/.test(constants) &&
+      !/export const SWAP_PILL_CLASS =\s*'[^']*rounded-full/.test(constants)
+  );
+  check(
+    'the pair is one panel with two zones and a divider',
+    /export const SWAP_PANEL_CLASS =\s*'[^']*rounded-md[^']*border/.test(constants) &&
+      fields.includes('SWAP_PANEL_CLASS') &&
+      fields.split('<SwapCard').length === 3 &&
+      fields.includes('border-t border-hairline-light') &&
+      !fields.includes('rounded-md border border-hairline-light bg-canvas-light px-4')
+  );
+  check(
+    'and the flip is the app\'s own round icon button, not a circle written here',
+    stripComments(readSource('../components/swap/SwapFlipControl.tsx')).includes('<IconButton') &&
+      !stripComments(readSource('../components/swap/SwapFlipControl.tsx')).includes('rounded-full')
+  );
 }
 
 console.log('\nnothing is written until the receipt is verified:');
