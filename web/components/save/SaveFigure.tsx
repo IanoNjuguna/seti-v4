@@ -32,7 +32,6 @@ export function SaveFigure({ summary, loading }: SaveFigureProps) {
   const currency = summary?.fiatCurrency ?? '';
   const saved = summary?.savedFiat ?? '0.00';
   const available = summary?.spendableFiat ?? '0.00';
-  const earned = summary?.earnings?.lifetimeFiat ?? null;
   const hasSavings = Number(summary?.shares ?? '0') > 0;
   const rates = rateLines(summary?.campaign ?? null, summary?.apy ?? null);
 
@@ -59,24 +58,15 @@ export function SaveFigure({ summary, loading }: SaveFigureProps) {
         ) : (
           <>
             {/*
-              TWO rate lines, campaign first (#426). The lead names who pays and when it stops;
-              the second says what the vault itself pays, which is the number that survives the
-              campaign. Before this the card showed one line that said "unavailable", because
-              nothing in the stack could price the vault and the campaign was only ever read as
-              a claimable amount.
+              ONE line, tinted (#426): the campaign's rate, who pays it and when it stops. It
+              is the only positive figure on the card, so it wears the success ink the app
+              reserves for money in. The vault's own rate and the earnings sentence came off
+              the card on the owner's instruction: 0.0001% and "not measurable yet" read as
+              two apologies under a number, and the claim block below still says the payer is
+              the campaign and not the vault.
             */}
-            <Text variant="micro" as="p" color="primary">
+            <Text variant="micro" as="p" color="success">
               {rates.primary}
-            </Text>
-            {rates.secondary !== null && (
-              <Text variant="micro" as="p" color="secondary">
-                {rates.secondary}
-              </Text>
-            )}
-            <Text variant="micro" as="p" color="secondary">
-              {earned === null
-                ? SAVE_COPY.earnedUnknown
-                : `${SAVE_COPY.earnedLabel}: ${formatFiat(Number(earned), currency)}`}
             </Text>
           </>
         )}
