@@ -35,6 +35,13 @@ export type BadgeVariant = 'success' | 'neutral' | 'warning' | 'danger';
 export interface Transaction {
   id: string;
   merchant: string;
+  /**
+   * The ledger's own type, which is what a row's glyph is chosen from (#409).
+   *
+   * Optional because the home card's rows predate it on some payloads; a row without one falls back
+   * to the direction rather than to a wrong glyph.
+   */
+  type?: string;
   category: string;
   /** Signed by direction: negative when the money left the account. */
   amount: number;

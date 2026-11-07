@@ -1,4 +1,8 @@
 import type { ReactNode } from 'react';
+import type { ICON_PATHS } from './icon-paths.constants';
+
+/** The marks a transaction row can wear (#409). */
+export type TransactionGlyph = keyof typeof ICON_PATHS;
 import type { Transaction } from '@/lib/types';
 
 export interface TransactionRowProps {
