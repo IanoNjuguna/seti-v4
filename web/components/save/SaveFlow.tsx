@@ -128,17 +128,21 @@ export function SaveFlow() {
             </Text>
           ) : null}
 
-          {/* The claim block exists only while a campaign is live (#426): with no campaign
-              there is nothing to claim, and a stale block under a rate that has stopped
-              paying is the worst kind of wrong. */}
-          {save.summary?.campaign ? <SaveRewards /> : null}
-
+          {/* The two actions, directly under the figure (#427): Cash App and Vivid both put
+              them there, and the reason someone opened this page should not sit below a claim
+              block. */}
           <SaveActions
             canWithdraw={Boolean(save.summary?.canWithdraw)}
             withdrawReason={withdrawReason}
             onAdd={() => save.setMode('add')}
             onWithdraw={() => save.setMode('withdraw')}
           />
+
+          {/* The claim block exists only while a campaign is live (#426): with no campaign
+              there is nothing to claim, and a stale block under a rate that has stopped
+              paying is the worst kind of wrong. It follows the actions because claiming is a
+              task rather than the page. */}
+          {save.summary?.campaign ? <SaveRewards /> : null}
         </>
       )}
     </div>
