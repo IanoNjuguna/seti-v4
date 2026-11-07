@@ -3,6 +3,7 @@
 import { Text } from '@/components/ui';
 import { AnalyticsBusyHours } from './AnalyticsBusyHours';
 import { AnalyticsConsistency } from './AnalyticsConsistency';
+import { AnalyticsDailyBars } from './AnalyticsDailyBars';
 import { AnalyticsCustomers } from './AnalyticsCustomers';
 import { AnalyticsSettlement } from './AnalyticsSettlement';
 import { AnalyticsFigures } from './AnalyticsFigures';
@@ -10,7 +11,7 @@ import { AnalyticsHalves } from './AnalyticsHalves';
 import { AnalyticsMerchants } from './AnalyticsMerchants';
 import { AnalyticsEmpty, AnalyticsError, AnalyticsLoading } from './AnalyticsStates';
 import { WindowPicker } from './WindowPicker';
-import { ANALYTICS_COPY, skippedNote, windowLabel } from './Analytics.constants';
+import { ANALYTICS_COPY, DAILY_BAR_FLOOR, skippedNote, windowLabel } from './Analytics.constants';
 import { useAnalytics, useAnalyticsWindow } from './useAnalytics';
 import { useTimeZoneSync } from './useTimeZoneSync';
 
@@ -57,6 +58,10 @@ export function ActivityAnalytics({ active }: { active: boolean }) {
               <AnalyticsFigures window={selected} currency={currency} />
 
               <AnalyticsHalves window={selected} currency={currency} />
+
+              {selected.count >= DAILY_BAR_FLOOR ? (
+                <AnalyticsDailyBars daily={selected.daily} days={selected.days} />
+              ) : null}
 
               {analytics.data ? (
                 <>

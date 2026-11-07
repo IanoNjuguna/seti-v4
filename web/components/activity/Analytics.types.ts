@@ -1,3 +1,4 @@
+import type { DailyCount } from '@/lib/api/analytics';
 import type {
   AnalyticsConsistency,
   AnalyticsSettlement,
@@ -53,6 +54,11 @@ export interface AnalyticsSettlementProps {
 
 export interface AnalyticsConsistencyProps {
   consistency: AnalyticsConsistency;
+}
+
+export interface AnalyticsDailyBarsProps {
+  daily: DailyCount[];
+  days: number;
 }
 
 export interface AnalyticsHalvesProps {
