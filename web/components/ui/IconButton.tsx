@@ -41,6 +41,7 @@ export function IconButton({
   onClick,
   tone = 'default',
   surface = 'light',
+  disabled = false,
   className,
 }: IconButtonProps) {
   return (
@@ -49,8 +50,10 @@ export function IconButton({
       onClick={onClick}
       aria-label={label}
       title={label}
+      disabled={disabled}
       className={cn(
         'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors duration-(--duration-quick) ease-out active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+        'disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100',
         SURFACE_CLASSES[surface],
         TONE_CLASSES[tone][surface],
         surface === 'dark' && 'focus-visible:ring-offset-canvas-dark',

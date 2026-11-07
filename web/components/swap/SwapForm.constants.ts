@@ -89,15 +89,18 @@ export function swapRateLine(inSymbol: string, rate: string, outSymbol: string):
 }
 
 /**
- * The pair, as two cards with a control between them (#417).
+ * The pair, as ONE panel with two zones and a divider (#417, #421).
  *
- * The geometry is the category's: a card that holds a token and its figure, a hairline row
- * under it, and a circular control straddling the seam so the two sides read as one
- * exchange rather than as two settings. `rounded-md` and `hairline-light` are the system's
- * own card and rule, so nothing here is a new vocabulary.
+ * Two cards sitting flush was the wrong shape: each carried its own hairline and its own
+ * `rounded-md` corners, so the seam was two borders back to back with two sets of corners,
+ * a pinched waist behind the flip control rather than a division. `design/revolut.md` has
+ * one panel shape, the one `SaveFlow` and `feature-card-light` use: a surface with an
+ * internal `hairline-light` rule. So the frame is on the panel and the zones are zones.
  */
-export const SWAP_CARD_CLASS =
-  'rounded-md border border-hairline-light bg-canvas-light px-4 pb-3 pt-3';
+export const SWAP_PANEL_CLASS = 'rounded-md border border-hairline-light bg-canvas-light';
+
+/** A zone's own padding. The seam's clearance belongs to the wrappers in `SwapFields`. */
+export const SWAP_CARD_CLASS = 'px-4 py-3';
 
 /**
  * The figure, at the size a figure is read at.
@@ -111,24 +114,15 @@ export const SWAP_FIGURE_CLASS =
   'block w-full min-w-0 bg-transparent p-0 text-right font-mono font-tabular font-medium text-heading-md text-ink outline-none disabled:opacity-60';
 
 /**
- * The token pill: a select wearing a token's shape, with the chevron on its edge.
+ * The token control: `surface-soft`, a hairline, and the doc's own radius.
  *
- * `surface-soft` rather than the card's own canvas: the pill sits INSIDE a card, and a white
- * control on a white card was a hairline doing all the work. The doc's second step off white
- * is what a well inside a surface uses, and it is the same token the receipt's hash well uses.
+ * It was `rounded-full` for one commit (#417), which the radius scale forbids: "`{rounded.full}`
+ * means a circle and nothing else", and "no button, card or input is a pill". The control is
+ * 12px like every other surface and control in the app, so it reads as the same object as the
+ * panel it sits in (#421).
  */
 export const SWAP_PILL_CLASS =
-  'min-touch appearance-none rounded-full border border-hairline-light bg-surface-soft pl-3 pr-8 text-body-md-bold text-ink outline-none transition-colors hover:bg-canvas-light focus:border-primary focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-60';
-
-/**
- * The flip control.
- *
- * 40px is a finger, not a hairline: it sits on the seam between two cards and is the only
- * control on the page that changes the DIRECTION of the exchange, so it cannot be a chevron
- * the customer has to aim at.
- */
-export const SWAP_FLIP_CLASS =
-  'flex h-10 w-10 items-center justify-center rounded-full border border-hairline-light bg-canvas-light text-ink shadow-sm transition-colors hover:bg-surface-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:text-stone';
+  'min-touch appearance-none rounded-md border border-hairline-light bg-surface-soft pl-3 pr-8 text-body-md-bold text-ink outline-none transition-colors hover:bg-canvas-light focus:border-primary focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-60';
 
 /** The row under a card's figure: quiet ink, one line, the same height either side. */
 export const SWAP_CARD_FOOTER_CLASS =
