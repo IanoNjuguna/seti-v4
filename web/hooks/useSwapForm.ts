@@ -336,6 +336,39 @@ export function useSwapForm(): SwapFormState {
     [shown, swap]
   );
 
+  /**
+   * Whether the pair can be turned over (#417).
+   *
+   * A swap is spent FROM a balance, so the control only exists when the token on the `get`
+   * side is one this account holds today AND the book fills the way back. Turning the pair
+   * into a token we cannot spend would leave the page with no source and a figure nobody
+   * could sign, and offering the press would be offering a dead end.
+   */
+  const canFlip =
+    assetOut !== '' &&
+    assetIn !== '' &&
+    sources.some((option) => option.asset === assetOut) &&
+    convertPairs.some((pair) => pair.in === assetOut && pair.out === assetIn);
+
+  /**
+   * Turn the pair over in one press.
+   *
+   * Both choices are set together, which `onSource` cannot do on its own: it clears the
+   * target, because changing the source invalidates the pair. A flip is the one edit where
+   * the new target is already known, so it sets both.
+   *
+   * The typed figure is CLEARED. It was a number of units of the old pay token, so keeping
+   * it would swap a quantity the customer never chose in the token they are now spending.
+   */
+  const onFlip = useCallback(() => {
+    if (!canFlip) return;
+
+    setSourceChoice(assetOut);
+    setTargetChoice(assetIn);
+    setTyped(false);
+    setDraft('');
+  }, [canFlip, assetIn, assetOut]);
+
   const loading = rowsLoading || pairs.status === 'loading';
   const ready = !loading && !rowsUnavailable && pairs.status === 'ready' && assetOut !== '';
 
@@ -364,6 +397,8 @@ export function useSwapForm(): SwapFormState {
           ? (ceiling.quote?.amountIn ?? null)
           : null,
     stateLine,
+    canFlip,
+    onFlip,
     refocusAmount: convert.code === 'convert-no-liquidity',
     busy: swap.busy,
     done,

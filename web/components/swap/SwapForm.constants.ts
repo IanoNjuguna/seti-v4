@@ -18,14 +18,26 @@ import { formatAssetUnits } from '@/components/home/home.format';
  */
 export const SWAP_FORM_COPY = {
   title: 'Swap',
-  lead: 'Move money from one balance into another.',
 
-  sourceLabel: 'Swap from',
-  targetLabel: 'Hold as',
-  amountLabel: 'Amount',
+  /**
+   * The two sides of the pair (#417). `You pay` / `You get` rather than `Swap from` /
+   * `Hold as`: the first is a sentence a customer says, and `Hold as` was a phrase no one
+   * uses for the token they end up with.
+   */
+  payLabel: 'You pay',
+  getLabel: 'You get',
+
+  /** The amount's own name, for a screen reader: the card's caption is the visible label. */
+  amountAria: 'Amount to pay',
+
+  /** The row under the pay figure: what is held, and the control that fills the field. */
+  balanceLabel: 'Balance',
+  max: 'Max',
+
+  /** The flip control between the cards, as a button name. */
+  flipLabel: 'Swap the two sides',
+
   amountPlaceholder: '0.00',
-  /** The one control that puts the whole balance in the field. */
-  all: 'All',
   /** The way off a finished swap, so a second one can be priced. */
   finish: 'Done',
 
@@ -77,15 +89,50 @@ export function swapRateLine(inSymbol: string, rate: string, outSymbol: string):
 }
 
 /**
- * The ceiling beside `All`: what the balance can actually spend, in its own units.
+ * The pair, as two cards with a control between them (#417).
  *
- * The figure is the server's `max` resolution (balance less the gas the swap costs), so
- * it is the same number `All` puts in the field. A balance row would overstate it by the
- * fee, which is why it is never read from there.
+ * The geometry is the category's: a card that holds a token and its figure, a hairline row
+ * under it, and a circular control straddling the seam so the two sides read as one
+ * exchange rather than as two settings. `rounded-md` and `hairline-light` are the system's
+ * own card and rule, so nothing here is a new vocabulary.
  */
-export function spendableLine(units: string, symbol: string): string {
-  return `up to ${formatAssetUnits(units)} ${symbol}`;
-}
+export const SWAP_CARD_CLASS =
+  'rounded-md border border-hairline-light bg-canvas-light px-4 pb-3 pt-3';
+
+/**
+ * The figure, at the size a figure is read at.
+ *
+ * ONE size class, deliberately: `Text`'s `balance` variant steps 24px to 40px at `sm`, and
+ * this column is the same width at every breakpoint, so the larger step would overflow a
+ * six-decimal amount. A single class also cannot lose to a second one by emission order.
+ * Mono and tabular because a figure is what mono is for.
+ */
+export const SWAP_FIGURE_CLASS =
+  'block w-full min-w-0 bg-transparent p-0 text-right font-mono font-tabular font-medium text-heading-md text-ink outline-none disabled:opacity-60';
+
+/**
+ * The token pill: a select wearing a token's shape, with the chevron on its edge.
+ *
+ * `surface-soft` rather than the card's own canvas: the pill sits INSIDE a card, and a white
+ * control on a white card was a hairline doing all the work. The doc's second step off white
+ * is what a well inside a surface uses, and it is the same token the receipt's hash well uses.
+ */
+export const SWAP_PILL_CLASS =
+  'min-touch appearance-none rounded-full border border-hairline-light bg-surface-soft pl-3 pr-8 text-body-md-bold text-ink outline-none transition-colors hover:bg-canvas-light focus:border-primary focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-60';
+
+/**
+ * The flip control.
+ *
+ * 40px is a finger, not a hairline: it sits on the seam between two cards and is the only
+ * control on the page that changes the DIRECTION of the exchange, so it cannot be a chevron
+ * the customer has to aim at.
+ */
+export const SWAP_FLIP_CLASS =
+  'flex h-10 w-10 items-center justify-center rounded-full border border-hairline-light bg-canvas-light text-ink shadow-sm transition-colors hover:bg-surface-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:text-stone';
+
+/** The row under a card's figure: quiet ink, one line, the same height either side. */
+export const SWAP_CARD_FOOTER_CLASS =
+  'mt-2 flex items-baseline justify-between gap-3 border-t border-hairline-light pt-2';
 
 export const SWAP_SOURCE_FIELD_ID = 'swap-source';
 export const SWAP_TARGET_FIELD_ID = 'swap-target';
@@ -122,18 +169,12 @@ export const SWAP_REFERENCE_COPY_CLASS =
   'mt-2 inline-flex min-touch items-center rounded-sm text-body-sm font-semibold text-link hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary';
 
 /**
- * A picker's recipe, borrowed from `text-input` in `design/revolut.md`: 56px tall,
- * `rounded-md`, the white canvas as its fill, `hairline-light` as its border and cobalt
- * as the focus border. A select and an input are the same object at the same size, which
- * is why this is the input's own recipe rather than a second one.
- */
-export const SWAP_SELECT_CLASS =
-  'mt-2 h-14 w-full rounded-md border border-hairline-light bg-canvas-light px-4 text-body-md text-ink outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-60';
-
-/**
  * An inline control on the light canvas, from the repo's own inline-link recipe: a
  * `min-touch` box so the target is a finger, `text-link` for the ink (the doc's link
  * colour on a white surface), an underline on hover and the cobalt focus ring.
+ *
+ * `self-end` is gone: this control now sits in a card's footer row beside the balance,
+ * where the row's own `justify-between` places it, not at the end of a column (#417).
  */
 export const SWAP_LINK_CLASS =
-  'inline-flex min-touch items-center self-end rounded-sm text-body-sm font-semibold text-link hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary';
+  'inline-flex min-touch items-center rounded-sm text-body-sm font-semibold text-link hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:text-stone disabled:no-underline';

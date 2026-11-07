@@ -1,69 +1,101 @@
 'use client';
 
-import { SWAP_FORM_COPY } from './SwapForm.constants';
+import { Text } from '@/components/ui';
+import { formatFiat } from '@/lib/formatCurrency';
+import { formatAssetUnits } from '@/components/home/home.format';
+import { SWAP_FIGURE_CLASS, SWAP_FORM_COPY, SWAP_LINK_CLASS } from './SwapForm.constants';
 import { SwapAmountField } from './SwapAmountField';
+import { SwapCard } from './SwapCard';
 import { SwapFigures } from './SwapFigures';
-import { SwapRateLine } from './SwapRateLine';
-import { SwapSelect } from './SwapSelect';
+import { SwapFlipControl } from './SwapFlipControl';
 import { SwapSubmit } from './SwapSubmit';
 import type { SwapFieldsProps } from './SwapForm.types';
 
 /**
- * The four things a swap is made of, in the order they are decided.
+ * The pair, then the two figures it promises, then the one control that signs.
  *
- * Which balance, then which to hold, then how much, then the two figures and the one
- * control that signs. The ORDER is the page's argument: the target list comes from the
- * chosen source, the amount is checked against the chosen balance, and the floor and the
- * fee sit directly under the amount they belong to and above the button that signs them,
- * so both are read on the way to the signature rather than after it.
+ * The order is the page's argument (#417): what you are spending, what you are getting, one
+ * button between them to turn it over, then the floor and the fee directly under the pair
+ * they belong to and above the control that signs. It used to be four stacked form fields
+ * with two captions and a ceiling floating on its own row, which read as a settings page.
  *
- * It takes the hook's state whole rather than a dozen props, because every control here
- * is wired to the same one thing and splitting the object up would only be a longer way
- * of saying so. Nothing here decides anything: the pickers' options, the amount's message,
- * whether a quote is shown and whether the button can be pressed are all the hook's.
+ * Nothing here decides anything: the options, the amount, the get figure, whether the flip
+ * is possible and whether the button can be pressed are all `useSwapForm`'s. The get figure
+ * is `quote.amountOut`, which the server computed; this file does no arithmetic on a quote.
  */
 export function SwapFields({ form }: SwapFieldsProps) {
-  // The source's own spelling, for the ceiling caption. Read from the row the quote is
-  // spending, never typed here: a symbol this app made up is a token name we claimed.
-  const sourceSymbol =
-    form.sourceOptions.find((option) => option.asset === form.assetIn)?.symbol ?? '';
+  // Symbols and units come from the rows the quote is spending and buying, never typed
+  // here: a token name this app made up is a token name we claimed.
+  const source = form.sourceOptions.find((option) => option.asset === form.assetIn);
+  const quote = form.quote;
 
   return (
     <form className="flex flex-col gap-4" onSubmit={form.onSubmit}>
-      <SwapSelect
-        id={form.sourceFieldId}
-        label={SWAP_FORM_COPY.sourceLabel}
-        value={form.assetIn}
-        options={form.sourceOptions}
-        disabled={form.busy}
-        onChoose={form.onSource}
-      />
+      <div className="flex flex-col">
+        <SwapCard
+          selectId={form.sourceFieldId}
+          label={SWAP_FORM_COPY.payLabel}
+          asset={form.assetIn}
+          options={form.sourceOptions}
+          busy={form.busy}
+          onChoose={form.onSource}
+          figure={
+            <SwapAmountField
+              id={form.amountFieldId}
+              label={SWAP_FORM_COPY.amountAria}
+              amount={form.amount}
+              error={form.amountError}
+              busy={form.busy}
+              refocus={form.refocusAmount}
+              onAmount={form.onAmount}
+            />
+          }
+          footer={
+            <>
+              <Text variant="micro" as="span" color="secondary" tabular>
+                {SWAP_FORM_COPY.balanceLabel} {source?.units ?? ''} {source?.symbol ?? ''}
+              </Text>
 
-      <SwapSelect
-        id={form.targetFieldId}
-        label={SWAP_FORM_COPY.targetLabel}
-        value={form.assetOut}
-        options={form.targetOptions}
-        disabled={form.busy}
-        onChoose={form.onTarget}
-      />
+              {/* The server's `max` is what this fills, so it stays unavailable until that
+                  answer exists: a control that filled a figure we derived ourselves would
+                  overstate the spendable balance by exactly the fee the swap also costs. */}
+              <button
+                type="button"
+                className={SWAP_LINK_CLASS}
+                onClick={form.onAll}
+                disabled={form.busy || form.spendable === null}
+              >
+                {SWAP_FORM_COPY.max}
+              </button>
+            </>
+          }
+        />
 
-      {/* The price of the pair, under the two pickers it belongs to (#337). */}
-      {form.quote !== null && <SwapRateLine quote={form.quote} />}
+        <SwapFlipControl disabled={!form.canFlip || form.busy} onFlip={form.onFlip} />
 
-      <SwapAmountField
-        id={form.amountFieldId}
-        amount={form.amount}
-        error={form.amountError}
-        spendable={form.spendable}
-        symbol={sourceSymbol}
-        busy={form.busy}
-        refocus={form.refocusAmount}
-        onAmount={form.onAmount}
-        onAll={form.onAll}
-      />
+        <SwapCard
+          selectId={form.targetFieldId}
+          label={SWAP_FORM_COPY.getLabel}
+          asset={form.assetOut}
+          options={form.targetOptions}
+          busy={form.busy}
+          onChoose={form.onTarget}
+          figure={
+            <span className={SWAP_FIGURE_CLASS}>
+              {quote === null ? '' : formatAssetUnits(quote.amountOut)}
+            </span>
+          }
+          footer={
+            <Text variant="micro" as="span" color="secondary" tabular>
+              {quote === null
+                ? ''
+                : `≈ ${formatFiat(Number(quote.fiatAmountOut), quote.fiatCurrency)}`}
+            </Text>
+          }
+        />
+      </div>
 
-      {form.quote !== null && <SwapFigures quote={form.quote} />}
+      {quote !== null && <SwapFigures quote={quote} />}
 
       <SwapSubmit
         busy={form.busy}
