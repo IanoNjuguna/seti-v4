@@ -387,6 +387,53 @@ console.log('\nthe page is a pair and an amount, not four form fields (#417):');
     stripComments(readSource('../components/swap/SwapFlipControl.tsx')).includes('<IconButton') &&
       !stripComments(readSource('../components/swap/SwapFlipControl.tsx')).includes('rounded-full')
   );
+
+  /*
+   * THE MARK (#423). The control named a token in text and showed nothing, so `USDC.e` and
+   * `USDC` were one character apart on the one screen where the difference is money. The file
+   * map is held to the assets this build supports, and every mapped file is checked on disk:
+   * an entry pointing at a file nobody committed draws a broken image in production, which is
+   * worse than no mark.
+   */
+  const pill = stripComments(readSource('../components/swap/SwapTokenPill.tsx'));
+  const marks = stripComments(readSource('../components/ui/TokenMark.constants.ts'));
+  const mark = stripComments(readSource('../components/ui/TokenMark.tsx'));
+
+  check(
+    'the token control draws the token\'s mark beside its symbol',
+    pill.includes('<TokenMark') && pill.includes('asset={value}')
+  );
+  check(
+    'and the select carries the padding that makes room for it',
+    /export const SWAP_PILL_CLASS =\s*'[^']*pl-10/.test(constants)
+  );
+  check(
+    'the mark is decorative: the symbol already names the token',
+    mark.includes('alt=""') && !mark.includes('<TokenMark') && !/aria-label=/.test(mark)
+  );
+  check(
+    'a label with no vendored file draws nothing rather than a broken image',
+    /if \(!file\) return null/.test(mark)
+  );
+
+  const { ASSET_DECIMALS } = await import('../lib/chain/index.ts');
+  const mapped = [...marks.matchAll(/^\s+'?([a-zA-Z0-9.]+)'?:\s*'([^']+\.svg)',?$/gm)].map((m) => ({
+    asset: m[1],
+    file: m[2],
+  }));
+
+  check(
+    'every asset this build supports has a mark',
+    Object.keys(ASSET_DECIMALS).every((asset) => mapped.some((entry) => entry.asset === asset)),
+    Object.keys(ASSET_DECIMALS).join(', ')
+  );
+  for (const entry of mapped) {
+    check(
+      `the file for ${entry.asset} exists in web/public/tokens`,
+      existsSync(new URL(`../public/tokens/${entry.file}`, import.meta.url)),
+      entry.file
+    );
+  }
 }
 
 console.log('\nnothing is written until the receipt is verified:');
