@@ -411,6 +411,32 @@ console.log('when the counter is busy:');
   check('at most three slots are named', (drawn?.peaks.length ?? 0) === 3);
 }
 
+console.log('where the money went, when there is nobody to name:');
+{
+  const now = new Date(Date.UTC(2026, 10, 6, 12));
+  const row = (type: 'payment' | 'p2p_send', counterparty: string | null, merchantName: string | null, daysAgo = 0) => ({
+    type,
+    status: 'completed' as const,
+    amount: '100',
+    createdAt: new Date(now.getTime() - daysAgo * 86_400_000),
+    merchantName,
+    counterparty,
+    fee: '2',
+  });
+
+  const rows = [
+    row('payment', '0xmerchant', 'Java House'),
+    row('payment', '0xmerchant', 'Java House', 1),
+    row('p2p_send', '0x5e081d96d367ac5a9b641b445a58e85f0d17fc55', null),
+  ];
+  const totals = summariseWindow(rows, 7, now, 'Africa/Nairobi');
+
+  check('a named merchant is ranked by its name', totals.merchants[0]?.name === 'Java House' && totals.merchants[0]?.kind === 'merchant', JSON.stringify(totals.merchants[0]));
+  check('and a person is ranked by their address rather than dropped', totals.merchants.some((entry) => entry.kind === 'address'), JSON.stringify(totals.merchants.map((m) => m.kind)));
+  check('two payments to one merchant are one row', totals.merchants.find((entry) => entry.name === 'Java House')?.count === 2);
+  check('so an account with only sends is not told there were no payments', totals.merchants.length === 2, String(totals.merchants.length));
+}
+
 console.log('-'.repeat(74));
 console.log(failures === 0 ? `All ${passed} checks passed.` : `${failures} of ${passed + failures} checks FAILED.`);
 if (failures > 0) process.exit(1);

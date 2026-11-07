@@ -78,6 +78,8 @@ export interface AnalyticsRow {
 
 export interface MerchantTotal {
   name: string;
+  /** Whether `name` is a merchant's own name or a wallet address standing in for one (#402). */
+  kind?: 'merchant' | 'address';
   count: number;
   total: number;
 }
@@ -221,11 +223,30 @@ export function summariseWindow(
       if (row4) row4[moment.hour] = (row4[moment.hour] ?? 0) + 1;
     }
 
-    if (direction === 'out' && row.type === 'payment' && row.merchantName) {
-      const entry = merchants.get(row.merchantName) ?? { name: row.merchantName, count: 0, total: 0 };
-      entry.count += 1;
-      entry.total += amount;
-      merchants.set(row.merchantName, entry);
+    /*
+     * WHO THE MONEY WENT TO (#402): a merchant by name, or the address it went to.
+     *
+     * This used to count only `payment` rows that carried a merchant record, so an account that had
+     * paid people — or a merchant whose record was never attached — saw `Money out` above a panel
+     * saying "No payments in this window". The address is the fallback because it is the only other
+     * identity the ledger holds, and it is what the person would see on the chain anyway.
+     */
+    if (direction === 'out' && (row.type === 'payment' || row.type === 'p2p_send')) {
+      // A merchant's own name only means something on a `payment`; a send to a person is their address.
+      const label = row.type === 'payment' ? (row.merchantName ?? row.counterparty) : row.counterparty;
+      if (label) {
+        const named = row.type === 'payment' && Boolean(row.merchantName);
+      const key = named ? `m:${label}` : `a:${label.toLowerCase()}`;
+        const entry = merchants.get(key) ?? {
+          name: label,
+          kind: named ? ('merchant' as const) : ('address' as const),
+          count: 0,
+          total: 0,
+        };
+        entry.count += 1;
+        entry.total += amount;
+        merchants.set(key, entry);
+      }
     }
   }
 
@@ -789,6 +810,7 @@ export async function getAnalytics(
         },
         merchants: totals.merchants.map((merchant) => ({
           name: merchant.name,
+          kind: merchant.kind ?? 'merchant',
           count: merchant.count,
           total: toFiat(merchant.total, fiatPerUsd),
         })),

@@ -3,7 +3,7 @@ export const ANALYTICS_COPY = {
   out: 'Money out',
   net: 'Net',
   merchantsTitle: 'Where it went',
-  merchantsEmpty: 'No payments in this window.',
+  merchantsEmpty: 'No payments out in this window.',
   emptyTitle: 'Nothing in this window',
   emptyBody: 'Payments and transfers will add up here once there are some.',
   errorTitle: "Couldn't load your figures",
