@@ -27,6 +27,12 @@ export const ANALYTICS_COPY = {
     const named = peaks.map((peak) => `${peak.weekday} ${pad(peak.fromHour)}–${pad(peak.toHour)}`);
     return `Busiest: ${named.join(' · ')}`;
   },
+  /* One bar a day (#404). */
+  dailyTitle: (days: number): string => (days === 7 ? 'Each day, last 7' : `Each day, last ${days}`),
+  dailyPeak: (date: string, count: number): string =>
+    `Busiest: ${dayAndMonth(date)} · ${count === 1 ? '1 payment' : `${count} payments`}`,
+  dailyCount: (count: number): string => (count === 1 ? '1 payment' : `${count} payments`),
+  dayShort: (date: string): string => dayAndMonth(date),
   /* How the settlement is going (#395). */
   settlementTitle: 'Settlement',
   pending: 'Pending',
@@ -73,6 +79,14 @@ export function skippedNote(count: number): string {
     ? '1 movement could not be read, so the figures may be short by it.'
     : `${count} movements could not be read, so the figures may be short by them.`;
 }
+
+/**
+ * Below this many movements in the window, a bar chart is a drawing of noise (#404).
+ *
+ * The same reasoning as the busy-hours floor: a shape inferred from a handful of payments is a
+ * pattern that only exists in the sampling, and the tab is better off saying nothing than showing it.
+ */
+export const DAILY_BAR_FLOOR = 50;
 
 /** `09` — an hour on a clock face, not an index. */
 export function pad(hour: number): string {
