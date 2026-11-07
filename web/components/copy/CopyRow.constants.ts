@@ -1,4 +1,4 @@
-import type { CopyRowSurface } from './CopyRow.types';
+import type { CopyRowSize, CopyRowSurface } from './CopyRow.types';
 
 /**
  * How loud the VALUE itself reads, per surface.
@@ -13,8 +13,21 @@ import type { CopyRowSurface } from './CopyRow.types';
  * `cn()` is a plain join, not `twMerge`: a caller's `text-*` override would be
  * emitted alongside the base class and Tailwind's own order would pick the
  * winner. A role is the only way to choose one, so the roles are named once.
+ *
+ * SIZE and COLOUR are separate tables for the same reason. A 42-character address
+ * at `body-sm` does not fit the receive page's column at 390px: it broke two
+ * characters onto a second line and put the copy control beside the orphan. The
+ * size is a decision about the VALUE's length, the colour is a decision about its
+ * weight, and they were one class until an address needed the first without the
+ * second (#419).
  */
-export const VALUE_CLASSES: Record<'quiet' | 'loud', Record<CopyRowSurface, string>> = {
-  quiet: { light: 'text-body-sm text-mute', dark: 'text-body-sm text-on-dark-mute' },
-  loud: { light: 'text-body-md-bold text-ink', dark: 'text-body-md-bold text-on-dark' },
+export const VALUE_TONE: Record<'quiet' | 'loud', Record<CopyRowSurface, string>> = {
+  quiet: { light: 'text-mute', dark: 'text-on-dark-mute' },
+  loud: { light: 'text-ink', dark: 'text-on-dark' },
+};
+
+/** The two sizes a value is drawn at: the row's own, and one step down for a long hex. */
+export const VALUE_SIZE: Record<CopyRowSize, Record<'quiet' | 'loud', string>> = {
+  body: { quiet: 'text-body-sm', loud: 'text-body-md-bold' },
+  caption: { quiet: 'text-caption', loud: 'text-caption font-semibold' },
 };

@@ -5,6 +5,7 @@ import { PageBack } from '@/components/app/PageBack';
 import { SignInCard } from '@/components/auth/SignInCard';
 import { Text } from '@/components/ui';
 import { RECEIVE_PAGE_COPY } from './ReceivePage.constants';
+import { ReceiveAddress } from './ReceiveAddress';
 import { ReceiveFailure } from './ReceiveFailure';
 import { ReceiveLoading } from './ReceiveLoading';
 import { ReceiveMerchantHalf } from './ReceiveMerchantHalf';
@@ -74,6 +75,10 @@ function ReceiveBody({ state }: { state: ResolvedState }) {
       ) : (
         <ReceiveNameHalf handle={state.handle.handle} link={state.handle.link} />
       )}
+
+      {/* Under whichever half is showing (#419): the address money arrives at, which a
+          business needs for the same reason a person does. */}
+      <ReceiveAddress />
     </>
   );
 }
