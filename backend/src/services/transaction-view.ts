@@ -19,7 +19,7 @@ import { payeeHandleOf } from '../lib/payee.js';
  * guess it made was "everything is an outflow" — so a deposit rendered as
  * `-USD 1,000,000.00` in ink instead of `+` in green.
  */
-const INFLOW_TYPES = new Set(['top_up', 'p2p_receive']);
+const INFLOW_TYPES = new Set(['top_up', 'p2p_receive', 'savings_withdrawal']);
 
 export function directionOf(type: string): 'in' | 'out' {
   return INFLOW_TYPES.has(type) ? 'in' : 'out';
@@ -71,6 +71,9 @@ export function describeCounterparty(transaction: {
  *
  * A verb, because that is the only true thing the ledger knows: it does not know who the wallet on
  * the other end belongs to, and inventing a noun would be inventing that.
+ *
+ * The vault's two types are deliberately absent (#415): a savings row has no counterparty, so it is
+ * named from `TYPE_LABELS` below, and an entry here would be a name nothing could ever read.
  */
 const ROW_TITLES: Record<string, string> = {
   payment: 'Payment',
@@ -101,6 +104,12 @@ const TYPE_LABELS: Record<string, string> = {
    * outflow of the amount that ARRIVED until the renderer learns the pair.
    */
   convert: 'Convert',
+  /**
+   * The vault (#415). Named as actions on savings rather than as a counterparty, because the
+   * counterparty column is null by design: the money went to a contract the customer owns.
+   */
+  savings_deposit: 'Savings deposit',
+  savings_withdrawal: 'Savings withdrawal',
 };
 
 export function describeType(type: string): string {
