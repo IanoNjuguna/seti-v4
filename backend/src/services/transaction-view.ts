@@ -170,9 +170,20 @@ export function toRecentTransaction(row: {
   /** Untyped Json on the row; the payee's name is read out of it defensively. */
   metadata?: unknown;
 }): RecentTransaction {
+  const payee = payeeHandleOf(row.metadata);
+
   return {
     id: row.id,
-    merchant: row.merchant?.name ?? describeCounterparty(row),
+    type: row.type,
+    /*
+     * A NAME BEATS A VERB (#411).
+     *
+     * When the send flow resolved the recipient to a claimed username, this row knows who it was for.
+     * It used to say `Sent` anyway, because the title fell straight through to `describeCounterparty`,
+     * and the handle was kept only for the "pay again" action on a failed row. `@akinyi` is a better
+     * title than `Sent`, and it is the difference between a diary and a list of verbs.
+     */
+    merchant: row.merchant?.name ?? (payee ? `@${payee}` : describeCounterparty(row)),
     direction: directionOf(row.type),
     category: row.merchant?.category ?? describeType(row.type),
     amount: row.amount?.toString() ?? '0',
@@ -191,7 +202,7 @@ export function toRecentTransaction(row: {
      * client declared no name — all of which must read as "no payee", not as an
      * error.
      */
-    payeeHandle: payeeHandleOf(row.metadata),
+    payeeHandle: payee,
     ...endsOf(row),
   };
 }

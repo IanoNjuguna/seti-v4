@@ -1,4 +1,6 @@
 import { cn } from '@/lib/cn';
+import { Icon } from './Icon';
+import { initialOf, rowGlyph } from './transaction-glyph';
 import { formatFiat } from '@/lib/formatCurrency';
 import { Text } from './Text';
 import { TransactionRowSubtitle } from './TransactionRowSubtitle';
@@ -57,14 +59,30 @@ export function TransactionRowBody({ transaction }: TransactionRowBodyProps) {
    * row where it earns its place — as the title, when there is no name to use.
    */
   const subtitle = `${formatDate(date)} · ${formatTime(date)}`;
+  /** The mark this row wears: its type's glyph, an alert, a clock, or the merchant's initial (#409). */
+  const glyph = rowGlyph(transaction);
 
   return (
     <>
+      {/*
+        THE CIRCLE CARRIES A GLYPH, NOT A LETTER (#409).
+
+        It used to hold the first letter of the title, so a page of transfers read `S S R S S` — a
+        column of letters that were not names. The glyph says what happened; a merchant's initial stays,
+        because that one is a name. Money arriving is the only thing tinted.
+      */}
       <span
         aria-hidden
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-soft"
+        className={cn(
+          'flex h-10 w-10 shrink-0 items-center justify-center rounded-full',
+          glyph.tone === 'in' ? 'bg-accent-light-green/20' : 'bg-surface-soft'
+        )}
       >
-        <Text variant="card-title">{merchant.charAt(0)}</Text>
+        {glyph.icon ? (
+          <Icon name={glyph.icon} className={cn('h-5 w-5', glyph.tone === 'in' ? 'text-ink-success' : 'text-ink')} />
+        ) : (
+          <Text variant="card-title">{initialOf(merchant)}</Text>
+        )}
       </span>
 
       <span className="min-w-0 flex-1">

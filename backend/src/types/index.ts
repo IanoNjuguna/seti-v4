@@ -71,6 +71,14 @@ export interface RecentRecipient {
 export interface RecentTransaction {
   id: string;
   merchant: string;
+  /**
+   * The ledger's own type (`payment`, `p2p_send`, `top_up`, `fee`…).
+   *
+   * Carried so a surface can choose a glyph from WHAT HAPPENED rather than from a display label: the
+   * category is a merchant's own ("Food & drink") and the merchant string is a name or a verb, and
+   * neither can tell a fee from a swap (#409).
+   */
+  type: string;
   category: string;
   /**
    * Which way the money moved, from the ledger's own type.

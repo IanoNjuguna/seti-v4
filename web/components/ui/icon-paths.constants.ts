@@ -31,6 +31,13 @@ export const ICON_PATHS = {
   document: ['M7 3.5h6.5L19 9v11.5H7Z', 'M13.5 3.5V9H19'],
   verified: ['M12 3.5 14 6l3-.4.9 3 2.6 1.5-1.2 2.8 1.2 2.8-2.6 1.5-.9 3-3-.4-2 2.5-2-2.5-3 .4-.9-3-2.6-1.5L5.5 13 4 12l1.5-2.8-.9-3 3-.4Z', 'm9 12 2 2 4-4.5'],
   arrowRight: ['M4 12h15', 'm13 6 6 6-6 6'],
+  /* The mirror of `send`, for money arriving (#409). Written as a line and a
+     chevron rather than reusing the paper plane mirrored, so the pair reads as a
+     direction (out, in) and not as two aircraft. */
+  arrowDownLeft: ['M18.5 5.5 6 18', 'M6 10.5V18h7.5'],
+  /* A clock face: the ring and two hands. Pending needs a mark of its own; the
+     word in the amount column says it too, and colour alone never does. */
+  clock: ['M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17Z', 'M12 7.5V12l3 2'],
   close: ['m6 6 12 12', 'm18 6-12 12'],
   /* The magnifier: a ring and a 45-degree handle. The set had every other glyph a
      header needs (close, chevron, alert) but no search mark, so the field beside
