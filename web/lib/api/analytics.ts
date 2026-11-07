@@ -15,6 +15,8 @@ import { get, post } from './client';
  */
 export interface AnalyticsMerchant {
   name: string;
+  /** A merchant's own name, or a wallet address standing in for one (#402). */
+  kind?: 'merchant' | 'address';
   count: number;
   total: string;
 }

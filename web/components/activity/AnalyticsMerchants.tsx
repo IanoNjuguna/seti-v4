@@ -15,6 +15,11 @@ import type { AnalyticsMerchantsProps } from './Analytics.types';
  * The count is phrased as payments rather than as a bare number, because "Java House
  * 5" beside a figure reads as five shillings.
  */
+/** `0x5e08…fc55`: enough to recognise a wallet, short enough not to be the whole row. */
+function shortAddress(address: string): string {
+  return address.length <= 12 ? address : `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
+
 export function AnalyticsMerchants({ merchants, currency }: AnalyticsMerchantsProps) {
   return (
     <section className="border-t border-hairline-light pt-6">
@@ -35,7 +40,7 @@ export function AnalyticsMerchants({ merchants, currency }: AnalyticsMerchantsPr
             >
               <span className="flex min-w-0 flex-col">
                 <Text variant="body" as="span" className="truncate">
-                  {merchant.name}
+                  {merchant.kind === 'address' ? shortAddress(merchant.name) : merchant.name}
                 </Text>
                 <Text variant="micro" as="span" color="secondary">
                   {merchant.count === 1 ? '1 payment' : `${merchant.count} payments`}
