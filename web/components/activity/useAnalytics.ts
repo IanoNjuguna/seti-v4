@@ -43,6 +43,7 @@ export function useAnalytics({ active }: UseAnalyticsInput): UseAnalyticsReturn 
   }, []);
 
   return {
+    userId,
     data,
     loading: active && Boolean(userId) && data === null && error === null,
     error,

@@ -17,6 +17,16 @@ export const ANALYTICS_COPY = {
   feeNote: 'Funded by the customer inside their own transfer.',
   ticket: (count: number, average: string, median: string): string =>
     `${count === 1 ? '1 payment' : `${count} payments`} · average ${average} · median ${median}`,
+  /* When the counter is busy (#394). */
+  busyTitle: 'When you get paid',
+  busyBelowFloor:
+    'Not enough payments yet to show a rhythm. This appears once there are fifty in the period.',
+  busyCount: (count: number): string => (count === 1 ? '1 payment' : `${count} payments`),
+  busyPeaks: (peaks: Array<{ weekday: string; fromHour: number; toHour: number }>): string => {
+    if (peaks.length === 0) return 'No payments in this period.';
+    const named = peaks.map((peak) => `${peak.weekday} ${pad(peak.fromHour)}–${pad(peak.toHour)}`);
+    return `Busiest: ${named.join(' · ')}`;
+  },
   /* How the settlement is going (#395). */
   settlementTitle: 'Settlement',
   pending: 'Pending',
@@ -62,6 +72,11 @@ export function skippedNote(count: number): string {
   return count === 1
     ? '1 movement could not be read, so the figures may be short by it.'
     : `${count} movements could not be read, so the figures may be short by them.`;
+}
+
+/** `09` — an hour on a clock face, not an index. */
+export function pad(hour: number): string {
+  return String(hour).padStart(2, '0');
 }
 
 /** A duration in the unit that makes it readable: seconds, minutes or hours. */

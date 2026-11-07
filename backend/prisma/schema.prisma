@@ -9,6 +9,15 @@ datasource db {
 
 model User {
   id            String     @id @default(cuid())
+  /// The IANA zone this account's days are counted in (#394).
+  ///
+  /// STORED, not read from the device: "Saturday" is a business fact, and it must be the same on
+  /// the merchant's phone, on their accountant's laptop and in an export. A zone taken from the
+  /// client at render time would let opening the app in London rewrite last week's figures.
+  ///
+  /// Set from the browser's own answer on first load. The default is the product's home market,
+  /// so an account that has never been asked still buckets its days somewhere real.
+  timeZone      String     @default("Africa/Nairobi")
   /// The entry key at LOGIN (`POST /auth/verify` upserts on it) and a label on
   /// the account — but NOT the key a live session resolves by. See `privyDid`.
   email         String     @unique

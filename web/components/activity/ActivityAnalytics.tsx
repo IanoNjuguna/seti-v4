@@ -1,6 +1,7 @@
 'use client';
 
 import { Text } from '@/components/ui';
+import { AnalyticsBusyHours } from './AnalyticsBusyHours';
 import { AnalyticsConsistency } from './AnalyticsConsistency';
 import { AnalyticsCustomers } from './AnalyticsCustomers';
 import { AnalyticsSettlement } from './AnalyticsSettlement';
@@ -9,8 +10,9 @@ import { AnalyticsHalves } from './AnalyticsHalves';
 import { AnalyticsMerchants } from './AnalyticsMerchants';
 import { AnalyticsEmpty, AnalyticsError, AnalyticsLoading } from './AnalyticsStates';
 import { WindowPicker } from './WindowPicker';
-import { skippedNote, windowLabel } from './Analytics.constants';
+import { ANALYTICS_COPY, skippedNote, windowLabel } from './Analytics.constants';
 import { useAnalytics, useAnalyticsWindow } from './useAnalytics';
+import { useTimeZoneSync } from './useTimeZoneSync';
 
 /**
  * What the account adds up to, inside the second tab.
@@ -28,6 +30,7 @@ export function ActivityAnalytics({ active }: { active: boolean }) {
   const analytics = useAnalytics({ active });
   const { windows, days, setDays, selected } = useAnalyticsWindow(analytics.data);
   const currency = analytics.data?.currency;
+  useTimeZoneSync(analytics.userId, analytics.data?.timeZone);
 
   if (!active) return null;
 
@@ -60,6 +63,14 @@ export function ActivityAnalytics({ active }: { active: boolean }) {
                   <AnalyticsConsistency consistency={analytics.data.consistency} />
                   <AnalyticsCustomers customers={analytics.data.customers} currency={currency} />
                   <AnalyticsSettlement settlement={analytics.data.settlement} />
+
+                  {selected.busyHours ? (
+                    <AnalyticsBusyHours busyHours={selected.busyHours} />
+                  ) : (
+                    <Text variant="micro" as="p" color="secondary">
+                      {ANALYTICS_COPY.busyBelowFloor}
+                    </Text>
+                  )}
                 </>
               ) : null}
 
