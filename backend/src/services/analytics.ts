@@ -2,6 +2,7 @@ import type { TransactionStatus, TransactionType } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { getFiatPerUsd } from './payments.js';
+import { localMoment, resolveTimeZone } from './time-zone.js';
 import type { Network } from '../lib/network.js';
 import { servedNetwork } from '../config/networks.js';
 
@@ -98,6 +99,8 @@ export interface WindowTotals {
   skipped: number;
   /** Payments to a named merchant, most paid first, capped at three. */
   merchants: MerchantTotal[];
+  /** Seven weekdays of twenty-four hours, counts of inbound payments, in the account's zone (#394). */
+  busyHours: number[][];
   /** What arrived from other people in this window (#396). */
   received: { count: number; total: number; amounts: number[] };
   /** What left to merchants in this window, with the fee attributed to it. */
@@ -149,7 +152,12 @@ export function fillDays(perDay: Map<string, number>, days: number, now: Date): 
  * Only `completed` counts: a pending transfer is not money in or out, and counting it
  * would make the summary disagree with the balance the customer can spend.
  */
-export function summariseWindow(rows: AnalyticsRow[], days: number, now: Date): WindowTotals {
+export function summariseWindow(
+  rows: AnalyticsRow[],
+  days: number,
+  now: Date,
+  timeZone: string
+): WindowTotals {
   const since = now.getTime() - days * DAY_MS;
   let moneyIn = 0;
   let moneyOut = 0;
@@ -163,6 +171,8 @@ export function summariseWindow(rows: AnalyticsRow[], days: number, now: Date): 
   const paidOutAmounts: number[] = [];
   const receivedAmounts: number[] = [];
   const merchants = new Map<string, MerchantTotal>();
+  // Seven weekdays, twenty-four hours, in the account's zone (#394).
+  const busy: number[][] = Array.from({ length: 7 }, () => Array.from({ length: 24 }, () => 0));
   const perDay = new Map<string, number>();
 
   for (const row of rows) {
@@ -201,8 +211,15 @@ export function summariseWindow(rows: AnalyticsRow[], days: number, now: Date): 
       receivedAmounts.push(amount);
     }
 
-    const day = dayKey(row.createdAt);
+    // The day a movement belongs to is the ACCOUNT's day, not UTC's (#394).
+    const day = localMoment(row.createdAt, timeZone).date;
     perDay.set(day, (perDay.get(day) ?? 0) + 1);
+
+    if (row.type === 'p2p_receive') {
+      const moment = localMoment(row.createdAt, timeZone);
+      const row4 = busy[moment.weekday];
+      if (row4) row4[moment.hour] = (row4[moment.hour] ?? 0) + 1;
+    }
 
     if (direction === 'out' && row.type === 'payment' && row.merchantName) {
       const entry = merchants.get(row.merchantName) ?? { name: row.merchantName, count: 0, total: 0 };
@@ -219,12 +236,48 @@ export function summariseWindow(rows: AnalyticsRow[], days: number, now: Date): 
     net: moneyIn - moneyOut,
     count,
     skipped,
+    busyHours: busy,
     received: { count: receivedCount, total: received, amounts: receivedAmounts },
     paidOut: { count: paidOutCount, total: paidOut, fees: paidOutFees, amounts: paidOutAmounts },
     daily: fillDays(perDay, days, now),
     merchants: [...merchants.values()]
       .sort((a, b) => b.total - a.total)
       .slice(0, MERCHANT_LIMIT),
+  };
+}
+
+/**
+ * The busy grid, or null below the floor (#394).
+ *
+ * The peaks are found by flattening seven by twenty-four into one list, sorting by count and taking
+ * the top three. Ties fall back to weekday then hour so the answer is stable between reads: a
+ * merchant comparing two windows should not see the named slots reorder because two cells happened
+ * to hold the same count.
+ */
+export function busyHoursSummary(buckets: number[][], floor = BUSY_HOURS_FLOOR): BusyHoursSummary | null {
+  let total = 0;
+  const flat: Array<{ weekday: number; fromHour: number; count: number }> = [];
+
+  buckets.forEach((week, weekday) => {
+    week.forEach((count, hour) => {
+      total += count;
+      if (count > 0) flat.push({ weekday, fromHour: hour, count });
+    });
+  });
+
+  if (total < floor) return null;
+
+  flat.sort((a, b) => b.count - a.count || a.weekday - b.weekday || a.fromHour - b.fromHour);
+
+  return {
+    buckets,
+    total,
+    peaks: flat.slice(0, 3).map((peak) => ({
+      weekday: peak.weekday,
+      fromHour: peak.fromHour,
+      toHour: (peak.fromHour + 1) % 24,
+      count: peak.count,
+    })),
   };
 }
 
@@ -333,11 +386,33 @@ export interface WindowSummary {
   skipped: number;
   /** What arrived from other people, and what it averages to (#396). */
   received: HalfSummary;
+  /** When the counter is busy (#394): seven weekdays by twenty-four hours, or null below the floor. */
+  busyHours: BusyHoursSummary | null;
   /** What left to merchants, with the fee attributed to it. */
   paidOut: HalfSummary & { fee: string };
   merchants: Array<{ name: string; count: number; total: string }>;
   daily: DailyCount[];
 }
+
+/**
+ * When the money arrives (#394).
+ *
+ * `buckets` is seven weekdays by twenty-four hours in the ACCOUNT's zone, counting inbound payments.
+ * `peaks` is the same data read for a reader who will not count squares: the three busiest slots, each
+ * named as a weekday and an hour range.
+ *
+ * Null rather than an empty grid when the window is too thin to say anything: twelve payments spread
+ * over a hundred and sixty-eight cells is a pattern that only exists in the noise, and a field of dots
+ * reads as a finding.
+ */
+export interface BusyHoursSummary {
+  buckets: number[][];
+  peaks: Array<{ weekday: number; fromHour: number; toHour: number; count: number }>;
+  total: number;
+}
+
+/** Below this many inbound payments in the window, the grid is noise rather than a rhythm. */
+export const BUSY_HOURS_FLOOR = 50;
 
 /** One half of the ledger as a window prints it: a count, a total, and its ticket sizes. */
 export interface HalfSummary {
@@ -399,6 +474,8 @@ export interface SettlementSummary {
 
 export interface AnalyticsSummary {
   currency: string;
+  /** The zone these figures were counted in (#394), so a reader can see which calendar they are on. */
+  timeZone: string;
   customers: CustomersSummary;
   consistency: ConsistencySummary;
   settlement: SettlementSummary;
@@ -486,50 +563,88 @@ export function convertWindow(totals: Pick<WindowTotals, 'in' | 'out'>, fiatPerU
 export async function getDailyYear(
   userId: string,
   network: Network,
-  now: Date
+  now: Date,
+  timeZone: string
 ): Promise<DayWindow> {
   /*
-   * The map is the YEAR THE ACCOUNT IS LIVING (#389).
+   * The map is the YEAR THE ACCOUNT IS LIVING (#389), counted in the account's own zone (#394).
    *
-   * It starts on the day the account joined, and it runs a full year: fifty-three columns from the
-   * start, so the days ahead are visible as days still to come rather than the grid growing a
-   * column at a time. A merchant three days in sees the whole of their first year, with three days
-   * behind them and the rest waiting.
+   * It runs from the day the account joined to the day before that anniversary, so the days ahead
+   * are visible as days still to come rather than the grid growing a column at a time; once that
+   * year is over the window slides to the last twelve months. Both are 365 days, so the map never
+   * changes shape.
    *
-   * Once that first year is over the window slides to the last twelve months, so an established
-   * account keeps a year of history instead of a grid frozen at its first anniversary. Both cases
-   * are 365 days, so the map never changes shape.
+   * The day a payment belongs to is the ACCOUNT's day. `AT TIME ZONE` names a zone in the database
+   * rather than an offset, so a merchant in a place that moves its clocks still gets their own
+   * calendar rather than UTC's.
+   *
+   * THE DOUBLE CONVERSION IS NOT REDUNDANT. Prisma stores a `DateTime` as `timestamp WITHOUT time
+   * zone` holding UTC, so `"createdAt" AT TIME ZONE 'Africa/Nairobi'` REINTERPRETS the stored UTC
+   * clock as Nairobi wall time and lands a day early — proved against the dev database before this
+   * shipped. The first `AT TIME ZONE 'UTC'` says "this naive value is UTC" and yields a real instant;
+   * the second renders that instant in the account's zone.
    */
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true } });
-  const joined = startOfUtcDay(user?.createdAt ?? now);
-  const firstYearEnd = new Date(joined.getTime() + (STREAK_DAYS - 1) * DAY_MS);
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { createdAt: true, timeZone: true },
+  });
+  const zone = resolveTimeZone(user?.timeZone ?? timeZone);
 
-  const spanFirstYear = now <= firstYearEnd;
-  const from = spanFirstYear ? joined : new Date(now.getTime() - (STREAK_DAYS - 1) * DAY_MS);
-  const to = spanFirstYear ? firstYearEnd : now;
+  const joinedKey = localMoment(user?.createdAt ?? now, zone).date;
+  const todayKey = localMoment(now, zone).date;
+  const firstYearEnd = addDaysToKey(joinedKey, STREAK_DAYS - 1);
+
+  const spanFirstYear = todayKey <= firstYearEnd;
+  const fromKey = spanFirstYear ? joinedKey : addDaysToKey(todayKey, -(STREAK_DAYS - 1));
+  const toKey = spanFirstYear ? firstYearEnd : todayKey;
 
   const rows = await prisma.$queryRaw<Array<{ date: string; count: bigint }>>`
-    SELECT to_char(date_trunc('day', "createdAt" AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS date,
+    SELECT to_char(date_trunc('day', ("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE ${zone}),
+                   'YYYY-MM-DD') AS date,
            count(*) AS count
     FROM transactions
     WHERE "userId" = ${userId}
       AND network = ${network}
       AND status = 'completed'
-      AND "createdAt" >= ${from}
+      AND "createdAt" >= ${startOfKeyUtc(fromKey, zone)}
       AND type::text IN (${Prisma.join(MONEY_TYPES)})
     GROUP BY 1
     ORDER BY 1
   `;
 
   const perDay = new Map<string, number>(rows.map((row) => [row.date, Number(row.count)]));
-  const daily = fillRange(perDay, from, to);
+  const daily = fillDateKeys(perDay, fromKey, toKey);
   const payments = daily.reduce((sum, day) => sum + day.count, 0);
   return { days: daily.length, daily, payments };
 }
 
-/** UTC midnight of a date, so a window never starts or ends mid-day. */
-function startOfUtcDay(at: Date): Date {
-  return new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate()));
+/** `YYYY-MM-DD` plus whole days, by date arithmetic that never touches a zone. */
+export function addDaysToKey(key: string, days: number): string {
+  const at = Date.parse(`${key}T00:00:00Z`) + days * DAY_MS;
+  return new Date(at).toISOString().slice(0, 10);
+}
+
+/**
+ * The instant a local day begins, for a lower bound on the query.
+ *
+ * Being a few hours early is harmless — the query is only a filter and the grouping does the real
+ * work — while being a few hours late would silently drop the first day of the window.
+ */
+function startOfKeyUtc(key: string, _timeZone: string): Date {
+  const midnight = new Date(`${key}T00:00:00Z`);
+  // The widest zone offset in the world is +14:00, so a day earlier is always early enough.
+  return new Date(midnight.getTime() - 14 * HOUR_MS);
+}
+
+/** One entry per local day from `fromKey` to `toKey`, inclusive, oldest first. */
+export function fillDateKeys(perDay: Map<string, number>, fromKey: string, toKey: string): DailyCount[] {
+  const out: DailyCount[] = [];
+  let key = fromKey;
+  while (key <= toKey) {
+    out.push({ date: key, count: perDay.get(key) ?? 0 });
+    key = addDaysToKey(key, 1);
+  }
+  return out;
 }
 
 /** One entry per day from `from` to `to`, inclusive, oldest first. */
@@ -636,7 +751,10 @@ export async function getAnalytics(
   }));
 
   const fiatPerUsd = await getFiatPerUsd(currency);
-  const year = await getDailyYear(userId, network, now);
+  const zone = resolveTimeZone(
+    (await prisma.user.findUnique({ where: { id: userId }, select: { timeZone: true } }))?.timeZone
+  );
+  const year = await getDailyYear(userId, network, now, zone);
   const customers = await getCustomers(userId, network, now, fiatPerUsd);
   const consistency = consistencyOf(year.daily, dayKey(now));
   const settlement = summariseSettlement(
@@ -649,11 +767,12 @@ export async function getAnalytics(
 
   return {
     currency,
+    timeZone: zone,
     customers,
     consistency,
     settlement,
     windows: ANALYTICS_WINDOWS.map((days) => {
-      const totals = summariseWindow(analyticsRows, days, now);
+      const totals = summariseWindow(analyticsRows, days, now, zone);
       const figures = convertWindow(totals, fiatPerUsd);
       return {
         days: totals.days,
@@ -662,6 +781,7 @@ export async function getAnalytics(
         net: figures.net,
         count: totals.count,
         skipped: totals.skipped,
+        busyHours: busyHoursSummary(totals.busyHours),
         received: halfFigures(totals.received, fiatPerUsd),
         paidOut: {
           ...halfFigures(totals.paidOut, fiatPerUsd),

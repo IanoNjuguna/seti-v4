@@ -22,6 +22,8 @@ export interface UseAnalyticsInput {
 }
 
 export interface UseAnalyticsReturn {
+  /** The account whose figures these are, for the one write this panel makes (#394). */
+  userId: string | null;
   data: AnalyticsSummary | null;
   loading: boolean;
   error: string | null;
@@ -39,6 +41,10 @@ export interface WindowPickerProps {
   windows: AnalyticsWindow[];
   selected: number;
   onSelect: (days: number) => void;
+}
+
+export interface AnalyticsBusyHoursProps {
+  busyHours: AnalyticsWindow['busyHours'];
 }
 
 export interface AnalyticsSettlementProps {

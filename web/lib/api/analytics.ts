@@ -1,4 +1,4 @@
-import { get } from './client';
+import { get, post } from './client';
 
 /**
  * What the customer's money did, over the two windows the server computes.
@@ -45,6 +45,13 @@ export interface AnalyticsCustomers {
   top: Array<{ address: string; count: number; total: string }>;
 }
 
+/** When the money arrives (#394): seven weekdays by twenty-four hours, in the account's zone. */
+export interface BusyHours {
+  buckets: number[][];
+  peaks: Array<{ weekday: number; fromHour: number; toHour: number; count: number }>;
+  total: number;
+}
+
 export interface AnalyticsWindow {
   days: number;
   in: string;
@@ -53,6 +60,8 @@ export interface AnalyticsWindow {
   count: number;
   skipped: number;
   merchants: AnalyticsMerchant[];
+  /** When the counter is busy (#394), or null below the floor of fifty payments. */
+  busyHours: BusyHours | null;
   /** What arrived from other people in this window. */
   received: HalfFigure;
   /** What left to merchants, with the fee attributed to it. */
@@ -83,12 +92,25 @@ export interface AnalyticsSettlement {
 
 export interface AnalyticsSummary {
   currency: string;
+  /** The zone these figures were counted in (#394). */
+  timeZone: string;
   customers: AnalyticsCustomers;
   consistency: AnalyticsConsistency;
   settlement: AnalyticsSettlement;
   windows: AnalyticsWindow[];
   /** A year of days for the streak map, counted in the database (#371). */
   year: { days: number; daily: DailyCount[]; payments: number };
+}
+
+/**
+ * Tell the server which zone this account's days belong to (#394).
+ *
+ * Called once with the browser's own answer, and only when it differs from the stored one. It is a
+ * write, so it is fired and forgotten: a failure leaves the account counting days in its previous
+ * zone, which is a worse answer than the right one and a far better one than no figures at all.
+ */
+export function setAccountTimeZone(userId: string, timeZone: string): Promise<{ timeZone: string }> {
+  return post<{ timeZone: string }>(`/users/${userId}/timezone`, { timeZone });
 }
 
 /** Mirrors `backend/src/services/analytics.ts`. */

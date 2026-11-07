@@ -13,7 +13,9 @@
  * No database: `summariseWindow` takes rows, so the behaviour is provable without one.
  */
 import type { AnalyticsRow } from './analytics.js';
+import { localMoment, resolveTimeZone } from './time-zone.js';
 import {
+  busyHoursSummary,
   consistencyOf,
   convertWindow,
   dayKey,
@@ -83,7 +85,7 @@ console.log('in, out, net:');
     row('payment', '30.00', 3, { merchantName: 'Java House' }),
     row('p2p_send', '20.00', 4),
   ];
-  const week = summariseWindow(rows, 7, NOW);
+  const week = summariseWindow(rows, 7, NOW, 'Africa/Nairobi');
 
   check('two inflows add up', week.in === 150, String(week.in));
   check('two outflows add up', week.out === 50, String(week.out));
@@ -105,7 +107,7 @@ console.log('exclusions:');
     row('payment', '10.00', 1, { status: 'reversed' }),
     row('payment', '10.00', 1, { status: 'completed' }),
   ];
-  const week = summariseWindow(rows, 7, NOW);
+  const week = summariseWindow(rows, 7, NOW, 'Africa/Nairobi');
 
   check('a pending movement is not money', week.out === 10, String(week.out));
   check('only the settled row is counted', week.count === 1, String(week.count));
@@ -118,8 +120,8 @@ console.log('exclusions:');
 console.log('window boundaries:');
 {
   const rows = [row('payment', '5.00', 3), row('payment', '7.00', 10), row('payment', '9.00', 40)];
-  const week = summariseWindow(rows, 7, NOW);
-  const month = summariseWindow(rows, 30, NOW);
+  const week = summariseWindow(rows, 7, NOW, 'Africa/Nairobi');
+  const month = summariseWindow(rows, 30, NOW, 'Africa/Nairobi');
 
   check('the week sees only the last seven days', week.out === 5, String(week.out));
   check('the month sees the last thirty', month.out === 12, String(month.out));
@@ -140,7 +142,7 @@ console.log('merchants:');
     row('payment', '3.00', 5, { merchantName: 'Uber' }),
     row('p2p_send', '99.00', 6, { merchantName: 'Java House' }),
   ];
-  const week = summariseWindow(rows, 7, NOW);
+  const week = summariseWindow(rows, 7, NOW, 'Africa/Nairobi');
 
   check('biggest spender first', week.merchants[0]?.name === 'Naivas', String(week.merchants[0]?.name));
   check('repeat payments aggregate', week.merchants[1]?.total === 25, String(week.merchants[1]?.total));
@@ -159,7 +161,7 @@ console.log('merchants:');
 console.log('malformed rows:');
 {
   const rows = [row('payment', '10.00', 1), row('payment', 'not-a-number', 1), row('payment', '-5.00', 1)];
-  const week = summariseWindow(rows, 7, NOW);
+  const week = summariseWindow(rows, 7, NOW, 'Africa/Nairobi');
 
   check('a malformed amount does not enter the sum', week.out === 10, String(week.out));
   check('it is reported as skipped', week.skipped === 2, String(week.skipped));
@@ -172,7 +174,7 @@ console.log('malformed rows:');
 
 console.log('an empty account:');
 {
-  const week = summariseWindow([], 7, NOW);
+  const week = summariseWindow([], 7, NOW, 'Africa/Nairobi');
   check('zeros, not an error', week.in === 0 && week.out === 0 && week.net === 0);
   check('no merchants', week.merchants.length === 0);
   check('and no invented count', week.count === 0);
@@ -210,8 +212,8 @@ console.log('the three figures reconcile:');
  */
 {
   const now = new Date('2026-11-06T12:00:00Z');
-  const at = (daysAgo: number, hours = 9) =>
-    new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000 + hours * 60 * 60 * 1000);
+  // 09:00 UTC is 12:00 in Nairobi, so no fixture lands on a different day in either calendar.
+  const at = (daysAgo: number) => new Date(Date.UTC(2026, 10, 6 - daysAgo, 9, 0, 0));
   const row = (type: AnalyticsRow['type'], daysAgo: number, amount = 10): AnalyticsRow => ({
     type,
     status: 'completed',
@@ -223,7 +225,8 @@ console.log('the three figures reconcile:');
   const totals = summariseWindow(
     [row('payment', 0), row('payment', 0), row('p2p_receive', 2), row('payment', 29)],
     30,
-    now
+    now,
+    'Africa/Nairobi'
   );
 
   check('a 30-day window returns exactly 30 days', totals.daily.length === 30, String(totals.daily.length));
@@ -245,7 +248,7 @@ console.log('the three figures reconcile:');
   );
   check(
     'a pending row is absent from the series as well as the totals',
-    summariseWindow([{ ...row('payment', 0), status: 'pending' }], 30, now).daily.every((d) => d.count === 0)
+    summariseWindow([{ ...row('payment', 0), status: 'pending' }], 30, now, 'Africa/Nairobi').daily.every((d) => d.count === 0)
   );
 }
 
@@ -290,7 +293,7 @@ console.log('the two halves, and the person on the other side:');
     row('p2p_receive', '70', 3),
     row('top_up', '999', 1),
   ];
-  const totals = summariseWindow(rows, 7, new Date(Date.UTC(2026, 10, 6)));
+  const totals = summariseWindow(rows, 7, new Date(Date.UTC(2026, 10, 6)), 'Africa/Nairobi');
 
   check('a payment is money out and a half of its own', totals.paidOut.count === 3 && totals.paidOut.total === 600, String(totals.paidOut.total));
   check('the fee it carried is summed beside it', totals.paidOut.fees === 12, String(totals.paidOut.fees));
@@ -362,6 +365,50 @@ console.log('how the settlement is going:');
   const nothing = summariseSettlement([], now);
   check('an empty ledger has no duration rather than zero', nothing.medianHours === null && nothing.oldestPendingHours === null);
   check('and nothing pending is a count of none', nothing.pending === 0);
+}
+
+console.log('a day belongs to the account\'s zone, not to UTC:');
+{
+  // 22:30 UTC on a Friday is 01:30 on SATURDAY in Nairobi.
+  const late = new Date('2026-11-06T22:30:00Z');
+  const mombasa = localMoment(late, 'Africa/Nairobi');
+  check('a late-evening payment lands on the next local day', mombasa.date === '2026-11-07', mombasa.date);
+  check('and under the next weekday', mombasa.weekday === 5, String(mombasa.weekday));
+  check('at the right local hour', mombasa.hour === 1, String(mombasa.hour));
+
+  const utc = localMoment(late, 'UTC');
+  check('the same instant is still Friday in UTC', utc.date === '2026-11-06' && utc.weekday === 4, `${utc.date} ${utc.weekday}`);
+
+  // A zone that moves its clocks: London is +0 in winter and +1 in summer.
+  const winter = new Date('2026-01-15T23:30:00Z');
+  const summer = new Date('2026-07-15T23:30:00Z');
+  check('a zone with daylight saving still lands on the right day', localMoment(winter, 'Europe/London').hour === 23 && localMoment(summer, 'Europe/London').hour === 0, `${localMoment(winter, 'Europe/London').hour} / ${localMoment(summer, 'Europe/London').hour}`);
+
+  check('a nonsense zone falls back to the home market rather than throwing', resolveTimeZone('Mars/Olympus') === 'Africa/Nairobi');
+  check('and a real one is kept', resolveTimeZone('Europe/London') === 'Europe/London');
+  check('an absent zone falls back too', resolveTimeZone(null) === 'Africa/Nairobi');
+}
+
+console.log('when the counter is busy:');
+{
+  const buckets = (weekday: number, hour: number, count: number) => {
+    const grid = Array.from({ length: 7 }, () => Array.from({ length: 24 }, () => 0));
+    grid[weekday][hour] = count;
+    return grid;
+  };
+
+  check('twelve payments are too thin to draw a rhythm', busyHoursSummary(buckets(5, 10, 12)) === null);
+  check('a full window is drawn', busyHoursSummary(buckets(5, 10, 60)) !== null);
+
+  const busy = Array.from({ length: 7 }, () => Array.from({ length: 24 }, () => 0));
+  busy[5][10] = 30;  // Saturday 10:00, the busiest
+  busy[6][11] = 20;  // Sunday 11:00
+  busy[4][18] = 10;  // Friday 18:00
+  const drawn = busyHoursSummary(busy);
+  check('the peaks are named in order, by count', drawn?.peaks.map((peak) => peak.weekday).join(',') === '5,6,4', JSON.stringify(drawn?.peaks.map((p) => p.weekday)));
+  check('and carry the hour range the slot covers', drawn?.peaks[0]?.fromHour === 10 && drawn?.peaks[0]?.toHour === 11, JSON.stringify(drawn?.peaks[0]));
+  check('the total counts every bucket', drawn?.total === 60, String(drawn?.total));
+  check('at most three slots are named', (drawn?.peaks.length ?? 0) === 3);
 }
 
 console.log('-'.repeat(74));
