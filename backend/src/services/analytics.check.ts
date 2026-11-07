@@ -23,6 +23,7 @@ import {
   halfFigures,
   medianOf,
   MONEY_TYPES,
+  summariseSettlement,
   summariseWindow,
 } from './analytics.js';
 
@@ -332,6 +333,35 @@ console.log('how regular the trade is:');
   check('and it does not stretch the dry spell', ahead.drySpellDays === 0, String(ahead.drySpellDays));
 
   check('day counting is whole days and never negative', daysBetweenKeys('2026-11-01', '2026-11-06') === 5 && daysBetweenKeys('2026-11-06', '2026-11-01') === 0);
+}
+
+console.log('how the settlement is going:');
+{
+  const now = new Date(Date.UTC(2026, 10, 6, 12, 0, 0));
+  const at = (minutesAgo: number) => new Date(now.getTime() - minutesAgo * 60_000);
+
+  const settled = summariseSettlement(
+    [
+      { status: 'completed', createdAt: at(120), settledAt: at(119) },  // 1 minute
+      { status: 'completed', createdAt: at(300), settledAt: at(298) },  // 2 minutes
+      { status: 'completed', createdAt: at(600), settledAt: at(594) },  // 6 minutes
+      { status: 'pending', createdAt: at(45), settledAt: null },
+      { status: 'pending', createdAt: at(15), settledAt: null },
+      { status: 'failed', createdAt: at(900), settledAt: null },
+    ],
+    now
+  );
+
+  check('pending counts only rows that have not landed', settled.pending === 2, String(settled.pending));
+  // 45 minutes, rounded to one decimal of an hour by the summariser.
+  check('and the oldest carries its age', settled.oldestPendingHours === 0.8, String(settled.oldestPendingHours));
+  check('timing comes from settled rows only, failed ones are not instant', settled.settledCount === 3, String(settled.settledCount));
+  check('the median is the middle duration', settled.medianHours !== null && Math.abs(settled.medianHours - 2 / 60) < 0.01, String(settled.medianHours));
+  check('and the worst is the slowest', settled.worstHours !== null && Math.abs(settled.worstHours - 0.1) < 0.001, String(settled.worstHours));
+
+  const nothing = summariseSettlement([], now);
+  check('an empty ledger has no duration rather than zero', nothing.medianHours === null && nothing.oldestPendingHours === null);
+  check('and nothing pending is a count of none', nothing.pending === 0);
 }
 
 console.log('-'.repeat(74));

@@ -242,6 +242,44 @@ export function halfFigures(
 }
 
 /**
+ * Settlement as the tab prints it (#395).
+ *
+ * Pure, and given the rows: a pending row is one that has neither completed nor failed, and its age
+ * is measured from when it was written. `medianHours` and `worstHours` come only from rows that
+ * carry a `settledAt`, because a movement without one has no duration to average rather than a
+ * duration of zero.
+ */
+export function summariseSettlement(
+  rows: Array<{ status: string; createdAt: Date; settledAt: Date | null }>,
+  now: Date
+): SettlementSummary {
+  let pending = 0;
+  let oldest: number | null = null;
+  const hours: number[] = [];
+
+  for (const row of rows) {
+    if (row.status !== 'completed' && row.status !== 'failed') {
+      pending += 1;
+      const age = (now.getTime() - row.createdAt.getTime()) / HOUR_MS;
+      oldest = oldest === null ? age : Math.max(oldest, age);
+      continue;
+    }
+    if (row.settledAt) {
+      const duration = (row.settledAt.getTime() - row.createdAt.getTime()) / HOUR_MS;
+      if (Number.isFinite(duration) && duration >= 0) hours.push(duration);
+    }
+  }
+
+  return {
+    pending,
+    oldestPendingHours: oldest === null ? null : Math.round(oldest * 10) / 10,
+    settledCount: hours.length,
+    medianHours: hours.length === 0 ? null : Math.round(medianOf(hours) * 100) / 100,
+    worstHours: hours.length === 0 ? null : Math.round(Math.max(...hours) * 100) / 100,
+  };
+}
+
+/**
  * The last thirty days of a year series, read for rhythm (#393).
  *
  * Days ahead carry zero and are dropped rather than counted as quiet: a day that has not happened
@@ -344,10 +382,26 @@ export interface ConsistencySummary {
   drySpellDays: number | null;
 }
 
+/**
+ * How the settlement is going (#395).
+ *
+ * Every payment is reconciled against its receipt before it is recorded, and nothing on the screen
+ * said so as a figure. `pending` counts rows that have not landed; `medianHours` and `worstHours` say
+ * how long a movement takes from being written to being settled.
+ */
+export interface SettlementSummary {
+  pending: number;
+  oldestPendingHours: number | null;
+  settledCount: number;
+  medianHours: number | null;
+  worstHours: number | null;
+}
+
 export interface AnalyticsSummary {
   currency: string;
   customers: CustomersSummary;
   consistency: ConsistencySummary;
+  settlement: SettlementSummary;
   windows: WindowSummary[];
   /**
    * The map's series: a full year of days, counted in the database (#371).
@@ -364,6 +418,9 @@ export const LAPSED_DAYS = 30;
 
 /** How many customers the tab names, by value. */
 export const CUSTOMER_LIMIT = 5;
+
+/** One hour, for the settlement figures (#395). */
+const HOUR_MS = 3_600_000;
 
 /** The map spans a year at most: enough to see seasons, short enough to keep one row of squares. */
 export const STREAK_DAYS = 365;
@@ -582,11 +639,19 @@ export async function getAnalytics(
   const year = await getDailyYear(userId, network, now);
   const customers = await getCustomers(userId, network, now, fiatPerUsd);
   const consistency = consistencyOf(year.daily, dayKey(now));
+  const settlement = summariseSettlement(
+    await prisma.transaction.findMany({
+      where: { userId, network, createdAt: { gte: since } },
+      select: { status: true, createdAt: true, settledAt: true },
+    }),
+    now
+  );
 
   return {
     currency,
     customers,
     consistency,
+    settlement,
     windows: ANALYTICS_WINDOWS.map((days) => {
       const totals = summariseWindow(analyticsRows, days, now);
       const figures = convertWindow(totals, fiatPerUsd);

@@ -72,10 +72,20 @@ export interface AnalyticsConsistency {
   drySpellDays: number | null;
 }
 
+/** How the settlement is going (#395). Hours, from the row's own timestamps. */
+export interface AnalyticsSettlement {
+  pending: number;
+  oldestPendingHours: number | null;
+  settledCount: number;
+  medianHours: number | null;
+  worstHours: number | null;
+}
+
 export interface AnalyticsSummary {
   currency: string;
   customers: AnalyticsCustomers;
   consistency: AnalyticsConsistency;
+  settlement: AnalyticsSettlement;
   windows: AnalyticsWindow[];
   /** A year of days for the streak map, counted in the database (#371). */
   year: { days: number; daily: DailyCount[]; payments: number };
