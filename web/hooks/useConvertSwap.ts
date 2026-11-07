@@ -22,14 +22,19 @@ import type { ConvertSwapState, UseConvertSwapReturn } from './useConvertSwap.ty
 const INITIAL: ConvertSwapState = { step: 'idle', quote: null, txHash: null, error: null };
 
 /**
- * How many times the write-up is retried while the receipt is not on the node yet.
+ * How long the write-up keeps asking for the receipt before the refusal is believed.
  *
- * Three attempts two seconds apart: a Tempo block is well under a second, and the quote
- * the retry re-presents is valid for a minute. The alternative is telling a customer their
- * swap failed while it is mined and on chain, which is the worst sentence in a money app.
+ * A Tempo block is well under a second, so a receipt that has not appeared in this window is
+ * not late, it is missing — and the sentence the customer then reads is the true one.
+ *
+ * It used to be three attempts two seconds apart: six seconds of a window the frozen quote
+ * keeps open for a minute (the server's `QUOTE_TTL_SECONDS`). A node that had not indexed the
+ * transaction yet was therefore reported as a lost record while it was still on its way, and
+ * the write it was waiting for was still possible (#413). The retry is bounded by TIME rather
+ * than by a count because what it is spending is time, not attempts.
  */
-const RECORD_ATTEMPTS = 3;
-const RECORD_RETRY_MS = 2000;
+const RECORD_WINDOW_MS = 45_000;
+const RECORD_RETRY_MS = 2_000;
 
 /** The sentence for a wallet-side failure, keyed on the classifier's cause. */
 function walletSentence(kind: PayErrorKind): string {
@@ -166,9 +171,13 @@ export function useConvertSwap(input: { onSwapped?: () => void } = {}): UseConve
         // The receipt is read immediately after the broadcast, and a node that has not
         // indexed the transaction yet answers `receipt-unavailable` — which for THIS path
         // would read as "the swap failed" while the money is on chain. So the write-up is
-        // retried a couple of times before that is believed: a quote is not consumed by a
-        // read, and the promise it carries outlives a few seconds of block time.
-        for (let attempt = 1; ; attempt += 1) {
+        // retried for as long as the frozen quote can still be presented: a quote is not
+        // consumed by a read, and the promise it carries outlives a minute of block time.
+        // Any other refusal is final and stops immediately: a missing leg or a pair the
+        // book does not fill will not become true by asking again (#413).
+        const deadline = Date.now() + RECORD_WINDOW_MS;
+
+        for (;;) {
           try {
             await recordConvert({
               assetIn: fresh.assetIn,
@@ -183,7 +192,7 @@ export function useConvertSwap(input: { onSwapped?: () => void } = {}): UseConve
           } catch (error) {
             const notYet =
               error instanceof ApiError && error.code === 'receipt-unavailable';
-            if (!notYet || attempt >= RECORD_ATTEMPTS) throw error;
+            if (!notYet || Date.now() >= deadline) throw error;
             await new Promise((resolve) => setTimeout(resolve, RECORD_RETRY_MS));
           }
         }
