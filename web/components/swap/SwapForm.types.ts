@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import type { ConvertQuote } from '@/lib/api/convert';
 import type { Network } from '@/lib/network';
 
@@ -57,19 +57,53 @@ export interface SwapSelectProps {
   onChoose: (asset: string) => void;
 }
 
+/**
+ * The token on one side, as a pill (#417).
+ *
+ * `label` is the card's caption, and it is the select's ACCESSIBLE name rather than a
+ * second visible label: the caption sits above the figure, so the pill needs no words of
+ * its own.
+ */
+export interface SwapTokenPillProps {
+  id: string;
+  label: string;
+  value: string;
+  options: readonly SwapAssetOption[];
+  disabled?: boolean;
+  onChoose: (asset: string) => void;
+}
+
+/**
+ * One side of the pair: the pill, the figure, and one quiet row under them.
+ *
+ * `figure` is an input on the pay side and a reading on the get side, which is why it is
+ * a slot rather than a string: the two look the same and behave differently, and only the
+ * pay side takes a keystroke.
+ */
+export interface SwapCardProps {
+  selectId: string;
+  label: string;
+  asset: string;
+  options: readonly SwapAssetOption[];
+  busy: boolean;
+  onChoose: (asset: string) => void;
+  figure: ReactNode;
+  footer: ReactNode;
+}
+
+/** The control between the two cards, and whether the current pair can be turned over. */
+export interface SwapFlipControlProps {
+  disabled: boolean;
+  onFlip: () => void;
+}
+
 export interface SwapAmountFieldProps {
   id: string;
+  /** The accessible name: the card's caption, passed as `aria-label`. */
+  label: string;
   amount: string;
   /** The field's own message, when the figure cannot be asked about. */
   error: string | null;
-  /**
-   * What this balance can actually swap, in its own units: the server's `max` resolution,
-   * gas already subtracted (#337). Null while that quote is in flight or was refused, and
-   * the ceiling is simply absent rather than guessed from the balance row.
-   */
-  spendable: string | null;
-  /** The symbol `spendable` is in, for the caption beside `All`. */
-  symbol: string;
   busy: boolean;
   /**
    * Take the cursor. Set when the refusal in the state line is one that tells the
@@ -77,7 +111,6 @@ export interface SwapAmountFieldProps {
    */
   refocus: boolean;
   onAmount: (value: string) => void;
-  onAll: () => void;
 }
 
 export interface SwapFiguresProps {
@@ -144,6 +177,14 @@ export interface SwapFormState {
   spendable: string | null;
   /** One sentence about where the swap stands, or null when the figures speak. */
   stateLine: SwapStateLineModel | null;
+  /**
+   * Whether the pair can be turned over. False when the token on the `get` side is not a
+   * balance this account holds: a swap is spent FROM a balance, so flipping into one we
+   * cannot spend would leave the page with no source and a figure nobody can sign.
+   */
+  canFlip: boolean;
+  /** Turn the pair over: the get side becomes the pay side, and the amount is cleared. */
+  onFlip: () => void;
   /** The amount field should take the cursor. */
   refocusAmount: boolean;
   busy: boolean;
