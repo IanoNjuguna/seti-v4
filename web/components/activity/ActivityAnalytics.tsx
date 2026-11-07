@@ -1,6 +1,7 @@
 'use client';
 
 import { Text } from '@/components/ui';
+import { AnalyticsConsistency } from './AnalyticsConsistency';
 import { AnalyticsCustomers } from './AnalyticsCustomers';
 import { AnalyticsFigures } from './AnalyticsFigures';
 import { AnalyticsHalves } from './AnalyticsHalves';
@@ -54,7 +55,10 @@ export function ActivityAnalytics({ active }: { active: boolean }) {
               <AnalyticsHalves window={selected} currency={currency} />
 
               {analytics.data ? (
-                <AnalyticsCustomers customers={analytics.data.customers} currency={currency} />
+                <>
+                  <AnalyticsConsistency consistency={analytics.data.consistency} />
+                  <AnalyticsCustomers customers={analytics.data.customers} currency={currency} />
+                </>
               ) : null}
 
               {selected.skipped > 0 ? (

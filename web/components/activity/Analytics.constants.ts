@@ -17,6 +17,18 @@ export const ANALYTICS_COPY = {
   feeNote: 'Funded by the customer inside their own transfer.',
   ticket: (count: number, average: string, median: string): string =>
     `${count === 1 ? '1 payment' : `${count} payments`} · average ${average} · median ${median}`,
+  /* How regular the trade is (#393). */
+  consistencyTitle: 'Consistency',
+  activeDays: 'Active days',
+  activeDaysValue: (count: number): string => `${count} of the last 30`,
+  bestDay: 'Best day',
+  bestDayValue: (date: string, count: number): string =>
+    `${dayAndMonth(date)} · ${count === 1 ? '1 payment' : `${count} payments`}`,
+  drySpell: 'Since a payment',
+  drySpellValue: (days: number): string => {
+    if (days === 0) return 'Today';
+    return days === 1 ? '1 day' : `${days} days`;
+  },
   /* The people on the other side (#396). */
   customersTitle: 'Customers',
   customersLine: (count: number, repeat: number, lapsed: number): string =>
@@ -37,6 +49,14 @@ export function skippedNote(count: number): string {
   return count === 1
     ? '1 movement could not be read, so the figures may be short by it.'
     : `${count} movements could not be read, so the figures may be short by them.`;
+}
+
+/** `6 Nov`, from a `YYYY-MM-DD` key, without asking the browser for a locale. */
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
+
+export function dayAndMonth(date: string): string {
+  const month = Number(date.slice(5, 7)) - 1;
+  return `${Number(date.slice(8, 10))} ${MONTHS[month]}`;
 }
 
 export function windowLabel(days: number): string {

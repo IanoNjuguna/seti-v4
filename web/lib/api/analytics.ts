@@ -61,9 +61,21 @@ export interface AnalyticsWindow {
   daily: DailyCount[];
 }
 
+/**
+ * How steady the account is (#393): active days out of the last thirty, the busiest of them, and how
+ * long since anything moved at all.
+ */
+export interface AnalyticsConsistency {
+  activeDays: number;
+  bestDay: { date: string; count: number } | null;
+  /** Null when nothing has ever moved: there is no gap to report yet. */
+  drySpellDays: number | null;
+}
+
 export interface AnalyticsSummary {
   currency: string;
   customers: AnalyticsCustomers;
+  consistency: AnalyticsConsistency;
   windows: AnalyticsWindow[];
   /** A year of days for the streak map, counted in the database (#371). */
   year: { days: number; daily: DailyCount[]; payments: number };

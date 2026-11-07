@@ -1,4 +1,9 @@
-import type { AnalyticsCustomers, AnalyticsSummary, AnalyticsWindow } from '@/lib/api/analytics';
+import type {
+  AnalyticsConsistency,
+  AnalyticsCustomers,
+  AnalyticsSummary,
+  AnalyticsWindow,
+} from '@/lib/api/analytics';
 
 /**
  * The analytics read.
@@ -33,6 +38,10 @@ export interface WindowPickerProps {
   windows: AnalyticsWindow[];
   selected: number;
   onSelect: (days: number) => void;
+}
+
+export interface AnalyticsConsistencyProps {
+  consistency: AnalyticsConsistency;
 }
 
 export interface AnalyticsHalvesProps {

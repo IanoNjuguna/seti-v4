@@ -14,8 +14,10 @@
  */
 import type { AnalyticsRow } from './analytics.js';
 import {
+  consistencyOf,
   convertWindow,
   dayKey,
+  daysBetweenKeys,
   directionOf,
   fillRange,
   halfFigures,
@@ -304,6 +306,32 @@ console.log('the two halves, and the person on the other side:');
     half.average
   );
   check('and both ticket sizes print money with two decimals', /[\d,]+\.\d{2}$/.test(half.average) && /[\d,]+\.\d{2}$/.test(half.median), `${half.average} / ${half.median}`);
+}
+
+console.log('how regular the trade is:');
+{
+  const days = (counts: number[]) => counts.map((count, index) => ({ date: `2026-11-${String(index + 1).padStart(2, '0')}`, count }));
+
+  const quiet = consistencyOf(days([0, 0, 0]), '2026-11-03');
+  check('nothing ever paid has no gap to report', quiet.drySpellDays === null, String(quiet.drySpellDays));
+  check('and no best day exists to name', quiet.bestDay === null);
+
+  // Last payment on the 4th, today the 7th: three whole days without one.
+  const steady = consistencyOf(days([1, 0, 3, 2, 0, 0, 0]), '2026-11-07');
+  check('active days count the days that carried one', steady.activeDays === 3, String(steady.activeDays));
+  check('the best day is the busiest, with its date', steady.bestDay?.date === '2026-11-03' && steady.bestDay?.count === 3, JSON.stringify(steady.bestDay));
+  check('the dry spell counts from the last payment to today', steady.drySpellDays === 3, String(steady.drySpellDays));
+
+  const today = consistencyOf(days([2, 0, 1]), '2026-11-03');
+  check('a payment today is a dry spell of none', today.drySpellDays === 0, String(today.drySpellDays));
+
+  // Days ahead are not quiet days: a window that runs into the future must not dilute the count.
+  const aheadDays = [...days([1, 0, 1]), { date: '2026-11-04', count: 0 }, { date: '2026-12-01', count: 0 }];
+  const ahead = consistencyOf(aheadDays, '2026-11-03');
+  check('a day ahead is not counted as a quiet day of trading', ahead.activeDays === 2, String(ahead.activeDays));
+  check('and it does not stretch the dry spell', ahead.drySpellDays === 0, String(ahead.drySpellDays));
+
+  check('day counting is whole days and never negative', daysBetweenKeys('2026-11-01', '2026-11-06') === 5 && daysBetweenKeys('2026-11-06', '2026-11-01') === 0);
 }
 
 console.log('-'.repeat(74));
