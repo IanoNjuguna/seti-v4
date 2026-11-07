@@ -21,13 +21,24 @@ import type { TransactionGlyph } from './TransactionRow.types';
  * A failed row wears `alert` and a pending one wears `clock`, whatever its type: a row that has not
  * happened is not yet a transfer, and the glyph is the first thing read.
  */
-const GLYPH_BY_TYPE: Record<string, TransactionGlyph> = {
+/**
+ * The glyph each ledger type wears. Exported so `check:transaction-glyph` can hold it to the
+ * schema, which is how a new type cannot ship wearing a letter (#415).
+ */
+export const GLYPH_BY_TYPE: Record<string, TransactionGlyph> = {
   payment: 'send',
   p2p_send: 'send',
   p2p_receive: 'arrowDownLeft',
   top_up: 'add',
   convert: 'swap',
   withdrawal: 'send',
+  /*
+   * The vault (#415). Both wear the jar, not an arrow: the row's SUBJECT is savings, and the amount's
+   * own sign already says which way the money went. A deposit wears `add` only if the money arrived
+   * from outside, which a vault deposit does not: it left the customer's own balance.
+   */
+  savings_deposit: 'save',
+  savings_withdrawal: 'save',
   /*
    * No `fee` entry (#411). The 2% never becomes a ledger row: it rides inside the payment's own
    * transfer and is stored as `feeAmount` on that row, so a `fee` row is a shape the schema allows and
@@ -42,8 +53,28 @@ const GLYPH_BY_TYPE: Record<string, TransactionGlyph> = {
  * `payment` whose title is `Payment` is a payment to a wallet we cannot name, and drawing `P` for it
  * would be the letter-column problem again. Kept as a literal list rather than a shared module because
  * the server's copy is inside a service and the client must not import the ledger.
+ *
+ * The vault's two (#415): a savings row has no counterparty, so the server names it from its type
+ * table, and `Savings deposit` is a description rather than a name. `check:transaction-glyph` holds
+ * this list to the enum, so a type added without a title here fails instead of shipping a letter.
  */
-const ANONYMOUS_TITLES = new Set(['Payment', 'Sent', 'Received', 'Deposit', 'Withdrawal', 'Fee', 'Convert']);
+export const ANONYMOUS_TITLES = new Set([
+  'Payment',
+  'Sent',
+  'Received',
+  /*
+   * `Transfer` is what a p2p row is called when the other end has no address to name; it was missing
+   * here, so such a row drew a `T`. Found by the assertion below, which is why it reads the server's
+   * tables instead of a copy of them.
+   */
+  'Transfer',
+  'Deposit',
+  'Withdrawal',
+  'Fee',
+  'Convert',
+  'Savings deposit',
+  'Savings withdrawal',
+]);
 
 /** `@akinyi` reduces to `A`; a merchant's `Java House` to `J`. */
 export function initialOf(name: string): string {
