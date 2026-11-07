@@ -16,6 +16,7 @@
     "check:convert-swap": "tsx scripts/check-convert-swap.mjs",
     "check:choice-row": "node scripts/check-choice-row.mjs",
     "check:qr-plate": "tsx scripts/check-qr-plate.mjs",
+    "check:receive-address": "tsx scripts/check-receive-address.mjs",
     "check:profile-mark": "tsx scripts/check-profile-mark.mjs",
     "check:tabs": "tsx scripts/check-tabs.mjs",
     "check:pay-charge": "tsx scripts/check-pay-charge.mjs",

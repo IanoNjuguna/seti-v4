@@ -25,6 +25,25 @@ export const RECEIVE_COPY = {
   /** The announcement once the handle is on the clipboard. */
   copyConfirmed: 'Username copied.',
   copyFailed: 'Could not copy. Select your username above and copy it.',
+
+  /**
+   * The address block (#419).
+   *
+   * A bridge, a CEX withdrawal or another wallet has no username to send to, so the
+   * account's address is printed under the code and the name. The label names the CHAIN,
+   * not the network mode: `testnet` and `mainnet` are the database's words, and this page
+   * never says them.
+   *
+   * The note states the consequence rather than a polite reminder. A send on the wrong
+   * network is lost money, and "check your network" is a sentence a customer reads after
+   * the mistake; this one is read at the moment they copy.
+   */
+  addressLabel: (chain: string) => `Your address on ${chain}`,
+  addressCopyLabel: 'Copy your address',
+  addressCopied: 'Address copied.',
+  addressCopyFailed: 'Could not copy. Select the address above and copy it.',
+  addressNote: (chain: string) =>
+    `Only ${chain} assets can arrive here. Anything sent on another network is lost.`,
   share: 'Share',
   shared: 'Shared',
   /**

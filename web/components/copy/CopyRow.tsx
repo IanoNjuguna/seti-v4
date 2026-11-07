@@ -3,7 +3,7 @@
 import { IconButton } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { useCopyLink } from '@/components/app/useCopyLink';
-import { VALUE_CLASSES } from './CopyRow.constants';
+import { VALUE_SIZE, VALUE_TONE } from './CopyRow.constants';
 import type { CopyRowProps } from './CopyRow.types';
 
 /**
@@ -41,10 +41,14 @@ export function CopyRow({
   surface = 'light',
   emphasis = false,
   wrap = false,
+  align = 'start',
+  size = 'body',
 }: CopyRowProps) {
   const { state, copy } = useCopyLink(value);
   const copied = state === 'copied';
-  const valueClasses = cn('font-mono', VALUE_CLASSES[emphasis ? 'loud' : 'quiet'][surface]);
+  const role = emphasis ? 'loud' : 'quiet';
+  const valueClasses = cn('font-mono', VALUE_SIZE[size][role], VALUE_TONE[role][surface]);
+  const centered = align === 'center';
 
   const control = (
     <IconButton
@@ -58,7 +62,7 @@ export function CopyRow({
   );
 
   return (
-    <div className="flex min-w-0 flex-col gap-2">
+    <div className={cn('flex min-w-0 flex-col gap-2', centered && 'items-center text-center')}>
       {wrap ? (
         /* ONE text flow, so a value too long for the line carries its control on
            the line its last character is on. The space is the break opportunity:
@@ -85,7 +89,12 @@ export function CopyRow({
       </span>
 
       {state === 'failed' ? (
-        <p className={cn('text-body-sm', surface === 'dark' ? 'text-on-dark-mute' : 'text-mute')}>
+        <p
+          className={cn(
+            'text-body-sm',
+            surface === 'dark' ? 'text-on-dark-mute' : 'text-mute'
+          )}
+        >
           {failureText}
         </p>
       ) : null}
