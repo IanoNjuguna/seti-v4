@@ -9,6 +9,11 @@ function formatDate(date: Date): string {
   return date.toLocaleDateString('en-KE', { month: 'short', day: 'numeric' });
 }
 
+/** `17:22` — a time of day, the second thing every payments app prints under the name (#407). */
+function formatTime(date: Date): string {
+  return date.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
 /**
  * The row's content, shared by both forms so a transfer reads identically in
  * Activity and on the home card.
@@ -39,24 +44,19 @@ function formatDate(date: Date): string {
  * there beside the struck figure: two signals in the one place on the row that
  * cannot be clipped.
  */
-export function TransactionRowBody({ transaction, details }: TransactionRowBodyProps) {
-  const { merchant, category, amount, currency, date, status, from, to } = transaction;
+export function TransactionRowBody({ transaction }: TransactionRowBodyProps) {
+  const { merchant, amount, currency, date, status } = transaction;
   const isOutflow = amount < 0;
   const formatted = formatFiat(Math.abs(amount), currency);
-  /**
-   * The subtitle repeats the category only when it adds something: a deposit is
-   * titled "Deposit" already, and "Deposit · 10 Oct" under it reads like a stutter.
+  /*
+   * THE SECOND LINE IS WHEN, NOT WHAT (#407).
    *
-   * DATE FIRST, and that is a hierarchy decision rather than a style one. The
-   * content column is 104px at 360px, so this line elides — and an elided date
-   * reads as broken ("14 Oc…") while an elided category reads as a label doing its
-   * job ("Food & dr…"). On a ledger the date is the fact and the category is the
-   * label, which is the same rule this row already applies to the name (a label)
-   * and the address under it (a fact).
+   * `5 Nov · Transfer` named the ledger's own vocabulary under a title that already said what
+   * happened. Every consumer payments app puts the time there instead, and it is the fact a person
+   * scanning a ledger is actually after: was this today, or last week. The category is still on the
+   * row where it earns its place — as the title, when there is no name to use.
    */
-  const subtitle = category === merchant ? formatDate(date) : `${formatDate(date)} · ${category}`;
-  /** The far end of the transfer, when the row knows it. */
-  const counterparty = isOutflow ? to : from;
+  const subtitle = `${formatDate(date)} · ${formatTime(date)}`;
 
   return (
     <>
@@ -71,8 +71,7 @@ export function TransactionRowBody({ transaction, details }: TransactionRowBodyP
         <Text variant="card-title" as="span" className="block truncate">
           {merchant}
         </Text>
-        <TransactionRowSubtitle subtitle={subtitle} address={counterparty ?? null} />
-        {details}
+        <TransactionRowSubtitle subtitle={subtitle} />
       </span>
 
       <span className="flex shrink-0 flex-col items-end">

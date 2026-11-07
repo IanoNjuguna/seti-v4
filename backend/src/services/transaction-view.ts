@@ -50,14 +50,37 @@ export function describeCounterparty(transaction: {
 
   const address = transaction.counterparty;
   if (address && !/^0x0{40}$/i.test(address) && /^0x[a-fA-F0-9]{40}$/.test(address)) {
-    const short = shortenAddress(address);
-    return transaction.type === 'p2p_send' ? `Sent to ${short}` : short;
+    /*
+     * THE TITLE IS WHAT HAPPENED, NOT A HEX STRING (#407).
+     *
+     * `Sent to 0xc082…3012` was the title, with the hash and both ends printed under it on a laptop:
+     * a row that read as a block explorer rather than as a payment. A person paying a shop wants to
+     * know they sent money, when, and how much; the address is the detail that belongs on the
+     * receipt, one tap away, where anyone verifying a transfer already goes.
+     */
+    return ROW_TITLES[transaction.type] ?? (TYPE_LABELS[transaction.type] ?? 'Transfer');
   }
 
   if (address && !/^0x0{40}$/i.test(address)) return address;
 
   return TYPE_LABELS[transaction.type] ?? 'Unknown';
 }
+
+/**
+ * What a row with no name behind it is called.
+ *
+ * A verb, because that is the only true thing the ledger knows: it does not know who the wallet on
+ * the other end belongs to, and inventing a noun would be inventing that.
+ */
+const ROW_TITLES: Record<string, string> = {
+  payment: 'Payment',
+  p2p_send: 'Sent',
+  p2p_receive: 'Received',
+  top_up: 'Deposit',
+  withdrawal: 'Withdrawal',
+  fee: 'Fee',
+  convert: 'Convert',
+};
 
 /**
  * The row's second line. Ledger vocabulary (`p2p_send`, `top_up`) is the
