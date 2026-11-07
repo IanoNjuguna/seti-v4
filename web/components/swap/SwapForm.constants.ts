@@ -122,7 +122,7 @@ export const SWAP_FIGURE_CLASS =
  * panel it sits in (#421).
  */
 export const SWAP_PILL_CLASS =
-  'min-touch appearance-none rounded-md border border-hairline-light bg-surface-soft pl-3 pr-8 text-body-md-bold text-ink outline-none transition-colors hover:bg-canvas-light focus:border-primary focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-60';
+  'min-touch appearance-none rounded-md border border-hairline-light bg-surface-soft pl-10 pr-8 text-body-md-bold text-ink outline-none transition-colors hover:bg-canvas-light focus:border-primary focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-60';
 
 /** The row under a card's figure: quiet ink, one line, the same height either side. */
 export const SWAP_CARD_FOOTER_CLASS =
