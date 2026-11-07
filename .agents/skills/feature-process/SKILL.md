@@ -107,6 +107,12 @@ matters, and what the template asks for:
   what this costs. A tradeoff left out of the PR is a decision nobody reviewed.
 - **Risk and rollback**, copied from the issue and updated if it moved.
 - Screenshots for anything visual. A UI claim without a picture is unverified.
+- **A local file path is not a screenshot.** `/home/you/whatever.png` in a PR body is a link
+  nobody reviewing on GitHub can open, so it converts an unverified claim into a broken one.
+  Commit the image under `.github/screenshots/<issue>-<what>.png` on the branch and embed the
+  raw URL, `https://raw.githubusercontent.com/IanoNjuguna/seti-v4/<branch>/.github/screenshots/<file>.png`.
+  Two images for a before/after, one for anything that only exists now. The folder is for
+  review evidence, not product assets; `design-kit/` stays the home of brand material.
 
 Request review from `@IanoNjuguna`; `CODEOWNERS` already assigns it.
 
