@@ -1,5 +1,6 @@
 import type {
   AnalyticsConsistency,
+  AnalyticsSettlement,
   AnalyticsCustomers,
   AnalyticsSummary,
   AnalyticsWindow,
@@ -38,6 +39,10 @@ export interface WindowPickerProps {
   windows: AnalyticsWindow[];
   selected: number;
   onSelect: (days: number) => void;
+}
+
+export interface AnalyticsSettlementProps {
+  settlement: AnalyticsSettlement;
 }
 
 export interface AnalyticsConsistencyProps {

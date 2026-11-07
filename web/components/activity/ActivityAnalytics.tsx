@@ -3,6 +3,7 @@
 import { Text } from '@/components/ui';
 import { AnalyticsConsistency } from './AnalyticsConsistency';
 import { AnalyticsCustomers } from './AnalyticsCustomers';
+import { AnalyticsSettlement } from './AnalyticsSettlement';
 import { AnalyticsFigures } from './AnalyticsFigures';
 import { AnalyticsHalves } from './AnalyticsHalves';
 import { AnalyticsMerchants } from './AnalyticsMerchants';
@@ -58,6 +59,7 @@ export function ActivityAnalytics({ active }: { active: boolean }) {
                 <>
                   <AnalyticsConsistency consistency={analytics.data.consistency} />
                   <AnalyticsCustomers customers={analytics.data.customers} currency={currency} />
+                  <AnalyticsSettlement settlement={analytics.data.settlement} />
                 </>
               ) : null}
 
