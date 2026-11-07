@@ -92,6 +92,36 @@ export const SWAP_TARGET_FIELD_ID = 'swap-target';
 export const SWAP_AMOUNT_FIELD_ID = 'swap-amount';
 
 /**
+ * The hash well's words, and only its words.
+ *
+ * `copied` and `copyFailed` exist because `writeToClipboard` reports both outcomes and a
+ * control that says nothing after a press is a control a customer presses again. The copy
+ * NEVER claims the hash was kept anywhere: it was written to the clipboard, which may be a
+ * different device from the one it will be read on.
+ */
+export const SWAP_REFERENCE_COPY = {
+  label: 'Transaction',
+  copy: 'Copy hash',
+  copied: 'Copied.',
+  copyFailed: 'Could not copy. The hash above can be selected by hand.',
+} as const;
+
+/** The well the hash sits in: the same `surface-soft` box the send receipt uses. */
+export const SWAP_REFERENCE_WELL_CLASS = 'rounded-md bg-surface-soft p-3';
+
+/**
+ * The hash itself, in full: the mono face at which hashes align, breaking anywhere rather
+ * than truncating. `break-all` is the promise — a customer can select and copy it by hand
+ * even where the clipboard API is blocked, which is the whole reason it is printed.
+ */
+export const SWAP_REFERENCE_HASH_CLASS =
+  'mt-1 block break-all font-mono text-caption text-link underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:rounded-sm';
+
+/** The copy control, on the repo's inline-link recipe for a light canvas. */
+export const SWAP_REFERENCE_COPY_CLASS =
+  'mt-2 inline-flex min-touch items-center rounded-sm text-body-sm font-semibold text-link hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary';
+
+/**
  * A picker's recipe, borrowed from `text-input` in `design/revolut.md`: 56px tall,
  * `rounded-md`, the white canvas as its fill, `hairline-light` as its border and cobalt
  * as the focus border. A select and an input are the same object at the same size, which

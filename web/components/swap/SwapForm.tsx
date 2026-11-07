@@ -42,9 +42,7 @@ export function SwapForm() {
 
       {form.ready && <SwapFields form={form} />}
 
-      {form.stateLine !== null && (
-        <SwapStateLine tone={form.stateLine.tone} sentence={form.stateLine.sentence} />
-      )}
+      {form.stateLine !== null && <SwapStateLine {...form.stateLine} />}
     </div>
   );
 }

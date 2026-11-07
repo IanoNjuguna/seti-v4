@@ -22,6 +22,11 @@
  *  4. **Nothing is written until the receipt is verified.** `recordConvert` is called
  *     AFTER the signature and AFTER the broadcast, with the figures that were signed, and
  *     it is the untouched record path — this suite asserts the order and the payload.
+ *  5. **The failure hands over what it tells the customer to keep.** The record-failure
+ *     sentence says "keep this reference", so the page must PRINT one: the hash in full,
+ *     linked to the explorer of the network it settled on, with a copy that reports whether
+ *     the copy happened (#413). Asserted by reading the state line, its model and the well,
+ *     because the defect was that a sentence promised something no component drew.
  *
  * Plus the copy: every `convert-*` refusal this backend can emit has a sentence of its
  * own in `refusal.constants.ts`, held to the same voice rules as the rest.
@@ -317,6 +322,50 @@ console.log('\nnothing is written until the receipt is verified:');
   check(
     'and the quote is re-fetched at sign time, so an expired promise cannot reach the ledger',
     signing.indexOf('fetchConvertQuote(') !== -1
+  );
+  check(
+    'the receipt is polled for a WINDOW, not a fixed count of attempts (#413)',
+    /const RECORD_WINDOW_MS = [\d_]+/.test(signing) &&
+      /Date\.now\(\) >= deadline/.test(signing) &&
+      !/RECORD_ATTEMPTS/.test(signing)
+  );
+}
+
+console.log('\nthe record failure hands over the reference it asks the customer to keep:');
+{
+  const model = stripComments(readSource('../components/swap/SwapForm.types.ts'));
+  const line = stripComments(readSource('../components/swap/SwapStateLine.tsx'));
+  const well = stripComments(readSource('../components/swap/SwapReference.tsx'));
+  const form = stripComments(readSource('../hooks/useSwapForm.ts'));
+
+  check(
+    'the state line model carries the hash, and null on every other line',
+    model.includes('export interface SwapReferenceModel') &&
+      model.includes('reference: SwapReferenceModel | null')
+  );
+  check(
+    'the state line renders it when there is one',
+    line.includes("from './SwapReference'") &&
+      line.includes('reference !== null') &&
+      line.includes('<SwapReference')
+  );
+  check(
+    'the hash is printed IN FULL and linked to the explorer of its own network',
+    well.includes('{txHash}') &&
+      well.includes('getExplorerTxUrlFor(txHash, network)') &&
+      !/txHash\.slice\(|\.\.\./.test(well)
+  );
+  check(
+    'and a copy that fails says so, rather than leaving the press unacknowledged',
+    well.includes('writeToClipboard(txHash)') &&
+      well.includes("'failed'") &&
+      well.includes('SWAP_REFERENCE_COPY.copyFailed')
+  );
+  check(
+    'the swap error line is the one that carries it',
+    /swapLine\(\s*'alert',\s*swap\.error,\s*swap\.txHash === null \? null : \{ txHash: swap\.txHash, network \}/.test(
+      form
+    )
   );
 }
 

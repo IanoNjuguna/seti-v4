@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react';
 import type { ConvertQuote } from '@/lib/api/convert';
+import type { Network } from '@/lib/network';
 
 /**
  * One figure the page says, and how it should read.
@@ -9,9 +10,24 @@ import type { ConvertQuote } from '@/lib/api/convert';
  */
 export type SwapLineTone = 'muted' | 'alert';
 
+/**
+ * The hash a state line asks the customer to keep, and the network it happened on.
+ *
+ * It exists because ONE sentence on this page tells a customer to keep a reference, and a
+ * reference the page does not print is a sentence that cannot be obeyed. The network is
+ * carried with it so the explorer link is the one the swap actually settled on: a practice
+ * hash on the live explorer finds nothing.
+ */
+export interface SwapReferenceModel {
+  txHash: string;
+  network: Network;
+}
+
 export interface SwapStateLineModel {
   tone: SwapLineTone;
   sentence: string;
+  /** Null on every line that is not asking the customer to keep something. */
+  reference: SwapReferenceModel | null;
 }
 
 /**
@@ -74,9 +90,13 @@ export interface SwapRateLineProps {
   quote: ConvertQuote;
 }
 
-export interface SwapStateLineProps {
-  tone: SwapLineTone;
-  sentence: string;
+/** The one line about where the swap stands, and the hash when there is one to keep. */
+export type SwapStateLineProps = SwapStateLineModel;
+
+/** The hash well: the reference the record-failure line tells the customer to keep. */
+export interface SwapReferenceProps {
+  txHash: string;
+  network: Network;
 }
 
 /** The four controls, wired to the one state object that decides them. */
