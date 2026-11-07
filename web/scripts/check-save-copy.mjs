@@ -11,6 +11,10 @@
  */
 process.env.NEXT_PUBLIC_TEMPO_CHAIN_ID ??= '42431';
 
+import { readFileSync } from 'node:fs';
+
+const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
+
 const { SAVE_COPY, rateLines } = await import('../components/save/Save.constants.ts');
 
 let passed = 0;
@@ -76,6 +80,23 @@ console.log('\nthe campaign\'s operator is named once, where the claim happens:'
     'the claim keeps saying the payer is the campaign, not the vault',
     /campaign, not (by )?the vault/i.test(SAVE_COPY.rewardsEndsNote ?? 'Paid by the campaign, not by the vault.')
   );
+}
+
+console.log('\nthe card itself carries one rate line, and it is tinted (#426):');
+{
+  const figure = read('../components/save/SaveFigure.tsx');
+  const code = figure.replace(/\/\*[\s\S]*?\*\//g, '');
+  check('the card prints the lead rate', code.includes('{rates.primary}'));
+  check(
+    'and not the vault\'s, which came off the card',
+    !code.includes('rates.secondary'),
+    'rates.secondary rendered'
+  );
+  check(
+    'and not an earnings sentence, which came off with it',
+    !code.includes('earnedUnknown') && !code.includes('earnedLabel')
+  );
+  check('the rate wears the success ink', /color="success"[\s\S]{0,40}rates\.primary/.test(code));
 }
 
 console.log('\nnone of it breaks the page voice:');
