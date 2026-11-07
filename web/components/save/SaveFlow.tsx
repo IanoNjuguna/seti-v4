@@ -128,7 +128,7 @@ export function SaveFlow() {
             </Text>
           ) : null}
 
-          {/* The claim block exists only while a campaign is live (#425): with no campaign
+          {/* The claim block exists only while a campaign is live (#426): with no campaign
               there is nothing to claim, and a stale block under a rate that has stopped
               paying is the worst kind of wrong. */}
           {save.summary?.campaign ? <SaveRewards /> : null}

@@ -41,7 +41,7 @@ export interface SavingsSummary {
 }
 
 /**
- * A live rewards campaign on the vault (#425).
+ * A live rewards campaign on the vault (#426).
  *
  * Both numbers are percentages, already formatted by the server, and they are NOT
  * interchangeable: `apr` is what the campaign pays, and the vault's own rate arrives as
