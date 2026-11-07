@@ -26,5 +26,11 @@ export interface IconButtonProps {
    * bright chip competing with the brand, not a quiet control.
    */
   surface?: IconButtonSurface;
+  /**
+   * The control cannot act right now, and says so rather than accepting the press and doing
+   * nothing (the swap page's flip, #421). `Button` has carried this for the same reason; an
+   * icon-only control is where "it did nothing when I pressed it" is hardest to diagnose.
+   */
+  disabled?: boolean;
   className?: string;
 }
