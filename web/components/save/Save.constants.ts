@@ -28,12 +28,22 @@ export const SAVE_COPY = {
   empty: 'Money you set aside goes into a Tempo vault in your own name.',
   rateUnavailable: 'Rate unavailable right now',
   /**
-   * THE RATE IS ZERO, which is not the same as unavailable. The vault publishes
-   * `apy.net 0.000000`; "unavailable" was the copy for a failed read (#137), and
-   * printing a bare `0.00` leaves the customer to guess whether that is the rate or a
-   * broken screen. Neither is the sentence; this is.
+   * THE RATE IS ZERO, which is not the same as unavailable. The vault publishes `apy.net
+   * 0.000000`; "unavailable" was the copy for a failed read (#137), and printing a bare
+   * `0.00` leaves the customer to guess whether that is the rate or a broken screen. Neither
+   * is the sentence; this is.
    */
   rateZero: 'The vault pays no rate right now',
+  /**
+   * The campaign's rate, and the two facts that make it honest (#425): WHO pays it and WHEN it
+   * stops. It leads the card because it is the number a customer is choosing on, and it always
+   * carries its own end date, so "3.60%" is never read as the vault's.
+   */
+  campaignRateLine: (apr: string, ends: string) => `${apr}% campaign rewards, ends ${ends}`,
+  /** The vault's own rate, right under the campaign's. Quieter, never the lead. */
+  vaultRateLine: (apy: string) => `The vault itself pays ${apy}%`,
+  /** When no campaign is live, the vault's rate is the only one there is. */
+  vaultOnlyLine: (apy: string) => `The vault pays ${apy}%`,
   earnedLabel: 'Earned so far',
   earnedUnknown: 'Earnings not measurable yet',
   addAction: 'Add money',
@@ -71,7 +81,15 @@ export const SAVE_COPY = {
   soonBody:
     'Put money aside and earn on it, once the vault pays a rate worth your time. We will turn it on then.',
   soonNote: 'Nothing here can hold your money in the meantime.',
-  rewardsLabel: 'Campaign rewards',
+  /**
+   * The claim block (#322), and the ONE place the campaign's operator is named (#425).
+   *
+   * "The campaign" was a name that named nobody: a customer was told to claim rewards from a
+   * party the app never identified, and the claim they sign is a call on Merkl's Distributor for
+   * Merkl-wrapped OUSD. Naming it here, where the claim happens, is what makes the rate above
+   * checkable; naming it in the rate line as well would spend that line on a vendor.
+   */
+  rewardsLabel: 'Campaign rewards · Merkl',
   /** The date is the promise: the rate belongs to the campaign, not to the vault. */
   rewardsEnds: 'ends',
   rewardsClaimed: 'Claimed. The rewards are in your wallet.',
@@ -104,4 +122,42 @@ export function rateLine(apy: string | null): string {
   const value = Number.parseFloat(apy.replace('%', ''));
   if (!Number.isFinite(value)) return SAVE_COPY.rateUnavailable;
   return value > 0 ? apy : SAVE_COPY.rateZero;
+}
+
+/**
+ * The two rate lines the card shows, and which one is ink (#425).
+ *
+ * The ordering is the whole argument: the CAMPAIGN's number is the one a customer is choosing
+ * on, so it leads, and it names its payer and its end date in the same breath. The vault's own
+ * rate follows, quieter, because a 3.6% promotion on a vault that pays 0.0001% is the number
+ * that matters the moment the promotion stops.
+ *
+ * When no campaign is live the vault line is all there is, and it stands alone. When neither
+ * can be read the sentence says so rather than printing a zero: "unavailable" is a failed
+ * read, "pays no rate" is a measurement, and neither may stand in for the other.
+ */
+export function rateLines(
+  campaign: { apr: string; endsAt: string } | null,
+  apy: string | null
+): { primary: string; secondary: string | null } {
+  const vaultPercent = apy === null ? null : Number.parseFloat(apy);
+  const vaultRate = vaultPercent === null || !Number.isFinite(vaultPercent) ? null : vaultPercent;
+
+  if (campaign) {
+    return {
+      primary: SAVE_COPY.campaignRateLine(campaign.apr, campaign.endsAt),
+      secondary:
+        vaultRate === null
+          ? null
+          : vaultRate > 0
+            ? SAVE_COPY.vaultRateLine(apy as string)
+            : SAVE_COPY.rateZero,
+    };
+  }
+
+  if (vaultRate === null) return { primary: SAVE_COPY.rateUnavailable, secondary: null };
+  return {
+    primary: vaultRate > 0 ? SAVE_COPY.vaultOnlyLine(apy as string) : SAVE_COPY.rateZero,
+    secondary: null,
+  };
 }

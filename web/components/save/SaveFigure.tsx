@@ -2,7 +2,7 @@
 
 import { formatFiat } from '@/lib/formatCurrency';
 import { Skeleton, Text } from '@/components/ui';
-import { SAVE_COPY, rateLine } from './Save.constants';
+import { SAVE_COPY, rateLines } from './Save.constants';
 import type { SaveFigureProps } from '@/hooks/useSave.types';
 
 /**
@@ -34,6 +34,7 @@ export function SaveFigure({ summary, loading }: SaveFigureProps) {
   const available = summary?.spendableFiat ?? '0.00';
   const earned = summary?.earnings?.lifetimeFiat ?? null;
   const hasSavings = Number(summary?.shares ?? '0') > 0;
+  const rates = rateLines(summary?.campaign ?? null, summary?.apy ?? null);
 
   return (
     <div className="rounded-md border border-hairline-light bg-surface-soft px-5 py-5">
@@ -57,9 +58,21 @@ export function SaveFigure({ summary, loading }: SaveFigureProps) {
           </Text>
         ) : (
           <>
-            <Text variant="micro" as="p" color={summary?.apy ? undefined : 'secondary'}>
-              {rateLine(summary?.apy ?? null)}
+            {/*
+              TWO rate lines, campaign first (#425). The lead names who pays and when it stops;
+              the second says what the vault itself pays, which is the number that survives the
+              campaign. Before this the card showed one line that said "unavailable", because
+              nothing in the stack could price the vault and the campaign was only ever read as
+              a claimable amount.
+            */}
+            <Text variant="micro" as="p" color="primary">
+              {rates.primary}
             </Text>
+            {rates.secondary !== null && (
+              <Text variant="micro" as="p" color="secondary">
+                {rates.secondary}
+              </Text>
+            )}
             <Text variant="micro" as="p" color="secondary">
               {earned === null
                 ? SAVE_COPY.earnedUnknown
