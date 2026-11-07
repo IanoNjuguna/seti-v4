@@ -5,7 +5,8 @@
  * accident: a merchant keeps its initial, an unnamed transfer takes its type's glyph, money arriving is
  * the only thing tinted, and a row that has not happened wears the state rather than the type.
  */
-import { initialOf, rowGlyph } from '../components/ui/transaction-glyph.ts';
+import { readFileSync } from 'node:fs';
+import { ANONYMOUS_TITLES, GLYPH_BY_TYPE, initialOf, rowGlyph } from '../components/ui/transaction-glyph.ts';
 
 let passed = 0;
 let failed = 0;
@@ -94,6 +95,70 @@ console.log('a row with no ledger type falls back to the direction:');
 {
   check('in is the mirror', rowGlyph(row({ type: undefined, direction: 'in' })).icon === 'arrowDownLeft');
   check('out is the arrow out', rowGlyph(row({ type: undefined })).icon === 'send');
+}
+
+console.log('\nevery ledger type has a mark and a title (#415):');
+{
+  /*
+   * The enum is read from the schema, so this section cannot drift from the database. It exists
+   * because a type was added for the vault and the glyph table was not: the row fell back to a
+   * letter (`S`, for a title the table also did not know) and the money it described was titled
+   * `Unknown`. A table that answers by falling back cannot report its own hole, so the hole is
+   * reported here, against the vocabulary that declared it.
+   */
+  const schema = readFileSync(new URL('../../backend/prisma/schema.prisma', import.meta.url), 'utf8');
+  const block = /enum TransactionType \{([\s\S]*?)\n\}/.exec(schema)?.[1] ?? '';
+  const types = block
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '' && !line.startsWith('///') && !line.startsWith('//'))
+    .map((line) => line.split(/\s+/)[0]);
+
+  check('the schema declares the ledger types', types.length > 0, String(types.length));
+
+  /*
+   * One documented exception (#411): a `fee` row is a shape the schema allows and nothing writes,
+   * because the 2% rides inside the payment's own transfer. Its absence is asserted rather than
+   * assumed, so a glyph for a mark nothing wears is also a failure.
+   */
+  const NO_GLYPH_BY_DESIGN = new Set(['fee']);
+
+  for (const type of types) {
+    if (NO_GLYPH_BY_DESIGN.has(type)) {
+      check(`${type} wears no glyph, by design (#411)`, GLYPH_BY_TYPE[type] === undefined);
+      continue;
+    }
+
+    check(`${type} has a glyph of its own`, GLYPH_BY_TYPE[type] !== undefined, String(GLYPH_BY_TYPE[type]));
+    /*
+     * A type whose mark is missing does not fail visibly: `rowGlyph` falls back to the direction,
+     * so `savings_withdrawal` would wear "money leaving" while the money comes back. This asserts
+     * the mark the row actually wears is the table's.
+     */
+    check(
+      `${type} wears that glyph, not the direction's fallback`,
+      rowGlyph(row({ type })).icon === GLYPH_BY_TYPE[type]
+    );
+  }
+
+  // Every title the server can put on a nameless row must be one this list knows, or the circle
+  // draws a letter where it should draw a mark. Read from the server's own tables rather than
+  // listed here, because a copy is what drifted the first time.
+  const view = readFileSync(
+    new URL('../../backend/src/services/transaction-view.ts', import.meta.url),
+    'utf8'
+  );
+  const titles = [
+    ...new Set(
+      [...view.matchAll(/^\s{2}[a-z0-9_]+:\s*'([^']+)',\s*$/gm)].map((match) => match[1])
+    ),
+  ];
+
+  check('the server names titles this suite can read', titles.length >= 9, String(titles.length));
+
+  for (const title of titles) {
+    check(`\`${title}\` counts as a title, not a name`, ANONYMOUS_TITLES.has(title));
+  }
 }
 
 console.log('-'.repeat(74));
