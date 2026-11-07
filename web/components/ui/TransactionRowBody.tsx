@@ -1,6 +1,6 @@
 import { cn } from '@/lib/cn';
 import { Icon } from './Icon';
-import { rowGlyph } from './transaction-glyph';
+import { initialOf, rowGlyph } from './transaction-glyph';
 import { formatFiat } from '@/lib/formatCurrency';
 import { Text } from './Text';
 import { TransactionRowSubtitle } from './TransactionRowSubtitle';
@@ -81,7 +81,7 @@ export function TransactionRowBody({ transaction }: TransactionRowBodyProps) {
         {glyph.icon ? (
           <Icon name={glyph.icon} className={cn('h-5 w-5', glyph.tone === 'in' ? 'text-ink-success' : 'text-ink')} />
         ) : (
-          <Text variant="card-title">{merchant.charAt(0)}</Text>
+          <Text variant="card-title">{initialOf(merchant)}</Text>
         )}
       </span>
 

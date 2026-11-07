@@ -14,8 +14,9 @@ import type { TransactionGlyph } from './TransactionRow.types';
  *
  * Every entry is a primitive the hand-drawn set already had, or one added for this and nothing else:
  * an arrow out for money leaving, its mirror for money arriving, a plus for a deposit, opposing arrows
- * for a swap, a percent for a fee, a clock for a row still in flight. A merchant payment keeps the
- * merchant's initial, because that one IS a name and an initial is what a name reduces to at 40px.
+ * for a swap, a clock for a row still in flight. ANY row with a name behind it keeps the initial — a
+ * merchant's name, or the claimed username the send flow resolved — because that one IS a name and an
+ * initial is what a name reduces to at 40px. Only a row titled by a verb takes the arrow.
  *
  * A failed row wears `alert` and a pending one wears `clock`, whatever its type: a row that has not
  * happened is not yet a transfer, and the glyph is the first thing read.
@@ -26,8 +27,12 @@ const GLYPH_BY_TYPE: Record<string, TransactionGlyph> = {
   p2p_receive: 'arrowDownLeft',
   top_up: 'add',
   convert: 'swap',
-  fee: 'percent',
   withdrawal: 'send',
+  /*
+   * No `fee` entry (#411). The 2% never becomes a ledger row: it rides inside the payment's own
+   * transfer and is stored as `feeAmount` on that row, so a `fee` row is a shape the schema allows and
+   * nothing writes. A glyph for it was a mark nothing would ever wear.
+   */
 };
 
 /**
@@ -39,6 +44,12 @@ const GLYPH_BY_TYPE: Record<string, TransactionGlyph> = {
  * the server's copy is inside a service and the client must not import the ledger.
  */
 const ANONYMOUS_TITLES = new Set(['Payment', 'Sent', 'Received', 'Deposit', 'Withdrawal', 'Fee', 'Convert']);
+
+/** `@akinyi` reduces to `A`; a merchant's `Java House` to `J`. */
+export function initialOf(name: string): string {
+  const letter = name.replace(/^@+/, '').trim().charAt(0);
+  return letter ? letter.toUpperCase() : '?';
+}
 
 export interface RowGlyph {
   /** `null` means "draw the merchant's initial in the circle instead". */
@@ -56,7 +67,7 @@ export function rowGlyph(transaction: Transaction): RowGlyph {
   if (status === 'failed') return { icon: 'alert', tone: 'quiet' };
   if (status === 'pending') return { icon: 'clock', tone: 'quiet' };
 
-  const named = type === 'payment' && Boolean(merchant) && !ANONYMOUS_TITLES.has(merchant);
+  const named = Boolean(merchant) && !ANONYMOUS_TITLES.has(merchant);
   if (named) return { icon: null, tone: 'quiet' };
 
   const icon = type ? GLYPH_BY_TYPE[type] : undefined;

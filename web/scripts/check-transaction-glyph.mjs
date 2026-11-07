@@ -5,7 +5,7 @@
  * accident: a merchant keeps its initial, an unnamed transfer takes its type's glyph, money arriving is
  * the only thing tinted, and a row that has not happened wears the state rather than the type.
  */
-import { rowGlyph } from '../components/ui/transaction-glyph.ts';
+import { initialOf, rowGlyph } from '../components/ui/transaction-glyph.ts';
 
 let passed = 0;
 let failed = 0;
@@ -38,7 +38,8 @@ console.log('a row wears what happened:');
   check('a receive is the mirror', rowGlyph(row({ type: 'p2p_receive', direction: 'in' })).icon === 'arrowDownLeft');
   check('a deposit is a plus', rowGlyph(row({ type: 'top_up', direction: 'in' })).icon === 'add');
   check('a swap is the exchange mark', rowGlyph(row({ type: 'convert' })).icon === 'swap');
-  check('a fee is a percent', rowGlyph(row({ type: 'fee' })).icon === 'percent');
+  // No fee mark: the 2% never becomes a row, so it falls back to the direction (#411).
+  check('a fee, if one ever appeared, would still read as money leaving', rowGlyph(row({ type: 'fee' })).icon === 'send');
   check('a withdrawal is money leaving', rowGlyph(row({ type: 'withdrawal' })).icon === 'send');
 }
 
@@ -56,6 +57,14 @@ console.log('and a name keeps its letter:');
     'a send to a person stays anonymous even though it is titled Sent',
     rowGlyph(row({ type: 'p2p_send', merchant: 'Sent' })).icon === 'send'
   );
+  // A claimed username is a name, so the row keeps its initial (#411).
+  check(
+    'a send to a claimed username keeps that name\'s initial',
+    rowGlyph(row({ type: 'p2p_send', merchant: '@akinyi' })).icon === null
+  );
+  check('and the initial ignores the at sign', initialOf('@akinyi') === 'A', initialOf('@akinyi'));
+  check('a merchant keeps its first letter', initialOf('Java House') === 'J', initialOf('Java House'));
+  check('an empty name still draws something', initialOf('') === '?');
 }
 
 console.log('tint is for money arriving:');
