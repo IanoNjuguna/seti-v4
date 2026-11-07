@@ -172,6 +172,7 @@ export function toRecentTransaction(row: {
 }): RecentTransaction {
   return {
     id: row.id,
+    type: row.type,
     merchant: row.merchant?.name ?? describeCounterparty(row),
     direction: directionOf(row.type),
     category: row.merchant?.category ?? describeType(row.type),
