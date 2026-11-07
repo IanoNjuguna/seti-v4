@@ -17,6 +17,19 @@ export const ANALYTICS_COPY = {
   feeNote: 'Funded by the customer inside their own transfer.',
   ticket: (count: number, average: string, median: string): string =>
     `${count === 1 ? '1 payment' : `${count} payments`} · average ${average} · median ${median}`,
+  /* How the settlement is going (#395). */
+  settlementTitle: 'Settlement',
+  pending: 'Pending',
+  pendingValue: (count: number, oldestHours: number | null): string => {
+    if (count === 0) return 'None';
+    const age = oldestHours === null ? '' : ` · oldest ${hours(oldestHours)}`;
+    return `${count === 1 ? '1 movement' : `${count} movements`}${age}`;
+  },
+  settleTime: 'Time to settle',
+  settleTimeValue: (count: number, median: number | null, worst: number | null): string => {
+    if (count === 0 || median === null) return 'Nothing settled yet';
+    return `typically ${hours(median)}${worst === null ? '' : ` · worst ${hours(worst)}`}`;
+  },
   /* How regular the trade is (#393). */
   consistencyTitle: 'Consistency',
   activeDays: 'Active days',
@@ -49,6 +62,14 @@ export function skippedNote(count: number): string {
   return count === 1
     ? '1 movement could not be read, so the figures may be short by it.'
     : `${count} movements could not be read, so the figures may be short by them.`;
+}
+
+/** A duration in the unit that makes it readable: seconds, minutes or hours. */
+export function hours(value: number): string {
+  if (value < 1 / 60) return `${Math.max(1, Math.round(value * 3600))}s`;
+  if (value < 1) return `${Math.round(value * 60)}m`;
+  if (value < 24) return `${Math.round(value * 10) / 10}h`;
+  return `${Math.round((value / 24) * 10) / 10}d`;
 }
 
 /** `6 Nov`, from a `YYYY-MM-DD` key, without asking the browser for a locale. */
