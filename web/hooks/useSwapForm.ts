@@ -18,8 +18,11 @@ import {
 import type {
   SwapAssetOption,
   SwapFormState,
+  SwapLineTone,
+  SwapReferenceModel,
   SwapStateLineModel,
 } from '@/components/swap/SwapForm.types';
+import { useAppNetwork } from '@/components/app/useAppNetwork';
 import { useConvertQuote } from './useConvertQuote';
 import { useConvertSwap } from './useConvertSwap';
 import { useSpendAssetRows } from './useSpendAssetRows';
@@ -37,6 +40,21 @@ const NO_PAIRS: ConvertPair[] = [];
 
 /** A decimal with at most the precision every supported asset carries. */
 const AMOUNT_SHAPE = new RegExp(`^\\d*(\\.\\d{0,${SWAP_AMOUNT_DECIMALS}})?$`);
+
+/**
+ * One state line, and the hash ONLY where a hash is what the sentence is about.
+ *
+ * The reference is passed in rather than read off the swap state by the derivation, so no
+ * line can pick it up by accident: a sentence about a price being checked has no hash to
+ * offer, and printing one beside it would suggest a swap had been signed (#413).
+ */
+function swapLine(
+  tone: SwapLineTone,
+  sentence: string,
+  reference: SwapReferenceModel | null = null
+): SwapStateLineModel {
+  return { tone, sentence, reference };
+}
 
 /**
  * What the field says about the figure typed into it, and what may be sent.
@@ -114,6 +132,9 @@ function answersNow(
 export function useSwapForm(): SwapFormState {
   const session = useSession();
   const userId = session.user?.id ?? undefined;
+  // The network the swap settles on, so a hash on the failure line links to the explorer
+  // that can actually find it.
+  const { network } = useAppNetwork();
   const { rows, loading: rowsLoading, unavailable: rowsUnavailable } = useSpendAssetRows(userId);
 
   const [pairs, setPairs] = useState<PairsState>(LOADING_PAIRS);
@@ -238,13 +259,22 @@ export function useSwapForm(): SwapFormState {
       : quote;
 
   const stateLine = useMemo<SwapStateLineModel | null>(() => {
-    if (rowsUnavailable) return { tone: 'alert', sentence: SWAP_FORM_COPY.balancesUnavailable };
-    if (pairs.status === 'failed') return { tone: 'alert', sentence: SWAP_FORM_COPY.pairsUnavailable };
-    if (sources.length === 0) return { tone: 'muted', sentence: SWAP_FORM_COPY.noBalances };
-    if (assetOut === '') return { tone: 'muted', sentence: SWAP_FORM_COPY.nothingToHold };
+    if (rowsUnavailable) return swapLine('alert', SWAP_FORM_COPY.balancesUnavailable);
+    if (pairs.status === 'failed') return swapLine('alert', SWAP_FORM_COPY.pairsUnavailable);
+    if (sources.length === 0) return swapLine('muted', SWAP_FORM_COPY.noBalances);
+    if (assetOut === '') return swapLine('muted', SWAP_FORM_COPY.nothingToHold);
 
-    if (swap.error !== null) return { tone: 'alert', sentence: swap.error };
-    if (done) return { tone: 'muted', sentence: SWAP_COPY.done };
+    // The one line that can carry a hash: the swap was signed, so a hash exists, and the
+    // sentence tells the customer to keep it (#413). A failure before the signature has no
+    // hash and says nothing moved, so it gets the sentence alone.
+    if (swap.error !== null) {
+      return swapLine(
+        'alert',
+        swap.error,
+        swap.txHash === null ? null : { txHash: swap.txHash, network }
+      );
+    }
+    if (done) return swapLine('muted', SWAP_COPY.done);
 
     // The field carries its own sentence while the figure is not one to ask about.
     if (typed && asked.problem !== null) return null;
@@ -253,21 +283,23 @@ export function useSwapForm(): SwapFormState {
     if (convert.status === 'refused') {
       // A code with a sentence of its own is that sentence; a read that failed before it
       // produced a code is the swap path's own line for an unpriced quote.
-      return {
-        tone: 'alert',
-        sentence: convert.code === null ? SWAP_COPY.notPriced : refusalMessageFor(convert.code),
-      };
+      return swapLine(
+        'alert',
+        convert.code === null ? SWAP_COPY.notPriced : refusalMessageFor(convert.code)
+      );
     }
 
     // Nothing quoted for THIS figure yet: the previous answer is not on screen either,
     // because a figure for money the customer is no longer swapping is not a figure.
-    return { tone: 'muted', sentence: SWAP_FORM_COPY.checkingPrice };
+    return swapLine('muted', SWAP_FORM_COPY.checkingPrice);
   }, [
     rowsUnavailable,
     pairs.status,
     sources.length,
     assetOut,
     swap.error,
+    swap.txHash,
+    network,
     done,
     typed,
     asked.problem,
