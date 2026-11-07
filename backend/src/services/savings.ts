@@ -207,7 +207,7 @@ export interface SavingsSummary {
    */
   apy: string | null;
   /**
-   * The rewards campaign paying on top of the vault, or null when none is live today (#425).
+   * The rewards campaign paying on top of the vault, or null when none is live today (#426).
    *
    * Null is the ordinary state on a quiet day and the ONLY state the screen may render when
    * Merkl has ended, paused or cannot be read: a stale promotion is worse than no number.
@@ -435,7 +435,7 @@ export async function getSavingsSummary(input: {
   if (!onChain) return { ...empty, status: 'unreadable' };
 
   /*
-   * The vault's own rate and the campaign paying on top of it, from one Merkl read (#425).
+   * The vault's own rate and the campaign paying on top of it, from one Merkl read (#426).
    * Cached for five minutes inside the reader, so this costs a customer one request per five
    * minutes of page loads rather than one per render, and a null (no campaign today) is
    * cached just the same.
@@ -475,7 +475,7 @@ export async function getSavingsSummary(input: {
     shares: formatUnits(shares, 18),
     earnings: measured,
     // The vault's own rate, and the campaign that pays on top of it, from one Merkl read
-    // (#425). Before this the field was hard-nulled because nothing in the stack could price
+    // (#426). Before this the field was hard-nulled because nothing in the stack could price
     // the vault: Morpho's API does not index chain 4217, DefiLlama has no pool, and Tempo's
     // Earn API answers `earn_vault_not_found`. Merkl carries `nativeApr` beside `apr`.
     apy: campaign?.nativeApr ?? null,

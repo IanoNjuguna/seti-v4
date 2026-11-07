@@ -35,7 +35,7 @@ export const SAVE_COPY = {
    */
   rateZero: 'The vault pays no rate right now',
   /**
-   * The campaign's rate, and the two facts that make it honest (#425): WHO pays it and WHEN it
+   * The campaign's rate, and the two facts that make it honest (#426): WHO pays it and WHEN it
    * stops. It leads the card because it is the number a customer is choosing on, and it always
    * carries its own end date, so "3.60%" is never read as the vault's.
    */
@@ -82,7 +82,7 @@ export const SAVE_COPY = {
     'Put money aside and earn on it, once the vault pays a rate worth your time. We will turn it on then.',
   soonNote: 'Nothing here can hold your money in the meantime.',
   /**
-   * The claim block (#322), and the ONE place the campaign's operator is named (#425).
+   * The claim block (#322), and the ONE place the campaign's operator is named (#426).
    *
    * "The campaign" was a name that named nobody: a customer was told to claim rewards from a
    * party the app never identified, and the claim they sign is a call on Merkl's Distributor for
@@ -125,7 +125,7 @@ export function rateLine(apy: string | null): string {
 }
 
 /**
- * The two rate lines the card shows, and which one is ink (#425).
+ * The two rate lines the card shows, and which one is ink (#426).
  *
  * The ordering is the whole argument: the CAMPAIGN's number is the one a customer is choosing
  * on, so it leads, and it names its payer and its end date in the same breath. The vault's own

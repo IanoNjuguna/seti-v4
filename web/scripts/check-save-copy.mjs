@@ -1,5 +1,5 @@
 /**
- * `npm run check:save-copy` — what the savings card says about its rate (#425).
+ * `npm run check:save-copy` — what the savings card says about its rate (#426).
  *
  * The defect this suite exists for was a screen printing "Rate unavailable right now" over a
  * vault that pays 0.0001% while a 3.60% campaign paid on top of it, with the campaign's operator

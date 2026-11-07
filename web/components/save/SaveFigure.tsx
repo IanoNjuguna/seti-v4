@@ -59,7 +59,7 @@ export function SaveFigure({ summary, loading }: SaveFigureProps) {
         ) : (
           <>
             {/*
-              TWO rate lines, campaign first (#425). The lead names who pays and when it stops;
+              TWO rate lines, campaign first (#426). The lead names who pays and when it stops;
               the second says what the vault itself pays, which is the number that survives the
               campaign. Before this the card showed one line that said "unavailable", because
               nothing in the stack could price the vault and the campaign was only ever read as
