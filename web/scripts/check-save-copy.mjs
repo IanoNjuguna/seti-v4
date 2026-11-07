@@ -120,6 +120,33 @@ console.log('\nnone of it breaks the page voice:');
   );
 }
 
+console.log('\nthe page reads figure, actions, then the claim (#427):');
+{
+  const flow = read('../components/save/SaveFlow.tsx');
+  const figureAt = flow.indexOf('<SaveFigure');
+  const actionsAt = flow.indexOf('<SaveActions');
+  const rewardsAt = flow.indexOf('<SaveRewards />');
+  check('the figure comes first', figureAt !== -1 && figureAt < actionsAt);
+  check('the actions follow it', actionsAt !== -1 && actionsAt < rewardsAt);
+  check('and the claim comes last of the three', rewardsAt !== -1);
+
+  const actions = read('../components/save/SaveActions.tsx').replace(/\/\*[\s\S]*?\*\//g, '');
+  check(
+    'the two actions share one row from 380px, and stack below it',
+    /grid-cols-1 gap-3 min-\[380px\]:grid-cols-2/.test(actions),
+    'row grid not found'
+  );
+  check(
+    'equal tracks come from the grid, not from flex sizing the buttons to their labels',
+    !/flex-1/.test(actions)
+  );
+  check(
+    'and both keep their own full width',
+    actions.split('fullWidth').length >= 3,
+    `${actions.split('fullWidth').length - 1} fullWidth props`
+  );
+}
+
 console.log('-'.repeat(74));
 console.log(`${passed} assertions passed${failed ? `, ${failed} failed` : ''}.`);
 process.exit(failed === 0 ? 0 : 1);
