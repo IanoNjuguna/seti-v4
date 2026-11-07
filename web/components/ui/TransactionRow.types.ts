@@ -13,12 +13,6 @@ export interface TransactionRowProps {
    */
   onSelect?: (transaction: Transaction) => void;
   /**
-   * Extra detail rendered inside the row's content column, under the title. The
-   * Activity screen passes the indexer's fields; the home card passes nothing and
-   * its rows are unchanged.
-   */
-  details?: ReactNode;
-  /**
    * A control that sits OVER the row's reserved strip rather than inside the row's
    * own control: the Activity list uses it for `Try again` on a failed payment.
    *
@@ -36,4 +30,4 @@ export interface TransactionRowProps {
 }
 
 /** The row's content, rendered by whichever wrapper the row needs. */
-export type TransactionRowBodyProps = Pick<TransactionRowProps, 'transaction' | 'details'>;
+export type TransactionRowBodyProps = Pick<TransactionRowProps, 'transaction'>;

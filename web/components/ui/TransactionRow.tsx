@@ -49,19 +49,19 @@ const ACTION_RESERVE_CLASS = 'pb-12';
  * With no action the shape is exactly what it was: one element, the same classes, so
  * the home card and every existing row render pixel-identically.
  */
-export function TransactionRow({ transaction, onSelect, details, action }: TransactionRowProps) {
+export function TransactionRow({ transaction, onSelect, action }: TransactionRowProps) {
   if (!action) {
     if (!onSelect) {
       return (
         <div className={ROW_CLASS}>
-          <TransactionRowBody transaction={transaction} details={details} />
+          <TransactionRowBody transaction={transaction} />
         </div>
       );
     }
 
     return (
       <button type="button" onClick={() => onSelect(transaction)} className={ROW_CLASS}>
-        <TransactionRowBody transaction={transaction} details={details} />
+        <TransactionRowBody transaction={transaction} />
       </button>
     );
   }
@@ -74,11 +74,11 @@ export function TransactionRow({ transaction, onSelect, details, action }: Trans
           onClick={() => onSelect(transaction)}
           className={cn(CONTROL_CLASS, ACTION_RESERVE_CLASS, 'w-full')}
         >
-          <TransactionRowBody transaction={transaction} details={details} />
+          <TransactionRowBody transaction={transaction} />
         </button>
       ) : (
         <div className={cn(STATIC_CLASS, ACTION_RESERVE_CLASS, 'w-full')}>
-          <TransactionRowBody transaction={transaction} details={details} />
+          <TransactionRowBody transaction={transaction} />
         </div>
       )}
 
