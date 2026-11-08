@@ -1236,9 +1236,14 @@ Returns the user with their wallets. `403` if `:id` is not the authenticated use
 
 ### `GET /users/:id/analytics`
 
-The caller's own figures for the analytics page: totals and the day series, scoped to
-the account's network and counted in the stored time zone. `403` if `:id` is not the
-authenticated user, `404` if the user does not exist.
+The caller's own figures for the analytics page, scoped to the account's network and
+counted in the stored time zone. `403` if `:id` is not the authenticated user, `404` if
+the user does not exist.
+
+Answers `{ currency, timeZone, customers, consistency, settlement, windows, year }`:
+totals per window, three summaries over those windows, and `year` as one number per day
+for a year, grouped in the database rather than derived from the rows. `timeZone` is the
+calendar the figures were counted on, so a reader can see which one it is.
 
 ### `POST /users/:id/timezone`
 
