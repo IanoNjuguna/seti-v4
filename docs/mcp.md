@@ -7,13 +7,13 @@ sidebar_position: 5
 Seti ships a [Model Context Protocol](https://modelcontextprotocol.io) server, so
 an AI agent can do two things:
 
-1. **Read and build on Tempo with no Seti account** — four tools need no
-   credentials at all.
+1. **Read, build and get paid with no Seti account** — nine of the fifteen tools need
+   no credentials at all: the three `tempo_*` reads, the calldata builder, the four
+   charge tools (where the payee's own signature is the credential), and the public
+   payee lookup.
 2. **Drive the Seti API** — resolve merchants, preview payments, read balances
    and statuses. These need a Seti account, because the API has no public
-   authentication ([Authentication](./authentication.md)) — with one exception:
-   asking whether an ADDRESS is a reviewed merchant is a public read, so that
-   tool takes no token either.
+   authentication ([Authentication](./authentication.md)).
 
 It **never signs and never holds a key**. `seti_build_payment_transfer` returns
 calldata for a wallet you control, and the receive tools return the exact typed data
