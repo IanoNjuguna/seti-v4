@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useState } from 'react';
 import { Skeleton, TabPanel, Tabs } from '@/components/ui';
 import { ActivityAnalytics } from '@/components/activity/ActivityAnalytics';
+import { ClaimsSection } from '@/components/activity/ClaimsSection';
 import { ActivityHeader } from '@/components/activity/ActivityHeader';
 import { ActivityList } from '@/components/activity/ActivityList';
 import { ActivitySignedOut } from '@/components/activity/ActivitySignedOut';
@@ -62,6 +63,10 @@ function ActivityViews() {
       />
 
       <TabPanel idPrefix={ACTIVITY_VIEW_ID_PREFIX} tabId="transactions" visible={view === 'transactions'}>
+        {/* Above the ledger, because a claim is not a transaction: nothing has moved yet, and these
+            rows stop existing as obligations the day one is paid (#465). */}
+        <ClaimsSection />
+
         <ActivityList onSelect={setSelected} />
       </TabPanel>
 
