@@ -86,6 +86,8 @@ model User {
   /// Merchant apps this account owns (#156). OWNERSHIP is the session's; the
   /// payout address and every signature are the wallet's.
   merchantApps      MerchantApp[]
+  /// The asks this account has made, whether or not they were paid (#98).
+  paymentRequests   PaymentRequest[]
 
   @@map("users")
 }
@@ -266,6 +268,10 @@ model Handle {
   @@index([network, handle])
   /// The reviewer's queue: every parked claim (`reviewStatus = 'pending'`).
   @@index([reviewStatus])
+  /// The asks that name this handle. `onDelete: Restrict`: a handle with a live ask on it cannot be
+  /// deleted out from under the link.
+  paymentRequests PaymentRequest[]
+
   @@map("handles")
 }
 
@@ -744,6 +750,60 @@ model ChargeWebhookDelivery {
 ///
 /// The row is written by the indexer (`services/arrival-store.ts`) and read by the
 /// merchant's own account, so the leak is measured instead of assumed.
+
+/// A request for money: a link that carries a payee and an amount (#98, #447 step 3).
+///
+/// It is deliberately NOT a `Charge`. A charge is EIP-712 signed by its recipient, denominated in
+/// token units, and settles only when a transfer carries its id in a 32-byte memo — that object is
+/// the LOCKED claim, and it already exists. A request is the other half: an UNSIGNED row in the
+/// customer's currency whose amount the payer may change (#98 AC1), settled by the ordinary send it
+/// points at. Making a request a charge would have meant either a signature nobody asked for, or an
+/// editable amount inside a signed payload.
+///
+/// What the two DO share is the rule this table exists to enforce: an ask settles ONCE.
+model PaymentRequest {
+  id                String               @id @default(cuid())
+  /// The string the link carries. Opaque and unguessable: the link is the capability.
+  publicId          String               @unique
+  creatorId         String
+  creator           User                 @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  /// The handle that was asked, resolved AT CREATION: an ask naming a string that does not resolve
+  /// never becomes a row (#98 AC5), so a payer never opens a link to nothing.
+  ///
+  /// The relation (not the string) is what a rename follows: the ask keeps paying the same ACCOUNT,
+  /// which is what "I owe Ian" means, even if Ian renames.
+  payeeHandleId     String
+  payeeHandle       Handle               @relation(fields: [payeeHandleId], references: [id], onDelete: Restrict)
+  /// The handle as it read at creation, for the sentence and the page. A snapshot, not a lookup.
+  payeeHandleText   String
+  /// The handle's address at creation. A snapshot, because the money path needs an address and the
+  /// handle's can legitimately change owners. It never decides a payment: the receipt does.
+  payeeAddress      String
+  /// What is being asked, as a decimal string in the customer's currency (`"500.00"`).
+  /// A string because money in this schema is a string; validated by `requests.ts` at creation.
+  amount            String
+  currency          String               @default("KES")
+  /// Payer-visible text. Empty by default rather than null.
+  memo              String               @default("")
+  status            PaymentRequestStatus @default(open)
+  /// The ledger row that settled it. UNIQUE, so one payment cannot satisfy two asks: a second claim
+  /// on the same transaction is refused by the database, not by a read-then-write in code.
+  settledTransactionId String?         @unique
+  /// The chain hash of that payment, kept beside it for support and for the receipt link.
+  settledTxHash     String?
+  settledAt         DateTime?
+  cancelledAt       DateTime?
+  /// Null means no expiry in v1 (#98 non-goals).
+  expiresAt         DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@index([creatorId, createdAt])
+  /// The settle lookup: the open asks for one payee address.
+  @@index([status, payeeAddress])
+  @@map("payment_requests")
+}
+
 model AddressArrival {
   id          String   @id @default(cuid())
   /// `testnet` | `mainnet` — the network the transfer happened on. Scoped like
@@ -843,6 +903,14 @@ enum ChargeStatus {
   underpaid
   overpaid
   expired
+}
+
+/// The lifecycle of a request. Three states and no more: an ask is open, it is paid, or somebody
+/// withdrew it. `expired` is deliberately absent in v1 (#98 non-goals).
+enum PaymentRequestStatus {
+  open
+  settled
+  cancelled
 }
 
 enum KycStatus {
