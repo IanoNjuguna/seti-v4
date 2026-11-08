@@ -1,5 +1,5 @@
 import { Text } from '@/components/ui';
-import { PageBack } from '@/components/app/PageBack';
+import { PageHeader } from '@/components/app/PageHeader';
 import { SignInPrompt } from '@/components/auth/SignInPrompt';
 import { NO_ACCOUNT_COPY } from '@/components/app/no-account.constants';
 import { SEND_FLOW_COPY, SEND_SIGNED_OUT_COPY } from './Send.constants';
@@ -22,10 +22,7 @@ import type { SendSignedOutProps } from './SendSignedOut.types';
 export function SendSignedOut({ view }: SendSignedOutProps) {
   return (
     <div className="flex flex-col gap-4">
-      <PageBack />
-      <Text variant="section" as="h1">
-        {SEND_FLOW_COPY.title}
-      </Text>
+      <PageHeader title={SEND_FLOW_COPY.title} />
 
       {view === 'restoring' ? (
         <Text variant="body" color="secondary" as="p">

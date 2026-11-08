@@ -1,6 +1,6 @@
 'use client';
 
-import { PageBack } from '@/components/app/PageBack';
+import { PageHeader } from '@/components/app/PageHeader';
 import { Button, Text } from '@/components/ui';
 import { formatFiat } from '@/lib/formatCurrency';
 import { useSave } from '@/hooks/useSave';
@@ -41,10 +41,7 @@ export function SaveFlow() {
   if (save.summary !== null && save.summary.live === false) {
     return (
       <div className="flex flex-col gap-4">
-        <PageBack />
-        <Text variant="section" as="h1">
-          {SAVE_COPY.title}
-        </Text>
+        <PageHeader title={SAVE_COPY.title} />
 
         <div className="rounded-md border border-hairline-light bg-surface-soft px-5 py-6">
           <Text variant="micro" color="secondary" as="p">
@@ -67,10 +64,7 @@ export function SaveFlow() {
   if (save.done) {
     return (
       <div className="flex flex-col gap-4">
-        <PageBack />
-        <Text variant="section" as="h1">
-          {SAVE_COPY.title}
-        </Text>
+        <PageHeader title={SAVE_COPY.title} />
 
         <div className="rounded-md border border-hairline-light bg-surface-soft px-5 py-6">
           <Text variant="micro" color="secondary" as="p">
@@ -93,10 +87,7 @@ export function SaveFlow() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageBack />
-      <Text variant="section" as="h1">
-        {SAVE_COPY.title}
-      </Text>
+      <PageHeader title={SAVE_COPY.title} />
 
       {save.mode ? (
         <SaveAmount

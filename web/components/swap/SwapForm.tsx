@@ -1,7 +1,7 @@
 'use client';
 
-import { Skeleton, Text } from '@/components/ui';
-import { PageBack } from '@/components/app/PageBack';
+import { Skeleton } from '@/components/ui';
+import { PageHeader } from '@/components/app/PageHeader';
 import { useSwapForm } from '@/hooks/useSwapForm';
 import { SWAP_FORM_COPY } from './SwapForm.constants';
 import { SwapFields } from './SwapFields';
@@ -32,10 +32,7 @@ export function SwapForm() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageBack />
-      <Text variant="section" as="h1">
-        {SWAP_FORM_COPY.title}
-      </Text>
+      <PageHeader title={SWAP_FORM_COPY.title} />
 
       {form.quote !== null && <SwapRateLine quote={form.quote} />}
 

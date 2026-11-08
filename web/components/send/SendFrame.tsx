@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
-import { PageBack } from '@/components/app/PageBack';
-import { Text } from '@/components/ui';
+import { PageHeader } from '@/components/app/PageHeader';
 import { SEND_FLOW_COPY } from './Send.constants';
 import { SendProgress } from './SendProgress';
 
@@ -23,10 +22,7 @@ export interface SendFrameProps {
 export function SendFrame({ current, children }: SendFrameProps) {
   return (
     <div className="flex flex-col gap-4">
-      <PageBack />
-      <Text variant="section" as="h1">
-        {SEND_FLOW_COPY.title}
-      </Text>
+      <PageHeader title={SEND_FLOW_COPY.title} />
       <SendProgress current={current} />
       {children}
     </div>

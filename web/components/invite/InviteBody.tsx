@@ -1,4 +1,5 @@
 import { Text } from '@/components/ui';
+import { PageHeader } from '@/components/app/PageHeader';
 import { INVITE_COPY } from './Invite.constants';
 import { InviteState } from './InviteState';
 import type { InviteView } from './Invite.types';
@@ -21,9 +22,7 @@ export interface InviteBodyProps {
 export function InviteBody({ view }: InviteBodyProps) {
   return (
     <div className="flex flex-col gap-4">
-      <Text variant="section" as="h1">
-        {INVITE_COPY.title}
-      </Text>
+      <PageHeader title={INVITE_COPY.title} />
       <Text variant="body" color="secondary" as="p">
         {INVITE_COPY.lead}
       </Text>
