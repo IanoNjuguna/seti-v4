@@ -18,6 +18,7 @@
     "check:balances": "tsx src/services/balance-assets.check.ts",
     "check:analytics": "tsx src/services/analytics.check.ts",
     "check:address": "tsx src/lib/address.check.ts",
+    "check:assets": "tsx src/config/assets.check.ts",
     "check:env": "tsx src/config/env.check.ts",
     "check:rpc-guard": "tsx src/config/rpc-guard.check.ts",
     "check:server": "DEV_BYPASS_AUTH=true tsx src/server.check.ts",

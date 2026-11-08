@@ -624,6 +624,23 @@ export async function recordPayment(input: RecordPaymentInput) {
     });
   }
 
+  // A payout address that IS the treasury collapses the two legs into one transfer:
+  // the principal would be read as the fee, and the ledger would report a fee
+  // collected that the merchant received (#468). No receipt can tell them apart, so
+  // this refuses instead of choosing.
+  if (merchant.payoutAddress.toLowerCase() === treasuryAddressFor(network).toLowerCase()) {
+    throw await refusal({
+      userId: input.userId,
+      txHash: input.txHash,
+      merchantId: merchant.id,
+      code: 'treasury-is-payee',
+      reason:
+        "This merchant's payout address is Seti's own treasury, so the payment and the " +
+        'fee would be the same transfer and neither could be verified. Correct the ' +
+        'payout address before accepting payments.',
+    });
+  }
+
   const asset = input.asset as SupportedAsset;
   const claimedAmount = Number(input.amount);
 
@@ -934,6 +951,19 @@ export async function recordSend(input: RecordSendInput) {
       txHash: input.txHash,
       code: 'recipient-is-self',
       reason: 'That is your own wallet address, so the transfer would move nothing.',
+    });
+  }
+
+  // The same collision from the other side: paying the treasury as if it were a
+  // person makes the principal leg and the fee leg one transfer (#468).
+  if (recipient.toLowerCase() === treasuryAddressFor(network).toLowerCase()) {
+    throw await refusal({
+      userId: input.userId,
+      txHash: input.txHash,
+      code: 'treasury-is-payee',
+      reason:
+        "That address is Seti's own treasury, so the payment and the fee would be the " +
+        'same transfer and neither could be verified. Send to a person instead.',
     });
   }
 
