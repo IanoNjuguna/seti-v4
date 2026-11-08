@@ -40,7 +40,7 @@ section being revisited fails the build rather than surprising a customer.
 | API versioning | **None.** No `/v1` prefix; treat fields as subject to change. |
 | OpenAPI spec | **None.** The reference here is maintained by hand against `backend/src/routes/`. |
 | Rate limits, webhooks | **Per route.** The charge API has per-address and per-source budgets and signed webhook deliveries. Elsewhere, poll `GET /transactions/:id/status`. |
-| Credential-free tooling | **Yes** — the [MCP server](./mcp.md) has four tools that need no account: DEX quotes, TIP-20 balances, address inspection, and building unsigned payment calldata. |
+| Credential-free tooling | **Yes** — the [MCP server](./mcp.md) has nine tools that need no account: DEX quotes, TIP-20 balances, address inspection, building unsigned payment calldata, and the charge tools that let a wallet be paid with its own signature. |
 
 If you want to build something today without a Seti account, the [charge
 API](./api-reference.md) is how you get paid (a wallet signature, no key) and the
