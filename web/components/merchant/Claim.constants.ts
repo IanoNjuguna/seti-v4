@@ -56,7 +56,13 @@ export const BUSINESS_CLAIM_COPY: ClaimCopy = {
   qrLabel: 'Print this as your sticker',
   qrHint:
     'The code opens your link. No amount is in it, so the customer enters what they are paying.',
-  qrDownload: 'Download QR (SVG)',
+  /**
+   * The saved file is a `QR_EXPORT_PX` PNG drawn from the vector (#433), not the SVG the old
+   * control cloned out of the page, so the label stopped naming a format nobody receives.
+   */
+  qrDownload: 'Download QR code',
+  qrDownloading: 'Preparing…',
+  qrDownloadFailed: 'Could not save the code. Take a screenshot of it instead.',
 };
 
 export const PERSON_CLAIM_COPY: ClaimCopy = {
@@ -84,7 +90,13 @@ export const PERSON_CLAIM_COPY: ClaimCopy = {
     `${link} is already taken by ${holder}. Names that reduce to the same link cannot both be claimed. Choose another name.`,
   qrLabel: 'Your code',
   qrHint: 'The code opens your link, so anyone who scans it can send you money.',
-  qrDownload: 'Download QR (SVG)',
+  /**
+   * The saved file is a `QR_EXPORT_PX` PNG drawn from the vector (#433), not the SVG the old
+   * control cloned out of the page, so the label stopped naming a format nobody receives.
+   */
+  qrDownload: 'Download QR code',
+  qrDownloading: 'Preparing…',
+  qrDownloadFailed: 'Could not save the code. Take a screenshot of it instead.',
 };
 
 export const CLAIM_COPY_BY_KIND: Record<HandleKind, ClaimCopy> = {
@@ -141,5 +153,11 @@ export const ONBOARDING_NAME_COPY: ClaimCopy = {
     `${link} is already taken by ${holder}. Names that reduce to the same handle cannot both be claimed. Choose another name.`,
   qrLabel: 'Your code',
   qrHint: 'The code opens your link.',
-  qrDownload: 'Download QR (SVG)',
+  /**
+   * The saved file is a `QR_EXPORT_PX` PNG drawn from the vector (#433), not the SVG the old
+   * control cloned out of the page, so the label stopped naming a format nobody receives.
+   */
+  qrDownload: 'Download QR code',
+  qrDownloading: 'Preparing…',
+  qrDownloadFailed: 'Could not save the code. Take a screenshot of it instead.',
 };
