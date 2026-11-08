@@ -810,6 +810,42 @@ console.log("\n our session alive and Privy's dead is its own state (#241):");
   );
 }
 
+console.log('\nthe sticker the claim hands over is the app\'s branded code (#433):');
+{
+  const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
+  const qr = read('../components/merchant/MerchantQr.tsx').replace(/\/\*[\s\S]*?\*\//g, '');
+
+  check('it draws through the plate', /<QrPlate/.test(qr));
+  check('and carries no encoder of its own', !/react-qr-code/.test(qr));
+  check(
+    'it still encodes the handle link, not a second payload',
+    /handleLink\(kind, name\)/.test(qr) && /value=\{link\}/.test(qr)
+  );
+  check(
+    'the save is the plate\'s export, not a clone of the page',
+    /useDownloadQr\(/.test(qr) && !/useQrDownload\(/.test(qr)
+  );
+  check(
+    'and the file it writes says what it is',
+    /-qr\.png`/.test(qr),
+    'the download is still named as an SVG'
+  );
+
+  for (const kind of ['BUSINESS_CLAIM_COPY', 'PERSON_CLAIM_COPY']) {
+    const copy = read('../components/merchant/Claim.constants.ts');
+    check(
+      `${kind}'s button no longer promises an SVG`,
+      !/Download QR \(SVG\)/.test(copy),
+      'a format nobody receives'
+    );
+    break;
+  }
+  check(
+    'a refused save is rendered rather than swallowed',
+    /state === 'failed'/.test(qr) && /qrDownloadFailed/.test(qr)
+  );
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);
 
