@@ -1,31 +1,32 @@
 'use client';
 
 import { Text } from '@/components/ui';
-import { AnalyticsBusyHours } from './AnalyticsBusyHours';
-import { AnalyticsConsistency } from './AnalyticsConsistency';
-import { AnalyticsDailyBars } from './AnalyticsDailyBars';
-import { AnalyticsCustomers } from './AnalyticsCustomers';
-import { AnalyticsSettlement } from './AnalyticsSettlement';
-import { AnalyticsFigures } from './AnalyticsFigures';
-import { AnalyticsHalves } from './AnalyticsHalves';
-import { AnalyticsMerchants } from './AnalyticsMerchants';
-import { AnalyticsEmpty, AnalyticsError, AnalyticsLoading } from './AnalyticsStates';
-import { WindowPicker } from './WindowPicker';
-import { ANALYTICS_COPY, DAILY_BAR_FLOOR, skippedNote, windowLabel } from './Analytics.constants';
+import { AnalyticsDetailBand } from './AnalyticsDetailBand';
+import { AnalyticsSeriesBand } from './AnalyticsSeriesBand';
+import { AnalyticsSummaryBand } from './AnalyticsSummaryBand';
+import { AnalyticsError, AnalyticsLoading } from './AnalyticsStates';
+import { skippedNote } from './Analytics.constants';
 import { useAnalytics, useAnalyticsWindow } from './useAnalytics';
 import { useTimeZoneSync } from './useTimeZoneSync';
 
 /**
- * What the account adds up to, inside the second tab.
+ * What the account adds up to, inside the second tab, in three bands (#441).
  *
- * Nothing here is fetched until the tab is opened (`active`), and once it has been
- * opened the data stays, so switching to Transactions and back is instant rather than
- * a second read of the same figures.
+ * 1. the period, the figure, and whether to trust it
+ * 2. the shape of the period
+ * 3. one list slot, three questions
  *
- * An empty window is shown as an empty window, not as three zeros: a period with
- * nothing in it is a fact about the period, and zeroes read as a broken read. The
- * `skipped` line is the honest other half — when the server could not read some rows
- * it says so, instead of presenting a total that is quietly short.
+ * It used to be eight sections of near-equal weight inside one window control, which asked the
+ * reader to scan all eight and gave none of them primacy.
+ *
+ * Nothing here is fetched until the tab is opened (`active`), and once it has been opened the data
+ * stays, so switching to Transactions and back is instant rather than a second read of the same
+ * figures.
+ *
+ * An empty window keeps band 1 and its control, and draws nothing below it: a period with nothing in
+ * it is a fact about the period, and three zeroes would read as a broken read. The `skipped` line is
+ * the honest other half: when the server could not read some rows, the page says so instead of
+ * presenting a total that is quietly short.
  */
 export function ActivityAnalytics({ active }: { active: boolean }) {
   const analytics = useAnalytics({ active });
@@ -35,59 +36,42 @@ export function ActivityAnalytics({ active }: { active: boolean }) {
 
   if (!active) return null;
 
+  const summary = analytics.data;
+
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       {analytics.loading ? <AnalyticsLoading /> : null}
 
       {analytics.error ? <AnalyticsError message={analytics.error} onRetry={analytics.retry} /> : null}
 
-      {selected && currency ? (
+      {selected && currency && summary ? (
         <>
-          {windows.length > 1 ? (
-            <WindowPicker windows={windows} selected={days} onSelect={setDays} />
-          ) : (
-            <Text variant="micro" as="p" color="secondary">
-              {windowLabel(selected.days)}
-            </Text>
-          )}
+          <AnalyticsSummaryBand
+            window={selected}
+            currency={currency}
+            windows={windows}
+            days={days}
+            onSelect={setDays}
+            consistency={summary.consistency}
+            settlement={summary.settlement}
+          />
 
-          {selected.count === 0 ? (
-            <AnalyticsEmpty />
-          ) : (
+          {selected.count > 0 ? (
             <>
-              <AnalyticsFigures window={selected} currency={currency} />
-
-              <AnalyticsHalves window={selected} currency={currency} />
-
-              {selected.count >= DAILY_BAR_FLOOR ? (
-                <AnalyticsDailyBars daily={selected.daily} days={selected.days} />
-              ) : null}
-
-              {analytics.data ? (
-                <>
-                  <AnalyticsConsistency consistency={analytics.data.consistency} />
-                  <AnalyticsCustomers customers={analytics.data.customers} currency={currency} />
-                  <AnalyticsSettlement settlement={analytics.data.settlement} />
-
-                  {selected.busyHours ? (
-                    <AnalyticsBusyHours busyHours={selected.busyHours} />
-                  ) : (
-                    <Text variant="micro" as="p" color="secondary">
-                      {ANALYTICS_COPY.busyBelowFloor}
-                    </Text>
-                  )}
-                </>
-              ) : null}
-
-              {selected.skipped > 0 ? (
-                <Text variant="micro" as="p" color="secondary">
-                  {skippedNote(selected.skipped)}
-                </Text>
-              ) : null}
-
-              <AnalyticsMerchants merchants={selected.merchants} currency={currency} />
+              <AnalyticsSeriesBand window={selected} currency={currency} />
+              <AnalyticsDetailBand
+                window={selected}
+                customers={summary.customers}
+                currency={currency}
+              />
             </>
-          )}
+          ) : null}
+
+          {selected.skipped > 0 ? (
+            <Text variant="micro" as="p" color="secondary">
+              {skippedNote(selected.skipped)}
+            </Text>
+          ) : null}
         </>
       ) : null}
     </div>

@@ -31,12 +31,8 @@ export function AnalyticsCustomers({ customers, currency }: AnalyticsCustomersPr
   if (customers.count === 0) return null;
 
   return (
-    <section aria-labelledby="customers-heading" className="flex flex-col gap-2">
-      <Text variant="section" as="h2">
-        <span id="customers-heading">{ANALYTICS_COPY.customersTitle}</span>
-      </Text>
-
-      <Text variant="body" as="p" color="secondary">
+    <div className="flex flex-col gap-2">
+      <Text variant="micro" as="p" color="secondary">
         {ANALYTICS_COPY.customersLine(customers.count, customers.repeat, customers.lapsed)}
       </Text>
 
@@ -62,7 +58,7 @@ export function AnalyticsCustomers({ customers, currency }: AnalyticsCustomersPr
           ))}
         </ul>
       ) : null}
-    </section>
+    </div>
   );
 }
 
