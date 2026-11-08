@@ -1,8 +1,16 @@
 import { buildServer } from './server.js';
 import { env } from './config/env.js';
+import { assertPaymentConfig } from './config/networks.js';
 import { startIndexer } from './services/indexer.js';
 
 async function start() {
+  // A process that SERVES must be able to build a payment, so the fee address is
+  // checked HERE rather than in the env schema (#472). The schema is loaded by every
+  // read-only process too, including the nightly book report, which was refusing to
+  // run over an address it never uses. This throws before anything is wired up, and
+  // the catch below turns it into a readable failure and a non-zero exit.
+  assertPaymentConfig();
+
   const app = await buildServer();
 
   // Start the on-chain transaction indexer unless this process is meant to be

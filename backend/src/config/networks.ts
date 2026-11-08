@@ -101,14 +101,19 @@ export interface NetworkConfig {
   tokens: Readonly<Record<SupportedAsset, `0x${string}` | undefined>>;
 
   /**
-   * Address that collects the platform fee ON THIS NETWORK.
+   * Address that collects the platform fee ON THIS NETWORK, or undefined when this
+   * deployment has not configured one (#472).
    *
    * v1 collects the fee as its own transfer inside the customer's transaction
    * (`batch` mode), so the fee leg pays this address. Per-network because the
    * mainnet treasury and the testnet treasury are different places to send real
    * versus practice money.
+   *
+   * Undefined is a real state for a process that only reads. Anything that BUILDS a
+   * payment goes through `treasuryAddressFor`, which throws rather than letting a
+   * fee leg be built against nothing.
    */
-  treasuryAddress: string;
+  treasuryAddress: string | undefined;
   /**
    * Known receipts the check suites reconcile against, per network.
    *
@@ -256,7 +261,7 @@ function buildTokenMap(
 }
 
 
-function resolveTreasury(network: Network): string {
+function resolveTreasury(network: Network): string | undefined {
   const perNetwork =
     network === 'mainnet' ? env.TEMPO_MAINNET_TREASURY_ADDRESS : env.TEMPO_TESTNET_TREASURY_ADDRESS;
   return perNetwork ?? env.SETI_TREASURY_ADDRESS;
@@ -452,9 +457,45 @@ export function networkConfigFor(network: Network): NetworkConfig {
   return networks[network];
 }
 
-/** The treasury address of a network, for the fee leg of a batch on that network. */
+/**
+ * The treasury address of a network, for the fee leg of a batch on that network.
+ *
+ * THROWS when this deployment has not configured one (#472). The treasury used to be
+ * required at import, which forced every read-only process to carry it: the nightly
+ * book report reads a DEX book and could not start without a fee address. The
+ * requirement follows the dependency now, so it is enforced at the only moment it can
+ * matter, which is when someone is building a payment.
+ */
 export function treasuryAddressFor(network: Network = servedNetwork): string {
-  return networks[network].treasuryAddress;
+  const address = networks[network].treasuryAddress;
+  if (!address) throw new TreasuryNotConfiguredError(network);
+  return address;
+}
+
+/** A deployment that builds payments has no fee address: refuse, naming the variable. */
+export class TreasuryNotConfiguredError extends Error {
+  readonly network: Network;
+
+  constructor(network: Network) {
+    super(
+      `No treasury address is configured for ${network}, so the platform fee has nowhere ` +
+        `to go. Set SETI_TREASURY_ADDRESS (or TEMPO_${network.toUpperCase()}_TREASURY_ADDRESS) ` +
+        'to the address that should receive the fee.'
+    );
+    this.name = 'TreasuryNotConfiguredError';
+    this.network = network;
+  }
+}
+
+/**
+ * Called once by the serving process before it listens (#472).
+ *
+ * A deployment that cannot pay must not start, even though a process that only reads
+ * now may. This is the boot refusal that used to be a side effect of the env schema,
+ * moved to the entrypoint that actually needs it.
+ */
+export function assertPaymentConfig(network: Network = servedNetwork): void {
+  treasuryAddressFor(network);
 }
 
 /** A pinned check-anchor receipt for a network, or undefined when none is pinned. */

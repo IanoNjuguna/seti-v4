@@ -53,7 +53,7 @@ cp .env.example .env
 | `ALCHEMY_API_KEY` | Optional Alchemy API key for Tempo RPC |
 | `TEMPO_RPC_URL` | Optional custom RPC override; takes precedence over the Alchemy-derived endpoint |
 | `TEMPO_TOKEN_PATHUSD` / `TEMPO_TOKEN_OUSD` | **Required.** Two of the four assets v1 supports (OUSD, pathUSD, USDT0, USDC.e); a missing address throws at boot. `TEMPO_TOKEN_USDT0` and `TEMPO_TOKEN_USDCE` are optional, and USDT0 is mainnet-only |
-| `SETI_TREASURY_ADDRESS` | **Required.** Validated as 20-byte hex at boot. Receives the merchant fee in `batch` mode |
+| `SETI_TREASURY_ADDRESS` | **Required to serve, optional to read.** Validated as 20-byte hex when present. The serving process refuses to start without it and any path that builds a fee leg throws; a read-only job (the book report) does not need it |
 | `FEE_ROUTING_MODE` | `batch` (default — the fee is collected to `SETI_TREASURY_ADDRESS` as a second leg) or `inside-transfer` (fee recorded but **not collected**) |
 | `MERCHANT_FEE_PERCENT` / `MERCHANT_FEE_MIN_KES` / `MERCHANT_FEE_MAX_PERCENT` | Fee schedule; ships as `2` / `0` / `0` — a flat 2% with no floor and no cap |
 | `INDEXER_BOOTSTRAP_LOOKBACK` | Blocks to scan when no cursor exists yet. **Keep at 0 on mainnet** — a non-zero value there is a boot refusal (it would write pre-existing history as new `top_up` rows) |
