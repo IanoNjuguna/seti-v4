@@ -44,7 +44,8 @@
     "check:transaction-glyph": "tsx scripts/check-transaction-glyph.mjs",
     "check:save-copy": "tsx scripts/check-save-copy.mjs",
     "check:page-header": "tsx scripts/check-page-header.mjs",
-    "check:pay-amount": "tsx scripts/check-pay-amount.mjs"
+    "check:pay-amount": "tsx scripts/check-pay-amount.mjs",
+    "check:claim-link": "tsx scripts/check-claim-link.mjs"
   },
   "dependencies": {
     "@privy-io/react-auth": "^3.48.1",

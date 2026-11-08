@@ -3,6 +3,8 @@
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { SendLoading } from '@/components/send/SendLoading';
+import { StateMessage } from '@/components/ui';
+import { claimAnswer } from '@/components/ask/claim-lines';
 import { SendScreen } from '@/components/send/SendScreen';
 import { useClaimSeed } from '@/components/send/useClaimSeed';
 import { sendSeed } from '@/components/send/sendSeed';
@@ -49,6 +51,15 @@ function SendFromUrl() {
   const claimSeed = useClaimSeed(claim);
 
   if (claimSeed.loading) return <SendLoading />;
+
+  /*
+   * A claim that cannot be paid says so, and says nothing else: no payee field, no amount, no path
+   * forward. A bare `?claim=` that resolves to nothing falls through to the ordinary flow instead,
+   * because a dead id in a shared URL must not take the send screen away from somebody who wanted to
+   * pay a person (#99).
+   */
+  const answer = claimSeed.state === 'unknown' ? null : claimAnswer(claimSeed.state);
+  if (answer) return <StateMessage variant="failure" title={answer.title} body={answer.body} />;
 
   /**
    * A claim names both the payee and the figure, and the figure is the ONLY thing a URL is not
