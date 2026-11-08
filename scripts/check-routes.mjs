@@ -16,9 +16,11 @@
  *
  * ## What green does and does not mean
  *
- * Green means the PATH is registered. It does not mean the route answers correctly, returns
- * the shape the docs describe, or is authorised the way the tool assumes. This catches a
- * fictional path, which was the failure that shipped.
+ * Green means every registered route has an entry in the reference (or is declared
+ * internal below), and that every PATH the reference or a tool claims is registered.
+ * It does not mean the route answers correctly, or returns the shape the docs
+ * describe. This catches a fictional path and an undocumented one; the shape is
+ * review.
  *
  * ## The two things that make such a check cry wolf
  *
@@ -154,12 +156,32 @@ for (const c of missingTools) {
   fail(`a tool calls a route that is not registered: ${c.key}`, c.where);
 }
 
-// A route nobody documents is not a failure: internal routes exist on purpose. But the count
-// is printed so a route that silently disappears from the docs is visible in the log.
-const undocumented = [...registered.keys()].filter((k) => !documented.has(k));
-console.log(`\n${undocumented.length} registered routes are not documented (informational):`);
-for (const k of undocumented.slice(0, 12)) console.log(`      ${k}   (${registered.get(k)})`);
-if (undocumented.length > 12) console.log(`      ... and ${undocumented.length - 12} more`);
+// A route nobody documents is a FAILURE (#459). It used to be informational, and 16
+// routes drifted out of the reference while this check printed them and passed: the
+// whole /savings group, the convert group, statement, recipients, settle/plan, and three
+// smaller ones. The reference is the contract integrators read, so a route missing from
+// it is a gap in the contract, not a private detail.
+//
+// A route that genuinely is not for integrators goes in this map with its reason, so the
+// exception is visible in review instead of looking identical to drift.
+const INTERNAL_ROUTES = new Map([
+  // 'GET /example' => 'why this route is deliberately undocumented',
+]);
+
+const undocumented = [...registered.keys()].filter(
+  (k) => !documented.has(k) && !INTERNAL_ROUTES.has(k)
+);
+
+if (undocumented.length === 0) {
+  ok('every registered route has an entry in docs/api-reference.md, or a declared reason not to');
+} else {
+  for (const k of undocumented) {
+    fail(
+      `a registered route has no entry in docs/api-reference.md: ${k}`,
+      `${registered.get(k)}  add a "### \`METHOD /path\`" heading, or list it in INTERNAL_ROUTES with a reason`
+    );
+  }
+}
 
 console.log('\n' + '-'.repeat(74));
 if (failures.length) {
