@@ -11,6 +11,7 @@ import { ReceiveLoading } from './ReceiveLoading';
 import { ReceiveMerchantHalf } from './ReceiveMerchantHalf';
 import { ReceiveNameHalf } from './ReceiveNameHalf';
 import { ReceiveNoName } from './ReceiveNoName';
+import { ReceiveAskLink } from './ReceiveAskLink';
 import { ReceiveSwitch } from './ReceiveSwitch';
 import { useReceiveView } from './useReceiveView';
 import type { ReceiveScreenState } from './useReceiveView.types';
@@ -76,6 +77,8 @@ function ReceiveBody({ state }: { state: ResolvedState }) {
       {/* Under whichever half is showing (#419): the address money arrives at, which a
           business needs for the same reason a person does. */}
       <ReceiveAddress />
+
+      <ReceiveAskLink />
     </>
   );
 }
