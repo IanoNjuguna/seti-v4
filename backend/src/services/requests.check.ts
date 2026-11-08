@@ -61,12 +61,12 @@ async function refusalOf(run: () => Promise<unknown>): Promise<string | null> {
 }
 
 async function main() {
-  const [asker, payee] = await Promise.all([
+  const [asker, other] = await Promise.all([
     prisma.user.create({
       data: { email: `${RUN}_asker@seti.test`, firstName: 'Ask', lastName: 'Er' },
     }),
     prisma.user.create({
-      data: { email: `${RUN}_payee@seti.test`, firstName: 'Ian', lastName: 'Njuguna' },
+      data: { email: `${RUN}_other@seti.test`, firstName: 'Ian', lastName: 'Njuguna' },
     }),
   ]);
 
@@ -78,7 +78,7 @@ async function main() {
         kind: 'person',
         name: 'Ian Njuguna',
         address: '0x1111111111111111111111111111111111111111',
-        userId: payee.id,
+        userId: other.id,
       },
     }),
     prisma.handle.create({
@@ -92,6 +92,45 @@ async function main() {
       },
     }),
   ]);
+
+  /*
+   * A real ledger row for the payer, because `settleRequest` verifies the MONEY rather than trusting
+   * the id it is handed: the row's fiat figure, its type and its status are all part of the check.
+   */
+  const payerWallet = await prisma.wallet.create({
+    data: {
+      userId: other.id,
+      chain: 'tempo',
+      asset: 'ousd',
+      // Unique per run: the address is unique in the schema, so a recycled one fails the second run.
+      address: `0x${randomUUID().replace(/-/g, '')}${randomUUID().replace(/-/g, '')}`.slice(0, 42),
+      network: servedNetwork,
+    },
+    select: { id: true },
+  });
+
+  let paymentSerial = 0;
+  const paid = async (
+    amount: string,
+    options: { type?: string; status?: string; currency?: string | null } = {}
+  ) => {
+    paymentSerial += 1;
+    return prisma.transaction.create({
+      data: {
+        userId: other.id,
+        walletId: payerWallet.id,
+        network: servedNetwork,
+        type: (options.type ?? 'p2p_send') as never,
+        status: (options.status ?? 'completed') as never,
+        amount: '1.00000000',
+        asset: 'ousd',
+        fiatAmount: amount,
+        fiatCurrency: options.currency === null ? null : (options.currency ?? 'KES'),
+        txHash: `0x${randomUUID().replace(/-/g, '')}${paymentSerial}`,
+      },
+      select: { id: true, txHash: true },
+    });
+  };
 
   console.log('an ask is resolved at creation, and refused there when it cannot be:');
   {
@@ -146,29 +185,30 @@ async function main() {
       amount: '250.00',
     });
 
-    const txHash = `0x${'a'.repeat(64)}`;
-    await settleRequest({ publicId: request.publicId, transactionId: `${RUN}_tx1`, txHash });
+    const first = await paid('250.00');
+    const secondPayment = await paid('250.00');
+    await settleRequest({ publicId: request.publicId, transactionId: first.id });
 
     const settled = await prisma.paymentRequest.findUnique({
       where: { publicId: request.publicId },
     });
     check('the first settle marks it settled', settled?.status === 'settled');
-    check('and records the payment that did it', settled?.settledTransactionId === `${RUN}_tx1`);
+    check('and records the payment that did it', settled?.settledTransactionId === first.id);
 
     const second = await refusalOf(() =>
-      settleRequest({ publicId: request.publicId, transactionId: `${RUN}_tx2`, txHash })
+      settleRequest({ publicId: request.publicId, transactionId: secondPayment.id })
     );
     check('a second settle is refused', second === 'already-settled', String(second));
 
     check(
       'and the refusal names the payment that took it',
-      settled?.settledTransactionId === `${RUN}_tx1`
+      settled?.settledTransactionId === first.id
     );
 
     const after = await prisma.paymentRequest.findUnique({
       where: { publicId: request.publicId },
     });
-    check('the second attempt changed nothing', after?.settledTransactionId === `${RUN}_tx1`);
+    check('the second attempt changed nothing', after?.settledTransactionId === first.id);
 
     // The same payment claimed by a different ask: refused by the unique index, not by the status guard.
     const other = await createRequest({
@@ -177,7 +217,7 @@ async function main() {
       amount: '250.00',
     });
     const reused = await refusalOf(() =>
-      settleRequest({ publicId: other.publicId, transactionId: `${RUN}_tx1`, txHash })
+      settleRequest({ publicId: other.publicId, transactionId: first.id })
     );
     check(
       'one payment cannot settle two asks',
@@ -192,6 +232,89 @@ async function main() {
     );
   }
 
+  console.log('\nthe money is checked, not trusted:');
+  {
+    /*
+     * #449: a single ask is paid IN FULL. These are the cases where a caller hands over a real ledger
+     * row that is real money and still must not close the ask.
+     */
+    const short = await createRequest({
+      creatorId: asker.id,
+      destinationHandle: destinationHandle.handle,
+      amount: '250.00',
+    });
+    const shortPayment = await paid('249.99');
+    check(
+      'a payment one cent short is refused, and the ask stays open',
+      (await refusalOf(() =>
+        settleRequest({ publicId: short.publicId, transactionId: shortPayment.id })
+      )) === 'amount-short'
+    );
+    check(
+      'the short payment left no trace on the ask',
+      (await prisma.paymentRequest.findUnique({ where: { publicId: short.publicId } }))?.status ===
+        'open'
+    );
+
+    const over = await createRequest({
+      creatorId: asker.id,
+      destinationHandle: destinationHandle.handle,
+      amount: '250.00',
+    });
+    const overPayment = await paid('250.01');
+    check(
+      'a payment one cent over is refused, because that is a different agreement',
+      (await refusalOf(() =>
+        settleRequest({ publicId: over.publicId, transactionId: overPayment.id })
+      )) === 'amount-over'
+    );
+
+    const dollarPayment = await paid('250.00', { currency: 'USD' });
+    check(
+      'a payment in another currency is refused',
+      (await refusalOf(() =>
+        settleRequest({ publicId: over.publicId, transactionId: dollarPayment.id })
+      )) === 'currency-mismatch'
+    );
+
+    const topUp = await paid('250.00', { type: 'top_up' });
+    check(
+      'a ledger row that is not a send is refused',
+      (await refusalOf(() =>
+        settleRequest({ publicId: over.publicId, transactionId: topUp.id })
+      )) === 'payment-not-a-send'
+    );
+
+    const pendingPayment = await paid('250.00', { status: 'pending' });
+    check(
+      'a payment that has not completed is refused',
+      (await refusalOf(() =>
+        settleRequest({ publicId: over.publicId, transactionId: pendingPayment.id })
+      )) === 'payment-not-completed'
+    );
+
+    const noFigure = await paid('250.00', { currency: null });
+    check(
+      'a payment with no fiat figure is refused, rather than assumed to be the right size',
+      (await refusalOf(() =>
+        settleRequest({ publicId: over.publicId, transactionId: noFigure.id })
+      )) === 'currency-mismatch'
+    );
+
+    check(
+      'an id that names no ledger row is refused',
+      (await refusalOf(() =>
+        settleRequest({ publicId: over.publicId, transactionId: `${RUN}_no-such-payment` })
+      )) === 'payment-not-found'
+    );
+
+    check(
+      'and none of that settled the ask',
+      (await prisma.paymentRequest.findUnique({ where: { publicId: over.publicId } }))?.status ===
+        'open'
+    );
+  }
+
   console.log('\na withdrawn ask cannot be paid, and a settled one cannot be withdrawn:');
   {
     const cancelled = await createRequest({
@@ -200,10 +323,11 @@ async function main() {
       amount: '90.00',
     });
     await cancelRequest(cancelled.publicId, asker.id);
+    const forCancelled = await paid('90.00');
     check(
       'settling a cancelled ask is refused',
       (await refusalOf(() =>
-        settleRequest({ publicId: cancelled.publicId, transactionId: `${RUN}_tx3`, txHash: '0x1' })
+        settleRequest({ publicId: cancelled.publicId, transactionId: forCancelled.id })
       )) === 'already-cancelled'
     );
 
@@ -212,7 +336,7 @@ async function main() {
       destinationHandle: destinationHandle.handle,
       amount: '70.00',
     });
-    await settleRequest({ publicId: settled.publicId, transactionId: `${RUN}_tx4`, txHash: '0x2' });
+    await settleRequest({ publicId: settled.publicId, transactionId: (await paid('70.00')).id });
     check(
       'cancelling a settled ask is refused',
       (await refusalOf(() => cancelRequest(settled.publicId, asker.id))) === 'already-settled'
@@ -220,7 +344,7 @@ async function main() {
 
     check(
       'and a stranger cannot withdraw somebody else\'s ask',
-      (await refusalOf(() => cancelRequest(settled.publicId, payee.id))) === 'not-found'
+      (await refusalOf(() => cancelRequest(settled.publicId, other.id))) === 'not-found'
     );
   }
 
@@ -299,10 +423,11 @@ async function main() {
       data: { expiresAt: new Date(Date.now() - 60_000) },
     });
     const lapsed = created;
+    const forLapsed = await paid('40.00');
     check(
       'settling a lapsed ask is refused as expired, not as paid',
       (await refusalOf(() =>
-        settleRequest({ publicId: lapsed.publicId, transactionId: `${RUN}_tx5`, txHash: '0x3' })
+        settleRequest({ publicId: lapsed.publicId, transactionId: forLapsed.id })
       )) === 'expired'
     );
     check(
@@ -321,7 +446,7 @@ async function main() {
       amount: '30.00',
       expiresAt: new Date(Date.now() + 60_000),
     });
-    await settleRequest({ publicId: nearly.publicId, transactionId: `${RUN}_tx6`, txHash: '0x4' });
+    await settleRequest({ publicId: nearly.publicId, transactionId: (await paid('30.00')).id });
     check(
       'an ask inside its window still settles',
       (await prisma.paymentRequest.findUnique({ where: { publicId: nearly.publicId } }))?.status ===
@@ -334,7 +459,7 @@ async function main() {
       amount: '20.00',
       expiresAt: null,
     });
-    await settleRequest({ publicId: noExpiry.publicId, transactionId: `${RUN}_tx7`, txHash: '0x5' });
+    await settleRequest({ publicId: noExpiry.publicId, transactionId: (await paid('20.00')).id });
     check(
       'and an ask with no expiry settles at any age',
       (await prisma.paymentRequest.findUnique({ where: { publicId: noExpiry.publicId } }))?.status ===
@@ -350,12 +475,12 @@ async function main() {
   console.log('\nthe three reads agree, and one account never sees another\'s asks:');
   {
     const mine = await listRequests(asker.id);
-    const theirs = await listRequests(payee.id);
+    const theirs = await listRequests(other.id);
 
     // 500 open, 250 settled, 250 open, 90 cancelled, 70 settled, then the expiry block's
     // 60 defaulted, 60 no-expiry, 40 lapsed, 30 settled, 20 settled.
-    check('the author lists their asks', mine.length === 10, String(mine.length));
-    check('and the payee lists none of them', theirs.length === 0, String(theirs.length));
+    check('the author lists their asks', mine.length === 12, String(mine.length));
+    check('and the other lists none of them', theirs.length === 0, String(theirs.length));
     check(
       'the newest is first',
       mine[0].createdAt >= mine[mine.length - 1].createdAt
@@ -379,6 +504,9 @@ async function main() {
   console.log('\ncleanup:');
   {
     await prisma.paymentRequest.deleteMany({ where: { creatorId: asker.id } });
+    // The payer's ledger rows and wallet first: a required relation refuses the user delete otherwise.
+    await prisma.transaction.deleteMany({ where: { userId: other.id } });
+    await prisma.wallet.deleteMany({ where: { userId: other.id } });
     await prisma.handle.deleteMany({ where: { handle: { startsWith: RUN } } });
     await prisma.user.deleteMany({ where: { email: { startsWith: RUN } } });
 
@@ -388,6 +516,11 @@ async function main() {
     );
     check('no handle of this run is left', (await prisma.handle.count({ where: { handle: { startsWith: RUN } } })) === 0);
     check('no user of this run is left', (await prisma.user.count({ where: { email: { startsWith: RUN } } })) === 0);
+    check(
+      'no ledger row of this run is left',
+      (await prisma.transaction.count({ where: { userId: other.id } })) === 0
+    );
+    check('no wallet of this run is left', (await prisma.wallet.count({ where: { userId: other.id } })) === 0);
   }
 
   console.log('-'.repeat(74));

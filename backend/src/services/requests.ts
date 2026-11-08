@@ -36,6 +36,12 @@ export type RequestRefusalCode =
   | 'currency-invalid'
   | 'expiry-invalid'
   | 'not-found'
+  | 'payment-not-found'
+  | 'payment-not-a-send'
+  | 'payment-not-completed'
+  | 'amount-short'
+  | 'amount-over'
+  | 'currency-mismatch'
   | 'already-settled'
   | 'already-cancelled'
   | 'transaction-already-used';
@@ -155,6 +161,16 @@ function liveRequestSql(boundary: Date) {
   return Prisma.sql`("status" = 'open' AND ("expiresAt" IS NULL OR "expiresAt" > ${boundary}))`;
 }
 
+/**
+ * A fiat figure as integer minor units, for an exact comparison.
+ *
+ * Hundreds of a shilling, because that is the smallest unit any figure in this product prints.
+ * `Number` is exact here: a KES ticket is nine digits at most, far inside 2^53.
+ */
+function minorUnits(amount: string): number {
+  return Math.round(Number(amount) * 100);
+}
+
 /** The public id: 18 hex characters from 9 random bytes. Opaque and unguessable: the link is the capability. */
 function newPublicId(): string {
   return randomBytes(9).toString('hex');
@@ -255,10 +271,12 @@ export async function createRequest(input: CreateRequestInput): Promise<CreatedR
 
 export interface SettleRequestInput {
   publicId: string;
-  /** The ledger row that paid it. */
+  /**
+   * The ledger row that paid it. VERIFIED here against the request before anything moves: the id is
+   * an input from whoever calls this, and an id that is trusted is an id that can settle a KES 500 ask
+   * with a KES 5 payment.
+   */
   transactionId: string;
-  /** The chain hash, for support and the receipt link. */
-  txHash: string;
 }
 
 /**
@@ -280,12 +298,62 @@ export async function settleRequest(input: SettleRequestInput): Promise<void> {
    * Expiry is DERIVED on read and never swept: this guard is what makes the derived read safe, and it
    * means v1 needs no cron.
    */
+  /*
+   * THE MONEY CHECK, before the write (#449: a single ask is paid in FULL, no partials).
+   *
+   * The ledger row is the fact: its fiat figure is what the send recorded against the frozen quote, and
+   * the ask's amount is what was asked. Short is refused and leaves the ask open, because a short
+   * payment that closed an ask would take the asker's link away for less than they asked. Over is
+   * refused too: it is not a tolerance question, it is a different agreement.
+   *
+   * Both sides are fiat from the same currency, so the comparison is exact in minor units. A tolerance
+   * here would be a way to pay 99% of an ask and have it settle.
+   */
+  const payment = await prisma.transaction.findUnique({
+    where: { id: input.transactionId },
+    select: {
+      id: true,
+      txHash: true,
+      type: true,
+      status: true,
+      fiatAmount: true,
+      fiatCurrency: true,
+    },
+  });
+
+  if (!payment) throw new PaymentRequestError('payment-not-found');
+  if (payment.type !== 'p2p_send' && payment.type !== 'payment') {
+    throw new PaymentRequestError('payment-not-a-send');
+  }
+  if (payment.status !== 'completed') throw new PaymentRequestError('payment-not-completed');
+
+  const request = await prisma.paymentRequest.findUnique({
+    where: { publicId: input.publicId },
+    select: { amount: true, currency: true, status: true, expiresAt: true, settledTransactionId: true },
+  });
+
+  if (!request) throw new PaymentRequestError('not-found');
+
+  /*
+   * Exactly equal, and a payment with NO recorded currency is refused too: "we do not know what money
+   * this was" is not evidence that it was in the ask's currency, and the fail-closed direction for
+   * closing an ask is the one that leaves it open.
+   */
+  if (payment.fiatCurrency !== request.currency) throw new PaymentRequestError('currency-mismatch');
+
+  const askedMinor = minorUnits(request.amount);
+  const paidMinor = payment.fiatAmount === null ? null : minorUnits(payment.fiatAmount.toFixed(2));
+
+  if (paidMinor === null) throw new PaymentRequestError('payment-not-completed');
+  if (paidMinor < askedMinor) throw new PaymentRequestError('amount-short');
+  if (paidMinor > askedMinor) throw new PaymentRequestError('amount-over');
+
   const boundary = new Date();
   const changed = await prisma.$executeRaw`
     UPDATE "payment_requests"
        SET "status" = 'settled',
            "settledTransactionId" = ${input.transactionId},
-           "settledTxHash" = ${input.txHash},
+           "settledTxHash" = ${payment.txHash},
            "settledAt" = ${boundary},
            "updatedAt" = ${boundary}
      WHERE "publicId" = ${input.publicId}
