@@ -1,6 +1,5 @@
 'use client';
 
-import { PageBack } from '@/components/app/PageBack';
 import { SignInCard } from '@/components/auth/SignInCard';
 import { InviteScreen } from '@/components/invite/InviteScreen';
 import { Skeleton } from '@/components/ui';
@@ -27,7 +26,6 @@ export default function InvitePage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageBack />
       <InviteScreen />
     </div>
   );

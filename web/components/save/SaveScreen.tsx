@@ -1,7 +1,7 @@
 'use client';
 
 import { useSession } from '@/lib/auth';
-import { PageBack } from '@/components/app/PageBack';
+import { PageHeader } from '@/components/app/PageHeader';
 import { SignInPrompt } from '@/components/auth/SignInPrompt';
 import { NO_ACCOUNT_COPY } from '@/components/app/no-account.constants';
 import { Text } from '@/components/ui';
@@ -26,10 +26,7 @@ export function SaveScreen() {
 
     return (
       <div className="flex flex-col gap-4">
-        <PageBack />
-        <Text variant="section" as="h1">
-          {SAVE_COPY.title}
-        </Text>
+        <PageHeader title={SAVE_COPY.title} />
 
         {restoring ? (
           <Text variant="body" color="secondary" as="p">

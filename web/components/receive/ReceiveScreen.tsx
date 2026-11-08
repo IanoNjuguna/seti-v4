@@ -1,7 +1,7 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { PageBack } from '@/components/app/PageBack';
+import { PageHeader } from '@/components/app/PageHeader';
 import { SignInCard } from '@/components/auth/SignInCard';
 import { Text } from '@/components/ui';
 import { RECEIVE_PAGE_COPY } from './ReceivePage.constants';
@@ -38,18 +38,15 @@ export function ReceiveScreen() {
 
   return (
     <div className="flex flex-col items-center gap-4 text-center">
-      <PageBack />
-
-      <div className="flex flex-col items-center gap-2">
-        <Text variant="section" as="h1">
-          {RECEIVE_PAGE_COPY.title}
-        </Text>
-        {state.status === 'ready' ? (
-          <Text variant="body" as="p" color="secondary" className="max-w-md">
-            {state.lead}
-          </Text>
-        ) : null}
+      <div className="w-full">
+        <PageHeader title={RECEIVE_PAGE_COPY.title} align="center" />
       </div>
+
+      {state.status === 'ready' ? (
+        <Text variant="body" as="p" color="secondary" className="max-w-md">
+          {state.lead}
+        </Text>
+      ) : null}
 
       <ReceiveBody state={state} />
     </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import { NO_ACCOUNT_COPY } from '@/components/app/no-account.constants';
-import { PageBack } from '@/components/app/PageBack';
+import { PageHeader } from '@/components/app/PageHeader';
 import { SignInPrompt } from '@/components/auth/SignInPrompt';
 import { Text } from '@/components/ui';
 import { useSession } from '@/lib/auth';
@@ -27,10 +27,7 @@ export function SwapScreen() {
 
     return (
       <div className="flex flex-col gap-4">
-        <PageBack />
-        <Text variant="section" as="h1">
-          {SWAP_FORM_COPY.title}
-        </Text>
+        <PageHeader title={SWAP_FORM_COPY.title} />
 
         {restoring ? (
           <Text variant="body" color="secondary" as="p">
