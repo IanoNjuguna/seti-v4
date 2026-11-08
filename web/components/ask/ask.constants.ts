@@ -6,7 +6,14 @@
  * and whether it can be paid twice is #449, still undecided.
  */
 export const ASK_COPY = {
-  title: 'Ask for money',
+  /*
+   * The thing is a CLAIM, in the customer's words, everywhere it is offered. It is still an `ask` in
+   * this module and in the API (`claimPublicId` on a payment, `publicId` on the record), because the
+   * two names describe two different readers: the customer sees what they sent, the code sees a link
+   * that a payment may name. Renaming the internal half would have touched a table and a route for a
+   * word only the UI needed (#465).
+   */
+  title: 'Claim',
   subtitle: 'Send a link with the amount in it. They pay it with any Seti link, or by scanning your QR.',
   amountLabel: 'Amount',
   amountPlaceholder: '0.00',
@@ -20,15 +27,15 @@ export const ASK_COPY = {
     { days: 30, label: '30 days' },
     { days: null, label: 'Never' },
   ] as const,
-  submit: 'Create link',
+  submit: 'Create claim',
   saving: 'Creating',
   /* The result. */
-  resultTitle: 'Link ready',
+  resultTitle: 'Claim ready',
   resultBody: (amount: string, name: string): string => `${amount} from ${name}, once it is paid.`,
   copy: 'Copy link',
   copied: 'Copied',
   share: 'Share',
-  another: 'Ask for something else',
+  another: 'Claim something else',
   /* States. */
   signedOutTitle: 'Sign in to ask for money',
   signedOutBody: 'A link is created against your account, so it needs one.',
