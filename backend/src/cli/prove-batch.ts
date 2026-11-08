@@ -70,6 +70,7 @@ import {
   type SupportedAsset,
 } from '../services/chain.js';
 import type { NetworkConfig } from '../config/networks.js';
+import { treasuryAddressFor } from '../config/networks.js';
 import { symbolFor } from '../config/assets.js';
 import { getMerchantFeeSchedule } from '../services/fees.js';
 import { prisma } from '../lib/prisma.js';
@@ -292,7 +293,7 @@ async function main(): Promise<void> {
   const config = networkConfigFor(options.network);
   const asset = options.asset;
   const token = tokenFor(asset, config);
-  const treasury = config.treasuryAddress;
+  const treasury = treasuryAddressFor(options.network);
 
   if (token.toLowerCase() === treasury.toLowerCase()) {
     throw new Error(`${asset} and the ${config.network} treasury are the same address`);
