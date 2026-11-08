@@ -14,6 +14,15 @@
 export interface SendSeed {
   /** The recipient named by the link, verbatim, or null when it named none. */
   linked: string | null;
+  /**
+   * The claim the link names, if it names one (#465).
+   *
+   * This is the ONE exception to "a link cannot seed an amount", and it is not a hole in the rule.
+   * `?amount=` is dropped because a figure in a URL is a figure the customer never chose. `?claim=`
+   * carries an opaque id, and the amount comes back from `GET /public/requests/:id`: a record the
+   * person who is owed wrote down, which the payer can still edit before signing.
+   */
+  claim: string | null;
 }
 
 /**
@@ -27,6 +36,10 @@ export interface SendSeed {
 export function sendSeed(params: URLSearchParams): SendSeed {
   const named = params.get('to') ?? params.get('handle');
   const linked = named?.trim();
+  const claim = params.get('claim')?.trim();
 
-  return { linked: linked ? linked : null };
+  return {
+    linked: linked ? linked : null,
+    claim: claim ? claim : null,
+  };
 }
