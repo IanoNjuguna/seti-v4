@@ -333,5 +333,36 @@ console.log('\nthe document names no network unless the money is not real (#431)
   );
 }
 
+console.log('\nthe receipt\'s code is the app\'s branded one (#432):');
+{
+  const qr = readFileSync(new URL('../components/receipt/ReceiptQr.tsx', import.meta.url), 'utf8');
+  const code = qr.replace(/\/\*[\s\S]*?\*\//g, '');
+
+  check('it draws through the plate', /<QrPlate/.test(code) && /from '@\/components\/qr\/QrPlate'/.test(code));
+  check(
+    'and no longer carries its own encoder',
+    !/react-qr-code/.test(code),
+    'react-qr-code survived in the receipt'
+  );
+  check(
+    'it asks for the light tone, ink on white',
+    /tone="light"/.test(code)
+  );
+
+  const width = /width="([\d.]+)rem"/.exec(code);
+  const px = width ? Number.parseFloat(width[1]) * 16 : 0;
+  check(
+    'and a width that keeps the modules above 5px at level H',
+    px >= 180,
+    `${px}px`
+  );
+
+  const constants = readFileSync(new URL('../components/receipt/Receipt.constants.ts', import.meta.url), 'utf8');
+  check(
+    'the receipt no longer keeps its own copy of the QR colours or level',
+    !/RECEIPT_QR_(FOREGROUND|BACKGROUND|SIZE)/.test(constants)
+  );
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);
