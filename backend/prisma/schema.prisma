@@ -268,8 +268,8 @@ model Handle {
   @@index([network, handle])
   /// The reviewer's queue: every parked claim (`reviewStatus = 'pending'`).
   @@index([reviewStatus])
-  /// The asks that name this handle. `onDelete: Restrict`: a handle with a live ask on it cannot be
-  /// deleted out from under the link.
+  /// The asks that PAY OUT to this handle. `onDelete: Restrict`: a handle with a live ask on it cannot
+  /// be deleted out from under the link.
   paymentRequests PaymentRequest[]
 
   @@map("handles")
@@ -767,18 +767,22 @@ model PaymentRequest {
   publicId          String               @unique
   creatorId         String
   creator           User                 @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-  /// The handle that was asked, resolved AT CREATION: an ask naming a string that does not resolve
-  /// never becomes a row (#98 AC5), so a payer never opens a link to nothing.
+  /// WHERE THE MONEY LANDS: a handle the REQUESTER owns, resolved at creation.
   ///
-  /// The relation (not the string) is what a rename follows: the ask keeps paying the same ACCOUNT,
-  /// which is what "I owe Ian" means, even if Ian renames.
-  payeeHandleId     String
-  payeeHandle       Handle               @relation(fields: [payeeHandleId], references: [id], onDelete: Restrict)
+  /// This direction is the whole object. An ask is "I ask you for money and it comes to me", so the
+  /// destination is the asker's own handle and the link is the thing they hand out; #98 writes it as
+  /// `/app/pay?to=<handle>`, where `to` is the destination. An earlier draft had this as "the handle
+  /// that was asked" and refused creation when it belonged to the creator, which rejected every
+  /// legitimate request and made the link pay a stranger.
+  ///
+  /// The relation (not the string) is what a rename follows: the link keeps paying the same ACCOUNT.
+  destinationHandleId String
+  destinationHandle   Handle               @relation(fields: [destinationHandleId], references: [id], onDelete: Restrict)
   /// The handle as it read at creation, for the sentence and the page. A snapshot, not a lookup.
-  payeeHandleText   String
+  destinationHandleText String
   /// The handle's address at creation. A snapshot, because the money path needs an address and the
   /// handle's can legitimately change owners. It never decides a payment: the receipt does.
-  payeeAddress      String
+  destinationAddress String
   /// What is being asked, as a decimal string in the customer's currency (`"500.00"`).
   /// A string because money in this schema is a string; validated by `requests.ts` at creation.
   amount            String
@@ -799,8 +803,8 @@ model PaymentRequest {
   updatedAt         DateTime             @updatedAt
 
   @@index([creatorId, createdAt])
-  /// The settle lookup: the open asks for one payee address.
-  @@index([status, payeeAddress])
+  /// The settle lookup: the live asks for one destination address.
+  @@index([status, destinationAddress])
   @@map("payment_requests")
 }
 
