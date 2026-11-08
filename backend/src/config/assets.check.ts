@@ -91,14 +91,27 @@ async function main(): Promise<void> {
     );
 
     const treasury = networkConfigFor(network).treasuryAddress;
-    check(`${network}: the treasury address is 20-byte hex`, isValidEvmAddress(treasury), treasury);
+
+    // Since #472 the treasury is optional at import and required only where a payment
+    // is built, so "is it set" is its own assertion here rather than a type guarantee.
+    // A deployment that cannot pay must fail this gate, not the first customer.
+    check(
+      `${network}: the treasury address is configured`,
+      typeof treasury === 'string' && treasury.length > 0,
+      treasury ?? '(unset)'
+    );
+    check(
+      `${network}: the treasury address is 20-byte hex`,
+      typeof treasury === 'string' && isValidEvmAddress(treasury),
+      treasury ?? '(unset)'
+    );
 
     // If the treasury IS a token contract, every fee is a transfer to a token, which
     // succeeds and is unreadable as a fee.
     check(
       `${network}: the treasury is not one of our token addresses`,
-      !addresses.includes(treasury.toLowerCase()),
-      treasury
+      typeof treasury === 'string' && !addresses.includes(treasury.toLowerCase()),
+      treasury ?? '(unset)'
     );
   }
 
