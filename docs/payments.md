@@ -77,12 +77,19 @@ signs `principal + fee`, and the merchant receives exactly the principal.
   2% is *attributed* to the merchant and *paid* by the customer. Both statements
   are in `README.md`; do not publish one without the other.
 
-### The default mode does not collect the fee
+### Which mode is the default
 
-With `FEE_ROUTING_MODE=inside-transfer` (the default), the single transfer goes to
-the merchant for the **whole gross**, so Seti retains nothing. `batch` mode signs
-two legs atomically — principal to the merchant, fee to the treasury — and the
-server then requires **both** transfers in the receipt.
+`FEE_ROUTING_MODE` defaults to `batch` (`backend/src/config/env.ts:224`). The
+customer signs two legs atomically: the principal to the merchant, and the fee to
+`SETI_TREASURY_ADDRESS`. The server then requires **both** transfers in the
+receipt, so a payment carrying only the merchant leg is rejected rather than
+recorded.
+
+`inside-transfer` is the non-default branch. It signs one transfer of the **whole
+gross** to the merchant, so Seti retains nothing: the fee is computed, persisted
+and audited, but never collected. A send to a person is refused in that mode
+(`send-requires-batch`), because with no merchant in the path the fee riding
+inside the transfer would be paid to the recipient.
 
 Read `feeRoutingMode` from the preview and sign accordingly; do not assume one.
 

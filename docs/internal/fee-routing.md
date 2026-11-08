@@ -69,10 +69,12 @@ transfer(merchant.payoutAddress, grossAmount)
 ```
 
 One call, one recipient. The 2% is included in that amount, so the merchant
-receives `principal + fee` and **Seti retains nothing**. The fee is computed,
-persisted (`feeAmount`, `merchantNetAmount`), audited — and uncollected. That
-remains the default, which is why the batch path below exists and why
-`FEE_ROUTING_MODE` defaults to `inside-transfer` rather than `batch`.
+receives `principal + fee` and **Seti retains nothing**. In that mode the fee is
+computed, persisted (`feeAmount`, `merchantNetAmount`), audited, and uncollected,
+which is exactly what the batch path below replaces. `FEE_ROUTING_MODE` defaults
+to `batch` (`backend/src/config/env.ts:224`); `inside-transfer` is the mode a
+deployment with no treasury leg would choose, and the rest of this section
+describes what the batch path is an answer to.
 
 `recordPayment` already reconciles against the chain, so the arithmetic is sound.
 What was missing was a second transfer to `SETI_TREASURY_ADDRESS`
