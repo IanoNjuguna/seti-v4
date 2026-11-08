@@ -41,7 +41,8 @@
     "check:privy-token-guard": "node scripts/check-privy-token-guard.mjs",
     "check:analytics-bars": "tsx scripts/check-analytics-bars.mjs",
     "check:transaction-glyph": "tsx scripts/check-transaction-glyph.mjs",
-    "check:save-copy": "tsx scripts/check-save-copy.mjs"
+    "check:save-copy": "tsx scripts/check-save-copy.mjs",
+    "check:page-header": "tsx scripts/check-page-header.mjs"
   },
   "dependencies": {
     "@privy-io/react-auth": "^3.48.1",
