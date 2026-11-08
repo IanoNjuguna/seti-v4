@@ -42,6 +42,7 @@
     "check:analytics-bars": "tsx scripts/check-analytics-bars.mjs",
     "check:analytics-page": "tsx scripts/check-analytics-page.mjs",
     "check:claims-row": "tsx scripts/check-claims-row.mjs",
+    "check:receipt-chain": "tsx scripts/check-receipt-chain.mjs",
     "check:transaction-glyph": "tsx scripts/check-transaction-glyph.mjs",
     "check:save-copy": "tsx scripts/check-save-copy.mjs",
     "check:page-header": "tsx scripts/check-page-header.mjs",

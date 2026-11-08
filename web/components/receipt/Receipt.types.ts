@@ -63,7 +63,27 @@ export interface ReceiptCard {
   network: Network;
   /** The one combined fee line, or null when no fee figure can be stated. */
   fee: ReceiptFeeLine | null;
+  /** The chain detail that has no other home on the product (#406). */
+  chain: ReceiptChainDetail | null;
   explorerUrl: string;
+}
+
+/**
+ * The transfer as the chain has it (#406): what a person checking a payment needs.
+ *
+ * Every value is printed IN FULL. A shortened hash or a shortened address proves nothing to
+ * whoever is going to paste it into a block explorer or compare it against a statement, and the
+ * receipt is the document that is supposed to be able to answer that question.
+ */
+export interface ReceiptChainDetail {
+  /** `From` — the sending address, full. */
+  from: string;
+  /** `To` — the receiving address, full. */
+  to: string;
+  /** The token that moved, as a symbol, or null when the row recorded none. */
+  asset: string | null;
+  /** The transaction hash, full and selectable. */
+  hash: string;
 }
 
 /** Who is on the other side. The address is the thing that cannot lie. */

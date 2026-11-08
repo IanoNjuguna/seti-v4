@@ -64,6 +64,15 @@ export const RECEIPT_COPY = {
   feesPaid: 'Fees paid',
   feesPaidBySender: 'Fees paid by the sender',
   explorer: 'View on the explorer',
+  /*
+   * The chain detail (#406). Three labels and a title: the rows are facts, so the only words that
+   * are not a value are the ones that say which fact this is.
+   */
+  chainTitle: 'On chain',
+  chainFrom: 'From',
+  chainTo: 'To',
+  chainAsset: 'Asset',
+  chainHash: 'Transaction',
   close: 'Close receipt',
   share: 'Share',
   qrCaption: 'Scan to open this receipt',

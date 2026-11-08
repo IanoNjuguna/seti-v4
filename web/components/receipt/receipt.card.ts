@@ -7,7 +7,13 @@ import {
   formatReceiptDateTime,
   shortenValue,
 } from './receipt.format';
-import type { ReceiptCard, ReceiptFeeLine, ReceiptParty, ReceiptStatusTone } from './Receipt.types';
+import type {
+  ReceiptCard,
+  ReceiptChainDetail,
+  ReceiptFeeLine,
+  ReceiptParty,
+  ReceiptStatusTone,
+} from './Receipt.types';
 
 /**
  * The card's figures, each from the one place that can support it.
@@ -100,6 +106,30 @@ function party(receipt: ReceiptDocument): ReceiptParty {
   };
 }
 
+/**
+ * The chain detail this document can state (#406).
+ *
+ * The transfer's own two ends come from the PAYMENT leg, not from `receipt.from`: the leg is the
+ * movement the customer is proving, while `from` is the transaction's sender, which on a batched
+ * payment is the settlement account rather than the customer. When there is no payment leg, the
+ * first non-gas leg is the transfer, and the document's own `from` is the last resort.
+ *
+ * Null when there is no hash: a chain block with nothing to look up is a heading over nothing.
+ */
+function chainDetail(receipt: ReceiptDocument): ReceiptChainDetail | null {
+  const hash = receipt.hash.trim();
+  if (hash.length === 0) return null;
+
+  const leg = paymentLeg(receipt) ?? receipt.legs.find((item) => item.role !== 'gas') ?? null;
+
+  return {
+    from: (leg?.from ?? receipt.from ?? '').trim(),
+    to: (leg?.to ?? '').trim(),
+    asset: movedAsset(receipt),
+    hash,
+  };
+}
+
 function statusTone(receipt: ReceiptDocument): ReceiptStatusTone {
   return receipt.status === 'confirmed' ? 'positive' : 'negative';
 }
@@ -151,6 +181,7 @@ export function deriveReceiptCard(
       label: receipt.status === 'confirmed' ? RECEIPT_COPY.confirmed : RECEIPT_COPY.failed,
       tone: statusTone(receipt),
     },
+    // The chain detail (#406) sits below the fee line: the hash, both ends and the asset, full.
     // The network rides on the card because it decides ONE thing here: whether the
     // document is marked as practice. It is not printed as a label (#431) — `Network: Live`
     // beside an amount reads as a state of the money, and a settled payment has none.
@@ -159,6 +190,7 @@ export function deriveReceiptCard(
     networkLabel: receipt.networkLabel || receipt.network,
     network: receipt.network,
     fee: feeLine(receipt, currency),
+    chain: chainDetail(receipt),
     explorerUrl: receipt.explorerUrl,
   };
 }
@@ -190,6 +222,16 @@ export function buildReceiptText(receipt: ReceiptDocument, fallbackCurrency: str
     '',
     ...(card.fee ? [`${card.fee.label}\t${card.fee.amount}`] : []),
     '',
+    ...(card.chain
+      ? [
+          RECEIPT_COPY.chainTitle,
+          `${RECEIPT_COPY.chainHash}\t${card.chain.hash}`,
+          `${RECEIPT_COPY.chainFrom}\t${card.chain.from}`,
+          `${RECEIPT_COPY.chainTo}\t${card.chain.to}`,
+          ...(card.chain.asset ? [`${RECEIPT_COPY.chainAsset}\t${card.chain.asset}`] : []),
+          '',
+        ]
+      : []),
     `View on the explorer\t${card.explorerUrl}`,
     '',
   ].join('\n');
