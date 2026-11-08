@@ -7,6 +7,8 @@ import { SendSignedOut } from './SendSignedOut';
 export interface SendScreenProps {
   /** The recipient named by the URL, if the link that landed here carried one. */
   linked: string | null;
+  /** The claim that link settles, when it carried one. See `SendFlowInput.claim`. */
+  claim?: string | null;
 }
 
 /**
@@ -22,12 +24,12 @@ export interface SendScreenProps {
  * two states `SendSignedOut` can render — `signed-in` cannot reach a sign-in
  * prompt by accident.
  */
-export function SendScreen({ linked }: SendScreenProps) {
+export function SendScreen({ linked, claim }: SendScreenProps) {
   const session = useSession();
 
   if (session.status !== 'signed-in') {
     return <SendSignedOut view={session.status} />;
   }
 
-  return <SendFlow linked={linked} />;
+  return <SendFlow linked={linked} claim={claim} />;
 }

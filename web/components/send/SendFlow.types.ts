@@ -5,11 +5,21 @@ import type { ResolvedRecipient } from './useResolvedRecipient';
 export interface SendFlowProps {
   /** The recipient named by the URL (`?to=` / `?handle=`), if the link had one. */
   linked: string | null;
+  /** The claim that link settles, when it carried one (#447). An id, never a figure. */
+  claim?: string | null;
 }
 
 /** What the flow is handed: the link's own seed, and nothing else. */
 export interface SendFlowInput {
   linked: string | null;
+  /**
+   * The claim this link settles, when it carries one (#447).
+   *
+   * An ID and nothing else: the figure, the payee and whether it is still payable all live in the row
+   * the server reads. The flow never derives a payment from the claim's shape; it only hands the id to
+   * the ledger write, which is where the settle happens.
+   */
+  claim?: string | null;
 }
 
 /**

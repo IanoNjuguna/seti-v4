@@ -18,12 +18,13 @@ import type { SendFlowProps } from './SendFlow.types';
  * The state lives in `useSendFlow`, so this file is only the shape of the flow: two
  * steps, and the progress bar that says which one is lit.
  */
-export function SendFlow({ linked }: SendFlowProps) {
-  const flow = useSendFlow({ linked });
+export function SendFlow({ linked, claim }: SendFlowProps) {
+  const flow = useSendFlow({ linked, claim });
 
   return (
     <SendFrame current={flow.recipient !== null ? 1 : 0}>
       <SendSteps
+        claim={claim}
         kind={flow.kind}
         typed={flow.typed}
         error={flow.error}

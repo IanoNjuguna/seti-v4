@@ -11,6 +11,8 @@ import type { ResolvedRecipient } from './useResolvedRecipient';
  * in one interface is what stops the branching from spreading into the screen.
  */
 export interface SendStepsProps {
+  /** The claim this link settles, when it carried one (#447). Handed straight to the panel that signs. */
+  claim?: string | null;
   kind: RecipientKind;
   /** What has been typed into the recipient field. */
   typed: string;

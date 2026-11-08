@@ -5,6 +5,12 @@ import type { TokenSelectorModel } from '@/components/token-selector/TokenSelect
 
 export interface SendPanelProps {
   /**
+   * The claim this send settles (#447). The panel hands it to the ledger write, which is where the
+   * settle happens; the amount still comes from the claim's own row, read by the caller that rendered
+   * this link.
+   */
+  claim?: string | null;
+  /**
    * A recipient handed in by the URL — a `seti.live/u/<handle>` page's Send
    * action sends `/app/send?to=<handle>`. It is the same string a typed handle
    * would be, resolved through the same path, so the panel shows a name AND an

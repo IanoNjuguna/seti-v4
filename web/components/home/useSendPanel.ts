@@ -153,7 +153,7 @@ function destinationFor(
  * person already chosen (`/app/send?to=<handle>`): it is the same string a typed
  * handle would be, handed to the same resolver.
  */
-export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
+export function useSendPanel(initialRecipient = '', claim: string | null = null): UseSendPanelReturn {
   const [state, setState] = useState<SendPanelState>({ ...INITIAL, recipient: initialRecipient });
   /**
    * The account whose balances can pay. Read here rather than handed in, because
@@ -463,6 +463,10 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
             txHash,
             walletAddress: address,
             quoteId,
+            // The settle happens server-side, right after the ledger write (#447). The claim is an id:
+            // the receipt still decides who was paid and how much, and the claim is closed against the
+            // row's own figure, so passing it cannot widen the agreement.
+            ...(claim ? { claimPublicId: claim } : {}),
           });
 
         try {

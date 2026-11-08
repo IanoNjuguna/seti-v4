@@ -16,6 +16,7 @@ import type { SendStepsProps } from './SendSteps.types';
  * state is the shape of what is coming, never a spinner on an empty page.
  */
 export function SendSteps({
+  claim,
   kind,
   typed,
   error,
@@ -86,6 +87,7 @@ export function SendSteps({
       <SendPanel
         initialRecipient={recipient ?? undefined}
         focusAmount={focusAmount}
+        claim={claim}
       />
     </MfaGate>
   );

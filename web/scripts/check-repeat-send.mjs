@@ -116,7 +116,16 @@ console.log('the amount is empty until the person types it:');
   const seed = sendSeed(new URLSearchParams('to=akinyi&amount=1250.00'));
 
   check('the payee is taken', seed.linked === 'akinyi');
-  check('the amount is not', Object.keys(seed).join(',') === 'linked', Object.keys(seed).join(','));
+  /*
+   * The seed gained a second key when claims arrived (#447): a claim id, which is who/which — never a
+   * figure. So this pins the SHAPE it must have rather than one key, and still pins that no amount can
+   * be among them.
+   */
+  check(
+    'the seed carries the payee and, at most, a claim id',
+    Object.keys(seed).sort().join(',') === 'claim,linked',
+    Object.keys(seed).join(',')
+  );
   check('there is no amount field to prefill', !('amount' in seed));
   check(
     'a link that carries only an amount names nobody',

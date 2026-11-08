@@ -44,7 +44,7 @@ export default function SendPage() {
  */
 function SendFromUrl() {
   const params = useSearchParams();
-  const { linked } = sendSeed(params);
+  const { linked, claim } = sendSeed(params);
 
-  return <SendScreen linked={linked} />;
+  return <SendScreen linked={linked} claim={claim} />;
 }
