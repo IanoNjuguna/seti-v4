@@ -14,7 +14,8 @@
  * The rest pins the creation rules that would otherwise fail in front of a stranger:
  *
  *  - an ask naming a handle nothing resolves fails at creation, in front of the author (#98 AC5);
- *  - an ask for yourself is refused rather than sitting in your own Activity for ever;
+ *  - an ask's destination must be a handle the ASKER holds, because the destination is where the money
+ *    lands: a stranger's handle would hand the payer a link to pay somebody else (#473);
  *  - an amount is matched, not parsed, so `1e3`, `0`, three decimals and a negative all fail;
  *  - the handle's address is snapshotted, so a rename does not re-point a link already sent.
  *
@@ -71,7 +72,7 @@ async function main() {
     }),
   ]);
 
-  const [destinationHandle, ownHandle] = await Promise.all([
+  const [destinationHandle, strangerHandle] = await Promise.all([
     prisma.handle.create({
       data: {
         handle: `${RUN}-ian`,
@@ -79,17 +80,18 @@ async function main() {
         kind: 'person',
         name: 'Ian Njuguna',
         address: '0x1111111111111111111111111111111111111111',
-        userId: other.id,
+        // The ASKER's own name: a claim is paid to the person asking (#473).
+        userId: asker.id,
       },
     }),
     prisma.handle.create({
       data: {
-        handle: `${RUN}-asker`,
+        handle: `${RUN}-stranger`,
         network: servedNetwork,
         kind: 'person',
-        name: 'Ask Er',
+        name: 'Some One',
         address: '0x2222222222222222222222222222222222222222',
-        userId: asker.id,
+        userId: other.id,
       },
     }),
   ]);
@@ -168,11 +170,24 @@ async function main() {
     check('it is open', created.status === 'open');
     check('its public id is opaque and unguessable', /^[0-9a-f]{18}$/.test(created.publicId));
 
+    /*
+     * The direction that matters, and the one column-level comment in the schema spells out: the
+     * destination is who the money LANDS with, so a handle the caller does not hold would hand the
+     * payer a link to pay a third party (#473). The web only ever offers the caller's own names, so
+     * this is a guard against a hand-made call.
+     */
     check(
-      'asking yourself is refused',
+      'a claim whose destination the caller does not hold is refused',
       (await refusalOf(() =>
-        createRequest({ creatorId: asker.id, destinationHandle: ownHandle.handle, amount: '10.00' })
+        createRequest({ creatorId: asker.id, destinationHandle: strangerHandle.handle, amount: '10.00' })
       )) === 'destination-not-yours'
+    );
+
+    check(
+      'and writes no row for it',
+      (await prisma.paymentRequest.count({
+        where: { creatorId: asker.id, destinationHandleText: strangerHandle.handle },
+      })) === 0
     );
   }
 

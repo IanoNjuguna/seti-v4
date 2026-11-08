@@ -240,8 +240,19 @@ export async function createRequest(input: CreateRequestInput): Promise<CreatedR
   const handle = await findHandleByHandle(input.destinationHandle);
   if (!handle) throw new PaymentRequestError('destination-not-found');
 
-  // Asking yourself is not a request; it is a mis-tap that would sit in your Activity for ever.
-  if (handle.userId === input.creatorId) throw new PaymentRequestError('destination-not-yours');
+  /*
+   * WHERE THE MONEY LANDS, so it has to be a handle the asker owns.
+   *
+   * A claim is "I ask you for money and it comes to me": the destination is the asker's own name and
+   * the link is what they hand out (the schema says the same thing on `PaymentRequest.destinationAddress`).
+   * A destination that belongs to somebody else is not a request either — it is a link that would pay a
+   * third party with the asker's own sentence written on it, and it could never settle against the
+   * ledger row of the person who opened it.
+   *
+   * The old shape of this check was inverted (it refused the caller's OWN handle), which refused every
+   * claim the ask screen can produce: the form offers the caller's handles and nothing else (#473).
+   */
+  if (handle.userId !== input.creatorId) throw new PaymentRequestError('destination-not-yours');
 
   const row = await prisma.paymentRequest.create({
     data: {
