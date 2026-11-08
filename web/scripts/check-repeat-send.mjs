@@ -116,7 +116,7 @@ console.log('the amount is empty until the person types it:');
   const seed = sendSeed(new URLSearchParams('to=akinyi&amount=1250.00'));
 
   check('the payee is taken', seed.linked === 'akinyi');
-  check('the amount is not', Object.keys(seed).join(',') === 'linked', Object.keys(seed).join(','));
+  check('the amount is not', Object.keys(seed).join(',') === 'linked,claim', Object.keys(seed).join(','));
   check('there is no amount field to prefill', !('amount' in seed));
   check(
     'a link that carries only an amount names nobody',
@@ -128,6 +128,21 @@ console.log('the amount is empty until the person types it:');
   );
   check('a blank payee is not a payee', sendSeed(new URLSearchParams('to=')).linked === null);
   check('the old pay link’s spelling still names the payee', sendSeed(new URLSearchParams('handle=akinyi')).linked === 'akinyi');
+}
+
+console.log('a claim is the one thing a link may seed, and it is not a figure (#465):');
+{
+  const claim = sendSeed(new URLSearchParams('claim=8f2c1a4e7b9d0e51aa'));
+
+  check('the claim id is taken', claim.claim === '8f2c1a4e7b9d0e51aa');
+  check('and it still names nobody by itself', claim.linked === null);
+  check('a claim link carries no amount either', !('amount' in claim));
+  check(
+    'a claim and a payee can arrive together',
+    sendSeed(new URLSearchParams('to=akinyi&claim=8f2c1a4e7b9d0e51aa')).claim === '8f2c1a4e7b9d0e51aa'
+  );
+  check('a blank claim is not a claim', sendSeed(new URLSearchParams('claim=')).claim === null);
+  check('no claim means null, never an empty string', sendSeed(new URLSearchParams('to=akinyi')).claim === null);
 }
 
 console.log('the confirmation carries the fee and the total, every time:');
