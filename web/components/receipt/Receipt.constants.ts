@@ -78,7 +78,15 @@ export const RECEIPT_COPY = {
   confirmed: 'Confirmed',
   failed: 'Failed',
   /** Prefixed to the network on the card and in every export. */
-  networkPrefix: 'Network:',
+  /**
+   * The practice marking, and the only place a network is named on this artifact (#431).
+   *
+   * It is a sentence rather than a prefix because a prefix needs a value, and the only
+   * value worth printing is the one that says this money is not real. A live receipt has
+   * nothing to add here: the payment settled, and `Network: Live` beside an amount reads
+   * as a status of the money rather than a label of the deployment.
+   */
+  practiceNote: 'Practice \u00b7 no real money moved',
   loading: 'Loading receipt',
   errorTitle: "Couldn't load this receipt",
   retry: 'Try again',

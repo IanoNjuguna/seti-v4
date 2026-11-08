@@ -151,9 +151,11 @@ export function deriveReceiptCard(
       label: receipt.status === 'confirmed' ? RECEIPT_COPY.confirmed : RECEIPT_COPY.failed,
       tone: statusTone(receipt),
     },
-    // The network rides on the card so a screenshot or a shared link says which
-    // chain moved the money. Falls back to the raw value if the backend did not
-    // send a label, rather than to a guess about which network it was.
+    // The network rides on the card because it decides ONE thing here: whether the
+    // document is marked as practice. It is not printed as a label (#431) — `Network: Live`
+    // beside an amount reads as a state of the money, and a settled payment has none.
+    // `networkLabel` is kept on the card for the surfaces that still ask for it; the chain
+    // facts themselves are #406's, in the detail block.
     networkLabel: receipt.networkLabel || receipt.network,
     network: receipt.network,
     fee: feeLine(receipt, currency),
@@ -175,8 +177,7 @@ export function buildReceiptText(receipt: ReceiptDocument, fallbackCurrency: str
   return [
     `Seti — Payment receipt`,
     '',
-    `${RECEIPT_COPY.networkPrefix} ${card.networkLabel}`,
-    '',
+    ...(card.network === 'testnet' ? [RECEIPT_COPY.practiceNote, ''] : []),
     card.word,
     card.figure,
     ...(card.assetLine ? [card.assetLine] : []),

@@ -1,8 +1,10 @@
 'use client';
 
 import { createPortal } from 'react-dom';
+import { cn } from '@/lib/cn';
 import { Icon } from '@/components/ui/Icon';
 import { ReceiptBody } from './ReceiptBody';
+import { ReceiptPracticeStrip } from './ReceiptPracticeStrip';
 import { RECEIPT_COPY, RECEIPT_TITLE_ID } from './Receipt.constants';
 import { useReceipt } from './useReceipt';
 import { useReceiptActions } from './useReceiptActions';
@@ -35,6 +37,7 @@ export function ReceiptSheet({ transactionId, onClose }: ReceiptSheetProps) {
   // action sends it, so both are the SAME link by construction.
   const { shareUrl } = useReceiptLink(transactionId);
   const actions = useReceiptActions(receipt, card?.currency ?? null, shareUrl);
+  const practice = card?.network === 'testnet';
 
   return createPortal(
     <div
@@ -54,11 +57,21 @@ export function ReceiptSheet({ transactionId, onClose }: ReceiptSheetProps) {
         onKeyDown={onKeyDown}
         className="relative max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-md bg-canvas-dark text-on-dark focus:outline-none sm:rounded-md"
       >
+        {/* The practice marking, inside the card's radius so it prints as part of the
+            document (#431). A live receipt draws nothing here: the payment settled, and a
+            network label beside an amount reads as a state of the money. */}
+        {practice ? <ReceiptPracticeStrip /> : null}
+
         <button
           type="button"
           onClick={onClose}
           aria-label={RECEIPT_COPY.close}
-          className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full text-on-dark-mute transition-colors hover:bg-surface-elevated hover:text-on-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-dark/60 print:hidden"
+          className={cn(
+            'absolute right-4 flex h-11 w-11 items-center justify-center rounded-full text-on-dark-mute transition-colors hover:bg-surface-elevated hover:text-on-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-dark/60 print:hidden',
+            /* The strip takes the card's top edge, so the control steps under it rather than
+               sitting on the one message a practice receipt must not lose. */
+            practice ? 'top-12' : 'top-4'
+          )}
         >
           <Icon name="close" />
         </button>
