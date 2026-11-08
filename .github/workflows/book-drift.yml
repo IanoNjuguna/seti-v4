@@ -54,6 +54,11 @@ env:
   JWT_SECRET: 'report-mode-reads-a-book-and-never-verifies-a-session'
   TEMPO_TOKEN_PATHUSD: '0x20c0000000000000000000000000000000000000'
   TEMPO_TOKEN_OUSD: '0x20c0000000000000000000006a37da5c996874be'
+  # The opt-in itself. `resolveServedNetwork` refuses chain 4217 without it, and that
+  # refusal is correct: it is what stops a practice deployment quietly reading live
+  # money. This job READS mainnet on purpose, so it says so. The comment below used to
+  # claim the opt-in "is not in the way of a read today"; it is, and the run named it.
+  ALLOW_MAINNET: 'true'
 
 # Why the mainnet addresses, and not verify.yml's
 # -----------------------------------------------
