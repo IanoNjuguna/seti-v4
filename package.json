@@ -74,7 +74,8 @@
     "check:convert-pairs": "npm run check:convert-pairs --workspace backend",
     "check:activity-labels": "npm run check:activity-labels --workspace backend",
     "check:analytics-bars": "npm run check:analytics-bars --workspace web",
-    "check:transaction-glyph": "npm run check:transaction-glyph --workspace web"
+    "check:transaction-glyph": "npm run check:transaction-glyph --workspace web",
+    "check:requests": "npm run check:requests --workspace backend"
   },
   "engines": {
     "node": ">=20.0.0"
