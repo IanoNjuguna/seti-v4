@@ -14,8 +14,15 @@ export const CLAIMS_COPY = {
    * the person paying is whoever opens the shared link, so there is no name to print.
    */
   titleFallback: 'Claim',
-  /** Under the title: when it was shared, and which of the customer's names it pays to. */
-  subtitle: (shared: string, handle: string): string => `Shared ${shared} · paid to @${handle}`,
+  /**
+   * Under the title: the name the money reaches, then when it was made.
+   *
+   * The name comes FIRST because the subtitle is the row's one truncating column, and at 320px it
+   * cuts the tail: "8 Nov · paid to …" would hide the only part a customer needs to know about a
+   * claim. "paid to @ian · 8 N…" gives up the date instead, which the ledger below prints anyway.
+   * "Shared" was never worth the width — the date already says when.
+   */
+  subtitle: (shared: string, handle: string): string => `paid to @${handle} · ${shared}`,
   /** The state word, in the customer's terms, under the amount. */
   states: {
     open: 'Waiting',
