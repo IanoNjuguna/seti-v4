@@ -29,6 +29,7 @@ export function SendSteps({
   onSubmitRecipient,
   onBackToWho,
   onPickRecent,
+  claim,
 }: SendStepsProps) {
   if (recipient === null) {
     return (
@@ -86,6 +87,7 @@ export function SendSteps({
       <SendPanel
         initialRecipient={recipient ?? undefined}
         focusAmount={focusAmount}
+        claim={claim}
       />
     </MfaGate>
   );
