@@ -30,8 +30,8 @@ import { findHandleByHandle } from './handles.js';
 /** Why a request operation was refused. Codes, never prose: the surfaces own the sentences. */
 export type RequestRefusalCode =
   | 'expired'
-  | 'payee-not-found'
-  | 'payee-is-you'
+  | 'destination-not-found'
+  | 'destination-not-yours'
   | 'amount-invalid'
   | 'currency-invalid'
   | 'expiry-invalid'
@@ -167,7 +167,7 @@ export interface CreateRequestInput {
   /** The account asking. */
   creatorId: string;
   /** The handle asked, as the customer typed or picked it. */
-  payeeHandle: string;
+  destinationHandle: string;
   /** A decimal string in `currency`. */
   amount: string;
   currency?: string;
@@ -179,8 +179,8 @@ export interface CreateRequestInput {
 export interface CreatedRequest {
   id: string;
   publicId: string;
-  payeeHandle: string;
-  payeeAddress: string;
+  destinationHandle: string;
+  destinationAddress: string;
   amount: string;
   currency: string;
   memo: string;
@@ -221,19 +221,19 @@ export async function createRequest(input: CreateRequestInput): Promise<CreatedR
     }
   }
 
-  const handle = await findHandleByHandle(input.payeeHandle);
-  if (!handle) throw new PaymentRequestError('payee-not-found');
+  const handle = await findHandleByHandle(input.destinationHandle);
+  if (!handle) throw new PaymentRequestError('destination-not-found');
 
   // Asking yourself is not a request; it is a mis-tap that would sit in your Activity for ever.
-  if (handle.userId === input.creatorId) throw new PaymentRequestError('payee-is-you');
+  if (handle.userId === input.creatorId) throw new PaymentRequestError('destination-not-yours');
 
   const row = await prisma.paymentRequest.create({
     data: {
       publicId: newPublicId(),
       creatorId: input.creatorId,
-      payeeHandleId: handle.id,
-      payeeHandleText: handle.handle,
-      payeeAddress: handle.address.toLowerCase(),
+      destinationHandleId: handle.id,
+      destinationHandleText: handle.handle,
+      destinationAddress: handle.address.toLowerCase(),
       amount: input.amount,
       currency,
       memo: input.memo?.trim() ?? '',
@@ -244,8 +244,8 @@ export async function createRequest(input: CreateRequestInput): Promise<CreatedR
   return {
     id: row.id,
     publicId: row.publicId,
-    payeeHandle: row.payeeHandleText,
-    payeeAddress: row.payeeAddress,
+    destinationHandle: row.destinationHandleText,
+    destinationAddress: row.destinationAddress,
     amount: row.amount,
     currency: row.currency,
     memo: row.memo,
@@ -338,7 +338,7 @@ export async function cancelRequest(publicId: string, creatorId: string): Promis
 
 export interface RequestSummary {
   publicId: string;
-  payeeHandle: string;
+  destinationHandle: string;
   amount: string;
   currency: string;
   memo: string;
@@ -356,7 +356,7 @@ export async function listRequests(creatorId: string): Promise<RequestSummary[]>
     orderBy: { createdAt: 'desc' },
     select: {
       publicId: true,
-      payeeHandleText: true,
+      destinationHandleText: true,
       amount: true,
       currency: true,
       memo: true,
@@ -369,7 +369,7 @@ export async function listRequests(creatorId: string): Promise<RequestSummary[]>
 
   return rows.map((row) => ({
     publicId: row.publicId,
-    payeeHandle: row.payeeHandleText,
+    destinationHandle: row.destinationHandleText,
     amount: row.amount,
     currency: row.currency,
     memo: row.memo,
@@ -384,8 +384,8 @@ export async function listRequests(creatorId: string): Promise<RequestSummary[]>
 /** What a payer's link resolves to. The same read the settle step uses, and it is public by design. */
 export interface PublicRequest {
   publicId: string;
-  payeeHandle: string;
-  payeeAddress: string;
+  destinationHandle: string;
+  destinationAddress: string;
   amount: string;
   currency: string;
   memo: string;
@@ -399,8 +399,8 @@ export async function readPublicRequest(publicId: string): Promise<PublicRequest
     where: { publicId },
     select: {
       publicId: true,
-      payeeHandleText: true,
-      payeeAddress: true,
+      destinationHandleText: true,
+      destinationAddress: true,
       amount: true,
       currency: true,
       memo: true,
@@ -412,8 +412,8 @@ export async function readPublicRequest(publicId: string): Promise<PublicRequest
   if (!row) return null;
   return {
     publicId: row.publicId,
-    payeeHandle: row.payeeHandleText,
-    payeeAddress: row.payeeAddress,
+    destinationHandle: row.destinationHandleText,
+    destinationAddress: row.destinationAddress,
     amount: row.amount,
     currency: row.currency,
     memo: row.memo,

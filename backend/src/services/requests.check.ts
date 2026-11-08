@@ -70,7 +70,7 @@ async function main() {
     }),
   ]);
 
-  const [payeeHandle, ownHandle] = await Promise.all([
+  const [destinationHandle, ownHandle] = await Promise.all([
     prisma.handle.create({
       data: {
         handle: `${RUN}-ian`,
@@ -98,8 +98,8 @@ async function main() {
     check(
       'a handle nothing resolves fails at creation, not at payment',
       (await refusalOf(() =>
-        createRequest({ creatorId: asker.id, payeeHandle: `${RUN}-nobody`, amount: '500.00' })
-      )) === 'payee-not-found'
+        createRequest({ creatorId: asker.id, destinationHandle: `${RUN}-nobody`, amount: '500.00' })
+      )) === 'destination-not-found'
     );
 
     check(
@@ -109,15 +109,15 @@ async function main() {
 
     const created = await createRequest({
       creatorId: asker.id,
-      payeeHandle: payeeHandle.handle,
+      destinationHandle: destinationHandle.handle,
       amount: '500.00',
       memo: 'lunch',
     });
 
-    check('the ask carries the handle it named', created.payeeHandle === payeeHandle.handle);
+    check('the ask carries the handle it named', created.destinationHandle === destinationHandle.handle);
     check(
       'and the address the handle had at creation',
-      created.payeeAddress === payeeHandle.address.toLowerCase()
+      created.destinationAddress === destinationHandle.address.toLowerCase()
     );
     check('it is open', created.status === 'open');
     check('its public id is opaque and unguessable', /^[0-9a-f]{18}$/.test(created.publicId));
@@ -125,8 +125,8 @@ async function main() {
     check(
       'asking yourself is refused',
       (await refusalOf(() =>
-        createRequest({ creatorId: asker.id, payeeHandle: ownHandle.handle, amount: '10.00' })
-      )) === 'payee-is-you'
+        createRequest({ creatorId: asker.id, destinationHandle: ownHandle.handle, amount: '10.00' })
+      )) === 'destination-not-yours'
     );
   }
 
@@ -142,7 +142,7 @@ async function main() {
   {
     const request = await createRequest({
       creatorId: asker.id,
-      payeeHandle: payeeHandle.handle,
+      destinationHandle: destinationHandle.handle,
       amount: '250.00',
     });
 
@@ -173,7 +173,7 @@ async function main() {
     // The same payment claimed by a different ask: refused by the unique index, not by the status guard.
     const other = await createRequest({
       creatorId: asker.id,
-      payeeHandle: payeeHandle.handle,
+      destinationHandle: destinationHandle.handle,
       amount: '250.00',
     });
     const reused = await refusalOf(() =>
@@ -196,7 +196,7 @@ async function main() {
   {
     const cancelled = await createRequest({
       creatorId: asker.id,
-      payeeHandle: payeeHandle.handle,
+      destinationHandle: destinationHandle.handle,
       amount: '90.00',
     });
     await cancelRequest(cancelled.publicId, asker.id);
@@ -209,7 +209,7 @@ async function main() {
 
     const settled = await createRequest({
       creatorId: asker.id,
-      payeeHandle: payeeHandle.handle,
+      destinationHandle: destinationHandle.handle,
       amount: '70.00',
     });
     await settleRequest({ publicId: settled.publicId, transactionId: `${RUN}_tx4`, txHash: '0x2' });
@@ -228,7 +228,7 @@ async function main() {
   {
     const defaulted = await createRequest({
       creatorId: asker.id,
-      payeeHandle: payeeHandle.handle,
+      destinationHandle: destinationHandle.handle,
       amount: '60.00',
     });
     const row = await prisma.paymentRequest.findUnique({
@@ -242,7 +242,7 @@ async function main() {
 
     const forever = await createRequest({
       creatorId: asker.id,
-      payeeHandle: payeeHandle.handle,
+      destinationHandle: destinationHandle.handle,
       amount: '60.00',
       expiresAt: null,
     });
@@ -258,7 +258,7 @@ async function main() {
       (await refusalOf(() =>
         createRequest({
           creatorId: asker.id,
-          payeeHandle: payeeHandle.handle,
+          destinationHandle: destinationHandle.handle,
           amount: '40.00',
           expiresAt: new Date(Date.now() - 60_000),
         })
@@ -269,7 +269,7 @@ async function main() {
       (await refusalOf(() =>
         createRequest({
           creatorId: asker.id,
-          payeeHandle: payeeHandle.handle,
+          destinationHandle: destinationHandle.handle,
           amount: '40.00',
           expiresAt: new Date('3000-01-01T00:00:00Z'),
         })
@@ -280,7 +280,7 @@ async function main() {
       (await refusalOf(() =>
         createRequest({
           creatorId: asker.id,
-          payeeHandle: payeeHandle.handle,
+          destinationHandle: destinationHandle.handle,
           amount: '40.00',
           expiresAt: new Date('nonsense'),
         })
@@ -289,7 +289,7 @@ async function main() {
 
     const created = await createRequest({
       creatorId: asker.id,
-      payeeHandle: payeeHandle.handle,
+      destinationHandle: destinationHandle.handle,
       amount: '40.00',
       expiresAt: new Date(Date.now() + 60 * 60 * 1000),
     });
@@ -317,7 +317,7 @@ async function main() {
     // In time, and one second from lapsing: the guard is the database's clock, so this still settles.
     const nearly = await createRequest({
       creatorId: asker.id,
-      payeeHandle: payeeHandle.handle,
+      destinationHandle: destinationHandle.handle,
       amount: '30.00',
       expiresAt: new Date(Date.now() + 60_000),
     });
@@ -330,7 +330,7 @@ async function main() {
 
     const noExpiry = await createRequest({
       creatorId: asker.id,
-      payeeHandle: payeeHandle.handle,
+      destinationHandle: destinationHandle.handle,
       amount: '20.00',
       expiresAt: null,
     });
@@ -365,12 +365,12 @@ async function main() {
     check('one ask is still open', Boolean(open));
 
     const publicView = open ? await readPublicRequest(open.publicId) : null;
-    check('a link resolves without an account', publicView?.payeeHandle === payeeHandle.handle);
+    check('a link resolves without an account', publicView?.destinationHandle === destinationHandle.handle);
     check(
       'and carries only what a payer needs',
       publicView !== null &&
         Object.keys(publicView).sort().join(',') ===
-          'amount,currency,expiresAt,memo,payeeAddress,payeeHandle,publicId,status',
+          'amount,currency,destinationAddress,destinationHandle,expiresAt,memo,publicId,status',
       publicView ? Object.keys(publicView).sort().join(',') : 'null'
     );
     check('an unknown id resolves to nothing', (await readPublicRequest('nope')) === null);
