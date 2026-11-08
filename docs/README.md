@@ -70,7 +70,7 @@ Two things make Seti's version of this worth reading rather than assuming:
 | [Quickstart](./quickstart.md) | Run the API locally and make your first call |
 | [Authentication](./authentication.md) | What works today, and what an integration would need |
 | [Payments](./payments.md) | Units, fee semantics, and the reconciliation contract |
-| [API reference](./api-reference.md) | Every route that exists |
+| [API reference](./api-reference.md) | Every route that exists, and `npm run check:routes` fails when a registered route has no entry |
 | [MCP server](./mcp.md) | Drive Seti from an AI agent |
 
 ## Trust and brand policy
