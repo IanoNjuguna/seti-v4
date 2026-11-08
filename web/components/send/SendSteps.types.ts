@@ -1,4 +1,5 @@
 import type { UsePayMerchantReturn } from '@/hooks/usePayMerchant.types';
+import type { ClaimSeed } from '@/lib/api/requests';
 import type { RecipientKind } from './RecipientStep';
 import type { ResolvedRecipient } from './useResolvedRecipient';
 
@@ -29,4 +30,6 @@ export interface SendStepsProps {
   onBackToWho: () => void;
   /** Fills the payee from someone this account has paid before. */
   onPickRecent: (target: string) => void;
+  /** The claim the link named, if any: its figure seeds the amount step (#465). */
+  claim: ClaimSeed | null;
 }
