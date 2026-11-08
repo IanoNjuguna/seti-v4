@@ -35,7 +35,7 @@ import {
 } from 'viem';
 import { deriveSendAnchor, SendAnchorError, type ReceiptLike } from './send-anchor.js';
 import { publicClientFor } from './chain.js';
-import { networkConfigFor } from '../config/networks.js';
+import { networkConfigFor, treasuryAddressFor } from '../config/networks.js';
 
 let failures = 0;
 
@@ -47,7 +47,7 @@ function check(label: string, passed: boolean, detail = ''): void {
 /** The practice network, spelled once for this suite. */
 const NETWORK = 'testnet' as const;
 const CONFIG = networkConfigFor(NETWORK);
-const TREASURY = getAddress(CONFIG.treasuryAddress);
+const TREASURY = getAddress(treasuryAddressFor(NETWORK));
 const OUSD = CONFIG.tokens.ousd as Hex;
 const PATHUSD = CONFIG.tokens.pathusd as Hex;
 /** Tempo's gas sink — every receipt pays its fee here, in the fee token. */

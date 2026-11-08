@@ -18,6 +18,7 @@ import { PaymentRefusalError } from './payment-refusal.js';
 import { getFxQuote } from './payments.js';
 import { issueQuote } from './quote.js';
 import { formatUnits, getTokenContract, networkConfigFor, publicClientFor } from './chain.js';
+import { treasuryAddressFor } from '../config/networks.js';
 import { env } from '../config/env.js';
 import type { Network } from '../lib/network.js';
 import { anchorNetworkPermitsRun } from './anchor-network.js';
@@ -225,7 +226,7 @@ async function main() {
 
   const quote = await getFxQuote();
   console.log(`fee routing mode: ${env.FEE_ROUTING_MODE}`);
-  console.log(`treasury: ${env.SETI_TREASURY_ADDRESS}`);
+  console.log(`treasury: ${treasuryAddressFor(ANCHOR_NETWORK)}`);
   console.log(`rate: ${quote.fiatPerUsd} (${quote.source})\n`);
 
   const user = await prisma.user.upsert({
@@ -454,15 +455,15 @@ async function main() {
   console.log('\ntreasury configuration:');
   check(
     'treasury is a 20-byte hex address',
-    /^0x[a-fA-F0-9]{40}$/.test(env.SETI_TREASURY_ADDRESS)
+    /^0x[a-fA-F0-9]{40}$/.test(treasuryAddressFor(ANCHOR_NETWORK))
   );
   check(
     'treasury is not the zero address',
-    env.SETI_TREASURY_ADDRESS.toLowerCase() !== '0x' + '0'.repeat(40)
+    treasuryAddressFor(ANCHOR_NETWORK).toLowerCase() !== '0x' + '0'.repeat(40)
   );
   check(
     'treasury differs from the merchant payout address',
-    env.SETI_TREASURY_ADDRESS.toLowerCase() !== (merchant.payoutAddress ?? '').toLowerCase()
+    treasuryAddressFor(ANCHOR_NETWORK).toLowerCase() !== (merchant.payoutAddress ?? '').toLowerCase()
   );
 
   await teardown();

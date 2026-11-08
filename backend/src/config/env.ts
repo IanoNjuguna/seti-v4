@@ -115,7 +115,7 @@ const envSchema = z.object({
    *
    * v1 collects the fee as its own transfer inside the customer's transaction
    * (`batch` mode), so the fee leg is sent here rather than to the recipient.
-   * Validated as a 20-byte hex address at boot: a malformed treasury address
+   * Validated as a 20-byte hex address WHEN PRESENT: a malformed treasury address
    * would otherwise silently produce transfers to 0x0.
    *
    * The zero address is REFUSED, and that is not pedantry. It is a valid 20-byte
@@ -124,8 +124,16 @@ const envSchema = z.object({
    * legitimately collected, and the ledger would report revenue that no one can
    * ever spend. `.env.example` ships the real address for the same reason — a
    * placeholder that is copied verbatim must not be able to destroy fees.
+   *
+   * OPTIONAL HERE, REQUIRED EVERYWHERE THAT PAYS (#472). This module is imported by
+   * `config/networks.ts`, so validating the treasury at import made every READ-ONLY
+   * process carry it: the nightly book report reads a DEX book and could not start
+   * without a treasury it never uses. The requirement now lives where the dependency
+   * does, in three places: `treasuryAddressFor()` throws when it is missing, the
+   * serving process refuses to start without it (`index.ts`), and `check:assets`
+   * fails the gate when the deployment's environment has none.
    */
-  SETI_TREASURY_ADDRESS: treasuryAddressSchema,
+  SETI_TREASURY_ADDRESS: treasuryAddressSchema.optional(),
   /**
    * Per-network overrides — the config these used to be single values for.
    *

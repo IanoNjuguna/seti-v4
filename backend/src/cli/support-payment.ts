@@ -37,6 +37,7 @@ import {
   publicClient,
 } from '../services/chain.js';
 import { env } from '../config/env.js';
+import { treasuryAddressFor } from '../config/networks.js';
 
 interface Args {
   txHash?: string;
@@ -225,7 +226,7 @@ async function byTxHash(txHash: string): Promise<void> {
           leg.to.toLowerCase() === transaction.merchant.payoutAddress.toLowerCase();
         console.log(`      ${matches ? '= merchant payout address' : '!= merchant payout address'}`);
       }
-      if (leg.to.toLowerCase() === env.SETI_TREASURY_ADDRESS.toLowerCase()) {
+      if (leg.to.toLowerCase() === treasuryAddressFor().toLowerCase()) {
         console.log('      = the Seti treasury (fee leg)');
       }
     }
@@ -302,7 +303,7 @@ async function main(): Promise<void> {
 
   console.log('seti support — payment lookup (read-only)');
   console.log(`chain: ${network.name} (${network.chainId})   env: ${env.NODE_ENV}`);
-  console.log(`treasury: ${env.SETI_TREASURY_ADDRESS}`);
+  console.log(`treasury: ${treasuryAddressFor()}`);
   console.log(`fee routing mode: ${env.FEE_ROUTING_MODE}`);
 
   if (args.txHash && !/^0x[a-fA-F0-9]{1,}$/.test(args.txHash)) {

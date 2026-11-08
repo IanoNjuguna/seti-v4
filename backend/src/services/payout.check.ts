@@ -45,6 +45,7 @@ import { decodeEventLog, erc20Abi, getAddress, parseAbiItem, type TransactionRec
 import { prisma } from '../lib/prisma.js';
 import { env } from '../config/env.js';
 import { FEE_AMM_ADDRESS, formatUnits, getTokenContract, networkConfigFor, publicClientFor } from './chain.js';
+import { treasuryAddressFor } from '../config/networks.js';
 import { recordPayment } from './transactions.js';
 import { getFxQuote } from './payments.js';
 import { issueQuote } from './quote.js';
@@ -179,7 +180,7 @@ function readOusdLegs(
   receipt: TransactionReceipt
 ): { recipient: string; observed: number; feeObserved: number | null } | null {
   const ousd = getTokenContract('ousd').toLowerCase();
-  const treasury = env.SETI_TREASURY_ADDRESS.toLowerCase();
+  const treasury = treasuryAddressFor(ANCHOR_NETWORK).toLowerCase();
   const principal: Array<{ to: string; value: number }> = [];
   let feeObserved: number | null = null;
 
@@ -233,7 +234,7 @@ function readOusdLegs(
  * transfers and only one of them is the payment.
  */
 async function findBatchedAnchor(fromBlock: bigint, head: bigint): Promise<Anchor | null> {
-  const treasury = env.SETI_TREASURY_ADDRESS;
+  const treasury = treasuryAddressFor(ANCHOR_NETWORK);
   let candidates;
 
   try {
@@ -307,7 +308,7 @@ async function anchorFromHash(txHash: string): Promise<Anchor> {
     throw new Error(
       `Pinned payout anchor ${txHash} on ${anchorNetwork.displayName} does not carry the legs ` +
         `this suite needs: an OUSD transfer to a recipient AND, in batch mode, a fee ` +
-        `transfer to ${env.SETI_TREASURY_ADDRESS}. Set PAYOUT_ANCHOR_TX to a real ` +
+        `transfer to ${treasuryAddressFor(ANCHOR_NETWORK)}. Set PAYOUT_ANCHOR_TX to a real ` +
         `batched OUSD receipt, or to \`${LIVE_SEARCH}\` to scan live.`
     );
   }
@@ -405,7 +406,7 @@ async function findAnchor(): Promise<Anchor | null> {
       if (batchMode) {
         if (feeLegProbes >= MAX_FEE_LEG_PROBES) return fallback;
         feeLegProbes += 1;
-        feeObserved = await findTreasuryLeg(log.transactionHash, env.SETI_TREASURY_ADDRESS);
+        feeObserved = await findTreasuryLeg(log.transactionHash, treasuryAddressFor(ANCHOR_NETWORK));
         if (feeObserved === null) continue;
       }
 
