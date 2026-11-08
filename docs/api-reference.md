@@ -1406,11 +1406,13 @@ optional `expiresInDays` (1–365, or `null` for an ask that never lapses; omitt
 
 `201 { "request": { id, publicId, destinationHandle, destinationAddress, amount, currency, memo, status }}`
 
-The payee is resolved HERE and the address snapshotted beside the handle: a link that names a handle
-nothing resolves fails now, in front of whoever wrote it, rather than in front of whoever it was sent
-to. `400 { code: "amount-invalid" | "currency-invalid" | "expiry-invalid" }`,
-`404 { code: "destination-not-found" }`, `403 { code: "destination-not-yours" }` — asking yourself is
-a mis-tap, not a request.
+The destination is resolved HERE and the address snapshotted beside the handle: a link that names a
+handle nothing resolves fails now, in front of whoever wrote it, rather than in front of whoever it was
+sent to. The destination is where the money LANDS, so it has to be a handle the caller holds — the
+claim is "I ask you for money and it comes to me", and the link is what the asker hands out.
+`400 { code: "amount-invalid" | "currency-invalid" | "expiry-invalid" }`,
+`404 { code: "destination-not-found" }`, `403 { code: "destination-not-yours" }` — a destination the
+caller does not hold would pay a third party with the asker's own sentence on it.
 
 ### `GET /users/:id/requests`
 
