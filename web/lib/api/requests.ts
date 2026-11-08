@@ -63,8 +63,14 @@ export function createAsk(input: {
   return post<{ request: CreatedAsk }>('/requests', input);
 }
 
-export function listAsks(userId: string): Promise<{ requests: AskSummary[] }> {
-  return get<{ requests: AskSummary[] }>(`/users/${userId}/requests`);
+/**
+ * The caller's own asks, newest first.
+ *
+ * No user id in the path: the session decides whose asks these are, and a path that names a user is a
+ * path that invites somebody to name a different one.
+ */
+export function listAsks(): Promise<{ requests: AskSummary[] }> {
+  return get<{ requests: AskSummary[] }>('/requests');
 }
 
 export function cancelAsk(publicId: string): Promise<void> {

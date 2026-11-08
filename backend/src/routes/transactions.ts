@@ -170,6 +170,14 @@ const sendSchema = z.object({
   /** The signed rate quote from `/send/preview`. See `paySchema.quoteId`. */
   quoteId: z.string().optional(),
   /**
+   * The ask this payment was made against (#447).
+   *
+   * A LINK, never an authority: the payment is verified against its own receipt as always, and the ask
+   * against the ledger row's figure. It is what lets the settlement run here, and what lets the sweep
+   * finish it later if this process dies before the settle lands.
+   */
+  claimPublicId: z.string().min(6).max(32).optional(),
+  /**
    * The name the customer resolved before signing, when they sent to one.
    *
    * Optional and cosmetic, and it decides nothing: the receipt already decided who
