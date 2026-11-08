@@ -18,7 +18,7 @@ import type { SendFlowProps } from './SendFlow.types';
  * The state lives in `useSendFlow`, so this file is only the shape of the flow: two
  * steps, and the progress bar that says which one is lit.
  */
-export function SendFlow({ linked }: SendFlowProps) {
+export function SendFlow({ linked, claim }: SendFlowProps) {
   const flow = useSendFlow({ linked });
 
   return (
@@ -37,6 +37,7 @@ export function SendFlow({ linked }: SendFlowProps) {
         onSubmitRecipient={flow.onSubmitRecipient}
         onBackToWho={flow.onBackToWho}
         onPickRecent={flow.onPickRecent}
+        claim={claim}
       />
     </SendFrame>
   );

@@ -1,5 +1,6 @@
 import type { EmbeddedWalletStatus } from '@/hooks/useEmbeddedWallet.types';
 import type { HandleIdentity, SendPreview } from '@/lib/api';
+import type { ClaimSeed } from '@/lib/api/requests';
 import type { SupportedAsset } from '@/lib/chain';
 import type { TokenSelectorModel } from '@/components/token-selector/TokenSelector.types';
 
@@ -20,6 +21,14 @@ export interface SendPanelProps {
    * is empty until the customer types, on every route into this step.
    */
   focusAmount?: boolean;
+  /**
+   * The claim this send is answering, if the customer arrived through a claim link (#465).
+   *
+   * It carries the figure the person being paid wrote down. That is the only way an amount reaches
+   * this form without being typed: `?amount=` is dropped by `sendSeed`, and a claim's figure is read
+   * from the server rather than taken from the URL.
+   */
+  claim?: ClaimSeed | null;
 }
 
 /** Only `previewing`, `signing` and `recording` are busy. A receipt is `sent`. */
