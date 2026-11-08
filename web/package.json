@@ -51,7 +51,6 @@
     "qrcode-generator": "^2.0.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "react-qr-code": "^2.2.0",
     "react-server-dom-webpack": "^19.2.8",
     "viem": "^2.57.4"
   },
