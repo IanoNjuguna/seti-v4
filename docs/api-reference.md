@@ -83,6 +83,16 @@ Development-only bypass. Returns `{ user, token: "dev-bypass-token" }`. Returns
 
 Deprecated; kept for local seeding. `409` if the email exists.
 
+### `GET /auth/me`
+
+The token's subject read back as a full user record, including its `wallets`. `401`
+when the token is missing or does not resolve to an account.
+
+The field to read after sign-in is `network`: it decides which chain this account's
+balances come from and which chain a signature is for, and it is per account rather
+than per deployment. Read it back rather than remembering what you sent to
+`POST /account/network`.
+
 ## Account
 
 ### `GET /account`
@@ -133,6 +143,34 @@ No handle is required for the chosen mode, and none is affected: choosing `busin
 before a business name exists is the normal order, and the claim that follows is what
 creates the name. That is deliberate — refusing the switch until the name existed
 would make the mode a one-way door.
+
+### `POST /account/network`
+
+Which Tempo network this account acts on. Body `{ "network": "testnet" | "mainnet" }`.
+Answers the caller's identity record on success.
+
+- `400 { code: "invalid-network" }` for any other value.
+- `409` when the switch is refused, carrying the server's own `code` and reason. A
+  refusal here is a fact about the account's state, not a validation error.
+
+### `GET /account/deposit`
+
+Where money arrives, and which chain to send it on. Takes no body and no query: the
+answer is computed from the network this deployment serves, so nothing a client sends
+can steer it.
+
+```json
+{ "network": "mainnet", "networkLabel": "…", "chainId": 4217, "address": "0x…" }
+```
+
+`address: null` is an ordinary answer, not an error: the address is registered when
+the account first signs in, so an account with no wallet row on this network has
+nothing registered here yet.
+
+Render the chain beside the address. One address is the same identifier on both Tempo
+chains, and money sent to it on the wrong one cannot be recovered, which is why
+`chainId` and `networkLabel` are in the payload rather than left to the client to
+assume.
 
 ## Names and claims
 
@@ -524,10 +562,115 @@ amount is more than 1% away from what the chain recorded, if the recipient is
 unusable (bad EIP-55 checksum), or if it is the sender's own wallet. Returns `201`
 with the created `p2p_send` transaction, which is what appears in Activity.
 
+### Converting between stablecoins
+
+Four routes over one allowlist. `backend/src/services/convert.ts` decides which pairs
+a network offers, and the book has the last word: a listed pair with no resting orders
+refuses `convert-no-liquidity`, so a pair can be offered and still not fill. Nothing
+here charges the merchant fee; a convert has no merchant.
+
+Every figure is the chain's own quote. The server adds one thing to it, the floor
+(`minAmountOut`, the quote less `toleranceBps`), and signs nothing.
+
+#### `GET /transactions/convert/pairs`
+
+The pairs this account's network will convert, expanded both ways, plus the distinct
+outputs. A read of a constant: no balance, no quote, nothing written.
+
+```json
+{ "pairs": [{ "in": "usdc.e", "out": "ousd" }, { "in": "ousd", "out": "usdc.e" }],
+  "targets": ["ousd", "pathusd"] }
+```
+
+Build a picker from this rather than from a copy of the list: a pair this route does
+not name is one `POST /transactions/convert/quote` refuses with
+`convert-pair-unavailable`.
+
+#### `POST /transactions/convert/quote`
+
+Price a swap from an amount in the INPUT token's own units.
+
+```json
+{ "assetIn": "usdc.e", "assetOut": "ousd", "amountIn": "10.00" }
+```
+
+`amountIn` accepts a decimal or the literal `"max"`, which means everything this
+balance can spend. Prefer `"max"` to computing it yourself: gas is charged in the
+input token, so the spendable amount is not the balance, and that subtraction is a
+money rule that belongs on the server.
+
+Answers `{ "quote": { … } }` with `amountIn`, `amountOut`, `minAmountOut`,
+`toleranceBps`, `rate` (one unit of `assetIn` in `assetOut` units), `networkFee` in
+`assetIn` units, and the fiat figures at the frozen rate. Sign `amountIn` and
+`minAmountOut` from this quote; do not recompute the floor.
+
+`422` with a code, never a `500`:
+
+| code | means |
+| --- | --- |
+| `convert-amount-invalid` | the amount is not a positive decimal |
+| `convert-unknown-asset` | unsupported, or not listed on this network (USDT0 is mainnet only) |
+| `convert-same-asset` | both sides are the same token |
+| `convert-pair-unavailable` | the pair is not on this network's allowlist |
+| `convert-no-liquidity` | allowed, but the book cannot fill this size |
+| `convert-insufficient-balance` | the input token's balance cannot cover it |
+
+#### `POST /transactions/convert/preview`
+
+The same swap priced from the customer's own currency instead of token units.
+
+```json
+{ "assetIn": "usdc.e", "assetOut": "ousd", "amountFiat": "1000" }
+```
+
+Answers `{ "preview": { … } }`: the quote, plus what that amount is worth in the
+customer's currency. Same refusals as the quote.
+
+#### `POST /transactions/convert`
+
+Record a convert the customer signed.
+
+```json
+{ "assetIn": "usdc.e", "assetOut": "ousd", "amountIn": "10.00",
+  "minAmountOut": "9.995", "txHash": "0x…", "walletAddress": "0x…", "quoteId": "…" }
+```
+
+`amountIn` and `minAmountOut` are the figures that were signed and both are checked
+against the receipt: the output leg must have reached the wallet for at least
+`minAmountOut`. `quoteId` is the frozen rate from the quote, and an expired one is
+refused rather than re-priced, because the ledger's fiat figure has to be the rate the
+customer was shown. Returns `201` with the transaction row.
+
 ### `GET /transactions`
 
 Query: `limit` (default 20), `offset` (default 0). Returns
 `{ "transactions": [ … ] }` for the authenticated user, newest first.
+
+### `GET /transactions/statement`
+
+The account's history as a file. Query `format` is required and one of `csv`, `xlsx`
+or `pdf`; `from` and `to` bound the range.
+
+`400 { code: "invalid-statement-format" }` when `format` is missing or is not one of
+the three. The format is refused by name rather than by a schema so the code can say
+which three to send. The response body is the file, with its own content type and
+filename.
+
+### `GET /transactions/recipients`
+
+Who this account has paid recently, newest first, for a "send again" list. A row is a
+person or a merchant with whatever label Seti has for them; an address with no name is
+still a recipient.
+
+### `GET /transactions/settle/plan`
+
+What the settlement pass would do for this account right now: which non-OUSD balances
+it would convert into OUSD, the quote for each, and the spread measured against par.
+Balances below the sweep floor, or in an asset with no market, are left where they are,
+which is a supported state and not a failure.
+
+A read. Nothing is signed and the backend cannot sign it: settlement plans the swap and
+refuses one that would pay worse than the allowed spread against par.
 
 ### `GET /transactions/:id/status`
 
@@ -626,6 +769,117 @@ Rate-limited modestly by address (`429` beyond it).
 Creates a non-payment transaction record (`p2p_send`, `p2p_receive`, `top_up`,
 `withdrawal`, `fee`). Requires `userId` to equal the authenticated user, else
 `403`. Payment recording does not go through this route.
+
+## Savings
+
+Money set aside in a Tempo Earn vault (Morpho on Tempo). The position is shares, the
+vault's own accounting is the truth about what a share is worth, and Seti never holds
+it: every deposit and withdrawal is the customer's own signature against the vault. The
+routes here price or record what was signed, and none of them can move money on its own.
+
+All six need a bearer token.
+
+### `GET /savings`
+
+The position and what it is worth now.
+
+```json
+{ "savings": {
+    "network": "mainnet", "available": true, "status": "ok",
+    "vault": { "address": "0x…", "asset": "pathusd", "sharePrice": "…",
+               "depositsPaused": false },
+    "spendableFiat": "…", "fiatCurrency": "KES",
+    "savedValue": "…", "savedFiat": "…", "shares": "…",
+    "earnings": null, "apy": null, "campaign": null,
+    "canDeposit": true, "canWithdraw": true, "live": true } }
+```
+
+Read `status` and not `available` alone: `not-offered` means this network has no vault
+and never has, `unreadable` means a vault exists but could not be read on this request,
+and only the second is worth a retry. `apy: null` and `campaign: null` are ordinary
+states, not missing data: a rate is never inferred, and a promotion whose campaign has
+ended is not shown rather than shown stale. `shares` is a share count and never an
+amount of stablecoins.
+
+### `GET /savings/rewards`
+
+The rewards campaign's claimable balance for this wallet. A read: the customer signs
+their own claim, so this never needs an operator and never moves anything.
+`claimable: false` with a reason is a normal answer, so a screen offers no button
+instead of an error.
+
+### `POST /savings/quote`
+
+Price a deposit: the swap into the vault's asset, the approval, and the shares the
+vault should mint. Nothing is signed.
+
+```json
+{ "amountFiat": "1000" }
+```
+
+Answers `{ "quote": { … } }`:
+
+| field | means |
+| --- | --- |
+| `amountIn`, `assetIn` | what leaves the spendable balance, and in which asset |
+| `swapOut`, `minSwapOut` | what the swap must deliver to the vault, and its floor |
+| `minShares` | the floor of shares the vault must mint |
+| `sharePrice` | the vault's own value for one share |
+| `vault` | the vault address the deposit signs against |
+| `networkFee` | gas, in the funding asset's units, already reserved |
+| `quoteId` | the frozen rate, for `POST /savings/deposit` |
+
+Refusals, and the difference matters to what the screen should say:
+
+| status | code | means |
+| --- | --- | --- |
+| `503` | `savings-not-live` | saving is closed; the vault does not pay a rate we can stand behind |
+| `422` | `savings-amount-invalid` | the amount is not a positive number |
+| `422` | `savings-funding-unavailable` | nothing this account holds converts into the vault's asset, or not at this size. The assets it could not price are listed under `unpriced` |
+| `502` | `savings-chain-unavailable` | the vault could not be reached. Nothing was moved |
+
+`503` and `502` are not the customer's fault: one is "not yet" and the other is worth a
+retry. The two `422`s are theirs to fix, which is why they carry a code and a sentence
+rather than a generic failure.
+
+### `POST /savings/deposit`
+
+Record a deposit the customer signed. One transaction, three calls, every leg checked
+against the receipt before a row exists.
+
+```json
+{ "txHash": "0x…", "amountIn": "…", "depositAmount": "…", "minShares": "…",
+  "assetIn": "ousd", "walletAddress": "0x…", "quoteId": "…" }
+```
+
+`minShares` must be the floor that was signed, so a vault fee cannot quietly eat the
+deposit. Returns `201` with the transaction row. Same refusals as the quote.
+
+### `POST /savings/withdraw/quote`
+
+Price a withdrawal, from an amount in the customer's currency.
+
+```json
+{ "amountFiat": "500" }
+```
+
+Answers `{ "quote": { … } }` with `shares` to redeem, `assetOut` and `minAssets` (the
+vault's own redeem quote and its floor), `swapOut` and `minSwapOut` (the OUSD leg home
+and its floor), `fiatOut` (what the payout is worth, at the vault's quote rather than
+the figure that was typed), `vault`, `shareToken` and `quoteId`.
+
+### `POST /savings/withdraw`
+
+Record a withdrawal the customer signed.
+
+```json
+{ "txHash": "0x…", "shares": "…", "minSwapOut": "…", "walletAddress": "0x…",
+  "quoteId": "…" }
+```
+
+`shares` and `minSwapOut` are what was signed and both are checked against the receipt.
+Withdrawals stay available even when `live` is false, so no position can be trapped by
+a pause on deposits.
 
 ## Charges (receive, no account)
 
@@ -862,11 +1116,15 @@ production), `merchant-app-name-taken` (one name per account), `secret-box-unset
 against the stored message, so a row edited by hand reports `false` and its secret
 stops signing deliveries.
 
-#### `GET /merchant-apps`, `GET /merchant-apps/:publicId`
+#### `GET /merchant-apps`
 
-The caller's apps on the network the session is served under, and one of them. No
-secret in either; `404 merchant-app-not-found` for an id that does not exist **or is
-not the caller's**, uniformly, so the answer never confirms another account's ids.
+The caller's apps on the network the session is served under. No secret in the list.
+
+#### `GET /merchant-apps/:publicId`
+
+One of them, by id. No secret either. `404 merchant-app-not-found` for an id that does
+not exist **or is not the caller's**, uniformly, so the answer never confirms another
+account's ids.
 
 #### `POST /merchant-apps/:publicId/secret/rotate`
 
@@ -878,9 +1136,10 @@ and a **delivery attempted after the rotation verifies only against the new secr
 `409 merchant-app-revoked` on a revoked app, `403 merchant-app-signature-invalid` from
 any other address.
 
-`POST /merchant-apps/:publicId/deliveries/:deliveryId/replay` re-sends one delivery
-with a fresh timestamp and therefore a fresh signature; the body, delivery id and
-event are the stored ones. `404 delivery-not-found` (not this app's),
+#### `POST /merchant-apps/:publicId/deliveries/:deliveryId/replay`
+
+Re-sends one delivery with a fresh timestamp and therefore a fresh signature; the body,
+delivery id and event are the stored ones. `404 delivery-not-found` (not this app's),
 `409 delivery-not-replayable` (already delivered, or its secret cannot be opened).
 
 #### `POST /merchant-apps/:publicId/revoke`
@@ -974,6 +1233,27 @@ to no charge, and never marked `paid`.
 ### `GET /users/:id`
 
 Returns the user with their wallets. `403` if `:id` is not the authenticated user.
+
+### `GET /users/:id/analytics`
+
+The caller's own figures for the analytics page, scoped to the account's network and
+counted in the stored time zone. `403` if `:id` is not the authenticated user, `404` if
+the user does not exist.
+
+Answers `{ currency, timeZone, customers, consistency, settlement, windows, year }`:
+totals per window, three summaries over those windows, and `year` as one number per day
+for a year, grouped in the database rather than derived from the rows. `timeZone` is the
+calendar the figures were counted on, so a reader can see which one it is.
+
+### `POST /users/:id/timezone`
+
+Store the zone this account's days are counted in. Body `{ "timeZone": "Africa/Nairobi" }`.
+
+Written from the browser's own `Intl` answer on load, and stored rather than sent with
+every request: a day's boundary is a business fact, so an account opened in another
+country must not rewrite days it has already traded. An unknown zone is refused (`400`)
+rather than stored, because every later read would throw on it and a silent fallback
+would tell the caller its zone was accepted when it was not.
 
 ### `GET /users/:id/home`
 
