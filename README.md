@@ -155,14 +155,16 @@ v1 settles non-custodially — the customer's stablecoins go straight to the
 merchant's own wallet. With no fiat off-ramp there is no per-payout cost for the
 fee to recover, so a floor would have nothing to justify it.
 
-**Who pays it.** The 2% is attributed to the merchant, but in v1 it is collected
-inside the customer's transfer: they sign for principal + fee, and the merchant's
-wallet receives exactly the principal. The customer therefore funds the fee. A
-floor (`MERCHANT_FEE_MIN_KES`) and a cap (`MERCHANT_FEE_MAX_PERCENT`) both
-default to 0 and exist for when an off-ramp lands: a flat 2% on a KES 50 payment
-would not cover a per-payout charge, and a floor large enough to cover one would
-otherwise swallow small payments whole. Schedule lives in
-`backend/src/services/fees.ts`; verify it with `npm run check:fees`.
+**Who pays it.** The 2% is attributed to the merchant, but the customer funds it:
+they sign for principal + fee in one atomic transaction, and the merchant's wallet
+receives exactly the principal. In the default `batch` mode the fee is its own leg
+to `SETI_TREASURY_ADDRESS`; in `inside-transfer` it rides in the merchant's
+transfer instead, where Seti collects nothing. A floor (`MERCHANT_FEE_MIN_KES`) and
+a cap (`MERCHANT_FEE_MAX_PERCENT`) both default to 0 and exist for when an
+off-ramp lands: a flat 2% on a KES 50 payment would not cover a per-payout charge,
+and a floor large enough to cover one would otherwise swallow small payments
+whole. Schedule lives in `backend/src/services/fees.ts`; verify it with
+`npm run check:fees`.
 
 ---
 
