@@ -213,12 +213,12 @@ the "network" component of the gross is not yet real.
 
 The customer's embedded wallet must sign and broadcast the transfer.
 
-- `inside-transfer` (default): **one** ERC-20 `transfer` of the gross to the
-  merchant's payout address.
-- `batch`: one atomic batch — principal to the merchant, fee to
-  `SETI_TREASURY_ADDRESS` — submitted via Privy's `wallet_sendCalls` (EIP-7702,
+- `batch` (default): one atomic batch, principal to the merchant and fee to
+  `SETI_TREASURY_ADDRESS`, submitted via Privy's `wallet_sendCalls` (EIP-7702,
   no wallet-type migration, address unchanged). One transaction hash covers both
   legs.
+- `inside-transfer`: **one** ERC-20 `transfer` of the gross to the merchant's
+  payout address, so Seti collects nothing.
 
 The client must send the figure that matches the server's mode: the **principal**
 in batch mode, the **gross** in inside-transfer mode. Getting this backwards must
