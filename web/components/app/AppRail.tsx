@@ -36,6 +36,7 @@ export function AppRail() {
   return (
     <nav
       aria-label="Primary"
+      data-scrollbar="dark"
       className="fixed inset-y-0 left-0 hidden w-56 flex-col overflow-y-auto border-r border-hairline-dark bg-canvas-dark px-3 pb-[env(safe-area-inset-bottom)] text-on-dark md:flex"
     >
       {/* The chrome's grain, on the rail and nowhere else. The landing's own
