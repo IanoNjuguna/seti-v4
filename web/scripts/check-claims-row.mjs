@@ -15,6 +15,7 @@
  *
  * Run from `web/`: npm run check:claims-row (part of the root `verify` gate).
  */
+import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { ClaimRow } from '../components/activity/ClaimRow.tsx';
@@ -85,6 +86,37 @@ console.log('the money reads like money:');
   check('the figure carries the currency', html.includes('KES 1,500.00'), html.slice(0, 120));
   check('in tabular digits', html.includes('font-tabular'));
   check('with the memo under it', html.includes('Rent, half of it'));
+}
+
+console.log('the direction the money travels (#486):');
+{
+  /* A claim with NO memo, because the memo replaces this line when the customer wrote one. */
+  const bare = renderToStaticMarkup(
+    createElement(ClaimRow, {
+      claim: { ...claim('open'), memo: '' },
+      withdrawing: false,
+      onWithdraw: () => undefined,
+    })
+  );
+
+  check('a claim names the name it pays TO', bare.includes('To @akinyi'), bare.slice(0, 160));
+  check('and never claims the money comes FROM it', !bare.includes('From @akinyi'));
+  check(
+    'the word comes from the copy file, not a component',
+    readFileSync(new URL('../components/activity/Claims.constants.ts', import.meta.url), 'utf8').includes('`To @${handle}`')
+  );
+}
+
+console.log('no sentence promises a single payment while #449 is open:');
+{
+  const copy = readFileSync(
+    new URL('../components/activity/Claims.constants.ts', import.meta.url),
+    'utf8'
+  ).toLowerCase();
+
+  for (const phrase of ['one payment', 'only once', 'paid so far', 'settles it']) {
+    check(`no "${phrase}"`, !copy.includes(phrase));
+  }
 }
 
 console.log(`\n${passed} assertions passed.`);

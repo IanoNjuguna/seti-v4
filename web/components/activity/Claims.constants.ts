@@ -7,8 +7,15 @@
  */
 export const CLAIMS_COPY = {
   title: 'Claims you sent',
-  /** Under each row: what the claim was for, or who it is owed from. */
-  to: (handle: string): string => `From @${handle}`,
+  /**
+   * Under each row, when the customer wrote no memo: the name the money LANDS with.
+   *
+   * `To`, not `From`. `destinationHandle` is the asker's own handle — the account a payer's send
+   * pays into — which is the direction #473 enforced at creation and the sentence the claim card
+   * prints ("KES 500.00 to @ian, once it is paid", #477). `From` read as money arriving from your
+   * own name (#486).
+   */
+  to: (handle: string): string => `To @${handle}`,
   empty: 'No claims yet. A claim is a link with an amount in it.',
   withdraw: 'Withdraw',
   withdrawing: 'Withdrawing',
