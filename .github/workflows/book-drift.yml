@@ -32,32 +32,52 @@ env:
   # READS that book through a public RPC. It needs no wallet and no secret, and
   # it writes nothing.
   TEMPO_CHAIN_ID: '4217'
+  # The four below are supplied because `config/env.ts` validates its whole schema
+  # at import, and `services/chain.ts` imports `config/networks.ts`, which imports
+  # that module. Every one of them is INERT in this job:
+  #
+  #   DATABASE_URL       never connected to. Report mode issues no query, and it is
+  #                      measured to exit 0 with this pointed at a dead host.
+  #   JWT_SECRET         never verified against. No session or token is read here,
+  #                      so the value cannot authenticate anything. It still must
+  #                      not be the example placeholder, which production refuses.
+  #   TEMPO_TOKEN_*      public mainnet addresses, the same two the config table
+  #                      already falls back to for chain 4217.
+  #
+  # #472 removed one of these (`SETI_TREASURY_ADDRESS`) by making it lazy, because a
+  # fee address has no business being required to read a book. These four are here
+  # rather than made lazy because `JWT_SECRET` derives the key `lib/secret-box.ts`
+  # uses, and a serving deployment without it is not a state worth creating for a
+  # nightly report. #480 records the better shape: an entrypoint that imports
+  # neither module.
+  DATABASE_URL: 'postgresql://report:report@127.0.0.1:1/report?connect_timeout=1'
+  JWT_SECRET: 'report-mode-reads-a-book-and-never-verifies-a-session'
+  TEMPO_TOKEN_PATHUSD: '0x20c0000000000000000000000000000000000000'
+  TEMPO_TOKEN_OUSD: '0x20c0000000000000000000006a37da5c996874be'
+  # The opt-in itself. `resolveServedNetwork` refuses chain 4217 without it, and that
+  # refusal is correct: it is what stops a practice deployment quietly reading live
+  # money. This job READS mainnet on purpose, so it says so. The comment below used to
+  # claim the opt-in "is not in the way of a read today"; it is, and the run named it.
+  ALLOW_MAINNET: 'true'
 
-# Why no token addresses here, unlike verify.yml
-# ---------------------------------------------
-# `verify.yml` pins TEMPO_TOKEN_PATHUSD / TEMPO_TOKEN_OUSD to PRACTICE
-# addresses. Reusing them would be exactly wrong: this report reads the MAINNET
-# book, and an address belongs to a CHAIN. So neither variable is set, and the
-# mainnet token addresses come from the config defaults in
-# `backend/src/config/assets.ts`, the one table of per-chain addresses taken
-# from Tempo's own registry (`https://tokenlist.tempo.xyz/list/4217`). That file
-# states every entry was read from those lists but carries no read date of its
-# own; the earliest dated attestation of the mainnet set is the par-band
-# measurement of 2026-10-23 in `backend/src/services/convert.check.ts`.
+# Why the mainnet addresses, and not verify.yml's
+# -----------------------------------------------
+# `verify.yml` pins TEMPO_TOKEN_PATHUSD / TEMPO_TOKEN_OUSD to PRACTICE addresses.
+# Reusing them here would be exactly wrong: this report reads the MAINNET book, and
+# an address belongs to a CHAIN. The two above are the mainnet registry addresses,
+# the same ones `backend/src/config/assets.ts` falls back to (taken from
+# `https://tokenlist.tempo.xyz/list/4217`). The earliest dated attestation of that
+# set is the par-band measurement in `backend/src/services/convert.check.ts`.
 #
-# Why no DATABASE_URL either: a book is read from the DEX precompile, not from
-# Postgres. MEASURED 2026-11-03: with only NODE_ENV, TEMPO_CHAIN_ID and
-# CONVERT_BOOK_REPORT in the environment (no DATABASE_URL, no JWT_SECRET, no
-# token variables, no ALLOW_MAINNET) report mode printed `network: mainnet (4217)`
-# and every direction, and exited 0; it also exits 0 with DATABASE_URL pointed at
-# a dead host, which is what proves no Prisma call. `backend/src/config/env.ts`
-# requires DATABASE_URL, JWT_SECRET and both token variables and validates them at
-# import, so report mode reaches the book without loading it, and the
-# ALLOW_MAINNET opt-in that guards network selection in
-# `backend/src/config/networks.ts` is not in the way of a read today. If a future
-# change puts either module back on this path, the run fails loudly and names the
-# missing variable rather than closing an issue on a book nobody read: that fix
-# belongs in the suite, not in this file.
+# The comment that used to sit here claimed report mode "reaches the book without
+# loading config/env.ts". That was false, and it is what made two previous attempts
+# at this workflow look sound while every run failed at startup. `services/chain.ts`
+# imports `config/networks.ts`, which imports `config/env.ts`, which validates its
+# whole schema at import. Report mode does not escape it. The variables above are
+# supplied because of that, and each is inert (see the note at the top).
+#
+# Prefer the better shape: #480 records an entrypoint that imports neither module,
+# so this file can stop carrying values it does not use.
 
 jobs:
   report:
@@ -84,6 +104,12 @@ jobs:
         working-directory: backend
         run: |
           set -uo pipefail
+          # `set +e`, because GitHub runs every `run:` block as `bash -e`. Without it a
+          # failing pipeline aborts the step before the status is captured and before
+          # the `exit 0` below, so the step is marked failed and the issue step after it
+          # is SKIPPED. That is the state this workflow has been in since it was added:
+          # a red run and no issue, when opening one issue is the entire point (#480).
+          set +e
           CONVERT_BOOK_REPORT=1 TEMPO_CHAIN_ID=4217 \
             npx tsx src/services/convert.check.ts 2>&1 | tee "$RUNNER_TEMP/book-report.txt"
           echo "${PIPESTATUS[0]}" > "$RUNNER_TEMP/book-status.txt"
