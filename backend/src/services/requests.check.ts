@@ -71,7 +71,7 @@ async function main() {
     }),
   ]);
 
-  const [destinationHandle, ownHandle] = await Promise.all([
+  const [otherHandle, ownHandle] = await Promise.all([
     prisma.handle.create({
       data: {
         handle: `${RUN}-ian`,
@@ -153,25 +153,41 @@ async function main() {
       (await prisma.paymentRequest.count({ where: { creatorId: asker.id } })) === 0
     );
 
+    /*
+     * THE DIRECTION, asserted by name (#455). An ask is "I am asking you for money and it comes to me",
+     * so the creator's OWN handle is the only valid destination. The shipped predicate was inverted
+     * while this suite asserted the inversion, so this line exists to make the next inversion a named
+     * failure rather than an unusable feature.
+     */
     const created = await createRequest({
       creatorId: asker.id,
-      destinationHandle: destinationHandle.handle,
+      destinationHandle: ownHandle.handle,
       amount: '500.00',
       memo: 'lunch',
+    }).catch((error: unknown) => {
+      console.log(`  the create was refused: ${error instanceof Error ? error.message : String(error)}`);
+      return null;
     });
 
-    check('the ask carries the handle it named', created.destinationHandle === destinationHandle.handle);
+    check('an ask on the requester\'s own handle is accepted', created !== null);
+    if (!created) {
+      // Every assertion below reads that row, so an inversion stops here with its name in the log.
+      console.log('cannot go on without the normal case');
+      process.exit(1);
+    }
+
+    check('the ask carries the handle it named', created.destinationHandle === ownHandle.handle);
     check(
       'and the address the handle had at creation',
-      created.destinationAddress === destinationHandle.address.toLowerCase()
+      created.destinationAddress === ownHandle.address.toLowerCase()
     );
     check('it is open', created.status === 'open');
     check('its public id is opaque and unguessable', /^[0-9a-f]{18}$/.test(created.publicId));
 
     check(
-      'asking yourself is refused',
+      'a handle somebody else owns is refused, because that is a charge',
       (await refusalOf(() =>
-        createRequest({ creatorId: asker.id, destinationHandle: ownHandle.handle, amount: '10.00' })
+        createRequest({ creatorId: asker.id, destinationHandle: otherHandle.handle, amount: '10.00' })
       )) === 'destination-not-yours'
     );
   }
@@ -188,7 +204,7 @@ async function main() {
   {
     const request = await createRequest({
       creatorId: asker.id,
-      destinationHandle: destinationHandle.handle,
+      destinationHandle: ownHandle.handle,
       amount: '250.00',
     });
 
@@ -220,7 +236,7 @@ async function main() {
     // The same payment claimed by a different ask: refused by the unique index, not by the status guard.
     const other = await createRequest({
       creatorId: asker.id,
-      destinationHandle: destinationHandle.handle,
+      destinationHandle: ownHandle.handle,
       amount: '250.00',
     });
     const reused = await refusalOf(() =>
@@ -247,7 +263,7 @@ async function main() {
      */
     const short = await createRequest({
       creatorId: asker.id,
-      destinationHandle: destinationHandle.handle,
+      destinationHandle: ownHandle.handle,
       amount: '250.00',
     });
     const shortPayment = await paid('249.99');
@@ -265,7 +281,7 @@ async function main() {
 
     const over = await createRequest({
       creatorId: asker.id,
-      destinationHandle: destinationHandle.handle,
+      destinationHandle: ownHandle.handle,
       amount: '250.00',
     });
     const overPayment = await paid('250.01');
@@ -326,7 +342,7 @@ async function main() {
   {
     const cancelled = await createRequest({
       creatorId: asker.id,
-      destinationHandle: destinationHandle.handle,
+      destinationHandle: ownHandle.handle,
       amount: '90.00',
     });
     await cancelRequest(cancelled.publicId, asker.id);
@@ -340,7 +356,7 @@ async function main() {
 
     const settled = await createRequest({
       creatorId: asker.id,
-      destinationHandle: destinationHandle.handle,
+      destinationHandle: ownHandle.handle,
       amount: '70.00',
     });
     await settleRequest({ publicId: settled.publicId, transactionId: (await paid('70.00')).id });
@@ -359,7 +375,7 @@ async function main() {
   {
     const defaulted = await createRequest({
       creatorId: asker.id,
-      destinationHandle: destinationHandle.handle,
+      destinationHandle: ownHandle.handle,
       amount: '60.00',
     });
     const row = await prisma.paymentRequest.findUnique({
@@ -373,7 +389,7 @@ async function main() {
 
     const forever = await createRequest({
       creatorId: asker.id,
-      destinationHandle: destinationHandle.handle,
+      destinationHandle: ownHandle.handle,
       amount: '60.00',
       expiresAt: null,
     });
@@ -389,7 +405,7 @@ async function main() {
       (await refusalOf(() =>
         createRequest({
           creatorId: asker.id,
-          destinationHandle: destinationHandle.handle,
+          destinationHandle: ownHandle.handle,
           amount: '40.00',
           expiresAt: new Date(Date.now() - 60_000),
         })
@@ -400,7 +416,7 @@ async function main() {
       (await refusalOf(() =>
         createRequest({
           creatorId: asker.id,
-          destinationHandle: destinationHandle.handle,
+          destinationHandle: ownHandle.handle,
           amount: '40.00',
           expiresAt: new Date('3000-01-01T00:00:00Z'),
         })
@@ -411,7 +427,7 @@ async function main() {
       (await refusalOf(() =>
         createRequest({
           creatorId: asker.id,
-          destinationHandle: destinationHandle.handle,
+          destinationHandle: ownHandle.handle,
           amount: '40.00',
           expiresAt: new Date('nonsense'),
         })
@@ -420,7 +436,7 @@ async function main() {
 
     const created = await createRequest({
       creatorId: asker.id,
-      destinationHandle: destinationHandle.handle,
+      destinationHandle: ownHandle.handle,
       amount: '40.00',
       expiresAt: new Date(Date.now() + 60 * 60 * 1000),
     });
@@ -449,7 +465,7 @@ async function main() {
     // In time, and one second from lapsing: the guard is the database's clock, so this still settles.
     const nearly = await createRequest({
       creatorId: asker.id,
-      destinationHandle: destinationHandle.handle,
+      destinationHandle: ownHandle.handle,
       amount: '30.00',
       expiresAt: new Date(Date.now() + 60_000),
     });
@@ -462,7 +478,7 @@ async function main() {
 
     const noExpiry = await createRequest({
       creatorId: asker.id,
-      destinationHandle: destinationHandle.handle,
+      destinationHandle: ownHandle.handle,
       amount: '20.00',
       expiresAt: null,
     });
@@ -487,7 +503,7 @@ async function main() {
      */
     const recoverable = await createRequest({
       creatorId: asker.id,
-      destinationHandle: destinationHandle.handle,
+      destinationHandle: ownHandle.handle,
       amount: '100.00',
     });
     await paid('100.00', { claimPublicId: recoverable.publicId });
@@ -505,7 +521,7 @@ async function main() {
 
     const short = await createRequest({
       creatorId: asker.id,
-      destinationHandle: destinationHandle.handle,
+      destinationHandle: ownHandle.handle,
       amount: '100.00',
     });
     await paid('99.00', { claimPublicId: short.publicId });
@@ -523,7 +539,7 @@ async function main() {
 
     const unfinished = await createRequest({
       creatorId: asker.id,
-      destinationHandle: destinationHandle.handle,
+      destinationHandle: ownHandle.handle,
       amount: '100.00',
     });
     await paid('100.00', { claimPublicId: unfinished.publicId, status: 'pending' });
@@ -554,7 +570,7 @@ async function main() {
     check('one ask is still open', Boolean(open));
 
     const publicView = open ? await readPublicRequest(open.publicId) : null;
-    check('a link resolves without an account', publicView?.destinationHandle === destinationHandle.handle);
+    check('a link resolves without an account', publicView?.destinationHandle === ownHandle.handle);
     check(
       'and carries only what a payer needs',
       publicView !== null &&

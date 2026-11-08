@@ -240,8 +240,13 @@ export async function createRequest(input: CreateRequestInput): Promise<CreatedR
   const handle = await findHandleByHandle(input.destinationHandle);
   if (!handle) throw new PaymentRequestError('destination-not-found');
 
-  // Asking yourself is not a request; it is a mis-tap that would sit in your Activity for ever.
-  if (handle.userId === input.creatorId) throw new PaymentRequestError('destination-not-yours');
+  /*
+   * An ask is "I am asking you for money and it comes to me", so the destination must be the creator's
+   * OWN handle. A handle somebody else owns is a CHARGE, which is a different object with a signature
+   * and a token amount; accepting it here would move money into an account the asker does not control
+   * (#455).
+   */
+  if (handle.userId !== input.creatorId) throw new PaymentRequestError('destination-not-yours');
 
   const row = await prisma.paymentRequest.create({
     data: {
