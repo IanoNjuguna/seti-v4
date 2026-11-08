@@ -27,6 +27,7 @@ import {
   cancelRequest,
   createRequest,
   isValidRequestAmount,
+  defaultExpiryFrom,
   listRequests,
   PaymentRequestError,
   readPublicRequest,
@@ -223,13 +224,137 @@ async function main() {
     );
   }
 
+  console.log('\nexpiry is a fact on the row, and a guard on the settle (#449):');
+  {
+    const defaulted = await createRequest({
+      creatorId: asker.id,
+      payeeHandle: payeeHandle.handle,
+      amount: '60.00',
+    });
+    const row = await prisma.paymentRequest.findUnique({
+      where: { publicId: defaulted.publicId },
+      select: { expiresAt: true },
+    });
+    const days = row?.expiresAt
+      ? (row.expiresAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000)
+      : -1;
+    check('an ask created without an expiry gets the 30-day default', days > 29 && days <= 30, String(days));
+
+    const forever = await createRequest({
+      creatorId: asker.id,
+      payeeHandle: payeeHandle.handle,
+      amount: '60.00',
+      expiresAt: null,
+    });
+    check(
+      'and an explicit null means no expiry at all, which is a tip jar',
+      (await prisma.paymentRequest.findUnique({ where: { publicId: forever.publicId } }))
+        ?.expiresAt === null
+    );
+
+    // A past expiry is refused at creation, so time is simulated by moving a valid row's clock back.
+    check(
+      'a past expiry is refused at creation',
+      (await refusalOf(() =>
+        createRequest({
+          creatorId: asker.id,
+          payeeHandle: payeeHandle.handle,
+          amount: '40.00',
+          expiresAt: new Date(Date.now() - 60_000),
+        })
+      )) === 'expiry-invalid'
+    );
+    check(
+      'and so is one beyond the horizon, where "never" is the honest ask',
+      (await refusalOf(() =>
+        createRequest({
+          creatorId: asker.id,
+          payeeHandle: payeeHandle.handle,
+          amount: '40.00',
+          expiresAt: new Date('3000-01-01T00:00:00Z'),
+        })
+      )) === 'expiry-invalid'
+    );
+    check(
+      'an unreadable instant is refused rather than stored',
+      (await refusalOf(() =>
+        createRequest({
+          creatorId: asker.id,
+          payeeHandle: payeeHandle.handle,
+          amount: '40.00',
+          expiresAt: new Date('nonsense'),
+        })
+      )) === 'expiry-invalid'
+    );
+
+    const created = await createRequest({
+      creatorId: asker.id,
+      payeeHandle: payeeHandle.handle,
+      amount: '40.00',
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
+    // Time passes: the row is open, and its instant is behind us.
+    await prisma.paymentRequest.update({
+      where: { publicId: created.publicId },
+      data: { expiresAt: new Date(Date.now() - 60_000) },
+    });
+    const lapsed = created;
+    check(
+      'settling a lapsed ask is refused as expired, not as paid',
+      (await refusalOf(() =>
+        settleRequest({ publicId: lapsed.publicId, transactionId: `${RUN}_tx5`, txHash: '0x3' })
+      )) === 'expired'
+    );
+    check(
+      'and the lapsed ask is still open in the database, because expiry is derived, not swept',
+      (await prisma.paymentRequest.findUnique({ where: { publicId: lapsed.publicId } }))?.status ===
+        'open'
+    );
+
+    const lapsedView = await readPublicRequest(lapsed.publicId);
+    check('the payer\'s page reads it as expired', lapsedView?.status === 'expired', String(lapsedView?.status));
+
+    // In time, and one second from lapsing: the guard is the database's clock, so this still settles.
+    const nearly = await createRequest({
+      creatorId: asker.id,
+      payeeHandle: payeeHandle.handle,
+      amount: '30.00',
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    await settleRequest({ publicId: nearly.publicId, transactionId: `${RUN}_tx6`, txHash: '0x4' });
+    check(
+      'an ask inside its window still settles',
+      (await prisma.paymentRequest.findUnique({ where: { publicId: nearly.publicId } }))?.status ===
+        'settled'
+    );
+
+    const noExpiry = await createRequest({
+      creatorId: asker.id,
+      payeeHandle: payeeHandle.handle,
+      amount: '20.00',
+      expiresAt: null,
+    });
+    await settleRequest({ publicId: noExpiry.publicId, transactionId: `${RUN}_tx7`, txHash: '0x5' });
+    check(
+      'and an ask with no expiry settles at any age',
+      (await prisma.paymentRequest.findUnique({ where: { publicId: noExpiry.publicId } }))?.status ===
+        'settled'
+    );
+
+    check(
+      'the default window is 30 days',
+      Math.round((defaultExpiryFrom().getTime() - Date.now()) / (24 * 60 * 60 * 1000)) === 30
+    );
+  }
+
   console.log('\nthe three reads agree, and one account never sees another\'s asks:');
   {
     const mine = await listRequests(asker.id);
     const theirs = await listRequests(payee.id);
 
-    // 500 (open), 250 (settled), 250 (open, refused reuse), 90 (cancelled), 70 (settled).
-    check('the author lists their asks', mine.length === 5, String(mine.length));
+    // 500 open, 250 settled, 250 open, 90 cancelled, 70 settled, then the expiry block's
+    // 60 defaulted, 60 no-expiry, 40 lapsed, 30 settled, 20 settled.
+    check('the author lists their asks', mine.length === 10, String(mine.length));
     check('and the payee lists none of them', theirs.length === 0, String(theirs.length));
     check(
       'the newest is first',
@@ -245,7 +370,7 @@ async function main() {
       'and carries only what a payer needs',
       publicView !== null &&
         Object.keys(publicView).sort().join(',') ===
-          'amount,currency,memo,payeeAddress,payeeHandle,publicId,status',
+          'amount,currency,expiresAt,memo,payeeAddress,payeeHandle,publicId,status',
       publicView ? Object.keys(publicView).sort().join(',') : 'null'
     );
     check('an unknown id resolves to nothing', (await readPublicRequest('nope')) === null);

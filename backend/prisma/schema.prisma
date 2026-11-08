@@ -905,8 +905,12 @@ enum ChargeStatus {
   expired
 }
 
-/// The lifecycle of a request. Three states and no more: an ask is open, it is paid, or somebody
-/// withdrew it. `expired` is deliberately absent in v1 (#98 non-goals).
+/// The lifecycle of a request: open, taken by a payment, or withdrawn (#449).
+///
+/// There is deliberately NO `expired` value. v1 has no writer that could produce one — a request is
+/// expired by the CLOCK, not by a job, and nothing sweeps — and an enum value nothing can write is
+/// dead schema. Lapse is a predicate (`isRequestExpired`) plus a SQL guard, and it renders as
+/// `expired` on the surfaces; if a sweep ever lands, the value lands with it.
 enum PaymentRequestStatus {
   open
   settled
