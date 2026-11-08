@@ -24,6 +24,7 @@ import { quoteArrived } from '@/lib/feedback';
 import { useEmbeddedWallet } from '@/hooks/useEmbeddedWallet';
 import { useSpendAssetRows } from '@/hooks/useSpendAssetRows';
 import { useTempoSender } from '@/hooks/useTempoSender';
+import type { ClaimSeed } from '@/lib/api/requests';
 import type { ResolvedRecipient, SendPanelState, UseSendPanelReturn } from './SendPanel.types';
 
 /**
@@ -153,8 +154,17 @@ function destinationFor(
  * person already chosen (`/app/send?to=<handle>`): it is the same string a typed
  * handle would be, handed to the same resolver.
  */
-export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
-  const [state, setState] = useState<SendPanelState>({ ...INITIAL, recipient: initialRecipient });
+export function useSendPanel(initialRecipient = '', claim?: ClaimSeed | null): UseSendPanelReturn {
+  /*
+   * The claim's figure is seeded into the INITIAL state rather than written by an effect: an effect
+   * would be a second render and, in this app, a lint error for good reason. The payee and the amount
+   * therefore arrive together, which is what the record says they are — one claim, one figure.
+   */
+  const [state, setState] = useState<SendPanelState>(() => ({
+    ...INITIAL,
+    recipient: initialRecipient,
+    amountFiat: claim?.amount ?? INITIAL.amountFiat,
+  }));
   /**
    * The account whose balances can pay. Read here rather than handed in, because
    * this hook is only ever mounted behind `SendPanel`'s session gate and the balance
@@ -353,7 +363,7 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
       active = false;
       clearTimeout(timer);
     };
-  }, [state.recipient, state.amountFiat, state.asset, address, resolved, patch, offerFor]);
+  }, [state.recipient, state.amountFiat, state.asset, address, resolved, patch, offerFor, claim?.publicId]);
 
   const submit = useCallback(() => {
     const value = validateAmount(state.amountFiat, AMOUNT_DECIMALS);
@@ -463,6 +473,9 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
             txHash,
             walletAddress: address,
             quoteId,
+            // The claim this payment closes, when the customer arrived through its link (#447). A
+            // link, not an authority: the receipt still decides who was paid and how much.
+            claimPublicId: claim?.publicId,
           });
 
         try {
@@ -532,6 +545,7 @@ export function useSendPanel(initialRecipient = ''): UseSendPanelReturn {
     appNetwork,
     patch,
     offerFor,
+    claim?.publicId,
   ]);
 
   const reset = useCallback(() => setState(INITIAL), []);

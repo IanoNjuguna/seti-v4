@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError } from '@/lib/api/client';
 import { fetchAccountIdentity } from '@/lib/api/account';
-import { askLink, createAsk, type CreatedAsk } from '@/lib/api/requests';
+import { claimLink, createAsk, type CreatedAsk } from '@/lib/api/requests';
 import { useSession } from '@/lib/auth';
 import { ASK_COPY, ASK_DEFAULT_EXPIRY_DAYS, ASK_REFUSALS } from './ask.constants';
 import type { AskDraft, AskPayee, AskPhase, UseAskReturn } from './ask.types';
@@ -89,7 +89,7 @@ export function useAsk(): UseAskReturn {
     })
       .then((answer) => {
         setCreated(answer.request);
-        setLink(askLink(answer.request.publicId, window.location.origin));
+        setLink(claimLink(answer.request.publicId, window.location.origin));
       })
       .catch((cause: unknown) => {
         const code = cause instanceof ApiError ? cause.code : undefined;

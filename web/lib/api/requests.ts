@@ -63,8 +63,14 @@ export function createAsk(input: {
   return post<{ request: CreatedAsk }>('/requests', input);
 }
 
-export function listAsks(userId: string): Promise<{ requests: AskSummary[] }> {
-  return get<{ requests: AskSummary[] }>(`/users/${userId}/requests`);
+/**
+ * The caller's own asks, newest first.
+ *
+ * No user id in the path: the session decides whose asks these are, and a path that names a user is a
+ * path that invites somebody to name a different one.
+ */
+export function listAsks(): Promise<{ requests: AskSummary[] }> {
+  return get<{ requests: AskSummary[] }>('/requests');
 }
 
 export function cancelAsk(publicId: string): Promise<void> {
@@ -76,7 +82,26 @@ export function readAsk(publicId: string): Promise<{ request: CreatedAsk }> {
   return get<{ request: CreatedAsk }>(`/public/requests/${publicId}`);
 }
 
-/** `/app/pay?ask=<publicId>` — the link an ask is shared as. */
-export function askLink(publicId: string, origin: string): string {
-  return `${origin}/app/pay?ask=${encodeURIComponent(publicId)}`;
+/**
+ * What a claim link carries, once the server has answered.
+ *
+ * The AMOUNT is here because the server put it there: `/app/send?claim=<id>` carries an opaque id and
+ * nothing else, and this object is the record read back. That is the whole reason a claim may seed an
+ * amount while `?amount=` never can (#99): a figure in a URL is a figure nobody chose, and a figure on
+ * a stored claim is one the person being paid wrote down.
+ */
+export interface ClaimSeed {
+  publicId: string;
+  amount: string;
+  /** The name the payer sees, and the payee the send resolves. */
+  destinationHandle: string;
+}
+
+/**
+ * `/app/send?claim=<publicId>` — the link a claim is shared as.
+ *
+ * A SEND, not a pay: paying a merchant and paying a person are one flow, and an ask is a person.
+ */
+export function claimLink(publicId: string, origin: string): string {
+  return `${origin}/app/send?claim=${encodeURIComponent(publicId)}`;
 }

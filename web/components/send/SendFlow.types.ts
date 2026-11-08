@@ -1,10 +1,13 @@
 import type { UsePayMerchantReturn } from '@/hooks/usePayMerchant.types';
+import type { ClaimSeed } from '@/lib/api/requests';
 import type { RecipientKind } from './RecipientStep';
 import type { ResolvedRecipient } from './useResolvedRecipient';
 
 export interface SendFlowProps {
   /** The recipient named by the URL (`?to=` / `?handle=`), if the link had one. */
   linked: string | null;
+  /** The claim the link named, already resolved to a payee and a figure (#465). */
+  claim: ClaimSeed | null;
 }
 
 /** What the flow is handed: the link's own seed, and nothing else. */

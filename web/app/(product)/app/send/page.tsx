@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { SendLoading } from '@/components/send/SendLoading';
 import { SendScreen } from '@/components/send/SendScreen';
+import { useClaimSeed } from '@/components/send/useClaimSeed';
 import { sendSeed } from '@/components/send/sendSeed';
 
 /**
@@ -44,7 +45,15 @@ export default function SendPage() {
  */
 function SendFromUrl() {
   const params = useSearchParams();
-  const { linked } = sendSeed(params);
+  const { linked, claim } = sendSeed(params);
+  const claimSeed = useClaimSeed(claim);
 
-  return <SendScreen linked={linked} />;
+  if (claimSeed.loading) return <SendLoading />;
+
+  /**
+   * A claim names both the payee and the figure, and the figure is the ONLY thing a URL is not
+   * allowed to seed — which is why it arrives here resolved from the record rather than from the
+   * query (#99, #465).
+   */
+  return <SendScreen linked={claimSeed.seed?.destinationHandle ?? linked} claim={claimSeed.seed} />;
 }
