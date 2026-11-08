@@ -3,6 +3,8 @@ import { prisma } from '../lib/prisma.js';
 
 export type AuditAction =
   | 'user.login'
+  | 'request.created'
+  | 'request.cancelled'
   | 'request.settle.deferred'
   | 'user.logout'
   | 'wallet.reveal'

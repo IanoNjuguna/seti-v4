@@ -20,6 +20,8 @@ import { publicPayeeRoutes } from './routes/public-payees.js';
 import { transactionRoutes } from './routes/transactions.js';
 import { receiptRoutes } from './routes/receipts.js';
 import { publicChargeRoutes } from './routes/public-charges.js';
+import { publicRequestRoutes } from './routes/public-requests.js';
+import { requestRoutes } from './routes/requests.js';
 import { arrivalRoutes } from './routes/arrivals.js';
 import { referralRoutes } from './routes/referrals.js';
 import { merchantAppRoutes } from './routes/merchant-apps.js';
@@ -245,6 +247,9 @@ export async function buildServer(options: BuildServerOptions = {}) {
   // credential, and a file with no session hook cannot leak one by accident (the same
   // rule `public-handles.ts` follows).
   await app.register(publicChargeRoutes, { prefix: '/public/charges' });
+  // Requests for money (#447): the payer's read is public, everything else is the caller's own.
+  await app.register(publicRequestRoutes, { prefix: '/public/requests' });
+  await app.register(requestRoutes, { prefix: '/requests' });
 
   // Invites. One public route (the code a `seti.live/i/<handle>` link hands out,
   // which a signed-out visitor must be able to get) and one behind the session

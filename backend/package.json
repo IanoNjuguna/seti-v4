@@ -61,7 +61,8 @@
     "check:charge-tools": "tsx src/services/charge-tools.check.ts",
     "check:convert-pairs": "DEV_BYPASS_AUTH=true tsx src/services/convert-pairs.check.ts",
     "check:activity-labels": "tsx src/services/activity-labels.check.ts",
-    "check:requests": "tsx src/services/requests.check.ts"
+    "check:requests": "tsx src/services/requests.check.ts",
+    "check:requests-api": "DEV_BYPASS_AUTH=true tsx src/services/requests-api.check.ts"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.0",
