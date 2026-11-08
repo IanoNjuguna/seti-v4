@@ -6,11 +6,11 @@ import type { QrModuleMatrix } from './qr.types';
  * The payload as a square matrix of dark/light modules — the whole of QR inside the
  * app, through one import.
  *
- * `react-qr-code` still draws the landing hero's code (`components/merchant/qr-code.ts`
- * is its one typed boundary), but it cannot style per module: it emits one hard-edged
- * `<path>` for every dark module, so a rounded module or a rounded finder is not
- * reachable through it. This app now needs both, so the geometry is ours and this is
- * the encoder underneath it.
+ * Everything that draws a code now goes through this: the landing hero, the public pay page, both
+ * receive halves, the receipt and the claim sticker (#433). `react-qr-code` cannot style per module,
+ * because it emits one hard-edged `<path>` for every dark module, so a rounded module, a rounded
+ * finder or a reserved centre behind a mark is not reachable through it. The geometry is ours, and
+ * this is the encoder underneath it.
  *
  * Version `0` means "smallest that fits", so the module count follows the payload:
  * 29 modules for `https://seti.live/u/ian`, 33 for a business link, 41 for an
