@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useState } from 'react';
 import { Skeleton, TabPanel, Tabs } from '@/components/ui';
 import { ActivityAnalytics } from '@/components/activity/ActivityAnalytics';
+import { ActivityClaims } from '@/components/activity/ActivityClaims';
 import { ActivityHeader } from '@/components/activity/ActivityHeader';
 import { ActivityList } from '@/components/activity/ActivityList';
 import { ActivitySignedOut } from '@/components/activity/ActivitySignedOut';
@@ -62,7 +63,15 @@ function ActivityViews() {
       />
 
       <TabPanel idPrefix={ACTIVITY_VIEW_ID_PREFIX} tabId="transactions" visible={view === 'transactions'}>
-        <ActivityList onSelect={setSelected} />
+        {/*
+          THE CLAIMS COME FIRST (#465). They are the one thing on this page that is not history:
+          a claim is money still owed, so it sits above the ledger the search field narrows and
+          never inside it. The band renders nothing of its own when there is nothing to wait on.
+        */}
+        <div className="flex flex-col gap-6">
+          <ActivityClaims />
+          <ActivityList onSelect={setSelected} />
+        </div>
       </TabPanel>
 
       <TabPanel idPrefix={ACTIVITY_VIEW_ID_PREFIX} tabId="analytics" visible={view === 'analytics'}>
