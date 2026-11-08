@@ -29,7 +29,7 @@ import { createElement } from 'react';
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { ReceiptCard } from '../components/receipt/ReceiptCard.tsx';
-import { RECEIPT_COPY } from '../components/receipt/Receipt.constants.ts';
+import { RECEIPT_COPY, RECEIPT_WORDMARK } from '../components/receipt/Receipt.constants.ts';
 import { buildReceiptText, deriveReceiptCard } from '../components/receipt/receipt.card.ts';
 import { assetName } from '../components/receipt/receipt.format.ts';
 import { TEMPO_ASSETS } from '../lib/chain/chain.assets.ts';
@@ -265,6 +265,72 @@ console.log('\nthe sheet scrolls under a bar that matches its card (#430):');
 
   const rail = readFileSync(new URL('../components/app/AppRail.tsx', import.meta.url), 'utf8');
   check('the rail, the app\'s other dark scroller, carries it too', rail.includes('data-scrollbar="dark"'));
+}
+
+console.log('\nthe document names no network unless the money is not real (#431):');
+{
+  const live = { ...documentOf('usdt0'), network: 'mainnet', networkLabel: 'Live' };
+  const liveText = buildReceiptText(live, 'KES');
+  const liveHtml = renderCard(live).html;
+
+  check(
+    'a live receipt prints no network label',
+    !/Network:/i.test(liveText) && !/Network:/i.test(liveHtml),
+    'the prefix survived'
+  );
+  check(
+    'and no `Live` word beside the amount',
+    !/\bLive\b/.test(liveText.replace(/Seti — Payment receipt/, '')),
+    liveText.split('\n').slice(0, 6).join(' | ')
+  );
+  check(
+    'the letterhead still identifies the issuer',
+    liveHtml.includes(RECEIPT_WORDMARK),
+    'wordmark missing'
+  );
+
+  const practice = documentOf('usdt0');
+  const practiceText = buildReceiptText(practice, 'KES');
+  check(
+    'a practice receipt says so in words, above the figures',
+    practiceText.includes(RECEIPT_COPY.practiceNote) &&
+      practiceText.indexOf(RECEIPT_COPY.practiceNote) < practiceText.indexOf('KES'),
+    practiceText.split('\n').slice(0, 5).join(' | ')
+  );
+  check(
+    'and still does not label the network',
+    !/Network:/i.test(practiceText)
+  );
+  check(
+    'the note names no token and no amount',
+    !/OUSD|USDC|USDT|pathUSD|KES/i.test(RECEIPT_COPY.practiceNote),
+    RECEIPT_COPY.practiceNote
+  );
+
+  const sheet = readFileSync(new URL('../components/receipt/ReceiptSheet.tsx', import.meta.url), 'utf8');
+  check(
+    'the strip is drawn for a practice receipt and only for one',
+    /const practice = card\?\.network === 'testnet'/.test(sheet) &&
+      /\{practice \? <ReceiptPracticeStrip \/> : null\}/.test(sheet),
+    'the condition changed'
+  );
+  check(
+    'and the close control steps under it rather than onto it',
+    /practice \? 'top-12' : 'top-4'/.test(sheet),
+    'the close control would sit on the marking'
+  );
+
+  const strip = readFileSync(new URL('../components/receipt/ReceiptPracticeStrip.tsx', import.meta.url), 'utf8');
+  check('the strip prints its note', strip.includes('RECEIPT_COPY.practiceNote'));
+  check(
+    'and is not hidden from print',
+    !/print:hidden/.test(strip),
+    'the marking would not print'
+  );
+  check(
+    'and it wears the warning fill with ink on it',
+    /bg-accent-warning/.test(strip) && /text-canvas-dark/.test(strip)
+  );
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
