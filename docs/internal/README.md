@@ -12,6 +12,7 @@ is built and what is unresolved — not how to integrate with it.
 | [Product requirements](./prd.md) | Scope, a per-area implementation status table, non-functional requirements, risks, resolved questions and what is still open |
 | [Fee routing](./fee-routing.md) | How the 2% merchant fee is meant to reach Seti's treasury: the options considered, the dead ends, and the current correction that batching is protocol-native |
 | [The analytics page's shape](./analytics-page.md) | The analytics tab as three bands: what each holds, the eight equal blocks it replaces, the two populations it used to braid, and what the page refuses |
+| [Signing without a key](./signing-without-a-key.md) | Why a bot with no key cannot mint a charge, the three candidates for letting it, and the one chosen: a merchant signs in a webview and the bot relays the link |
 
 ## The five facts these documents keep coming back to
 
