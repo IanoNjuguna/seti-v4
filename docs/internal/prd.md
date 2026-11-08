@@ -89,6 +89,7 @@ Status vocabulary: **Shipped** = in the tree, covered by a check or a live path;
 | Sending to a person (P2P) | Shipped: quoted, batched, recorded | `recordSend`, `previewSend`, `web/components/home/SendPanel.tsx` |
 | Gas estimation in the preview | Shipped: measured gas × live gas price, display only | `estimateNetworkFee` — the balance check still reserves a flat floor |
 | KYC / tiering | Not built | `profile.tsx` renders "Coming soon" |
+| A chat bot that collects payments | Decided, not built: the merchant signs in a webview and the bot relays the link | `docs/internal/signing-without-a-key.md` |
 | Fiat off-ramp (Stripe/Bridge) | Not built | schema fields only: `bankAccount`, `bridgeRecipientId` |
 | Receive side of a P2P send to another Seti user | Not built | the indexer skips wallet→wallet transfers, so the recipient sees no row |
 | Test runner | Does not exist | gates are `tsc` + `eslint` + `*.check.ts` |
