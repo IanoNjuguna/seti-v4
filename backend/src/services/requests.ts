@@ -417,6 +417,61 @@ export interface RequestSummary {
   settledTxHash: string | null;
 }
 
+/**
+ * Settle every open ask that a completed payment already names (#447).
+ *
+ * The gap this closes: `recordSend` writes the ledger row, then the settlement is attempted. A process
+ * that dies between the two leaves money moved and the ask `open`, with nothing to retry. This is the
+ * retry, and it is a sweep rather than a job: it is idempotent, it does nothing when there is nothing to
+ * do, and running it twice changes nothing.
+ *
+ * A row whose figures do not match is LEFT ALONE and reported. Reconciliation never widens a rule: if
+ * the payment is short or in another currency, the ask stays open and a human reads the count.
+ */
+export interface ReconcileResult {
+  settled: string[];
+  refused: Array<{ publicId: string; code: RequestRefusalCode }>;
+}
+
+export async function reconcileClaims(limit = 50): Promise<ReconcileResult> {
+  const open = await prisma.paymentRequest.findMany({
+    where: { status: 'open' },
+    select: { publicId: true },
+    take: limit,
+  });
+
+  const settled: string[] = [];
+  const refused: Array<{ publicId: string; code: RequestRefusalCode }> = [];
+
+  for (const ask of open) {
+    // The newest completed payment that names this ask and is not already spent on another one.
+    const payment = await prisma.transaction.findFirst({
+      where: { claimPublicId: ask.publicId, status: 'completed' },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+
+    if (!payment) continue;
+
+    try {
+      await settleRequest({ publicId: ask.publicId, transactionId: payment.id });
+      settled.push(ask.publicId);
+    } catch (error) {
+      if (error instanceof PaymentRequestError) {
+        // Already settled by the direct call in the request, or refused on the money. Either way the
+        // loop must not stop, and a refusal is reported rather than retried for ever.
+        if (error.code !== 'already-settled') {
+          refused.push({ publicId: ask.publicId, code: error.code });
+        }
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  return { settled, refused };
+}
+
 /** The asks one account made, newest first: the Activity rows (#98 AC4). */
 export async function listRequests(creatorId: string): Promise<RequestSummary[]> {
   const rows = await prisma.paymentRequest.findMany({

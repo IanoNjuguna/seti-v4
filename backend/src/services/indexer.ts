@@ -26,6 +26,7 @@ import { ARRIVAL_WATCH_LIMIT, type ObservedArrival } from './arrival.js';
 import { deliverDueWebhooks } from './charge-webhook.js';
 import { cursorKeyFor, type Network } from '../lib/network.js';
 import { logAuditEvent } from './audit.js';
+import { reconcileClaims } from './requests.js';
 import { getFxQuote, resolveUserFiat } from './payments.js';
 import { sweepStuckTransactions } from './stuck-transactions.js';
 import {
@@ -551,6 +552,24 @@ export async function indexOnce(chainKey: string = CHAIN_KEY): Promise<IndexPass
     }
 
     await advanceCursor(chainKey, scannedTo);
+
+    /*
+     * THE RETRY FOR AN ASK THAT WAS PAID BUT NOT CLOSED (#447).
+     *
+     * `recordSend` attempts the settle right after its ledger write; this pass is what finishes the job
+     * when that attempt never ran, because the process died between the two. It is idempotent and cheap
+     * when there is nothing to do, and a failure here must never cost the cursor advance above.
+     */
+    try {
+      const reconciled = await reconcileClaims();
+      if (reconciled.settled.length > 0 || reconciled.refused.length > 0) {
+        console.log(
+          `[sweep] requests settled=${reconciled.settled.length} refused=${reconciled.refused.length}`
+        );
+      }
+    } catch (error) {
+      logIndexerError('sweep', error);
+    }
 
     return {
       skipped: false,
