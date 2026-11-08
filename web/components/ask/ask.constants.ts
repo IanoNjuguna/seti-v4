@@ -31,7 +31,7 @@ export const ASK_COPY = {
   saving: 'Creating',
   /* The result. */
   resultTitle: 'Claim ready',
-  resultBody: (amount: string, name: string): string => `${amount} from ${name}, once it is paid.`,
+  resultBody: (amount: string, name: string): string => `${amount} to ${name}, once it is paid.`,
   copy: 'Copy link',
   copied: 'Copied',
   share: 'Share',
@@ -54,7 +54,7 @@ export const ASK_COPY = {
 export const ASK_REFUSALS: Record<string, string> = {
   'amount-invalid': 'Enter an amount above zero, with at most two decimals.',
   'destination-not-found': 'That name could not be found. Check it and try again.',
-  'destination-not-yours': 'You cannot ask yourself for money.',
+  'destination-not-yours': 'A claim is paid to your own name. Pick one of yours.',
   'expiry-invalid': 'Pick an expiry between one day and a year.',
   'currency-invalid': 'An ask has to be in KES.',
 };
