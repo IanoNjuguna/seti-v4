@@ -47,6 +47,7 @@ export function SendForm({
   focusAmount,
   onRecipientChange,
   onAmountChange,
+  amountLocked,
   onChooseAsset,
   onSubmit,
 }: SendFormProps) {
@@ -83,6 +84,7 @@ export function SendForm({
         busy={busy}
         focusAmount={focusAmount}
         onAmountChange={onAmountChange}
+        amountLocked={amountLocked}
         onChooseAsset={onChooseAsset}
       />
 
