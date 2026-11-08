@@ -93,6 +93,14 @@ export interface RecordSendInput {
   /** The rate quote from the preview the customer confirmed. See SendPreview. */
   quoteId?: string;
   description?: string;
+  /**
+   * The ask this payment is settling, when the customer arrived through a link (#447).
+   *
+   * A LINK, not an authority: the receipt still decides who was paid and how much, and the ask is
+   * closed against the ledger row's own figure. Carrying it is what lets the server settle the ask
+   * after the write instead of leaving it open forever.
+   */
+  claimPublicId?: string;
 }
 
 export interface RecordSendResult {
