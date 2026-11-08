@@ -11,6 +11,7 @@ import { SEND_REQUIRES_BATCH } from './payments.js';
 import { QuoteError, readQuote, type FrozenRate } from './quote.js';
 import { calculateMerchantFee, splitFeeInclusiveTotal } from './fees.js';
 import { logAuditEvent } from './audit.js';
+import { PaymentRequestError, settleRequest } from './requests.js';
 import {
   refusal,
   type ReceiptFailureCode,
@@ -127,6 +128,14 @@ interface RecordSendInput {
   quoteId?: string;
   description?: string;
   metadata?: Record<string, unknown>;
+  /**
+   * The ask this payment was made against, when the payer arrived through one (#447).
+   *
+   * Stored on the row so the settlement has a durable link, and attempted immediately after the ledger
+   * write. A failure here is logged and NOT thrown: the money has moved, and refusing to record a real
+   * payment because an ask could not be closed would be the worse fault. `reconcileClaims` is the retry.
+   */
+  claimPublicId?: string;
 }
 
 /**
@@ -1083,6 +1092,7 @@ export async function recordSend(input: RecordSendInput) {
       asset: input.asset,
       counterparty: recipient,
       txHash: input.txHash,
+      claimPublicId: input.claimPublicId ?? null,
       fiatAmount: principalFiat.toFixed(2),
       fiatCurrency: quote.fiatCurrency,
       feeAmount: feeFiat.toFixed(2),
@@ -1117,6 +1127,34 @@ export async function recordSend(input: RecordSendInput) {
   // `senderAddress` is the wallet that SIGNED, from the declaration the receipt was
   // checked against — not whichever wallet a lookup found. The recipient's row
   // names where the money actually came from.
+  /*
+   * THE SETTLE, immediately after the ledger write (#447).
+   *
+   * Both halves matter. Writing the row first means a real payment is never lost to a bookkeeping
+   * failure. Attempting the settle here means the ordinary path needs no sweep. And a refusal is logged
+   * rather than thrown, because the payment already happened: `reconcileClaims` retries, and a human
+   * reads the audit line if the figures disagree.
+   */
+  if (input.claimPublicId) {
+    try {
+      await settleRequest({
+        publicId: input.claimPublicId,
+        transactionId: transaction.id,
+      });
+    } catch (error) {
+      await logAuditEvent({
+        userId: input.userId,
+        action: 'request.settle.deferred',
+        txHash: input.txHash,
+        metadata: {
+          claimPublicId: input.claimPublicId,
+          transactionId: transaction.id,
+          code: error instanceof PaymentRequestError ? error.code : 'unexpected',
+        },
+      });
+    }
+  }
+
   await receivedSide({
     recipient,
     amountAsset: observedPrincipal,

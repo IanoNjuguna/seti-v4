@@ -26,6 +26,7 @@ import { prisma } from '../lib/prisma.js';
 import {
   cancelRequest,
   createRequest,
+  reconcileClaims,
   isValidRequestAmount,
   defaultExpiryFrom,
   listRequests,
@@ -112,7 +113,12 @@ async function main() {
   let paymentSerial = 0;
   const paid = async (
     amount: string,
-    options: { type?: string; status?: string; currency?: string | null } = {}
+    options: {
+      type?: string;
+      status?: string;
+      currency?: string | null;
+      claimPublicId?: string;
+    } = {}
   ) => {
     paymentSerial += 1;
     return prisma.transaction.create({
@@ -126,6 +132,7 @@ async function main() {
         asset: 'ousd',
         fiatAmount: amount,
         fiatCurrency: options.currency === null ? null : (options.currency ?? 'KES'),
+        claimPublicId: options.claimPublicId ?? null,
         txHash: `0x${randomUUID().replace(/-/g, '')}${paymentSerial}`,
       },
       select: { id: true, txHash: true },
@@ -472,6 +479,63 @@ async function main() {
     );
   }
 
+  console.log('\na payment that names an ask, and could not settle it, is finished by the sweep:');
+  {
+    /*
+     * The crash window: `recordSend` wrote the ledger row and the settle did not happen. The sweep is
+     * the retry, and it must settle exactly the payments that qualify and nothing else.
+     */
+    const recoverable = await createRequest({
+      creatorId: asker.id,
+      destinationHandle: destinationHandle.handle,
+      amount: '100.00',
+    });
+    await paid('100.00', { claimPublicId: recoverable.publicId });
+
+    const first = await reconcileClaims();
+    check('the sweep settles an ask its payment names', first.settled.includes(recoverable.publicId));
+    check(
+      'and the ask is settled',
+      (await prisma.paymentRequest.findUnique({ where: { publicId: recoverable.publicId } }))?.status ===
+        'settled'
+    );
+
+    const again = await reconcileClaims();
+    check('running it again changes nothing', again.settled.length === 0, String(again.settled.length));
+
+    const short = await createRequest({
+      creatorId: asker.id,
+      destinationHandle: destinationHandle.handle,
+      amount: '100.00',
+    });
+    await paid('99.00', { claimPublicId: short.publicId });
+    const sweep = await reconcileClaims();
+    check(
+      'a short payment is reported, never used to close the ask',
+      sweep.refused.some((row) => row.publicId === short.publicId && row.code === 'amount-short'),
+      JSON.stringify(sweep.refused)
+    );
+    check(
+      'and that ask stays open for a human',
+      (await prisma.paymentRequest.findUnique({ where: { publicId: short.publicId } }))?.status ===
+        'open'
+    );
+
+    const unfinished = await createRequest({
+      creatorId: asker.id,
+      destinationHandle: destinationHandle.handle,
+      amount: '100.00',
+    });
+    await paid('100.00', { claimPublicId: unfinished.publicId, status: 'pending' });
+    const pendingSweep = await reconcileClaims();
+    check(
+      'a pending payment settles nothing',
+      !pendingSweep.settled.includes(unfinished.publicId) &&
+        (await prisma.paymentRequest.findUnique({ where: { publicId: unfinished.publicId } }))
+          ?.status === 'open'
+    );
+  }
+
   console.log('\nthe three reads agree, and one account never sees another\'s asks:');
   {
     const mine = await listRequests(asker.id);
@@ -479,7 +543,7 @@ async function main() {
 
     // 500 open, 250 settled, 250 open, 90 cancelled, 70 settled, then the expiry block's
     // 60 defaulted, 60 no-expiry, 40 lapsed, 30 settled, 20 settled.
-    check('the author lists their asks', mine.length === 12, String(mine.length));
+    check('the author lists their asks', mine.length === 15, String(mine.length));
     check('and the other lists none of them', theirs.length === 0, String(theirs.length));
     check(
       'the newest is first',

@@ -523,6 +523,13 @@ model Transaction {
   fxRateAsOf    DateTime?
   merchantId    String?
   counterparty  String? // wallet address, phone, or merchant id
+  /// The ASK this payment was made against, when the payer arrived through one (#447).
+  ///
+  /// It exists so the settle has a durable link that survives a crash: after the ledger write, the
+  /// settlement is attempted; if the process dies first, this column is what a reconcile pass reads to
+  /// finish the job. It is NOT how the payment is verified (the receipt is), and it never decides who
+  /// was paid.
+  claimPublicId String?
   txHash        String? // on-chain transaction hash — unique PER USER, see below
   blockNumber   BigInt?
   description   String?
@@ -554,6 +561,9 @@ model Transaction {
   // second chain's row would collide with the first's — cross-contaminating two
   // ledgers that must never mix.
   @@unique([txHash, userId, network])
+  /// The reconcile: completed rows that name an ask.
+  @@index([claimPublicId, status])
+
   @@map("transactions")
 }
 
