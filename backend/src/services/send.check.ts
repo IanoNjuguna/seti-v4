@@ -595,6 +595,36 @@ async function main(): Promise<void> {
   );
   check('no row written for a malformed recipient', (await countRows()) === 0);
 
+  // A recipient that IS the treasury collapses the principal leg and the fee leg into
+  // one transfer: the principal would be read as the fee, and the row would say a fee
+  // was collected that the recipient received (#468). Refused before anything is
+  // verified, because no receipt can tell the two legs apart.
+  threw = false;
+  message = '';
+  let refusalCode = '';
+  try {
+    await recordOnAnchorNetwork({
+      userId: user.id,
+      amount: '1',
+      asset: anchor.asset,
+      recipient: treasuryAddressFor(ANCHOR_NETWORK),
+      txHash: `0x${'12'.repeat(32)}`,
+      quoteId: sendQuoteId,
+      walletAddress: signed,
+    });
+  } catch (error) {
+    threw = true;
+    message = error instanceof Error ? error.message : String(error);
+    refusalCode = (error as { code?: string }).code ?? '';
+  }
+  check('a recipient that is the treasury is refused', threw, message.slice(0, 70));
+  check(
+    'and the refusal carries its own code, so the app can say why',
+    refusalCode === 'treasury-is-payee',
+    refusalCode
+  );
+  check('no row written for a treasury recipient', (await countRows()) === 0);
+
   threw = false;
   message = '';
   try {

@@ -38,6 +38,15 @@ export type PaymentRefusalCode =
    * against. Fails closed rather than taking an unverified path.
    */
   | 'merchant-no-payout-address'
+  /**
+   * The address being paid IS Seti's treasury (#468).
+   *
+   * In batch mode the receipt is read for two legs: the principal to the payee and
+   * the fee to the treasury. When those are the same address, one transfer satisfies
+   * both and the books say a fee was collected that the merchant received. Neither
+   * leg is verifiable, so this fails closed rather than guessing which is which.
+   */
+  | 'treasury-is-payee'
   /** The claimed amount is not a positive finite number. */
   | 'amount-invalid'
   /** The receipt is not yet available (not mined, or a provider error). */

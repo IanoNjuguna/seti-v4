@@ -126,6 +126,8 @@ export const REFUSAL_BY_CODE: Record<string, string> = {
   'no-single-asset-covers':
     'Your money is in more than one balance, and a payment can only come from a single one. Pay a smaller amount, or add money to one balance.',
   'merchant-no-payout-address': 'This merchant has no payout address yet, so it cannot be paid.',
+  'treasury-is-payee':
+    'That address is Seti’s own fee address, so this payment cannot be told apart from its fee. Nothing was sent.',
   'send-requires-batch':
     'Sending is not available in this configuration, and nothing left your wallet.',
 
