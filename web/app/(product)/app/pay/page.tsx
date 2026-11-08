@@ -33,10 +33,20 @@ function ForwardToSend() {
   const router = useRouter();
   const params = useSearchParams();
   const to = params.get('handle') ?? params.get('to');
+  /*
+   * `?ask=` is a CLAIM, and it is forwarded as `?claim=`, which is the parameter the send flow already
+   * resolves into a payee and a figure (#465). The id is all that travels: the amount comes from the
+   * claim's own record, because a URL is not allowed to name a figure (#99).
+   */
+  const claim = params.get('ask');
 
   useEffect(() => {
+    if (claim) {
+      router.replace(`/app/send?claim=${encodeURIComponent(claim)}`);
+      return;
+    }
     router.replace(to ? `/app/send?to=${encodeURIComponent(to)}` : '/app/send');
-  }, [router, to]);
+  }, [router, to, claim]);
 
   return <Forwarding />;
 }

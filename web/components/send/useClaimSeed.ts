@@ -18,10 +18,19 @@ export interface UseClaimSeedReturn {
   /** True while the id is being resolved; false for no id at all. */
   loading: boolean;
   seed: ClaimSeed | null;
+  /**
+   * The claim's own state, or `unknown` when the id resolved to nothing.
+   *
+   * Kept beside the seed because the two answer different questions: the seed is what to pay, this is
+   * whether paying is still possible. A paid, withdrawn or lapsed claim returns no seed at all, so a
+   * payment form cannot be mounted for it by forgetting to check this.
+   */
+  state: 'open' | 'settled' | 'cancelled' | 'expired' | 'unknown' | null;
 }
 
 export function useClaimSeed(claimId: string | null): UseClaimSeedReturn {
   const [seed, setSeed] = useState<ClaimSeed | null>(null);
+  const [state, setState] = useState<UseClaimSeedReturn['state']>(null);
   const [answered, setAnswered] = useState(false);
 
   useEffect(() => {
@@ -32,15 +41,29 @@ export function useClaimSeed(claimId: string | null): UseClaimSeedReturn {
     readAsk(claimId)
       .then(({ request }) => {
         if (!live) return;
-        setSeed({
-          publicId: request.publicId,
-          amount: request.amount,
-          destinationHandle: request.destinationHandle,
-        });
+        const status = request.status ?? 'open';
+        /*
+         * The seed is built ONLY for a payable claim. For anything else the state travels instead, so a
+         * caller that forgets to look at it cannot end up with a figure to pay against a claim that is
+         * closed: there is no figure.
+         */
+        setState(status);
+        setSeed(
+          status === 'open'
+            ? {
+                publicId: request.publicId,
+                amount: request.amount,
+                destinationHandle: request.destinationHandle,
+              }
+            : null
+        );
         setAnswered(true);
       })
       .catch(() => {
-        if (live) setAnswered(true);
+        if (live) {
+          setState('unknown');
+          setAnswered(true);
+        }
       });
 
     return () => {
@@ -48,5 +71,5 @@ export function useClaimSeed(claimId: string | null): UseClaimSeedReturn {
     };
   }, [claimId]);
 
-  return { loading: claimId !== null && !answered, seed };
+  return { loading: claimId !== null && !answered, seed, state };
 }
