@@ -11,6 +11,7 @@ is built and what is unresolved — not how to integrate with it.
 | [The charge object](./charge-object.md) | The frozen shape a hosted page, a public API and an MCP tool all render: the signed field set and why `scope` is outside it, the status transitions, and the pure classifier behind `check:charge` |
 | [Product requirements](./prd.md) | Scope, a per-area implementation status table, non-functional requirements, risks, resolved questions and what is still open |
 | [Fee routing](./fee-routing.md) | How the 2% merchant fee is meant to reach Seti's treasury: the options considered, the dead ends, and the current correction that batching is protocol-native |
+| [The analytics page's shape](./analytics-page.md) | The analytics tab as three bands: what each holds, the eight equal blocks it replaces, the two populations it used to braid, and what the page refuses |
 
 ## The five facts these documents keep coming back to
 
