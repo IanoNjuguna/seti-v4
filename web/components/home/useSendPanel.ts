@@ -202,10 +202,20 @@ export function useSendPanel(initialRecipient = '', claim?: ClaimSeed | null): U
       patch({ recipient, recipientError: null, formError: null, formErrorCode: null, coverOffer: null }),
     [patch]
   );
+  /**
+   * The amount setter, and the one place a claim's figure is protected.
+   *
+   * A claim is somebody's figure, not the payer's: paying a different amount is a different agreement,
+   * and the server refuses one anyway (the settle compares in minor units, exactly). Refusing here as
+   * well means the payer never gets to type a number that cannot work — the failure belongs on the field
+   * they can see, not at the end of a signature.
+   */
   const setAmountKes = useCallback(
-    (amountFiat: string) =>
-      patch({ amountFiat, amountError: null, formError: null, formErrorCode: null, coverOffer: null }),
-    [patch]
+    (amountFiat: string) => {
+      if (claim) return;
+      patch({ amountFiat, amountError: null, formError: null, formErrorCode: null, coverOffer: null });
+    },
+    [patch, claim]
   );
 
   /**
@@ -578,6 +588,8 @@ export function useSendPanel(initialRecipient = '', claim?: ClaimSeed | null): U
     tokenSelector,
     setRecipient,
     setAmountKes,
+    /** True when the figure came from a claim and cannot be typed over (#447). */
+    amountLocked: claim != null,
     setAsset,
     submit,
     reset,

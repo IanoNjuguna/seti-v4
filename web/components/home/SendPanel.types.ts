@@ -106,6 +106,13 @@ export interface SendPanelState {
 
 export interface UseSendPanelReturn extends SendPanelState {
   /**
+   * True when the figure came from a claim and cannot be typed over (#447).
+   *
+   * The claim states one figure; a different amount is a different agreement, and the server refuses it
+   * at the settle. This flag is what makes the field say so up front instead of at the end.
+   */
+  amountLocked: boolean;
+  /**
    * The resolved identity for what is CURRENTLY typed, or null.
    *
    * This is the name AND the address the customer is shown before anything is
@@ -157,6 +164,8 @@ export interface SendResolvedRecipientProps {
 export interface SendFormProps {
   /** The amount field's label, with the customer's currency in it. */
   amountLabel: string;
+  /** True when the figure is a claim's, so the field is read-only (#447). */
+  amountLocked?: boolean;
   recipient: string;
   amountFiat: string;
   recipientError: string | null;
@@ -189,6 +198,8 @@ export interface SendFormProps {
 export interface SendAmountSectionProps {
   /** The amount field's label, with the customer's currency in it. */
   amountLabel: string;
+  /** True when the figure is a claim's, so the field is read-only (#447). */
+  amountLocked?: boolean;
   amountFiat: string;
   amountError: string | null;
   preview: SendPreview | null;

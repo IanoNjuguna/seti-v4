@@ -32,6 +32,7 @@ export function SendAmountSection({
   busy,
   focusAmount,
   onAmountChange,
+  amountLocked,
   onChooseAsset,
 }: SendAmountSectionProps) {
   return (
@@ -43,7 +44,11 @@ export function SendAmountSection({
         value={amountFiat}
         onChange={onAmountChange}
         inputMode="decimal"
-        disabled={busy}
+        /*
+         * Locked, not merely refused: a claim states one figure, and a field that accepts typing and then
+         * throws it away is worse than a field that cannot be typed into (#447).
+         */
+        disabled={busy || amountLocked === true}
         autoFocus={focusAmount}
       />
 

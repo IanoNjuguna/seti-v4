@@ -60,6 +60,7 @@ export function SendPanelForm({ initialRecipient, focusAmount, claim }: SendPane
           focusAmount={focusAmount === true}
           onRecipientChange={panel.setRecipient}
           onAmountChange={panel.setAmountKes}
+          amountLocked={panel.amountLocked}
           onChooseAsset={panel.setAsset}
           onSubmit={panel.submit}
           amountLabel={currency ? `Amount (${currency})` : SEND_COPY.amountLabelFallback}

@@ -82,6 +82,24 @@ console.log('\nthe claim link forwards the id, never a figure:');
   check('and drops the amount from a link', !('amount' in seed), Object.keys(seed).join(','));
 }
 
+console.log('\nthe figure a claim states cannot be typed over:');
+{
+  const panel = readFileSync(new URL('../components/home/useSendPanel.ts', import.meta.url), 'utf8');
+  const section = readFileSync(new URL('../components/home/SendAmountSection.tsx', import.meta.url), 'utf8');
+
+  check(
+    'the amount setter refuses while a claim is set',
+    /if \(claim\) return;/.test(panel),
+    'no claim guard in setAmountKes'
+  );
+  check('and the lock is reported to the form', /amountLocked: claim != null/.test(panel));
+  check(
+    'the field is disabled, not merely validated later',
+    /disabled=\{busy \|\| amountLocked === true\}/.test(section),
+    'amount field is not disabled when locked'
+  );
+}
+
 console.log('-'.repeat(74));
 console.log(`${passed} assertions passed${failed ? `, ${failed} failed` : ''}.`);
 process.exit(failed === 0 ? 0 : 1);
