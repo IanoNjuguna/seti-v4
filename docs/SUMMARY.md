@@ -22,6 +22,7 @@
 * [Fee routing](internal/fee-routing.md)
 * [The charge object](internal/charge-object.md)
 * [The mainnet flip (owner-run)](internal/mainnet-flip.md)
+* [The analytics page's shape](internal/analytics-page.md)
 
 ## Policy
 
