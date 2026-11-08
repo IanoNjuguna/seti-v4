@@ -16,18 +16,31 @@ is built and what is unresolved — not how to integrate with it.
 ## The five facts these documents keep coming back to
 
 1. **The 2% fee is attributed to the merchant but funded by the customer.** The
-   customer signs principal + fee; the merchant receives the principal.
-2. **In the default mode the fee is not collected at all.**
-   `FEE_ROUTING_MODE=inside-transfer` sends the whole gross to the merchant. The
-   atomic two-leg alternative is implemented behind the flag and has never run on
-   a chain.
-3. **Every client-supplied figure is checked against the chain.** `recordPayment`
-   verifies the claimed amount against the on-chain receipt and fails closed.
-4. **v1 supports two assets only** — pathUSD and OUSD, the only two with deployed
-   bytecode on both Tempo chains.
-5. **Mainnet is one config edit away.** The tree currently points at Moderato
-   (testnet, `42431`); `TEMPO_CHAIN_ID` (or `DEFAULT_NETWORK`) plus `ALLOW_MAINNET`
-   are the only things between the same code and real funds — and the code cannot
-   verify the mainnet batch proof, so setting `MAINNET_BATCH_PROOF_TX` opens Live
-   at once and the proof is a process gate the operator honours first
-   (`mainnet-flip.md`).
+   customer signs principal + fee; the merchant receives the principal
+   (`backend/src/services/fees.ts`).
+2. **The fee is collected, and the default mode is the one that collects it.**
+   `FEE_ROUTING_MODE` defaults to `batch` (`backend/src/config/env.ts:224`): one
+   atomic Tempo transaction carries the principal to the recipient and the fee to
+   `SETI_TREASURY_ADDRESS`, so "was it collected" is a question a receipt can
+   answer (`backend/src/services/fees.ts:36`). `inside-transfer` is the
+   NON-default alternative: the fee rides inside the single transfer and is paid
+   to the recipient, so Seti collects nothing, which is also why a send to a
+   person is refused while the server is in that mode.
+3. **Every client-supplied figure is checked against the chain.**
+   `recordPayment` (`backend/src/services/transactions.ts:576`) verifies the
+   claimed amount against the on-chain receipt, allows 1% for rounding in the
+   client's own preview (`:684`), and fails closed on anything wider.
+4. **v1 supports four assets, and an address belongs to a chain.** OUSD, pathUSD,
+   USDT0 and USDC.e (`backend/src/config/assets.ts:35`), all 6 decimals, with
+   addresses read per chain from Tempo's registry
+   (`https://tokenlist.tempo.xyz/list/{chainId}`). USDT0 is mainnet-only, so
+   practice supports three. EURC.e is excluded on currency grounds rather than
+   availability: every figure the product shows is KES, and a EUR balance could
+   not be summed into it. `eth_getCode` answers nothing about deployment here, it
+   returns `0xef` for every TIP-20 including OUSD, so it is never the test.
+5. **Production runs on mainnet; the repository's default is practice.** The
+   tree's `.env.example` and the CI gate point at Moderato (`42431`) while the
+   deployed service reports `4217` (`https://api.seti.live/health`). Moving a
+   deployment between them is `TEMPO_CHAIN_ID` plus `ALLOW_MAINNET`, and the
+   mainnet batch proof is a PROCESS gate the operator honours first, because the
+   code cannot read that hash and treats any value as proof (`mainnet-flip.md`).
