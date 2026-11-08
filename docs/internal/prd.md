@@ -119,9 +119,13 @@ Status vocabulary: **Shipped** = in the tree, covered by a check or a live path;
   `bankAccount` / `bridgeRecipientId` columns and the `offramp.initiate` audit
   action are future-feature shapes, not a settlement path.
 - **M-Pesa.** Intentionally out of scope for this phase.
-- **Assets beyond pathUSD and OUSD.** USDC.e, USDT0 and EURC.e were removed:
-  none had deployed bytecode on either Tempo chain, and a transfer to a no-code
-  address can succeed as a silent no-op rather than reverting.
+- **A fifth asset, and EURC.e in particular.** v1 supports OUSD, pathUSD, USDT0
+  and USDC.e (`backend/src/config/assets.ts:35`), and USDT0 is mainnet-only
+  because the practice registry does not list it. EURC.e is listed on both
+  chains and is excluded on currency grounds, not availability: every figure the
+  product shows is KES and a EUR balance could not be summed into it. Note that
+  `eth_getCode` cannot decide this — it returns `0xef` for every TIP-20 on Tempo,
+  OUSD included.
 - **Chains beyond Tempo mainnet (4217) and Moderato (42431).**
 - **Custody.** Seti never holds keys or principal; no server-side signing on a
   user's behalf.
@@ -209,12 +213,12 @@ the "network" component of the gross is not yet real.
 
 The customer's embedded wallet must sign and broadcast the transfer.
 
-- `inside-transfer` (default): **one** ERC-20 `transfer` of the gross to the
-  merchant's payout address.
-- `batch`: one atomic batch — principal to the merchant, fee to
-  `SETI_TREASURY_ADDRESS` — submitted via Privy's `wallet_sendCalls` (EIP-7702,
+- `batch` (default): one atomic batch, principal to the merchant and fee to
+  `SETI_TREASURY_ADDRESS`, submitted via Privy's `wallet_sendCalls` (EIP-7702,
   no wallet-type migration, address unchanged). One transaction hash covers both
   legs.
+- `inside-transfer`: **one** ERC-20 `transfer` of the gross to the merchant's
+  payout address, so Seti collects nothing.
 
 The client must send the figure that matches the server's mode: the **principal**
 in batch mode, the **gross** in inside-transfer mode. Getting this backwards must
@@ -253,7 +257,7 @@ principal and the treasury fee must appear in the single receipt, or the payment
 is refused. Recomputing `gross == principal + fee` as a residue keeps the
 identity exact with no rounding shortfall.
 
-### 7.5 Fee collection — [Partial; not collected in the default mode]
+### 7.5 Fee collection — [Shipped; collected into the treasury in the default mode]
 
 The fee schedule is a percentage → floor → cap pipeline
 (`backend/src/services/fees.ts`), shipping as a **flat 2% with floor and cap at
@@ -273,12 +277,20 @@ true at every ticket size.
   packages (`backend/src/config/env.ts`, `mobile/src/lib/chain.ts`), and mobile
   reads it through `app.config.js` → `Constants.expoConfig.extra`.
 
-**The gap.** With the default `FEE_ROUTING_MODE=inside-transfer` there is no
-transfer leg to the treasury at all — the only outbound paths in the codebase are
-`usePayMerchant.ts:313` (single transfer to the merchant) and the batch branch at
-`:300`. So the fee is computed, persisted (`feeAmount`, `merchantNetAmount`),
-audited and **uncollected**; the merchant receives the gross. Closing this is
-§12.1 and the single highest-value item in the repo.
+**How it is collected.** `FEE_ROUTING_MODE` defaults to `batch`
+(`backend/src/config/env.ts:224`), so the fee is not computed and then forgotten:
+one atomic Tempo transaction carries the principal to the recipient and the fee to
+`SETI_TREASURY_ADDRESS`, in the same transaction, and `check:fee-batch` reconciles
+both legs against a real receipt. `inside-transfer` is retained as the
+non-default mode for a deployment with no treasury leg: there the fee rides inside
+the single transfer, so it is paid to the recipient and Seti collects nothing,
+which is why a send to a person is refused while the server is in it.
+
+**What the batch path has, and has not, proven.** `npm run prove:batch` proves the
+protocol path against Moderato. A mainnet run is a process gate rather than a code
+check: `MAINNET_BATCH_PROOF_TX` is only tested for being non-empty, so the receipt
+has to be verified and recorded by the operator before the flip
+(`mainnet-flip.md`).
 
 ### 7.6 Transaction lifecycle and history — [Shipped]
 
@@ -663,12 +675,21 @@ indistinguishable from a pass in the exit code. Two structural rules follow:
 
 ### 12.1 Which chain and assets does v1 support?
 
-Tempo, and **pathUSD + OUSD only**, on both mainnet (`4217`) and Moderato
-(`42431`). USDC.e, USDT0 and EURC.e were removed after `eth_getCode` showed no
-deployed bytecode at their configured addresses on either chain. Both supported
-tokens have decimals 6 and identical addresses on both chains. `SUPPORTED_ASSETS`
-exists in **both** backend and mobile; narrowing an asset list means narrowing
-every copy and letting the compiler find the leftovers.
+Tempo, and **OUSD, pathUSD, USDT0 and USDC.e**
+(`backend/src/config/assets.ts:35`). Addresses come from Tempo's own registry per
+chain (`https://tokenlist.tempo.xyz/list/{chainId}`), because an address belongs to
+a chain: OUSD and pathUSD happen to sit at the same address on both, and USDC.e
+does not. USDT0 is mainnet-only, so practice supports three. All four have
+decimals 6, asserted from the asset table rather than assumed. EURC.e is listed on
+both chains and is excluded on currency grounds: every figure is KES, so a EUR
+balance could not be summed into a customer's balance. A previous version of this
+section claimed those three assets had no code at their addresses on either chain
+and dropped them; the claim was false, and the check behind it was invalid, because
+`eth_getCode` returns `0xef` for every TIP-20 on Tempo, including OUSD and
+pathUSD. `SUPPORTED_ASSETS` exists in **both** backend
+(`backend/src/config/assets.ts`) and web (`web/lib/chain/chain.assets.ts`);
+narrowing an asset list means narrowing every copy and letting the compiler find
+the leftovers.
 
 ### 12.2 Who sponsors gas?
 

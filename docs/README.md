@@ -60,7 +60,8 @@ Two things make Seti's version of this worth reading rather than assuming:
    the on-chain receipt and fails closed on a mismatch beyond 1%.
 2. **The fee is inside the customer's transfer.** The customer signs
    `principal + fee`; the merchant receives the principal. In the default routing
-   mode the fee is not collected by Seti at all.
+   mode the fee is also collected, by Seti's treasury, in that same atomic
+   transaction.
 
 ## Where to go
 
