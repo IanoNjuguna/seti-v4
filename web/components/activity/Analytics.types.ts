@@ -44,35 +44,61 @@ export interface WindowPickerProps {
   onSelect: (days: number) => void;
 }
 
-export interface AnalyticsBusyHoursProps {
-  busyHours: AnalyticsWindow['busyHours'];
-}
-
-export interface AnalyticsSettlementProps {
+/** Band 1: the period, the answer, and whether to trust it (#441). */
+export interface AnalyticsSummaryBandProps {
+  window: AnalyticsWindow;
+  currency: string;
+  windows: AnalyticsWindow[];
+  days: number;
+  onSelect: (days: number) => void;
+  consistency: AnalyticsConsistency;
   settlement: AnalyticsSettlement;
 }
 
-export interface AnalyticsConsistencyProps {
-  consistency: AnalyticsConsistency;
-}
-
-export interface AnalyticsDailyBarsProps {
-  daily: DailyCount[];
+/** The one figure the page is about. */
+export interface AnalyticsHeroProps {
+  value: string;
   days: number;
 }
 
-export interface AnalyticsHalvesProps {
+/** Money in and money out as the two segments of one bar, each labelled directly. */
+export interface AnalyticsSplitBarProps {
   window: AnalyticsWindow;
   currency: string;
 }
 
-export interface AnalyticsCustomersProps {
+/** Consistency and settlement, demoted from panels to a sentence. */
+export interface AnalyticsQualifierProps {
+  consistency: AnalyticsConsistency;
+  settlement: AnalyticsSettlement;
+}
+
+/** Band 2: the shape of the window. */
+export interface AnalyticsSeriesBandProps {
+  window: AnalyticsWindow;
+  currency: string;
+}
+
+/** Band 3: one list slot, three questions. */
+export interface AnalyticsDetailBandProps {
+  window: AnalyticsWindow;
   customers: AnalyticsCustomers;
   currency: string;
 }
 
-export interface AnalyticsFiguresProps {
-  window: AnalyticsWindow;
+/** The three lists band 3 switches between, in the order they are offered. */
+export type AnalyticsDetailTab = 'merchants' | 'payers' | 'hours';
+
+export interface AnalyticsBusyHoursProps {
+  busyHours: AnalyticsWindow['busyHours'];
+}
+
+export interface AnalyticsDailyBarsProps {
+  daily: DailyCount[];
+}
+
+export interface AnalyticsCustomersProps {
+  customers: AnalyticsCustomers;
   currency: string;
 }
 
