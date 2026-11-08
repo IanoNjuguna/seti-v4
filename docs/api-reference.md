@@ -1392,6 +1392,50 @@ above:
 > The prefix was removed, so the paths above are correct. If you have code against
 > the doubled path, it was relying on a bug.
 
+## Asking a person for money
+
+An ask is a link with an amount in it: unsigned, fiat-denominated, and settled by an ordinary send
+(the payer pays it like any other payment). It is NOT a charge. A charge is signed by the recipient,
+token-denominated and single-use; these three routes never sign anything.
+
+### `POST /requests`
+
+Authenticated. Body: `destinationHandle`, `amount` (a decimal string in `currency`, at most two
+decimals and above zero), optional `currency` (`KES` only), optional `memo` (200 characters),
+optional `expiresInDays` (1–365, or `null` for an ask that never lapses; omitted takes 30).
+
+`201 { "request": { id, publicId, destinationHandle, destinationAddress, amount, currency, memo, status }}`
+
+The payee is resolved HERE and the address snapshotted beside the handle: a link that names a handle
+nothing resolves fails now, in front of whoever wrote it, rather than in front of whoever it was sent
+to. `400 { code: "amount-invalid" | "currency-invalid" | "expiry-invalid" }`,
+`404 { code: "destination-not-found" }`, `403 { code: "destination-not-yours" }` — asking yourself is
+a mis-tap, not a request.
+
+### `GET /users/:id/requests`
+
+Authenticated, and `:id` must be the caller: `403` otherwise, rather than an empty list, because an
+empty list would answer "you have none" about somebody else's account.
+
+`{ "requests": [{ publicId, destinationHandle, amount, currency, memo, status, createdAt, expiresAt, settledTxHash }] }`
+
+`status` is `open | settled | cancelled | expired`, and `expired` is DERIVED from `expiresAt` on read,
+so nothing has to write it.
+
+### `POST /requests/:publicId/cancel`
+
+Authenticated. `204` on success. Ownership is checked BEFORE state, so a stranger holding the link
+learns nothing about it: `404 { code: "not-found" }` for both a missing ask and somebody else's, then
+`409 { code: "already-settled" | "already-cancelled" }` for the caller's own.
+
+### `GET /public/requests/:publicId`
+
+UNAUTHENTICATED, because the payer opened a link and may have no account at all. Returns
+`{ "request": { publicId, destinationHandle, destinationAddress, amount, currency, memo, status, expiresAt } }`,
+and nothing that identifies the requester: the holder of the link was told about one payment, not
+about an account. `404 { code: "request-not-found" }` on a miss, because an ask either exists or the
+link is wrong.
+
 ## What is not here
 
 No refunds, no payouts, no fiat off-ramp, no pagination cursors, and no OpenAPI

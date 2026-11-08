@@ -23,6 +23,8 @@ import { publicChargeRoutes } from './routes/public-charges.js';
 import { arrivalRoutes } from './routes/arrivals.js';
 import { referralRoutes } from './routes/referrals.js';
 import { merchantAppRoutes } from './routes/merchant-apps.js';
+import { requestRoutes } from './routes/requests.js';
+import { publicRequestRoutes } from './routes/public-requests.js';
 import { networkScopeHook } from './middleware/network-scope.js';
 
 /**
@@ -245,6 +247,14 @@ export async function buildServer(options: BuildServerOptions = {}) {
   // credential, and a file with no session hook cannot leak one by accident (the same
   // rule `public-handles.ts` follows).
   await app.register(publicChargeRoutes, { prefix: '/public/charges' });
+  // Asking a person for money (#465). The three authenticated routes declare their
+  // FULL paths (`/requests`, `/users/:id/requests`, `/requests/:publicId/cancel`), so
+  // this registration takes no prefix: a prefix here produced the doubled path that
+  // `routes/wallets.ts` documents, which no client calls and every log line misreads.
+  await app.register(requestRoutes);
+  // The link page's read, with no auth hook for the same reason the charge page has
+  // none: the payer opened a link, not a session, and may have no account at all.
+  await app.register(publicRequestRoutes, { prefix: '/public/requests' });
 
   // Invites. One public route (the code a `seti.live/i/<handle>` link hands out,
   // which a signed-out visitor must be able to get) and one behind the session

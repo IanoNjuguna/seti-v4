@@ -93,6 +93,27 @@ inside the transfer would be paid to the recipient.
 
 Read `feeRoutingMode` from the preview and sign accordingly; do not assume one.
 
+## Asking a person for money
+
+A request (an "ask") is a link with an amount in it. It is **not** a charge, and the difference
+matters before you build anything:
+
+| | Ask | Charge |
+| --- | --- | --- |
+| Who creates it | anyone, from the app | a recipient, with a signature |
+| Denominated in | fiat (KES) | a token amount |
+| Payable by | an ordinary send | a transfer carrying the charge id in a memo |
+| Status lives in | Seti's database | the chain, matched by the indexer |
+
+So an ask is pre-filled intent, and a charge is a locked claim. `POST /requests` creates one, and the
+payer opens `seti.live/app/pay?ask=<publicId>` with the amount already in the field. The public read
+at `GET /public/requests/:publicId` is signed out on purpose, because the payer opened a link, not a
+session.
+
+One honest limit in v1: an ask settled by an ordinary send is settled in Seti's database. An observer
+reading Tempo cannot tell which ask a transfer paid, which is fine for a consumer link and not
+sufficient for anyone who needs chain-auditable receivables.
+
 ## What the server does with your `txHash`
 
 `POST /transactions/pay` treats your amount as a **claim**, not a measurement:
