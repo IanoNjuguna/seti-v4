@@ -26,6 +26,7 @@
  * Run from `web/`: npm run check:receipt (part of the root `verify` gate).
  */
 import { createElement } from 'react';
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { ReceiptCard } from '../components/receipt/ReceiptCard.tsx';
 import { RECEIPT_COPY } from '../components/receipt/Receipt.constants.ts';
@@ -233,6 +234,37 @@ console.log('\nthe exported text carries it too, because that copy leaves the ap
   const legacyLines = buildReceiptText(legacyOf('usdt0'), null).split('\n');
   check('and a legacy export gains no line at all', !legacyLines.some((line) => line.startsWith(`${RECEIPT_COPY.assetPrefix} `)));
   check('and no "undefined" in it', !legacyLines.some((line) => line.includes('undefined')));
+}
+
+console.log('\nthe sheet scrolls under a bar that matches its card (#430):');
+{
+  const sheet = readFileSync(new URL('../components/receipt/ReceiptSheet.tsx', import.meta.url), 'utf8');
+  check('the scroll container opts into the dark scrollbar', sheet.includes('data-scrollbar="dark"'));
+  check(
+    'and no comment claims a normal receipt shows no scrollbar',
+    !/no scrollbar/i.test(sheet),
+    'a stale claim survived'
+  );
+
+  const css = readFileSync(new URL('../app/globals.css', import.meta.url), 'utf8');
+  const rule = css.slice(css.indexOf("[data-scrollbar='dark'] {"));
+  const declarations = rule.slice(0, rule.indexOf('}'));
+  check('the rule thins the bar', declarations.includes('scrollbar-width: thin'));
+  check(
+    'and reserves the gutter, so two receipts are the same width',
+    declarations.includes('scrollbar-gutter: stable')
+  );
+  check(
+    'and contains the overscroll, so the page behind does not move',
+    declarations.includes('overscroll-behavior: contain')
+  );
+  check(
+    'the thumb is the system small radius, not a pill',
+    /::-webkit-scrollbar-thumb[\s\S]{0,120}border-radius: var\(--radius-sm\)/.test(css)
+  );
+
+  const rail = readFileSync(new URL('../components/app/AppRail.tsx', import.meta.url), 'utf8');
+  check('the rail, the app\'s other dark scroller, carries it too', rail.includes('data-scrollbar="dark"'));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
