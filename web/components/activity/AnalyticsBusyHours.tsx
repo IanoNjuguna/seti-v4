@@ -45,12 +45,8 @@ export function AnalyticsBusyHours({ busyHours }: AnalyticsBusyHoursProps) {
   const busiest = Math.max(1, ...busyHours.buckets.flat());
 
   return (
-    <section aria-labelledby="busy-heading" className="flex flex-col gap-2">
-      <Text variant="section" as="h2">
-        <span id="busy-heading">{ANALYTICS_COPY.busyTitle}</span>
-      </Text>
-
-      <Text variant="body" as="p" color="secondary">
+    <div className="flex flex-col gap-2">
+      <Text variant="micro" as="p" color="secondary">
         {ANALYTICS_COPY.busyPeaks(
           busyHours.peaks.map((peak) => ({
             weekday: WEEKDAYS[peak.weekday] ?? '',
@@ -84,6 +80,6 @@ export function AnalyticsBusyHours({ busyHours }: AnalyticsBusyHoursProps) {
           </div>
         ))}
       </div>
-    </section>
+    </div>
   );
 }
