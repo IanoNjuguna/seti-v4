@@ -43,11 +43,11 @@ export function AnalyticsMerchants({ merchants, currency }: AnalyticsMerchantsPr
         >
           <span
             aria-hidden
-            className="absolute inset-y-1 left-0 rounded-sm bg-surface-soft"
+            className="absolute bottom-1 left-0 h-1 rounded-sm bg-hairline-light"
             style={{ width: `${merchantShare(merchant.total, largest)}%` }}
           />
 
-          <span className="relative flex min-w-0 flex-col">
+          <span className="flex min-w-0 flex-col">
             <Text variant="body" as="span" className="truncate">
               {label(merchant)}
             </Text>
@@ -56,7 +56,7 @@ export function AnalyticsMerchants({ merchants, currency }: AnalyticsMerchantsPr
             </Text>
           </span>
 
-          <Text variant="body-medium" as="span" tabular className="relative shrink-0">
+          <Text variant="body-medium" as="span" tabular className="shrink-0">
             {formatFiat(Number(merchant.total), currency)}
           </Text>
         </li>
