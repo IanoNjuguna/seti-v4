@@ -22,28 +22,23 @@ import type { AnalyticsDailyBarsProps } from './Analytics.types';
  * of forties should both read as shape. The two labels that matter are named in words underneath — the
  * busiest day and its count — so the chart never has to be read by eyeballing pixel heights.
  *
+ * The heading and the window are NOT here: band 2 owns them (#441), so this file is only the marks and
+ * cannot be dropped somewhere it would claim a title of its own.
+ *
  * ## Zero is drawn, not skipped
  *
  * A day with nothing is a bar of zero height, and the space it occupies is the point: a gap in the run
  * of bars is the same information as the quiet day in the streak map, and closing it up would draw a
  * week of trading that did not happen.
  */
-export function AnalyticsDailyBars({ daily, days }: AnalyticsDailyBarsProps) {
+export function AnalyticsDailyBars({ daily }: AnalyticsDailyBarsProps) {
   if (daily.length === 0) return null;
 
   const busiest = Math.max(1, ...daily.map((day) => day.count));
   const peak = daily.reduce((best, day) => (day.count > best.count ? day : best), daily[0]);
 
   return (
-    <section aria-labelledby="daily-heading" className="flex flex-col gap-2">
-      <Text variant="section" as="h2">
-        <span id="daily-heading">{ANALYTICS_COPY.dailyTitle(days)}</span>
-      </Text>
-
-      <Text variant="body" as="p" color="secondary">
-        {ANALYTICS_COPY.dailyPeak(peak.date, peak.count)}
-      </Text>
-
+    <div className="flex flex-col gap-2">
       <div aria-hidden className="flex h-24 items-end gap-[2px]">
         {daily.map((day) => (
           <span
@@ -55,11 +50,15 @@ export function AnalyticsDailyBars({ daily, days }: AnalyticsDailyBarsProps) {
         ))}
       </div>
 
-      <div className="flex justify-between text-[10px] leading-none text-ash">
+      <p className="flex justify-between text-[10px] leading-none text-ash">
         <span>{ANALYTICS_COPY.dayShort(daily[0].date)}</span>
         <span>{ANALYTICS_COPY.dayShort(daily[daily.length - 1].date)}</span>
-      </div>
-    </section>
+      </p>
+
+      <Text variant="micro" as="p" color="secondary">
+        {ANALYTICS_COPY.dailyPeak(peak.date, peak.count)}
+      </Text>
+    </div>
   );
 }
 
@@ -67,7 +66,7 @@ export function AnalyticsDailyBars({ daily, days }: AnalyticsDailyBarsProps) {
  * A bar's height as a percentage of the tallest.
  *
  * A day with a payment never renders shorter than 8%: at thirty days a single payment against a busy
- * day is a sliver, and a sliver is indistinguishable from the zero beside it — which would erase the
+ * day is a sliver, and a sliver is indistinguishable from the zero beside it, which would erase the
  * difference between "quiet" and "closed".
  */
 export function barHeight(count: number, busiest: number): number {
