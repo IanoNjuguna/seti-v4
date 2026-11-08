@@ -35,6 +35,10 @@ export interface ClaimCopy {
   qrLabel: string;
   qrHint: string;
   qrDownload: string;
+  /** Shown on the control between the tap and the file landing. */
+  qrDownloading: string;
+  /** A refused save is rendered, not swallowed: the next step is a screenshot. */
+  qrDownloadFailed: string;
 }
 
 /** Replaces the form's own submit control — the onboarding name step continues. */
