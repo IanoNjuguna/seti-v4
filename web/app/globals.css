@@ -462,6 +462,62 @@
     scroll-behavior: smooth;
   }
 
+  /*
+   * THE SCROLLBAR ON A DARK SURFACE (#430).
+   *
+   * Nothing in this file styled a scrollbar, so every scroll container inherited the
+   * engine's own: on Chrome/Linux a 15px classic bar, measured here, with a light track.
+   * On a white surface that is invisible. On `bg-canvas-dark` it is a white stripe down
+   * the right edge of the card, and the receipt sheet is where it shows: the card IS the
+   * screen, so a 15px stripe reads as a missing column.
+   *
+   * The value is `on-dark` at 36%, and it is measured rather than chosen by eye. The
+   * sheet's field is `--color-canvas-dark`, `#000000`, so the thumb composites to
+   * rgb(92,92,92): **3.14:1**, which is the 3:1 floor WCAG 1.4.11 asks of a control that
+   * has to be found without text. 28% was 2.26:1 and read as a smudge on the card; 40%
+   * clears it comfortably but starts to look like a column of its own. Hover lifts to
+   * 52% (5.69:1), because a bar under the pointer may be louder than one at rest. The track is transparent so the card's own
+   * colour continues underneath instead of being repainted grey, and the thumb gets the
+   * system's small radius (4px) rather than a pill: `rounded-full` means a circle in this
+   * system, and a scrollbar thumb is a bar.
+   *
+   * `scrollbar-gutter: stable` is the half that is not cosmetic: without it a container
+   * that overflows is 15px narrower than one that does not, so two receipts opened one
+   * after the other are two different widths and the card visibly jumps.
+   *
+   * `overscroll-behavior: contain` stops a scroll at the end of a dialog from being
+   * handed to the page behind it, which on a full-screen modal means the activity list
+   * starts moving while the receipt is still open.
+   *
+   * Opt-in by attribute rather than applied to every dark element: most of them do not
+   * scroll, and this rule is four declarations of behaviour, not a paint.
+   */
+  [data-scrollbar='dark'] {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--color-on-dark) 36%, transparent) transparent;
+    scrollbar-gutter: stable;
+    overscroll-behavior: contain;
+  }
+
+  /* Chrome/Edge/Safari below the `scrollbar-color` support line, and any WebKit engine. */
+  [data-scrollbar='dark']::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  [data-scrollbar='dark']::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  [data-scrollbar='dark']::-webkit-scrollbar-thumb {
+    background-color: color-mix(in srgb, var(--color-on-dark) 36%, transparent);
+    border-radius: var(--radius-sm);
+  }
+
+  [data-scrollbar='dark']::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in srgb, var(--color-on-dark) 52%, transparent);
+  }
+
   body {
     background-color: var(--color-canvas-dark);
     color: var(--color-on-dark);

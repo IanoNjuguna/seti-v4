@@ -20,9 +20,12 @@ import type { ReceiptSheetProps } from './Receipt.types';
  * instead of merely hiding it — hiding leaves the activity list pushing the
  * receipt onto a second sheet of paper.
  *
- * The card is sized to fit; `overflow-y-auto` is only the guard for a receipt
- * taller than any we expect (an unusually long merchant name, plus the QR), so a
- * normal one shows no scrollbar and nothing is clipped to avoid one.
+ * The card is sized to fit and this container is the only thing that scrolls: a
+ * receipt taller than the sheet (an unusually long merchant name, plus the QR) has to
+ * stay reachable, and at 390x844 a normal one already runs past the 92dvh cap. So it
+ * DOES scroll, and it carries `data-scrollbar="dark"` for the scrollbar this file did
+ * not have until #430: the engine's own bar is 15px of light track, which on this card
+ * reads as a missing column. See `globals.css` for that rule.
  */
 export function ReceiptSheet({ transactionId, onClose }: ReceiptSheetProps) {
   const { containerRef, onKeyDown } = useReceiptDialog(onClose);
@@ -46,6 +49,7 @@ export function ReceiptSheet({ transactionId, onClose }: ReceiptSheetProps) {
         aria-labelledby={RECEIPT_TITLE_ID}
         tabIndex={-1}
         data-receipt-print=""
+        data-scrollbar="dark"
         onClick={(event) => event.stopPropagation()}
         onKeyDown={onKeyDown}
         className="relative max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-md bg-canvas-dark text-on-dark focus:outline-none sm:rounded-md"
