@@ -11,7 +11,7 @@ Node.js API service that powers the Seti mobile app. It handles user and wallet 
 - **Merchant resolution:** parses QR payloads (`seti://pay`, `merchant:<id>`, plain IDs) and returns merchant details.
 - **Payment preview:** computes merchant fees and checks the user's real on-chain balance for the selected stablecoin before a payment is signed.
 - **Payment recording:** verifies the client-reported gross against the on-chain receipt, then stores a `processing` transaction. Fails closed: a missing payout address, an unverifiable receipt, or a mismatch beyond 1% are all refused.
-- **Fee routing:** the merchant fee is computed and recorded, but with `FEE_ROUTING_MODE=inside-transfer` (the default) it is **not collected** — the merchant receives the gross. `FEE_ROUTING_MODE=batch` sends the fee to `SETI_TREASURY_ADDRESS` as a second leg of an atomic batch and requires both legs on-chain; it is implemented but has never been executed against a chain.
+- **Fee routing:** the merchant fee is computed and recorded, and with `FEE_ROUTING_MODE=batch` (the default) it is **collected**: the fee goes to `SETI_TREASURY_ADDRESS` as a second leg of an atomic batch, and the server requires both legs on-chain. The batched shape is proven against Moderato (`npm run prove:batch`, receipt in `docs/internal/fee-routing.md`); a mainnet batch is an operator-verified process gate (`docs/internal/mainnet-flip.md`). `FEE_ROUTING_MODE=inside-transfer` is the non-default branch: one transfer of the gross to the merchant, so nothing is collected.
 - **Indexer:** scans Transfer logs, confirms matching outbound payments, and records inbound transfers as `top_up`.
 - **Off-ramp:** none. v1 settles non-custodially to the merchant's own wallet.
 
@@ -52,9 +52,9 @@ cp .env.example .env
 | `TEMPO_CHAIN_ID` | `4217` for mainnet, `42431` for testnet. Unset in production is a boot error |
 | `ALCHEMY_API_KEY` | Optional Alchemy API key for Tempo RPC |
 | `TEMPO_RPC_URL` | Optional custom RPC override; takes precedence over the Alchemy-derived endpoint |
-| `TEMPO_TOKEN_PATHUSD` / `TEMPO_TOKEN_OUSD` | **Required.** The only two assets v1 supports — a missing address throws at boot |
+| `TEMPO_TOKEN_PATHUSD` / `TEMPO_TOKEN_OUSD` | **Required.** Two of the four assets v1 supports (OUSD, pathUSD, USDT0, USDC.e); a missing address throws at boot. `TEMPO_TOKEN_USDT0` and `TEMPO_TOKEN_USDCE` are optional, and USDT0 is mainnet-only |
 | `SETI_TREASURY_ADDRESS` | **Required.** Validated as 20-byte hex at boot. Receives the merchant fee in `batch` mode |
-| `FEE_ROUTING_MODE` | `inside-transfer` (default — fee recorded but **not collected**) or `batch` (atomic two-leg) |
+| `FEE_ROUTING_MODE` | `batch` (default — the fee is collected to `SETI_TREASURY_ADDRESS` as a second leg) or `inside-transfer` (fee recorded but **not collected**) |
 | `MERCHANT_FEE_PERCENT` / `MERCHANT_FEE_MIN_KES` / `MERCHANT_FEE_MAX_PERCENT` | Fee schedule; ships as `2` / `0` / `0` — a flat 2% with no floor and no cap |
 | `INDEXER_BOOTSTRAP_LOOKBACK` | Blocks to scan when no cursor exists yet. **Keep at 0 on mainnet** — a non-zero value there is a boot refusal (it would write pre-existing history as new `top_up` rows) |
 | `ALLOW_MAINNET` | Must be `"true"` to use chain ID `4217`; stays opt-in |
