@@ -54,7 +54,13 @@ export function SendAmountSection({
 
       <TokenSelector model={tokenSelector} onChoose={onChooseAsset} />
 
-      <FeeQuote preview={preview} loading={previewLoading} tone="dark" subject="send" />
+      <FeeQuote
+        compact
+        preview={preview}
+        loading={previewLoading}
+        tone="dark"
+        subject="send"
+      />
     </div>
   );
 }
