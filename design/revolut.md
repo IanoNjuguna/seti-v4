@@ -549,7 +549,28 @@ where the asset is an image rather than a CSS surface.
 - Background `{colors.canvas-dark}`, label `{colors.on-dark}`, 1px solid `{colors.on-dark}`, type `{typography.button-md}`, `rounded: {rounded.md}`, padding `13px 27px`, height 48px.
 - Dark-canvas counterpart of `{component.button-outline-light}`; used inside dark hero bands as a tertiary action when paired with `{component.button-primary}`.
 
-**`button-pill-sm`** — small soft chip (36px)
+### Which control is it (#491)
+
+Seven styles exist and, until this rule, nothing chose between them. Five payment references (World App, KOHO,
+Greenlight, Zing) put **one filled control per screen** and nothing else: presets are chips or tiles, a name is a row, a
+keypad key has no fill, back is a bare or circled icon.
+
+Ask these in order and stop at the first yes:
+
+1. **Does it move money or create an obligation?** A filled button, and the screen gets **one**. `accent` on a light
+   canvas, `primary` on a dark one. If a screen wants two, it is doing two jobs.
+2. **Does it change what the screen is doing without moving money?** An outlined or soft control (`secondary`,
+   `button-outline-light`) at 48px, or a 44px icon circle (`IconButton`) when the label is a glyph.
+3. **Is it selecting a value the customer is choosing?** A chip or a tile (`pill`), never a button. Chosen state is a
+   ring or a fill; everything else is a hairline. A preset that looks like a button invites a second action.
+4. **Does it go somewhere, or open something already there?** A row or a link: no fill, no border, no fixed height, the
+   whole row is the target.
+
+**Not buttons, by rule:** list rows, keypad keys, chips and tiles, tabs, navigation, inline text actions inside a sentence,
+and anything whose label is a glyph. Destructive actions are a row with red ink, not a red fill: a 48px red rectangle is
+louder than the commit it sits beside.
+
+****`button-pill-sm`** — small soft chip (36px)
 - Background `{colors.surface-soft}`, label `{colors.ink}`, type `{typography.button-sm}`, `rounded: {rounded.md}`, padding `8px 16px`, height 36px.
 - Sub-nav chips, filter chips.
 
