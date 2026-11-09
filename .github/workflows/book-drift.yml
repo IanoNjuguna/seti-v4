@@ -143,37 +143,17 @@ jobs:
           fi
 
           # ---- at least one direction is refused ---------------------------
-          # The table is built from the `report` lines themselves: direction and
-          # refusal code are both read out of the output, so the shape of the
-          # book is never restated in this file.
+          # REPORTED, not filed. Since #496/#497 a one-sided book is a normal market
+          # condition: the swap picker marks that direction `(no market)` and the quote
+          # refuses with a code the app already has a sentence for. Filing a nightly
+          # issue for it made a market condition look like a defect, and #482 was three
+          # days of exactly that.
+          #
+          # What this job still does for a refusal: prints the matrix and the summary on
+          # the run, so the record exists and is searchable. What it opens an issue for:
+          # a FAIL. That is the CLI's exit code, and the step above already fails loudly
+          # when the report does not run at all.
           echo 'report tripped:'
           cat "$RUNNER_TEMP/refused.txt"
-          {
-            echo "The nightly convert book report tripped on $day. Nothing is blocked by this: it is a report, not a gate."
-            echo
-            echo 'A thin book is not a code bug. It means one side of the pair has no orders to fill against, so a balance held in that asset cannot be converted into OUSD until the book returns.'
-            echo
-            echo '| Direction | Refusal |'
-            echo '| --- | --- |'
-            while IFS= read -r line; do
-              rest=$(printf '%s' "${line#report}" | sed -E 's/^[[:space:]]+//')
-              direction=$(printf '%s' "$rest" | sed -E 's/[[:space:]]+refused[[:space:]]+.*$//')
-              code=$(printf '%s' "$rest" | sed -E 's/^.*[[:space:]]refused[[:space:]]+//')
-              echo "| \`$direction\` | \`$code\` |"
-            done < "$RUNNER_TEMP/refused.txt"
-            echo
-            echo "\`$summary\`"
-            echo
-            echo "- date: $day"
-            echo "- run: $RUN_URL"
-            echo "- chain: 4217 (Tempo mainnet)"
-            echo
-            echo 'This issue is commented on again on every run that trips, and closed by the first run that reports the book healthy.'
-          } > "$RUNNER_TEMP/body.md"
-
-          if [ -n "$existing" ]; then
-            echo "updating issue #$existing"
-            gh issue comment "$existing" --body-file "$RUNNER_TEMP/body.md"
-          else
-            gh issue create --title "$title" --body-file "$RUNNER_TEMP/body.md"
-          fi
+          echo "refused directions are reported, not filed: see #496 and #497"
+          exit 0
