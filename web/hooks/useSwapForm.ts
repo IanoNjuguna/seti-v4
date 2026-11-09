@@ -143,9 +143,17 @@ export function useSwapForm(): SwapFormState {
   const [typed, setTyped] = useState(false);
   const [draft, setDraft] = useState('');
 
-  useEffect(() => {
-    if (!userId) return;
-
+  /**
+   * Ask which directions the book fills, keeping the last good answer on failure.
+   *
+   * Called on mount, when the tab regains focus, and when a quote refuses for want of a
+   * book (#502). The mark is the server's answer with up to a minute of age on it, and
+   * the asymmetry matters: a direction that goes DEAD is harmless, the quote refuses and
+   * says so, but a direction that comes BACK must stop being greyed without asking the
+   * customer to reload. Nothing here polls: the two moments the answer can be wrong in
+   * the expensive direction are the two moments this is called.
+   */
+  const refreshPairs = useCallback(() => {
     let active = true;
 
     fetchConvertPairs()
@@ -153,13 +161,38 @@ export function useSwapForm(): SwapFormState {
         if (active) setPairs({ status: 'ready', pairs: answer.pairs });
       })
       .catch(() => {
-        if (active) setPairs({ status: 'failed' });
+        // A failed re-ask is not news about the book: keep a picker that was working.
+        if (active) setPairs((held) => (held.status === 'ready' ? held : { status: 'failed' }));
       });
 
     return () => {
       active = false;
     };
-  }, [userId]);
+  }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+    return refreshPairs();
+  }, [userId, refreshPairs]);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const onFocus = () => {
+      refreshPairs();
+    };
+    const onVisible = () => {
+      if (!document.hidden) refreshPairs();
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [userId, refreshPairs]);
 
   const convertPairs = pairs.status === 'ready' ? pairs.pairs : NO_PAIRS;
 
@@ -222,6 +255,21 @@ export function useSwapForm(): SwapFormState {
     balance: quotable && sourceRow ? sourceRow.amount : '',
     amount: asked.value,
   });
+
+  /**
+   * The book just disagreed with our own mark, so re-ask it (#502).
+   *
+   * A refusal for want of liquidity is the one moment the cached answer is known to be
+   * wrong in the direction that matters: the picker said this pair fills, the venue said
+   * no orders. Re-asking turns the picker's mark back on the next render instead of
+   * leaving a live-looking option that refuses every time.
+   */
+  const outOfBook = convert.code === 'convert-no-liquidity';
+
+  useEffect(() => {
+    if (!outOfBook) return;
+    return refreshPairs();
+  }, [outOfBook, refreshPairs]);
 
   const swap = useConvertSwap();
   const done = swap.step === 'done';
