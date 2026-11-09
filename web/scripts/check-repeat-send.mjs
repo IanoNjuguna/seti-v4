@@ -161,8 +161,12 @@ console.log('the price is one row until it is asked to be four (#483):');
 
   /* The labels are named from QUOTE_LABELS, not retyped: a check that copies the copy is a check
      that passes when the component changes and the test does not. */
-  check('the compact line names the fee', compact.includes(QUOTE_LABELS.fee));
-  check('and the total, which is the figure being decided', compact.includes(QUOTE_LABELS.total));
+  const compactRows = quoteRows(preview);
+  const feeValue = compactRows.find((row) => row.key === 'fee').value;
+  const totalValue = compactRows.find((row) => row.key === 'total').value;
+
+  check('the compact line names the fee it includes', compact.includes(feeValue) && /fee/.test(compact));
+  check('and the total, which is the figure being decided', compact.includes(totalValue));
   check('it does not itemise gas before it is asked', !compact.includes(QUOTE_LABELS.gas));
   check('the full block still itemises all four', full.includes(QUOTE_LABELS.gas) && full.includes(QUOTE_LABELS.receive));
   check('one row is shorter than four', compact.length < full.length);

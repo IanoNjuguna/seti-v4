@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Text } from '@/components/ui';
+import { Icon } from '@/components/ui/Icon';
 import { cn } from '@/lib/cn';
 import { useHighlightOnChange } from '@/hooks/useHighlightOnChange';
 import { QUOTE_LABELS, quoteRows } from './quoteRows';
@@ -144,16 +145,17 @@ export function FeeQuote({ preview, loading, tone, subject, compact = false }: F
             type="button"
             onClick={() => setOpen((current) => !current)}
             aria-expanded={open}
-            className="flex w-full items-baseline justify-between gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-light"
+            className="flex w-full flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-light"
           >
-            <Text variant="micro" as="span" color="secondary" className="tabular">
-              {`${QUOTE_LABELS.fee} ${fee.value}`}
-            </Text>
-            <span className="flex items-baseline gap-2">
+            <span className="font-tabular text-body-md-bold text-ink">{total.value}</span>
+            <span className="flex items-center gap-1">
               <Text variant="micro" as="span" color="secondary">
-                {QUOTE_LABELS.total}
+                {`Includes ${fee.value} fee`}
               </Text>
-              <span className="font-tabular text-body-md-bold text-ink">{total.value}</span>
+              <Icon
+                name="chevronRight"
+                className={cn('h-3.5 w-3.5 text-stone', open && 'rotate-90')}
+              />
             </span>
           </button>
 
