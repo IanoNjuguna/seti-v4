@@ -69,7 +69,7 @@ export function AskScreen() {
             amount={ask.draft.amount}
             disabled={ask.phase === 'saving'}
             onAmount={ask.setAmount}
-            error={ask.error}
+            error={ask.amountError ?? ask.error}
           />
 
           <AskDetails

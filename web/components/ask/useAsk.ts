@@ -5,7 +5,7 @@ import { ApiError } from '@/lib/api/client';
 import { fetchAccountIdentity } from '@/lib/api/account';
 import { claimLink, createAsk, type CreatedAsk } from '@/lib/api/requests';
 import { useSession } from '@/lib/auth';
-import { ASK_COPY, ASK_DEFAULT_EXPIRY_DAYS, ASK_REFUSALS } from './ask.constants';
+import { ASK_COPY, ASK_DEFAULT_EXPIRY_DAYS, ASK_REFUSALS, isValidAskAmount } from './ask.constants';
 import type { AskDraft, AskPayee, AskPhase, UseAskReturn } from './ask.types';
 
 const EMPTY: AskDraft = { payee: '', amount: '', memo: '', expiresInDays: ASK_DEFAULT_EXPIRY_DAYS };
@@ -98,6 +98,18 @@ export function useAsk(): UseAskReturn {
       .finally(() => setSaving(false));
   }, [draft]);
 
+  /*
+   * The amount's shape, said out loud (#513).
+   *
+   * The keypad used to make a malformed amount impossible; a typed one was always possible, and it
+   * was the server that refused it. With the grid gone, this is the only guard before the submit, so
+   * it is two things: the button stays off for a figure that is not a number the service accepts,
+   * and the figure itself says which figure that is, in the refusal's own words. A form that greys
+   * its only action and explains nothing is the failure this is here to avoid.
+   */
+  const amountTyped = draft.amount.trim().length > 0;
+  const amountValid = isValidAskAmount(draft.amount);
+
   return {
     phase,
     draft,
@@ -105,9 +117,10 @@ export function useAsk(): UseAskReturn {
     created,
     link,
     error,
+    amountError: amountTyped && !amountValid ? ASK_REFUSALS['amount-invalid'] : null,
     canSubmit:
       phase === 'editing' &&
-      draft.amount.trim().length > 0 &&
+      amountValid &&
       draft.payee.length > 0 &&
       (payees?.length ?? 0) > 0,
     setPayee,
