@@ -65,16 +65,10 @@ export const CONVERT_TOLERANCE_BPS = 50;
  * measurement with a date on it — the quote still has the final say, and a pair that
  * stops filling is refused by `convert-no-liquidity` rather than by this table.
  */
-export const CONVERT_PAIRS: Record<Network, ReadonlyArray<readonly [SupportedAsset, SupportedAsset]>> = {
-  mainnet: [
-    ['usdc.e', 'ousd'],
-    ['pathusd', 'ousd'],
-    ['usdc.e', 'pathusd'],
-    ['usdt0', 'ousd'],
-    ['usdt0', 'pathusd'],
-  ],
-  testnet: [['ousd', 'pathusd']],
-};
+export { CONVERT_PAIRS };
+// Re-exported from a pure module so the nightly book report can read the allowlist
+// without importing the environment this file needs (#493).
+import { CONVERT_PAIRS } from './convert-pairs.js';
 
 /**
  * The word a client sends instead of a figure, meaning "everything this balance
