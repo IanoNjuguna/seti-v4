@@ -192,16 +192,24 @@ export function useSwapForm(): SwapFormState {
     for (const pair of convertPairs) {
       if (pair.in !== assetIn || pair.out === assetIn || seen.has(pair.out)) continue;
       seen.add(pair.out);
-      options.push({ asset: pair.out, symbol: swapAssetSymbol(pair.out), units: '' });
+      options.push({ asset: pair.out, symbol: swapAssetSymbol(pair.out), units: '', live: pair.live });
     }
 
     return options;
   }, [convertPairs, assetIn]);
 
+  /**
+   * The default target is the first one the book will FILL (#496).
+   *
+   * Falling back to `targetOptions[0]` regardless would land the page on a direction
+   * that refuses, so the customer's first act would be reading a refusal for a swap
+   * they never chose. A dead option that is the only option still shows, and the quote
+   * says why.
+   */
   const assetOut =
     targetChoice !== null && targetOptions.some((option) => option.asset === targetChoice)
       ? targetChoice
-      : (targetOptions[0]?.asset ?? '');
+      : ((targetOptions.find((option) => option.live !== false) ?? targetOptions[0])?.asset ?? '');
 
   const sourceRow = rows.find((row) => row.asset === assetIn) ?? null;
   const asked = typed ? readAmount(draft, sourceRow?.amount ?? '0') : { value: CONVERT_AMOUNT_MAX, problem: null };

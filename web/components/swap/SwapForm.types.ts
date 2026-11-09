@@ -43,6 +43,15 @@ export interface SwapAssetOption {
   symbol: string;
   /** Empty for a target, which the customer holds an unknown amount of. */
   units: string;
+  /**
+   * Whether the book will fill this direction right now (#496).
+   *
+   * Absent on a source: a balance is payable whatever the book is doing, and the
+   * question only has an answer for a swap. `false` never removes the option, it marks
+   * it: an asset that vanishes from the picker reads as a bug, where "no market right
+   * now" is the truth. The quote is still the thing that refuses.
+   */
+  live?: boolean;
 }
 
 export interface SwapSelectProps {

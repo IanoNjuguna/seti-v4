@@ -84,6 +84,11 @@ export async function fetchConvertQuote(input: ConvertQuoteInput): Promise<Conve
 export interface ConvertPair {
   in: string;
   out: string;
+  /**
+   * Whether the book will fill this direction right now (#496). Guidance, not a gate:
+   * a dead direction still refuses at quote time with `convert-no-liquidity`.
+   */
+  live: boolean;
 }
 
 /**

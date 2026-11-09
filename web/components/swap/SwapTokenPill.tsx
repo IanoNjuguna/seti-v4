@@ -2,7 +2,7 @@
 
 import { Icon } from '@/components/ui/Icon';
 import { TokenMark } from '@/components/ui/TokenMark';
-import { SWAP_PILL_CLASS } from './SwapForm.constants';
+import { SWAP_FORM_COPY, SWAP_PILL_CLASS } from './SwapForm.constants';
 import type { SwapTokenPillProps } from './SwapForm.types';
 
 /**
@@ -44,8 +44,10 @@ export function SwapTokenPill({ id, label, value, options, disabled, onChoose }:
         className={SWAP_PILL_CLASS}
       >
         {options.map((option) => (
-          <option key={option.asset} value={option.asset}>
-            {option.symbol}
+          <option key={option.asset} value={option.asset} disabled={option.live === false}>
+            {option.live === false
+              ? `${option.symbol}${SWAP_FORM_COPY.noMarketSuffix}`
+              : option.symbol}
           </option>
         ))}
       </select>
