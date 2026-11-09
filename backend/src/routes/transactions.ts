@@ -30,6 +30,7 @@ import {
   quoteConvert,
   ConvertRefusalError,
 } from '../services/convert.js';
+import { directionKey, liveDirections } from '../services/book-liveness.js';
 import { planSettlement } from '../services/settlement.js';
 import { toRecentTransaction } from '../services/transaction-view.js';
 import {
@@ -231,6 +232,18 @@ export interface ConvertPairsView {
   pairs: ConvertPairView[];
   /** The distinct assets those pairs pay out to, in the order they are met. */
   targets: SupportedAsset[];
+}
+
+/**
+ * One pair as the ROUTE carries it: the allowlist entry, plus whether the book will
+ * fill that direction right now (#496).
+ *
+ * `live` is guidance, never authorisation. A direction that goes dead still answers
+ * `convert-no-liquidity`; a dead one still prices when the book comes back. `false`
+ * only ever means the probe found no orders at 10 units a moment ago.
+ */
+export interface ConvertPairOfferView extends ConvertPairView {
+  live: boolean;
 }
 
 /**
@@ -509,8 +522,21 @@ export async function transactionRoutes(app: FastifyInstance) {
    */
   app.get('/convert/pairs', async (request, reply) => {
     const user = requireUser(request);
+    const view = convertPairsFor(user.network);
 
-    return reply.send(convertPairsFor(user.network));
+    // The allowlist says what MAY be asked for; the book says what will fill. Both are
+    // published, because a picker offering a direction with no orders is the button
+    // `services/convert.ts` says the allowlist exists to prevent (#496). A probe that
+    // could not reach the book leaves every direction live rather than greying a swap
+    // that works: an outage is not an empty book.
+    const { known, live } = await liveDirections(user.network, view.pairs);
+
+    const pairs: ConvertPairOfferView[] = view.pairs.map((pair) => ({
+      ...pair,
+      live: known ? live.has(directionKey(pair.in, pair.out)) : true,
+    }));
+
+    return reply.send({ pairs, targets: view.targets });
   });
 
   /**
