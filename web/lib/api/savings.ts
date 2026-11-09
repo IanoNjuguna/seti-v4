@@ -98,6 +98,16 @@ export interface SavingsWithdrawQuote {
   quoteId: string;
   /** True only when the vault redeems immediately; a queued exit is not offered. */
   canWithdraw: boolean;
+  /** The network fee this exit pays, in OUSD, and how it was priced (#511). */
+  networkFee: string;
+  networkFeeSource: 'estimate' | 'reserve';
+  /** That fee in the customer's currency, so the sheet prints money. */
+  networkFeeFiat: string;
+  /**
+   * False when the balance outside the vault cannot pay the fee. The send would be
+   * rejected before the redeem ran, so the sheet must refuse the tap.
+   */
+  canPayFee: boolean;
   instantLiquidity: string | null;
   positionShares: string;
 }

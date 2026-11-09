@@ -51,6 +51,19 @@ export const SAVE_COPY = {
   /** The claim, named as a campaign reward so it is never read as a vault rate. */
   claimAction: 'Claim rewards',
   withdrawUnavailable: 'Nothing saved yet',
+  /**
+   * The withdrawal's network fee (#511), in the customer's currency.
+   *
+   * A Tempo transaction pays its gas before any call in it runs, so a customer whose money
+   * is all in the vault has nothing to pay the exit with. The sheet names the charge and,
+   * when the balance cannot cover it, names the figure to keep, rather than leaving a
+   * disabled button and a generic refusal at send time.
+   */
+  withdrawFeeLine: (fee: string) => `Network fee ${fee}, from your available balance.`,
+  withdrawNeedsFee: (fee: string) =>
+    `Keep at least ${fee} in your available balance to pay the network fee.`,
+  /** The vault's own answer, when it will not redeem at this size right now. */
+  withdrawVaultRefused: 'The vault cannot pay this out right now. Nothing was moved.',
   amountTitle: 'How much are you saving?',
   amountLabel: 'Amount to save',
   amountPlaceholder: '0.00',
