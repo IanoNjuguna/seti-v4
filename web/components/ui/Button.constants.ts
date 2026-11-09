@@ -18,7 +18,7 @@ import type { ButtonVariant } from '@/lib/types';
  */
 export const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary:
-    'bg-canvas-dark text-on-dark hover:bg-charcoal rounded-md min-touch h-12 px-7 inline-flex items-center justify-center font-semibold transition-colors duration-200 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+    'ctl-raised ctl-raised-dark bg-canvas-dark text-on-dark hover:bg-charcoal rounded-md min-touch h-12 px-7 inline-flex items-center justify-center font-semibold transition-[background-color,box-shadow,transform] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
   secondary:
     'bg-canvas-light text-ink border border-hairline-strong hover:bg-surface-soft rounded-md min-touch h-12 px-7 inline-flex items-center justify-center font-semibold transition-colors duration-200 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
   ghost:
@@ -41,7 +41,7 @@ export const VARIANT_CLASSES: Record<ButtonVariant, string> = {
    * never has to change. Disabled goes grey, never a dimmed yellow.
    */
   accent:
-    'bg-accent-lime text-ink border border-ink hover:bg-accent-lime-deep rounded-md min-touch h-12 px-7 inline-flex items-center justify-center font-semibold transition-colors duration-(--duration-quick) ease-out active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 disabled:bg-surface-soft disabled:text-stone disabled:border-hairline-light',
+    'ctl-raised ctl-raised-accent bg-accent-lime text-ink border border-ink hover:bg-accent-lime-deep rounded-md min-touch h-12 px-7 inline-flex items-center justify-center font-semibold transition-[background-color,box-shadow,transform] duration-(--duration-quick) ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 disabled:bg-surface-soft disabled:text-stone disabled:border-hairline-light',
   /*
    * `button-primary` — white CTA on a dark band. The brand's loudest action per
    * `design/revolut.md`, and previously inexpressible: a caller could not reach
