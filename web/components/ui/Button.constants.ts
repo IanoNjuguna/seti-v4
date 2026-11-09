@@ -102,7 +102,12 @@ export const TEXT_COLOR: Record<ButtonVariant, 'inverse' | 'primary' | 'accent' 
   primary: 'inverse',
   secondary: 'primary',
   ghost: 'accent',
-  destructive: 'inverse',
+  /*
+   * RED, not white (#491). The fill is gone, so a white label on a transparent button is a label on the
+   * page background: it rendered invisible, and a destructive action nobody can see is worse than none.
+   * The role follows the ink the variant declares.
+   */
+  destructive: 'alert',
   pill: 'primary',
   /* Ink label on the white CTA (the doc's `canvas-dark` is a hair darker than
      `ink`; the system's own text colour is the right token for a label). */

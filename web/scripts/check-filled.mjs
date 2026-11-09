@@ -20,6 +20,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { TEXT_COLOR, VARIANT_CLASSES } from '../components/ui/Button.constants.ts';
 
 let passed = 0;
 let failed = 0;
@@ -102,6 +103,30 @@ console.log('\nand it is one per screen:');
 
   const totals = [...found.values()].reduce((sum, n) => sum + n, 0);
   check('the tree holds exactly the declared controls', totals === Object.keys(DECLARED).length, String(totals));
+}
+
+console.log('\nand a label never assumes a fill the variant does not have:');
+{
+  /*
+   * The bug this exists for: `destructive` lost its red slab and kept a WHITE label, so a destructive
+   * action rendered as a white sentence on a white page. Nobody caught it in review because the classes
+   * looked right; it took looking at the screen.
+   */
+  const filledOnly = ['primary', 'accent', 'on-dark', 'outline-dark', 'destructive-soft'];
+  const unfilled = Object.entries(VARIANT_CLASSES)
+    .filter(([variant]) => !filledOnly.includes(variant))
+    .map(([variant]) => variant);
+
+  for (const variant of unfilled) {
+    check(
+      `${variant} does not paint an inverse label without a fill`,
+      TEXT_COLOR[variant] !== 'inverse',
+      `label role is ${TEXT_COLOR[variant]}`
+    );
+  }
+
+  check('destructive is red ink', TEXT_COLOR.destructive === 'alert', TEXT_COLOR.destructive);
+  check('ghost is the link ink', TEXT_COLOR.ghost === 'accent', TEXT_COLOR.ghost);
 }
 
 console.log('\nthe weaker controls carry no fill of their own:');
