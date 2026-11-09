@@ -21,6 +21,9 @@
  *    when no single balance can.
  */
 import { readFileSync } from 'node:fs';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { FeeQuote } from '../components/money/FeeQuote.tsx';
 import { quoteRows, QUOTE_LABELS } from '../components/money/quoteRows.ts';
 import { buildTokenSelector, selectorLine } from '../components/token-selector/token-selector.model.ts';
 import { sendFormFlags } from '../components/home/send-panel-step.ts';
@@ -143,6 +146,30 @@ console.log('a claim is the one thing a link may seed, and it is not a figure (#
   );
   check('a blank claim is not a claim', sendSeed(new URLSearchParams('claim=')).claim === null);
   check('no claim means null, never an empty string', sendSeed(new URLSearchParams('to=akinyi')).claim === null);
+}
+
+
+console.log('the price is one row until it is asked to be four (#483):');
+{
+  const preview = SEND_PREVIEW;
+  const compact = renderToStaticMarkup(
+    createElement(FeeQuote, { preview, loading: false, tone: 'light', subject: 'send', compact: true })
+  );
+  const full = renderToStaticMarkup(
+    createElement(FeeQuote, { preview, loading: false, tone: 'light', subject: 'send' })
+  );
+
+  /* The labels are named from QUOTE_LABELS, not retyped: a check that copies the copy is a check
+     that passes when the component changes and the test does not. */
+  const compactRows = quoteRows(preview);
+  const feeValue = compactRows.find((row) => row.key === 'fee').value;
+  const totalValue = compactRows.find((row) => row.key === 'total').value;
+
+  check('the compact line names the fee it includes', compact.includes(feeValue) && /fee/.test(compact));
+  check('and the total, which is the figure being decided', compact.includes(totalValue));
+  check('it does not itemise gas before it is asked', !compact.includes(QUOTE_LABELS.gas));
+  check('the full block still itemises all four', full.includes(QUOTE_LABELS.gas) && full.includes(QUOTE_LABELS.receive));
+  check('one row is shorter than four', compact.length < full.length);
 }
 
 console.log('the confirmation carries the fee and the total, every time:');
