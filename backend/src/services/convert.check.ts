@@ -84,6 +84,19 @@ import {
   type ConvertQuote,
 } from './convert.js';
 import { STABLECOIN_DEX_ADDRESS, networkConfigFor, servedNetwork } from './chain.js';
+import {
+  bandFor as bandForOn,
+  LIVE_BOOK_HEADROOM_BPS,
+  MEASURED_ON,
+  MEASURED_REVERSE_ON,
+  PAR_BAND_BPS,
+  PAR_BAND_CEILING_BPS,
+} from './par-bands.js';
+import {
+  formatMatrixLine,
+  scanBook as scanBookLines,
+  type BookReading,
+} from './book-report.js';
 import { ASSET_DECIMALS, SUPPORTED_ASSETS, type SupportedAsset } from '../config/assets.js';
 import { readQuote } from './quote.js';
 import { SETTLE_TARGET } from './settlement.js';
@@ -191,62 +204,16 @@ const PAR_NETWORK: Network = parNetwork(process.env.SETI_PAR_NETWORK, NETWORK);
  * A pair with no entry of either kind FAILS rather than defaulting: a band has to be
  * measured, not inherited.
  */
-const MEASURED_ON = '2026-10-23';
-/** The date the reverse sides of the bridged pairs were measured (see above). */
-const MEASURED_REVERSE_ON = '2026-11-03';
-
-const PAR_BAND_BPS: Readonly<Record<Network, Readonly<Record<string, number>>>> = {
-  mainnet: {
-    'ousd↔pathusd': 0,
-    'ousd↔usdc.e': 1,
-    'pathusd↔usdc.e': 2,
-    'ousd↔usdt0': 5,
-    'pathusd↔usdt0': 6,
-    // The reverse sides of the two bridged pairs, measured on 2026-11-03 (the
-    // numbers and their stability are in the docblock above). ADDED, not changed:
-    // not one band above moved to make this suite green, and the pair rows still
-    // cover every direction that was not measured separately.
-    'ousd→usdc.e': 3,
-    'pathusd→usdc.e': 3,
-  },
-  testnet: {
-    'ousd↔pathusd': 1,
-  },
-};
-
 /**
- * A live book moves between blocks, so a band is the measurement plus one basis
- * point: enough that a single tick is not read as drift, not enough to hide a real
- * move. It is a constant rather than a per-pair allowance on purpose, so the
- * headroom cannot be tuned pair by pair.
- */
-const LIVE_BOOK_HEADROOM_BPS = 1;
-
-/**
- * The widest band plus headroom any pair may be given. A pair is not allowed an
- * arbitrarily loose tolerance, so loosening the table above is a visible edit
- * against a limit instead of a quiet way to turn this suite green.
- */
-const PAR_BAND_CEILING_BPS = 15;
-
-/** `['usdt0','ousd']` and `['ousd','usdt0']` are the same book. */
-function canonicalPair(a: string, b: string): string {
-  return [a, b].sort().join('↔');
-}
-
-/**
- * The band a DIRECTION is held to: the direction's own measurement when one exists
- * (`'ousd→usdc.e'`), otherwise the pair's (`'ousd↔usdc.e'`).
+ * The band a DIRECTION is held to on the network this suite judges.
  *
- * Direction first because the two sides of a book are not one price: the parent row is
- * the measurement taken in the direction the pair is written in `CONVERT_PAIRS`, and
- * using it for the other side is the fallback rather than the rule.
+ * `par-bands.ts` owns the numbers, the ceiling and the lookup, because the nightly book
+ * report must read exactly what a merge is held to and cannot import this file: this
+ * one reaches `config/env.ts` at import (#493). This binding is the only thing that
+ * belongs here.
  */
 function bandFor(assetIn: string, assetOut: string): number | undefined {
-  return (
-    PAR_BAND_BPS[PAR_NETWORK][`${assetIn}→${assetOut}`] ??
-    PAR_BAND_BPS[PAR_NETWORK][canonicalPair(assetIn, assetOut)]
-  );
+  return bandForOn(PAR_NETWORK, assetIn, assetOut);
 }
 
 /**
@@ -258,39 +225,6 @@ function bandFor(assetIn: string, assetOut: string): number | undefined {
  */
 const BOOK_REPORT_MODE = process.env.CONVERT_BOOK_REPORT === '1';
 
-/** The size every pair is quoted at, in token units: 10.000000, as measured. */
-const BOOK_QUOTE_SIZE = BigInt(10_000_000);
-
-/**
- * Column widths for the matrix. Wide enough for `report` and for the longest pair
- * on either allowlist (`pathusd → usdc.e`), so the status and the pair line up
- * down the block exactly as the arrow lines elsewhere in this file do.
- */
-const BOOK_STATUS_WIDTH = 9;
-const BOOK_PAIR_WIDTH = 20;
-
-/**
- * One direction of one pair, as the book answered it.
- *
- * Both directions are kept, not just the one written in `CONVERT_PAIRS`, because a
- * market can hold orders on one side only: the venue has no bid for USDT0 on mainnet
- * on the day this was written, so `usdt0 → ousd` refuses while `ousd → usdt0` may
- * well quote. A reading that collapsed the two would be a claim about symmetry that
- * nobody measured.
- */
-interface BookReading {
-  readonly assetIn: SupportedAsset;
-  readonly assetOut: SupportedAsset;
-  readonly answer:
-    | {
-        readonly kind: 'quote';
-        readonly amountOut: bigint;
-        readonly minAmountOut: bigint;
-        /** Against par, in whole basis points: the integer the band is judged on. */
-        readonly spreadBps: number;
-      }
-    | { readonly kind: 'refused'; readonly code: string };
-}
 
 /**
  * Print one matrix line, and count it when it is an assertion.
@@ -300,7 +234,7 @@ interface BookReading {
  * `ok` and `FAIL` are ours, so they count.
  */
 function matrixLine(status: 'ok' | 'report' | 'FAIL', pair: string, detail: string): void {
-  console.log(`${status.padEnd(BOOK_STATUS_WIDTH)}${pair.padEnd(BOOK_PAIR_WIDTH)}${detail}`);
+  console.log(formatMatrixLine(status, pair, detail));
   if (status === 'report') return;
   total += 1;
   if (status === 'FAIL') failures += 1;
@@ -327,93 +261,22 @@ function bookRefusalCode(error: unknown): string {
  *  - a pair with no band in `PAR_BAND_BPS` is a hard failure: there is no number to
  *    hold it to, and defaulting one would be inventing a tolerance.
  */
-function judgeReading(reading: BookReading): void {
-  const pair = `${reading.assetIn} → ${reading.assetOut}`;
-
-  if (reading.answer.kind === 'refused') {
-    const { code } = reading.answer;
-    matrixLine(code === 'convert-no-liquidity' ? 'report' : 'FAIL', pair, `refused ${code}`);
-    return;
-  }
-
-  const { spreadBps } = reading.answer;
-  const measured = spreadBps.toFixed(2);
-  const band = bandFor(reading.assetIn, reading.assetOut);
-
-  if (band === undefined) {
-    matrixLine('FAIL', pair, `${measured} bps, no entry in PAR_BAND_BPS`);
-    return;
-  }
-
-  const allowed = band + LIVE_BOOK_HEADROOM_BPS;
-  if (spreadBps > allowed) {
-    matrixLine('FAIL', pair, `${measured} bps > ${allowed} bps allowed`);
-    return;
-  }
-
-  matrixLine('ok', pair, `${measured} bps`);
-}
-
-/** Quote ONE direction, print its verdict, and return the reading for later sections. */
-async function readDirection(
-  assetIn: SupportedAsset,
-  assetOut: SupportedAsset
-): Promise<BookReading> {
-  try {
-    const quoted = await quoteDexConvert({
-      assetIn,
-      assetOut,
-      amountIn: BOOK_QUOTE_SIZE,
-      network: PAR_NETWORK,
-    });
-
-    // Integer basis points, the same arithmetic the band comparison uses, so the
-    // figure printed is the figure judged: 2.0000000004 > 2 in floating point, and
-    // a quote is integers all the way.
-    const spreadBps = Number(
-      ((BOOK_QUOTE_SIZE - quoted.amountOut) * BigInt(10_000)) / BOOK_QUOTE_SIZE
-    );
-    const reading: BookReading = {
-      assetIn,
-      assetOut,
-      answer: {
-        kind: 'quote',
-        amountOut: quoted.amountOut,
-        minAmountOut: quoted.minAmountOut,
-        spreadBps,
-      },
-    };
-    judgeReading(reading);
-    return reading;
-  } catch (error) {
-    const reading: BookReading = {
-      assetIn,
-      assetOut,
-      answer: { kind: 'refused', code: bookRefusalCode(error) },
-    };
-    judgeReading(reading);
-    return reading;
-  }
-}
-
 /**
  * The matrix: every pair on the allowlist, BOTH directions, one line each.
  *
- * This replaced a loop that quoted each pair once, in the direction the table
- * happened to be written, and turned any refusal into a failure. That loop reported
- * a third party's inventory as a defect in this repository, and it never once asked
- * what the other side of the book would pay (#303).
+ * The matrix itself lives in `book-report.ts`, because the nightly job prints the same
+ * one without an environment (#493). Only the QUOTE is this file's: the gate must
+ * exercise `quoteDexConvert`, which is what a customer's swap goes through.
  */
 async function scanBook(): Promise<BookReading[]> {
-  const directions: Array<readonly [SupportedAsset, SupportedAsset]> = [];
-  for (const [a, b] of CONVERT_PAIRS[PAR_NETWORK]) {
-    directions.push([a, b], [b, a]);
-  }
+  const { readings } = await scanBookLines({
+    pairs: CONVERT_PAIRS[PAR_NETWORK],
+    network: PAR_NETWORK,
+    quote: (input) => quoteDexConvert({ ...input, network: PAR_NETWORK }),
+    refusalCode: bookRefusalCode,
+    onJudged: (judged) => matrixLine(judged.status, judged.pair, judged.detail),
+  });
 
-  const readings: BookReading[] = [];
-  for (const [assetIn, assetOut] of directions) {
-    readings.push(await readDirection(assetIn, assetOut));
-  }
   return readings;
 }
 
