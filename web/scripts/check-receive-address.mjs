@@ -67,6 +67,16 @@ console.log('the page hands out the address money arrives at:');
   );
 }
 
+console.log('the address rests as one row (#498):');
+{
+  check('the block is a disclosure, not three lines of prose', block.includes('aria-expanded'));
+  check('it opens collapsed, so the code stays the page', block.includes('useState(false)'));
+  check(
+    'and when it opens the address is the whole string, never shortened',
+    block.includes('display={address}') && !block.includes('slice(')
+  );
+}
+
 console.log('\nfrom the wallet that actually signs:');
 {
   check(

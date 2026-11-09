@@ -18,7 +18,7 @@ import { ButtonLink } from '@/components/ui';
  */
 export function ReceiveAskLink() {
   return (
-    <ButtonLink href="/app/ask" variant="secondary" fullWidth>
+    <ButtonLink href="/app/ask" variant="secondary">
       Claim
     </ButtonLink>
   );

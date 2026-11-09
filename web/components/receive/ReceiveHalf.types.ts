@@ -43,4 +43,10 @@ export interface ReceiveHalfProps {
    * sits between the code and the name it stands for.
    */
   download?: ReactNode;
+  /**
+   * The third action, when this half can put a figure on the code (#498): asking for a specific
+   * amount is the same job as handing the code over, so it belongs in the row rather than under
+   * the page as a separate block.
+   */
+  claim?: ReactNode;
 }
