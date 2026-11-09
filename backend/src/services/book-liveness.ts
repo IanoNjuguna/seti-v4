@@ -38,6 +38,18 @@ export const LIVENESS_PROBE_UNITS = 10_000_000n;
 /** How long one network's answer is reused. */
 const TTL_MS = 60_000;
 
+/**
+ * How long an answer is reused when the probe could not reach the book at all.
+ *
+ * Short, because it is not evidence about the book — it is evidence that a node was
+ * unreachable a moment ago, and that is worth five seconds of trust, not a minute.
+ *
+ * It exists because NOT caching this made an outage worse than the traffic it was in:
+ * every pairs request re-ran all ten probes exactly when the RPC could least afford it
+ * (#507).
+ */
+const UNKNOWN_TTL_MS = 5_000;
+
 /** `in→out`, the same shape `PAR_BAND_BPS` keys a direction by. */
 export function directionKey(assetIn: SupportedAsset, assetOut: SupportedAsset): string {
   return `${assetIn}→${assetOut}`;
@@ -48,6 +60,8 @@ interface Answer {
   /** False when the probe could not reach the book at all, so nothing may be ruled out. */
   known: boolean;
   live: ReadonlySet<string>;
+  /** How long THIS answer may be reused: a minute when known, seconds when not. */
+  ttl: number;
 }
 
 const cache = new Map<Network, Answer>();
@@ -63,7 +77,7 @@ export async function liveDirections(
   directions: ReadonlyArray<{ in: SupportedAsset; out: SupportedAsset }>
 ): Promise<{ known: boolean; live: ReadonlySet<string> }> {
   const cached = cache.get(network);
-  if (cached && Date.now() - cached.at < TTL_MS) return cached;
+  if (cached && Date.now() - cached.at < cached.ttl) return cached;
 
   const answers = await Promise.all(
     directions.map(async (direction) => {
@@ -90,12 +104,16 @@ export async function liveDirections(
   const answer: Answer = {
     at: Date.now(),
     known,
+    ttl: known ? TTL_MS : UNKNOWN_TTL_MS,
     live: new Set(answers.filter((entry) => entry.live).map((entry) => entry.key)),
   };
 
-  // A half-known answer is not cached: it would grey out nothing now but could hide a
-  // direction for the next minute on the strength of one timed-out read.
-  if (known) cache.set(network, answer);
+  // Cached EITHER WAY, on the ttl above. The comment here used to say a half-known
+  // answer must not be cached because it "could hide a direction for the next minute";
+  // that is not what unknown means. Unknown marks EVERYTHING live, so caching it cannot
+  // grey anything out — it only stops a failing probe from being re-run per request,
+  // which is what turned an RPC incident into ten reads per page load (#507).
+  cache.set(network, answer);
   return answer;
 }
 
