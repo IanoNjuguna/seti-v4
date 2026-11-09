@@ -34,6 +34,11 @@ export interface UseAskReturn {
   link: string;
   /** Copy of the refusals the server returns, in the caller's terms. */
   error: string | null;
+  /**
+   * Why the amount is not a figure the ask can be created for (#513), in the refusal's own words.
+   * Null while the field is empty: an untouched form is not an error.
+   */
+  amountError: string | null;
   canSubmit: boolean;
   setPayee: (handle: string) => void;
   setAmount: (amount: string) => void;

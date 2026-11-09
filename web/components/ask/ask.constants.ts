@@ -17,7 +17,6 @@ export const ASK_COPY = {
   subtitle: 'Send a link with the amount in it. They pay it with any Seti link, or by scanning your QR.',
   amountLabel: 'Amount',
   amountPlaceholder: '0.00',
-  keypadLabel: 'Amount keypad',
   memoLabel: 'What is it for',
   memoPlaceholder: 'Rent, half the taxi, the haircut',
   payeeLabel: 'Paid to',
@@ -65,3 +64,23 @@ export const ASK_REFUSALS: Record<string, string> = {
 
 /** The default window: what the service defaults to, named here so the chips and the server agree. */
 export const ASK_DEFAULT_EXPIRY_DAYS = 30;
+
+/**
+ * The amount's shape, restated from the service (#513).
+ *
+ * `REQUEST_AMOUNT_PATTERN` and `isValidRequestAmount` in `backend/src/services/requests.ts` are the
+ * authority. This is the same rule on the client for one reason: the ask used to get it for free
+ * from the keypad's `applyKey`, and with the grid gone a typed value is the only way in. A submit
+ * the server would refuse should not be offered, and a disabled button should say why, so the
+ * sentence is `ASK_REFUSALS['amount-invalid']` rather than a second wording of the same rule.
+ *
+ * Matched, not parsed, for the reason the service gives: `Number('1e9')` is a valid number and a
+ * different amount from the one a payer will read.
+ */
+export const ASK_AMOUNT_PATTERN = /^[0-9]{1,9}(\.[0-9]{1,2})?$/;
+
+export function isValidAskAmount(amount: string): boolean {
+  const trimmed = amount.trim();
+  if (!ASK_AMOUNT_PATTERN.test(trimmed)) return false;
+  return Number(trimmed) > 0;
+}
