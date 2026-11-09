@@ -46,7 +46,7 @@ function shareLabel(state: ShareState): string {
  * action beside it — the system's own premise-and-its-alternative pairing, which the
  * Home actions already use.
  */
-export function ReceiveHalf({ plate, headline, copy, share, download }: ReceiveHalfProps) {
+export function ReceiveHalf({ plate, headline, copy, share, download, claim }: ReceiveHalfProps) {
   const copyState = useCopyLink(copy?.value ?? '');
   const shareLink = useShareLink(share?.title ?? '', share?.url ?? '');
   const copied = copyState.state === 'copied';
@@ -56,7 +56,7 @@ export function ReceiveHalf({ plate, headline, copy, share, download }: ReceiveH
       {plate}
 
       <div className="flex max-w-full items-center justify-center gap-1">
-        <Text variant="display" as="p" className="min-w-0 break-words">
+        <Text variant="body-medium" as="p" className="min-w-0 break-words">
           {headline}
         </Text>
         {copy ? (
@@ -69,14 +69,15 @@ export function ReceiveHalf({ plate, headline, copy, share, download }: ReceiveH
         ) : null}
       </div>
 
-      {share || download ? (
-        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+      {share || download || claim ? (
+        <div className="flex flex-wrap items-center justify-center gap-2">
           {share ? (
             <Button variant="primary" onClick={shareLink.share}>
               {shareLabel(shareLink.state)}
             </Button>
           ) : null}
           {download}
+          {claim}
         </div>
       ) : null}
 

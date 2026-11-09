@@ -1,6 +1,7 @@
 'use client';
 
 import { QrDownloadControl } from '@/components/qr/QrDownloadControl';
+import { ReceiveAskLink } from './ReceiveAskLink';
 import { QrPlate } from '@/components/qr/QrPlate';
 import { RECEIVE_COPY } from './receive.constants';
 import { ReceiveHalf } from './ReceiveHalf';
@@ -50,6 +51,7 @@ export function ReceiveNameHalf({ handle, link }: ReceiveNameHalfProps) {
       }}
       share={{ title: RECEIVE_COPY.qrTitle(handle), url: link }}
       download={<QrDownloadControl download={download} />}
+      claim={<ReceiveAskLink />}
     />
   );
 }
