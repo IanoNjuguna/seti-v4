@@ -877,6 +877,15 @@ vault's own redeem quote and its floor), `swapOut` and `minSwapOut` (the OUSD le
 and its floor), `fiatOut` (what the payout is worth, at the vault's quote rather than
 the figure that was typed), `vault`, `shareToken` and `quoteId`.
 
+It also answers `networkFee` (in OUSD, 6 decimals), `networkFeeSource`
+(`estimate` | `reserve`), `networkFeeFiat` (the same figure in the customer's currency)
+and `canPayFee`. A Tempo transaction pays its gas in its fee token and the protocol
+debits it **before any call in the batch executes**, so a redeem cannot fund the
+transaction that performs it: the fee has to be in the wallet already. `canPayFee: false`
+means the exit cannot be signed at all, whatever the vault would pay, and a client that
+ignores it gets a refusal from the node with nothing to show the customer. An unreadable
+balance or an unpriceable fee is `false`.
+
 ### `POST /savings/withdraw`
 
 Record a withdrawal the customer signed.
