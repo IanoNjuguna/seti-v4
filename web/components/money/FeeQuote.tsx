@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { Text } from '@/components/ui';
+import { Icon } from '@/components/ui/Icon';
 import { cn } from '@/lib/cn';
 import { useHighlightOnChange } from '@/hooks/useHighlightOnChange';
-import { quoteRows } from './quoteRows';
+import { QUOTE_LABELS, quoteRows } from './quoteRows';
 import type { FeeQuoteProps } from './FeeQuote.types';
 
 /**
@@ -109,14 +111,15 @@ function Total({
  * four rows, moving the Commit button 40px at the exact moment the customer was
  * reading the price.
  */
-export function FeeQuote({ preview, loading, tone, subject }: FeeQuoteProps) {
+export function FeeQuote({ preview, loading, tone, subject, compact = false }: FeeQuoteProps) {
+  const [open, setOpen] = useState(false);
   const dark = tone === 'dark';
   const well = cn('space-y-3 rounded-md p-3', dark ? 'bg-canvas-dark' : 'bg-surface-soft');
 
   if (!preview) {
     return loading ? (
       <div className={well} role="status" aria-label="Pricing this transfer">
-        {[1, 2, 3, 4].map((row) => (
+        {(compact ? [1] : [1, 2, 3, 4]).map((row) => (
           <span
             key={row}
             className={cn(
@@ -130,13 +133,49 @@ export function FeeQuote({ preview, loading, tone, subject }: FeeQuoteProps) {
     ) : null;
   }
 
+  const rows = quoteRows(preview);
+  const fee = rows.find((row) => row.key === 'fee');
+  const total = rows.find((row) => row.key === 'total');
+
   return (
     <div className={well}>
-      {quoteRows(preview).map((row) =>
-        row.total ? (
-          <Total key={row.key} label={row.label} value={row.value} tone={tone} />
-        ) : (
-          <Row key={row.key} label={row.label} value={row.value} tone={tone} />
+      {compact && fee && total ? (
+        <>
+          <button
+            type="button"
+            onClick={() => setOpen((current) => !current)}
+            aria-expanded={open}
+            className="flex w-full flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-light"
+          >
+            <span className="font-tabular text-body-md-bold text-ink">{total.value}</span>
+            <span className="flex items-center gap-1">
+              <Text variant="micro" as="span" color="secondary">
+                {`Includes ${fee.value} fee`}
+              </Text>
+              <Icon
+                name="chevronRight"
+                className={cn('h-3.5 w-3.5 text-stone', open && 'rotate-90')}
+              />
+            </span>
+          </button>
+
+          {open ? (
+            <div className="flex flex-col gap-2 border-t border-hairline-light pt-2">
+              {rows
+                .filter((row) => !row.total)
+                .map((row) => (
+                  <Row key={row.key} label={row.label} value={row.value} tone={tone} />
+                ))}
+            </div>
+          ) : null}
+        </>
+      ) : (
+        rows.map((row) =>
+          row.total ? (
+            <Total key={row.key} label={row.label} value={row.value} tone={tone} />
+          ) : (
+            <Row key={row.key} label={row.label} value={row.value} tone={tone} />
+          )
         )
       )}
 

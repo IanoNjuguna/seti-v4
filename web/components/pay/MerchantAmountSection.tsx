@@ -63,6 +63,7 @@ export function MerchantAmountSection({ payment, amountError }: MerchantAmountSe
       <TokenSelector model={payment.tokenSelector} onChoose={payment.setAsset} />
 
       <FeeQuote
+        compact
         preview={payment.preview}
         loading={payment.previewLoading || payment.step === 'previewing'}
         tone="light"

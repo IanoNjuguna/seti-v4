@@ -21,6 +21,10 @@ export const ASK_COPY = {
   memoLabel: 'What is it for',
   memoPlaceholder: 'Rent, half the taxi, the haircut',
   payeeLabel: 'Paid to',
+  /* The optional answers, behind one row (#483). */
+  extrasOpen: 'Note or expiry',
+  extrasClose: 'Done',
+  extrasEmpty: 'Add a note or an expiry',
   expiryLabel: 'Expires',
   expiryOptions: [
     { days: 7, label: '7 days' },

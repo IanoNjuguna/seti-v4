@@ -1,8 +1,6 @@
 'use client';
 
-import { Text } from '@/components/ui';
 import { PayAmountFigure, PayKeypad } from '@/components/pay/PayAmount';
-import { ASK_COPY } from './ask.constants';
 import type { AskFigureProps } from './ask.types';
 
 /** Shared by the figure, its keypad and its error line. */
@@ -24,10 +22,6 @@ export const ASK_AMOUNT_ID = 'ask-amount';
 export function AskFigure({ amount, disabled, onAmount, error }: AskFigureProps) {
   return (
     <div className="flex flex-col gap-3">
-      <Text variant="micro" as="p" color="secondary">
-        {ASK_COPY.amountLabel}
-      </Text>
-
       <PayAmountFigure
         id={ASK_AMOUNT_ID}
         amount={amount}

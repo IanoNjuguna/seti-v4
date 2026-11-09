@@ -38,6 +38,16 @@ export type FeeQuoteTone = 'light' | 'dark';
 export type FeeQuoteSubject = 'send' | 'payment';
 
 export interface FeeQuoteProps {
+  /**
+   * One row instead of four (#483).
+   *
+   * Every send screen in the reference set draws the figure, the keypad and the button with AT MOST
+   * one row between them; the itemised block is what a customer opens when they want it, not what
+   * stands between a thumb and the CTA. `compact` draws exactly one row, fee then total, and expands
+   * into the same four rows on a tap. The fee stays VISIBLE either way: it is a term of the payment,
+   * not a detail, so collapsing it entirely would trade vertical space for a quiet charge.
+   */
+  compact?: boolean;
   preview: FeeQuotePreview | null;
   loading: boolean;
   tone: FeeQuoteTone;
