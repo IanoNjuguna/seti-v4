@@ -12,6 +12,7 @@ import {
   chooseDepositAsset,
   depositFitsWithFee,
   exitIsAvailable,
+  feeIsCovered,
   orderDepositAssets,
   SAVINGS_ASSET,
   SAVINGS_LIVE,
@@ -424,6 +425,48 @@ check(
 check(
   'a balance smaller than the fee spends nothing, rather than going negative',
   spendableAfterFee(100n, FEE) === BigInt(0)
+);
+
+// ---------------------------------------------------------------------------
+// THE EXIT'S FEE (#511). A withdrawal cannot fund its own transaction: Tempo debits the
+// fee from the payer's balance before any call in the batch runs, so the OUSD a redeem
+// pays out is one validation too late. The customer this exists for held 0.0769 shares
+// and 0.000000 OUSD, was quoted a withdrawal, and was refused by the node.
+// ---------------------------------------------------------------------------
+console.log('\na withdrawal can only be offered when the balance outside the vault pays its fee\n');
+
+const EXIT_FEE = BigInt(10_300); // ~0.0103 OUSD, the reservation for an OUSD batch
+
+check('a balance equal to the fee can pay it', feeIsCovered(EXIT_FEE, EXIT_FEE));
+check('one unit under the fee cannot', feeIsCovered(EXIT_FEE - 1n, EXIT_FEE) === false);
+check(
+  'an empty balance cannot, which is the reported failure',
+  feeIsCovered(BigInt(0), EXIT_FEE) === false
+);
+check(
+  'an unreadable balance fails closed rather than assuming the fee is covered',
+  feeIsCovered(null, EXIT_FEE) === false
+);
+check(
+  'an unpriced fee fails closed too, rather than making every balance enough',
+  feeIsCovered(EXIT_FEE, BigInt(0)) === false
+);
+
+/*
+ * And the quote must WIRE that helper against the WALLET's balance rather than restate it:
+ * the failure this fixes was a quote that answered yes because it never asked the question.
+ */
+const pricing = readFileSync('src/services/savings.ts', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+check(
+  'the withdrawal quote prices the fee it is about to require',
+  pricing.includes("estimateNetworkFee('ousd', network)") &&
+    /canPayFee:\s*feeIsCovered\(walletOusd,\s*networkFee\)/.test(pricing),
+  'canPayFee is not wired to the fee and the balance'
+);
+check(
+  'and the balance it checks is the signing wallet\u2019s, not the vault\u2019s',
+  /feeToken\s*\?\s*readAssetBalance\(\s*address/.test(pricing),
+  'no wallet balance read in the withdrawal quote'
 );
 
 // ---------------------------------------------------------------------------
