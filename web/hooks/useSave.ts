@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Address } from 'viem';
 import { ApiError, refusalMessage } from '@/lib/api';
+import { formatFiat } from '@/lib/formatCurrency';
+import { SAVE_COPY } from '@/components/save/Save.constants';
 import {
   fetchSavings,
   quoteSavingsDeposit,
@@ -179,7 +181,24 @@ export function useSave(): UseSaveReturn {
           const fresh = await quoteSavingsWithdraw(amountFiat);
 
           if (!fresh.canWithdraw) {
-            setError('This vault cannot pay out immediately right now.');
+            setError(SAVE_COPY.withdrawVaultRefused);
+            setStatus('idle');
+            return;
+          }
+
+          /*
+           * THE EXIT'S OWN GAS BILL (#511). The quote prices it and the sheet prints it,
+           * but this is the check that matters: the quote being re-fetched here means the
+           * balance it was priced against is read again at signing time, so a customer who
+           * spent the last of their OUSD between quotes is refused with a sentence instead
+           * of a send that cannot run.
+           */
+          if (!fresh.canPayFee) {
+            setError(
+              SAVE_COPY.withdrawNeedsFee(
+                formatFiat(Number(fresh.networkFeeFiat), fresh.fiatCurrency)
+              )
+            );
             setStatus('idle');
             return;
           }
@@ -228,7 +247,7 @@ export function useSave(): UseSaveReturn {
   const ready =
     mode === 'add'
       ? depositQuote !== null && depositQuote.hasEnoughBalance
-      : withdrawQuote !== null && withdrawQuote.canWithdraw;
+      : withdrawQuote !== null && withdrawQuote.canWithdraw && withdrawQuote.canPayFee;
 
   return {
     summary,

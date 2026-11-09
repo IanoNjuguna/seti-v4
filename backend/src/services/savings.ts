@@ -324,9 +324,16 @@ async function simulateRedeem(
   }
 }
 
-/** The asset the vault is holding, as a number of tokens it could pay out immediately. */
-async function readVaultIdleAssets(
-  vault: `0x${string}`,
+/**
+ * One holder's balance of `asset`, read on the served chain.
+ *
+ * Two callers, one question: the vault's balance is the cash it could pay out
+ * immediately, and the signing wallet's OUSD balance is what can pay a batch's network
+ * fee (#511). Null is "the node would not tell us", which is not zero: every caller
+ * fails closed on it.
+ */
+async function readAssetBalance(
+  holder: `0x${string}`,
   asset: `0x${string}`,
   network: Network
 ): Promise<bigint | null> {
@@ -336,7 +343,7 @@ async function readVaultIdleAssets(
         address: asset,
         abi: ERC20_BALANCE_ABI,
         functionName: 'balanceOf',
-        args: [vault],
+        args: [holder],
       })
     );
   } catch {
@@ -695,6 +702,29 @@ export function spendableAfterFee(balance: bigint, fee: bigint): bigint {
   return balance > fee ? balance - fee : BigInt(0);
 }
 
+/**
+ * Whether the wallet can pay this EXIT's network fee (#511).
+ *
+ * A withdrawal cannot fund its own transaction. Tempo validates and debits the fee from
+ * the payer's fee token in `validate_against_state_and_deduct_caller`, before any call in
+ * the batch executes, so the OUSD a redeem pays out arrives one validation too late to
+ * pay for it. A customer whose whole balance is in the vault therefore needs one fee's
+ * worth of OUSD left OUTSIDE it, and the quote has to say so: without this the sheet
+ * prices the exit, enables the button, and the send dies with "Nothing was moved".
+ *
+ * Fail-closed on both unknowns, like `exitIsAvailable`: an unreadable balance is not a
+ * balance, and an unpriced fee (zero) is a figure nobody measured. Over-reserving refuses
+ * an exit that might have fitted, which is a sentence; under-reserving signs one that
+ * cannot run, which is a lie.
+ *
+ * Pure and exported so `check:save` holds the boundary at the fee and one unit under it.
+ */
+export function feeIsCovered(balance: bigint | null, fee: bigint): boolean {
+  if (fee <= BigInt(0)) return false;
+  if (balance === null) return false;
+  return balance >= fee;
+}
+
 export async function quoteSavingsDeposit(input: {
   userId: string;
   amountFiat: string;
@@ -886,6 +916,23 @@ export interface SavingsWithdrawQuote {
   quoteId: string;
   /** True only when the vault redeems immediately. A queued exit is not offered. */
   canWithdraw: boolean;
+  /**
+   * The network fee this exit pays, in OUSD, and how the figure was priced (#511).
+   *
+   * OUSD and not "the asset": the batch that spends shares pays its gas in the token the
+   * customer holds outside the vault, and that is the one Tempo checks for. The fee is
+   * priced the same way the deposit quote prices one, so the two surfaces never disagree
+   * about what a transaction costs.
+   */
+  networkFee: string;
+  networkFeeSource: 'estimate' | 'reserve';
+  /** That fee in the customer's currency, so a sheet prints money and not a unit. */
+  networkFeeFiat: string;
+  /**
+   * Whether the wallet holds that fee OUTSIDE the vault. False refuses the exit: the
+   * redeem pays out after the fee check that would have used the payout.
+   */
+  canPayFee: boolean;
   /** Vault-wide liquidity, when the vault reports it. Not an account-specific quote. */
   instantLiquidity: string | null;
   /** The account's whole position, for a "withdraw everything" affordance. */
@@ -962,12 +1009,32 @@ export async function quoteSavingsWithdraw(input: {
    * when a node will not simulate. Both unmeasurable is still a no.
    */
   const assetToken = tokenAddressFor(SAVINGS_ASSET, networkConfigFor(network).chainId);
+
+  /*
+   * THE FEE THIS EXIT HAS TO PAY, AND WHETHER THE WALLET HOLDING THE SHARES CAN (#511).
+   *
+   * A withdrawal cannot fund its own transaction. Tempo debits the fee from the payer's
+   * fee-token balance before any call in the batch runs, so the OUSD the redeem pays out
+   * arrives one validation too late to pay for the call that pays it. The asset is OUSD
+   * because that is what the exit signs with (the batch that spends shares), not because
+   * it is the vault's asset: those coincide today and must not be assumed to.
+   *
+   * Without this the quote priced an exit the node would refuse, the sheet enabled the
+   * button, and the customer got "Could not complete that. Nothing was moved." for want
+   * of a fraction of a cent they had already put in the vault.
+   */
+  const feeToken = tokenAddressFor('ousd', networkConfigFor(network).chainId);
+  const feeEstimate = await estimateNetworkFee('ousd', network);
+  const networkFee = parseUnits(feeEstimate.feeAsset, ASSET_DECIMALS);
+
   let simulated: boolean | null = null;
   let vaultIdle: bigint | null = null;
+  let walletOusd: bigint | null = null;
   if (address && shareAmount > BigInt(0)) {
-    [simulated, vaultIdle] = await Promise.all([
+    [simulated, vaultIdle, walletOusd] = await Promise.all([
       simulateRedeem(vault as `0x${string}`, address as `0x${string}`, shareAmount, network),
-      assetToken ? readVaultIdleAssets(vault as `0x${string}`, assetToken, network) : Promise.resolve(null),
+      assetToken ? readAssetBalance(vault as `0x${string}`, assetToken, network) : Promise.resolve(null),
+      feeToken ? readAssetBalance(address as `0x${string}`, feeToken, network) : Promise.resolve(null),
     ]);
   }
 
@@ -1017,6 +1084,11 @@ export async function quoteSavingsWithdraw(input: {
     quoteId,
     // What the vault says this size pays, and whether it will actually run the call (#343).
     canWithdraw: exitIsAvailable({ shares: shareAmount, payout: assetOut, simulated, vaultAssetBalance: vaultIdle }),
+    networkFee: formatUnits(networkFee, ASSET_DECIMALS),
+    networkFeeSource: feeEstimate.source,
+    networkFeeFiat: (Number(formatUnits(networkFee, ASSET_DECIMALS)) * fiatPerUsd).toFixed(2),
+    // And whether the wallet can PAY for it, which the vault cannot answer (#511).
+    canPayFee: feeIsCovered(walletOusd, networkFee),
     instantLiquidity: null,
     positionShares: formatUnits(positionShares, SAVINGS_SHARE_DECIMALS),
   };

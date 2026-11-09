@@ -46,13 +46,30 @@ export function SaveAmount({
     ? quote !== null && 'hasEnoughBalance' in quote && !quote.hasEnoughBalance
     : Number(amount) > Number(savedFiat);
 
-  const hint = overLimit
-    ? adding
-      ? `That is more than your ${formatFiat(Number(spendableFiat), currency)} available balance.`
-      : `That is more than the ${formatFiat(Number(savedFiat), currency)} you have saved.`
-    : adding
-      ? SAVE_COPY.amountHint
-      : SAVE_COPY.withdrawHint;
+  /*
+   * The withdrawal quote carries the exit's own network fee (#511).
+   *
+   * A Tempo transaction pays its gas before any call inside it runs, so a customer whose
+   * balance is all in the vault has nothing to pay the exit with, and the send is refused
+   * by the node rather than by anything we showed them. Two facts come off the quote: the
+   * charge itself, and whether the balance outside the vault can cover it.
+   */
+  const withdrawing = !adding && quote !== null && 'canPayFee' in quote ? quote : null;
+  const feeText = withdrawing ? formatFiat(Number(withdrawing.networkFeeFiat), currency) : '';
+  /* Over-saved outranks both: that is a figure the customer can fix by typing less. */
+  const feeShort = withdrawing !== null && !withdrawing.canPayFee && !overLimit;
+  const vaultRefused =
+    withdrawing !== null && !withdrawing.canWithdraw && !overLimit && !feeShort;
+
+  const hint = feeShort
+    ? SAVE_COPY.withdrawNeedsFee(feeText)
+    : overLimit
+      ? adding
+        ? `That is more than your ${formatFiat(Number(spendableFiat), currency)} available balance.`
+        : `That is more than the ${formatFiat(Number(savedFiat), currency)} you have saved.`
+      : adding
+        ? SAVE_COPY.amountHint
+        : SAVE_COPY.withdrawHint;
 
   return (
     <form
@@ -80,6 +97,21 @@ export function SaveAmount({
       {willMove && !overLimit ? (
         <Text variant="micro" color="secondary" as="p">
           {adding ? `${willMove} — ${SAVE_COPY.amountNote}` : `${willMove} — ${SAVE_COPY.withdrawNote}`}
+        </Text>
+      ) : null}
+
+      {/* What the exit costs to sign, and the vault's own answer when it will not pay. Both
+          sit under what will move, because both are facts about this amount, not about the
+          page. */}
+      {withdrawing && !overLimit && !feeShort && !vaultRefused ? (
+        <Text variant="micro" color="secondary" as="p">
+          {SAVE_COPY.withdrawFeeLine(feeText)}
+        </Text>
+      ) : null}
+
+      {vaultRefused ? (
+        <Text variant="micro" color="alert" as="p" role="alert">
+          {SAVE_COPY.withdrawVaultRefused}
         </Text>
       ) : null}
 
