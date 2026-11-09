@@ -50,6 +50,7 @@
     "prove:batch": "tsx src/cli/prove-batch.ts",
     "lint": "eslint src",
     "check:convert": "DEV_BYPASS_AUTH=true tsx src/services/convert.check.ts",
+    "book-report": "tsx src/cli/book-report.ts",
     "check:convert-record": "tsx src/services/convert.record.check.ts",
     "check:settle": "tsx src/services/settlement.check.ts",
     "report:gas": "tsx src/services/gas-report.ts",

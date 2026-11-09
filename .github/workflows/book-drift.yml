@@ -28,56 +28,20 @@ concurrency:
 
 env:
   NODE_ENV: development
-  # Mainnet: the book that serves customers is the one on chain 4217. This job
-  # READS that book through a public RPC. It needs no wallet and no secret, and
-  # it writes nothing.
-  TEMPO_CHAIN_ID: '4217'
-  # The four below are supplied because `config/env.ts` validates its whole schema
-  # at import, and `services/chain.ts` imports `config/networks.ts`, which imports
-  # that module. Every one of them is INERT in this job:
-  #
-  #   DATABASE_URL       never connected to. Report mode issues no query, and it is
-  #                      measured to exit 0 with this pointed at a dead host.
-  #   JWT_SECRET         never verified against. No session or token is read here,
-  #                      so the value cannot authenticate anything. It still must
-  #                      not be the example placeholder, which production refuses.
-  #   TEMPO_TOKEN_*      public mainnet addresses, the same two the config table
-  #                      already falls back to for chain 4217.
-  #
-  # #472 removed one of these (`SETI_TREASURY_ADDRESS`) by making it lazy, because a
-  # fee address has no business being required to read a book. These four are here
-  # rather than made lazy because `JWT_SECRET` derives the key `lib/secret-box.ts`
-  # uses, and a serving deployment without it is not a state worth creating for a
-  # nightly report. #493 records the better shape: an entrypoint that imports
-  # neither module.
-  DATABASE_URL: 'postgresql://report:report@127.0.0.1:1/report?connect_timeout=1'
-  JWT_SECRET: 'report-mode-reads-a-book-and-never-verifies-a-session'
-  TEMPO_TOKEN_PATHUSD: '0x20c0000000000000000000000000000000000000'
-  TEMPO_TOKEN_OUSD: '0x20c0000000000000000000006a37da5c996874be'
-  # The opt-in itself. `resolveServedNetwork` refuses chain 4217 without it, and that
-  # refusal is correct: it is what stops a practice deployment quietly reading live
-  # money. This job READS mainnet on purpose, so it says so. The comment below used to
-  # claim the opt-in "is not in the way of a read today"; it is, and the run named it.
-  ALLOW_MAINNET: 'true'
 
-# Why the mainnet addresses, and not verify.yml's
-# -----------------------------------------------
-# `verify.yml` pins TEMPO_TOKEN_PATHUSD / TEMPO_TOKEN_OUSD to PRACTICE addresses.
-# Reusing them here would be exactly wrong: this report reads the MAINNET book, and
-# an address belongs to a CHAIN. The two above are the mainnet registry addresses,
-# the same ones `backend/src/config/assets.ts` falls back to (taken from
-# `https://tokenlist.tempo.xyz/list/4217`). The earliest dated attestation of that
-# set is the par-band measurement in `backend/src/services/convert.check.ts`.
+# Why there is nothing else here
+# ------------------------------
+# This job reads one book on one chain and writes nothing: no wallet, no secret, no
+# database. `src/cli/book-report.ts` imports neither `config/env.ts` nor
+# `config/networks.ts`, and the five values that used to sit here (#480) were exactly
+# the cost of reaching those modules from a read:
 #
-# The comment that used to sit here claimed report mode "reaches the book without
-# loading config/env.ts". That was false, and it is what made two previous attempts
-# at this workflow look sound while every run failed at startup. `services/chain.ts`
-# imports `config/networks.ts`, which imports `config/env.ts`, which validates its
-# whole schema at import. Report mode does not escape it. The variables above are
-# supplied because of that, and each is inert (see the note at the top).
+#   DATABASE_URL, JWT_SECRET   report mode issued no query and verified no session
+#   TEMPO_TOKEN_*              `config/assets.ts` already carries them, per chain
+#   ALLOW_MAINNET              the opt-in guards SETTLING live money, not reading a book
 #
-# Prefer the better shape: #493 records an entrypoint that imports neither module,
-# so this file can stop carrying values it does not use.
+# The opt-in still guards every process that writes. This one cannot: its only call is
+# a `view` on the enshrined DEX, and it holds no key to sign with.
 
 jobs:
   report:
@@ -100,7 +64,7 @@ jobs:
       # is judged in the next step, which is the only step that can say why on
       # the issue it must not close. A failing step here would skip that
       # explanation and leave a red run with no issue comment.
-      - name: Run the suite in report mode
+      - name: Read the book
         working-directory: backend
         run: |
           set -uo pipefail
@@ -110,8 +74,8 @@ jobs:
           # is SKIPPED. That is the state this workflow has been in since it was added:
           # a red run and no issue, when opening one issue is the entire point (#480).
           set +e
-          CONVERT_BOOK_REPORT=1 TEMPO_CHAIN_ID=4217 \
-            npx tsx src/services/convert.check.ts 2>&1 | tee "$RUNNER_TEMP/book-report.txt"
+          npx tsx src/cli/book-report.ts --chain 4217 \
+            2>&1 | tee "$RUNNER_TEMP/book-report.txt"
           echo "${PIPESTATUS[0]}" > "$RUNNER_TEMP/book-status.txt"
           exit 0
 
