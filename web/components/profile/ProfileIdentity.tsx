@@ -1,4 +1,4 @@
-import { Badge, Mark, Text } from '@/components/ui';
+import { Mark, Text } from '@/components/ui';
 import type { ProfileIdentityProps } from './ProfileIdentity.types';
 
 /**
@@ -33,7 +33,14 @@ export function ProfileIdentity({ name, handle }: ProfileIdentityProps) {
           {name}
         </Text>
 
-        {handle ? <Badge>@{handle}</Badge> : null}
+        {/* Plain text, not a chip (#498): every account page in the reference set prints the
+            identifier under the name as a quiet line — X's @handle, Uphold's email, ChatGPT's
+            account address — and a bordered badge reads as a status rather than as a name. */}
+        {handle ? (
+          <Text variant="micro" as="span" color="secondary">
+            {`@${handle}`}
+          </Text>
+        ) : null}
       </span>
     </header>
   );
