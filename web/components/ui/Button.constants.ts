@@ -9,9 +9,15 @@ import type { ButtonVariant } from '@/lib/types';
  * `primary`     → `button-dark`: black button, white label. On a white band the
  *                    black button IS the primary CTA; cobalt is reserved.
  *  - `secondary`   → `button-outline-light`: white, ink label, 1px hairline-strong.
- *  - `ghost`       → an inline link, which the doc sets in `{colors.link}`.
- *  - `destructive` → `accent-danger` fill.
- *  - `pill`        → `button-pill-sm`: 36px, `surface-soft`, ink label.
+ *  - `ghost`       → an inline link, which the doc sets in `{colors.link}`. It carries NO box: no
+ *                    fill, no border, no padding, no fixed height beyond the 44px tap target. A ghost
+ *                    button with a rectangle around it is a secondary button with less contrast (#491).
+ *  - `destructive` → red INK, not a red slab. `design/revolut.md` puts a destructive action in a row
+ *                    with red type; a 48px red rectangle outranks the commit beside it, which inverts the
+ *                    hierarchy the screen is trying to state (#491).
+ *  - `pill`        → a PRESET chip (`button-pill-sm`), unfilled with a hairline, chosen state by
+ *                    `data-selected`. It must not read as a small button: a chip selects a value, and a
+ *                    control that looks like a button invites a second action (#491).
  *
  * Focus rings use the cobalt accent because it is the system's focus/emphasis
  * colour; the doc has no dedicated focus token.
@@ -22,10 +28,10 @@ export const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   secondary:
     'bg-canvas-light text-ink border border-hairline-strong hover:bg-surface-soft rounded-md min-touch h-12 px-7 inline-flex items-center justify-center font-semibold transition-colors duration-200 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
   ghost:
-    'bg-transparent text-link hover:text-primary-deep rounded-md min-touch h-12 px-2 inline-flex items-center justify-center font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+    'bg-transparent text-link hover:text-primary-deep underline-offset-4 hover:underline min-touch h-11 px-0 inline-flex items-center justify-center font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
   destructive:
-    'bg-accent-danger text-on-dark hover:bg-accent-deep-red rounded-md min-touch h-12 px-7 inline-flex items-center justify-center font-semibold transition-colors duration-200 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
-  pill: 'bg-surface-soft text-ink hover:bg-faint rounded-md h-9 px-4 inline-flex items-center justify-center font-semibold transition-colors duration-200 active:scale-[0.98]',
+    'bg-transparent text-accent-danger hover:text-accent-deep-red min-touch h-11 px-0 inline-flex items-center justify-center font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+  pill: 'bg-transparent text-ink border border-hairline-light hover:border-hairline-strong hover:bg-surface-soft rounded-md h-9 px-4 inline-flex items-center justify-center text-sm font-semibold transition-colors duration-200 data-[selected=true]:border-ink data-[selected=true]:bg-surface-soft',
   /*
    * The money submit, and the only yellow control in the app.
    *
