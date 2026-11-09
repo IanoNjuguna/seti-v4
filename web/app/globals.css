@@ -948,3 +948,71 @@
   }
 }
 
+
+/*
+ * ## The raised commit control (#491, #495)
+ *
+ * One recipe, four shadows, modelled on light from above. It is the answer to "a filled button that reads
+ * flat and cheap", and it applies to exactly ONE control per screen: the action that moves money or
+ * creates an obligation. Chips, rows, keypad keys, icon circles and outlined controls have no elevation to
+ * model, and an inset highlight on a flat surface is a bevel rather than a lift.
+ *
+ * The four layers, in the order they paint:
+ *
+ *   1. top light      inset, 1px, white 35%      the edge that catches the light
+ *   2. bottom shade   inset, 2px, black 20%      the edge that turns away from it
+ *   3. contact        drop, 1px, black 38%       the gap between the control and the page
+ *   4. glow           drop, wide, FILL 55%       the colour the control throws on the page
+ *
+ * The glow is what makes it look expensive, and it is the only layer that depends on the fill: a dark fill
+ * glows grey, the yellow commit glows warm. It is written per fill rather than computed, because the CSS
+ * minifier folds `color-mix(… 55%, transparent)` back to the bare token and drops the alpha (checked in the
+ * compiled chunk), which would paint a solid 55%-opaque slab instead of a glow.
+ *
+ * Pressed is the same model inverted: the lift goes, an inner shadow appears, the control moves down 1px.
+ * Nothing scales. A button that grows and shrinks under the finger reads as a toy; one that sinks reads as
+ * a physical key.
+ *
+ * Disabled has NO shadow. Elevation claims the control is usable, so a control that cannot be used must not
+ * make that claim.
+ */
+.ctl-raised,
+.ctl-raised-accent,
+.ctl-raised-dark {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.2),
+    0 1px 2px rgba(0, 0, 0, 0.38);
+}
+
+/* The money commit, in `accent-lime` (#d7cf07): the glow is that fill at 55%. */
+.ctl-raised-accent {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.2),
+    0 1px 2px rgba(0, 0, 0, 0.38),
+    0 8px 24px -6px rgba(215, 207, 7, 0.55);
+}
+
+/* The black commit on a white band: a neutral glow, because a black fill throws grey. */
+.ctl-raised-dark {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.2),
+    0 1px 2px rgba(0, 0, 0, 0.38),
+    0 8px 24px -6px rgba(0, 0, 0, 0.55);
+}
+
+.ctl-raised-accent:active:not(:disabled),
+.ctl-raised-dark:active:not(:disabled) {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 2px 6px rgba(0, 0, 0, 0.24);
+  transform: translateY(1px);
+}
+
+.ctl-raised-accent:disabled,
+.ctl-raised-dark:disabled {
+  box-shadow: none;
+  transform: none;
+}
