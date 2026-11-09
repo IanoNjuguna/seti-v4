@@ -72,7 +72,7 @@ const transferEvent = parseAbiItem(
  * 500-block query fails outright.
  */
 async function findRecentOusdTransfer(): Promise<string | null> {
-  const head = await publicClient.getBlockNumber();
+  const head = await withRetry(() => publicClient.getBlockNumber());
 
   for (let end = head; end > head - 200n; end -= 10n) {
     try {
@@ -92,43 +92,82 @@ async function findRecentOusdTransfer(): Promise<string | null> {
 }
 
 /**
- * Finds the recipient of the first OUSD Transfer in realTx, so the
- * amount-mismatch case can point a merchant at an address that genuinely
- * appears in the receipt.
+ * Reads the chain, and asks again when the read did not complete.
+ *
+ * A node that timed out has not disagreed with us, and this suite turns a disagreement
+ * into a merge failure. The retry is short and bounded: a transport hiccup gets another
+ * chance, a definitive answer does not (#509).
  */
-async function findTransferRecipient(txHash: string): Promise<string | null> {
-  const receipt = await publicClient.getTransactionReceipt({ hash: txHash as `0x${string}` });
-  const ousd = getTokenContract('ousd').toLowerCase();
+async function withRetry<T>(read: () => Promise<T>, attempts = 3): Promise<T> {
+  let lastError: unknown;
 
-  for (const log of receipt.logs) {
-    if (log.address.toLowerCase() !== ousd) continue;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      const decoded = decodeEventLog({ abi: erc20Abi, data: log.data, topics: log.topics });
-      if (decoded.eventName === 'Transfer') return String(decoded.args.to);
-    } catch {
-      // ignore undecodable logs
+      return await read();
+    } catch (error) {
+      lastError = error;
+      // Linear backoff. The whole budget is under a second, because this runs in front
+      // of every deploy and a hung gate is worse than a retried one.
+      if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, 250 * attempt));
     }
   }
-  return null;
+
+  throw lastError;
 }
 
-/** KES-equivalent value of the first OUSD Transfer in realTx. */
-async function findTransferAmountKes(txHash: string): Promise<number> {
-  const receipt = await publicClient.getTransactionReceipt({ hash: txHash as `0x${string}` });
+/**
+ * The anchor a mismatch case can be asserted against: ONE receipt, confirmed usable.
+ *
+ * The case this replaces was the whole of #509. It read the recipient and the amount
+ * from two separate `getTransactionReceipt` calls and never checked what the receipt's
+ * `status` was. When the chain answered with something the run could not use, the
+ * refusal came back as `receipt-reverted` instead of the amount mismatch, and three
+ * assertions fell over — on a commit that had already passed the same gate two minutes
+ * earlier.
+ *
+ * So: ONE read, both figures out of it, and a positive requirement that the transaction
+ * SUCCEEDED. A receipt whose status is not `success` cannot anchor a mismatch case,
+ * because `recordPayment` will (correctly) refuse it as a reverted transaction before
+ * the amount comparison ever runs.
+ */
+type Anchor =
+  | { ok: true; txHash: string; recipient: string; observed: number }
+  | { ok: false; reason: string };
+
+async function confirmAnchor(txHash: string): Promise<Anchor> {
+  let receipt;
+  try {
+    receipt = await withRetry(() =>
+      publicClient.getTransactionReceipt({ hash: txHash as `0x${string}` })
+    );
+  } catch {
+    return { ok: false, reason: 'the receipt could not be read from the chain' };
+  }
+
+  if (receipt.status !== 'success') {
+    return { ok: false, reason: `the transaction ${txHash} is not successful on chain` };
+  }
+
   const ousd = getTokenContract('ousd').toLowerCase();
 
   for (const log of receipt.logs) {
     if (log.address.toLowerCase() !== ousd) continue;
     try {
       const decoded = decodeEventLog({ abi: erc20Abi, data: log.data, topics: log.topics });
-      if (decoded.eventName === 'Transfer') {
-        return Number(formatUnits(decoded.args.value, 6));
-      }
+      if (decoded.eventName !== 'Transfer') continue;
+
+      return {
+        ok: true,
+        txHash,
+        recipient: String(decoded.args.to),
+        observed: Number(formatUnits(decoded.args.value, 6)),
+      };
     } catch {
-      // ignore
+      // An undecodable OUSD log is not the one we are looking for.
     }
   }
-  return 0;
+
+  return { ok: false, reason: `no OUSD Transfer in ${txHash}` };
 }
 
 /**
@@ -187,10 +226,15 @@ async function main() {
   console.log(`chain rate: ${quote.fiatPerUsd} (${quote.source})\n`);
 
   realTx = await findRecentOusdTransfer();
+  // Confirmed BEFORE anything asserts on it: the anchor is a real receipt, and a
+  // receipt this run cannot use must skip the case rather than fail it (#509).
+  const anchor: Anchor = realTx
+    ? await confirmAnchor(realTx)
+    : { ok: false, reason: 'no recent OUSD transfer was found' };
   console.log(
-    realTx
-      ? `anchoring mismatch case on real OUSD transfer: ${realTx}`
-      : 'no recent OUSD transfer found; amount-mismatch case will be skipped'
+    anchor.ok
+      ? `anchoring mismatch case on real OUSD transfer: ${anchor.txHash}`
+      : `skip  amount-mismatch case (${anchor.reason})`
   );
   console.log('');
 
@@ -320,14 +364,15 @@ async function main() {
   // receipt DOES contain a matching Transfer log, then claims a grossly
   // different amount. Without this, the recipient check could mask a broken
   // amount check.
-  const anchorTx = realTx!;
-  const recipientOfRealTx = realTx ? await findTransferRecipient(anchorTx) : null;
-  if (realTx && recipientOfRealTx) {
+  if (anchor.ok) {
+    const anchorTx = anchor.txHash;
     const targetMerchant = await prisma.merchant.create({
-      data: { name: 'Amount-Mismatch Merchant', payoutAddress: recipientOfRealTx },
+      data: { name: 'Amount-Mismatch Merchant', payoutAddress: anchor.recipient },
     });
 
-    const observedFiat = await findTransferAmountKes(anchorTx);
+    // Both figures came out of the ONE receipt confirmed above, so the claim and the
+    // observed amount cannot be read from different states of the chain.
+    const observedFiat = anchor.observed;
 
     threw = false;
     message = '';
@@ -372,15 +417,17 @@ async function main() {
 
     await prisma.merchant.delete({ where: { id: targetMerchant.id } });
   } else {
-    console.log('skip  amount-mismatch case (could not locate a Transfer recipient in realTx)');
+    // The reason was printed above, where the anchor was confirmed. Nothing is asserted
+    // here: a case that could not be anchored proves nothing either way (#509).
+    console.log('skip  amount-mismatch records (nothing was anchored)');
   }
 
   // A non-positive claim is rejected before any chain call.
   //
   // The hash is a fixed, well-formed but non-existent one rather than the real
   // anchor: the amount check runs before any chain read, so a real receipt is not
-  // needed to reach it — and `anchorTx` is `realTx!`, which is null on a quiet
-  // chain. Passing a null hash would key the refusal to nothing, tripping the
+  // needed to reach it — and an anchor is skipped entirely on a quiet chain. Passing
+  // a null hash would key the refusal to nothing, tripping the
   // "every refusal is recorded against its txHash" assertion below for a reason
   // that has nothing to do with the implementation. A keyed hash keeps that
   // assertion meaningful in every run.
