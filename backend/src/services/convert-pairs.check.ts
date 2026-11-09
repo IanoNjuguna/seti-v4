@@ -283,20 +283,34 @@ async function main(): Promise<void> {
     const body = answered.json<ConvertPairsView>();
     console.log(`     ${JSON.stringify(body)}`);
 
-    // The route is a passthrough of `convertPairsFor(session network)`. Driven over
-    // HTTP for the SERVED network, because that is the network the bypass account
-    // acts on by construction (`middleware/auth.ts` re-derives it per request); the
-    // other network is covered by the derivation above, and this equality is what
-    // ties the two together.
+    // The route answers `convertPairsFor(session network)`, with one field added: the
+    // book's own answer for each direction (#496). Driven over HTTP for the SERVED
+    // network, because that is the network the bypass account acts on by construction.
+    //
+    // The equality is on the PAIR SET, not on the bytes: `live` is a fact about a third
+    // party's book, and asserting its VALUE here would make this gate depend on who is
+    // holding USDT0 at that hour. That is the distinction `check:convert` already draws
+    // between what we wrote down and what the venue did.
+    const identity = (view: ConvertPairsView | { pairs: { in: string; out: string }[]; targets: string[] }) =>
+      JSON.stringify({
+        pairs: view.pairs.map((pair) => ({ in: pair.in, out: pair.out })),
+        targets: view.targets,
+      });
+
     check(
-      `the body is exactly convertPairsFor('${servedNetwork}')`,
-      JSON.stringify(body) === JSON.stringify(convertPairsFor(servedNetwork)),
+      `the body is convertPairsFor('${servedNetwork}'), plus liveness`,
+      identity(body) === identity(convertPairsFor(servedNetwork)),
       servedNetwork
+    );
+    check(
+      'every direction carries a boolean live flag',
+      body.pairs.every((pair) => typeof (pair as { live?: unknown }).live === 'boolean'),
+      body.pairs.filter((pair) => typeof (pair as { live?: unknown }).live !== 'boolean').length + ' missing'
     );
     check(
       'and it carries nothing but pairs and targets: no balance, no quote, no user',
       Object.keys(body).sort().join(',') === 'pairs,targets' &&
-        body.pairs.every((pair) => Object.keys(pair).sort().join(',') === 'in,out'),
+        body.pairs.every((pair) => Object.keys(pair).sort().join(',') === 'in,live,out'),
       Object.keys(body).join(',')
     );
 

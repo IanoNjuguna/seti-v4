@@ -65,6 +65,14 @@ export const SWAP_FORM_COPY = {
   amountEmpty: 'Enter an amount above zero.',
   amountInvalid: 'Enter an amount with up to six decimal places.',
   amountOverBalance: 'That is more than this balance holds. Try a smaller amount.',
+
+  /**
+   * A target the book will not fill right now (#496). A suffix rather than a sentence:
+   * it sits inside the option's own label, and the option is disabled, so nothing here
+   * claims money moved or that the asset is gone. The picker keeps offering it because
+   * an asset that disappears reads as a bug.
+   */
+  noMarketSuffix: ' (no market)',
 } as const;
 
 /** What a visitor with no account sees. */

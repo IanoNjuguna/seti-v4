@@ -578,13 +578,22 @@ The pairs this account's network will convert, expanded both ways, plus the dist
 outputs. A read of a constant: no balance, no quote, nothing written.
 
 ```json
-{ "pairs": [{ "in": "usdc.e", "out": "ousd" }, { "in": "ousd", "out": "usdc.e" }],
+{ "pairs": [{ "in": "usdc.e", "out": "ousd", "live": true },
+            { "in": "ousd", "out": "usdc.e", "live": false }],
   "targets": ["ousd", "pathusd"] }
 ```
 
+`live` is whether the book filled a 10 unit probe for that direction a moment ago
+(cached for a minute). It is guidance, never authorisation: a `live: false` direction
+still answers `convert-no-liquidity` if you ask for a quote, and a direction that
+comes back starts answering `true`. If the probe cannot reach the chain, every
+direction is `true`, because an outage is not an empty book.
+
 Build a picker from this rather than from a copy of the list: a pair this route does
 not name is one `POST /transactions/convert/quote` refuses with
-`convert-pair-unavailable`.
+`convert-pair-unavailable`, and a direction marked `live: false` is one that will
+refuse with `convert-no-liquidity` until the book returns. Mark it rather than
+removing it: an asset that disappears from a picker reads as a bug.
 
 #### `POST /transactions/convert/quote`
 
