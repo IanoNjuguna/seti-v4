@@ -48,7 +48,7 @@ env:
   # fee address has no business being required to read a book. These four are here
   # rather than made lazy because `JWT_SECRET` derives the key `lib/secret-box.ts`
   # uses, and a serving deployment without it is not a state worth creating for a
-  # nightly report. #480 records the better shape: an entrypoint that imports
+  # nightly report. #493 records the better shape: an entrypoint that imports
   # neither module.
   DATABASE_URL: 'postgresql://report:report@127.0.0.1:1/report?connect_timeout=1'
   JWT_SECRET: 'report-mode-reads-a-book-and-never-verifies-a-session'
@@ -76,7 +76,7 @@ env:
 # whole schema at import. Report mode does not escape it. The variables above are
 # supplied because of that, and each is inert (see the note at the top).
 #
-# Prefer the better shape: #480 records an entrypoint that imports neither module,
+# Prefer the better shape: #493 records an entrypoint that imports neither module,
 # so this file can stop carrying values it does not use.
 
 jobs:
