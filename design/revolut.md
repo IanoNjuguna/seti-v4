@@ -491,6 +491,42 @@ When Aeonik Pro is unavailable, clamp display `lineHeight` to 1.0 explicitly and
 
 The system has **no traditional drop-shadow language**. Surfaces register depth via colour-blocking (light → dark band switches) and surface-luminance shifts (`{colors.canvas-dark}` → `{colors.surface-elevated}`). Photography mockups carry their own depth from the asset itself.
 
+### Controls: the one exception (#500)
+
+Surfaces still have no drop-shadow language, and that has not changed. **One control does**, and it is the
+commit button: a filled button with no surface model reads as a printed rectangle, and the action that moves
+money should feel like a physical thing under a finger.
+
+Four layers, painted in this order. Two model the material, two model the gap between it and the page:
+
+| Layer | Shadow | What it is |
+|---|---|---|
+| 1 — top light | `inset 0 1px 0 rgba(255,255,255,.35)` | the edge that catches the light |
+| 2 — bottom shade | `inset 0 -2px 0 rgba(0,0,0,.20)` | the edge that turns away from it |
+| 3 — contact | `0 1px 2px rgba(0,0,0,.38)` | the gap to the page |
+| 4 — glow | `0 8px 24px -6px <fill at 55%>` | the colour the control throws |
+
+Rules that bind the recipe:
+
+- **Light comes from above, always.** Layers 1 and 2 are not interchangeable, and nothing in the app is lit
+  from below.
+- **The glow is the fill's own colour at 55%.** A dark fill glows neutral grey; `{colors.accent-lime}` glows
+  warm. A fixed glow colour would be wrong on one of the two fills.
+- **Pressed inverts the model.** The lift goes, an inner shadow appears (`inset 0 2px 6px rgba(0,0,0,.24)`),
+  and the control moves down 1px. **Never scale a button on press**: a control that grows and shrinks under
+  the finger reads as a toy, one that sinks reads as a key.
+- **Disabled carries no elevation.** Elevation is a claim that the control is usable, so a control that
+  cannot be used must not make it.
+- **One raised control per screen.** It is the same rule as the filled fill (`### Which control is it`): the
+  raise and the fill are one decision, not two.
+- **Implementation note.** Deriving the glow with `color-mix(in srgb, var(--fill) 55%, transparent)` does not
+  survive the CSS minifier: it folds back to the bare token and drops the alpha, painting a 55%-opaque slab
+  instead of a glow (verified in the compiled chunk). Write the glow per fill.
+
+Chips, tiles, rows, keypad keys, icon circles and outlined controls take none of this. They model no
+elevation, and an inset highlight on a flat surface is a bevel, which is the artefact this model exists to
+remove.
+
 ### Decorative Depth
 - **Product mockup hero bands** — the home page features a phone mockup full-bleed against `{colors.canvas-dark}`, with the device's own glow providing the only atmospheric depth. No additional gradients, no shadows.
 - **Featured plan card** — the cobalt-violet `{component.plan-card-featured}` sits inside the otherwise dark planning grid as a single saturated colour block, marking the recommended tier visually.
