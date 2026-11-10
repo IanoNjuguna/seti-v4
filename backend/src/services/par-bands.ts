@@ -31,6 +31,15 @@ export const MEASURED_ON = '2026-10-23';
 export const MEASURED_REVERSE_ON = '2026-11-03';
 
 /**
+ * The date the USDT0 side of the OUSD book was measured, after it widened off par (#517).
+ *
+ * Its own constant rather than a re-date of `MEASURED_ON`, because the pair edges taken
+ * then are still what the other side is held to, and moving the date under all of them
+ * would say they were measured again. They were not.
+ */
+export const MEASURED_USDT0_SIDE_ON = '2026-11-10';
+
+/**
  * Spread against par, in basis points, keyed `'a↔b'` for a pair measurement and
  * `'a→b'` for one direction of it.
  *
@@ -48,6 +57,10 @@ export const PAR_BAND_BPS: Readonly<Record<Network, Readonly<Record<string, numb
     // The reverse sides of the two bridged pairs, measured on MEASURED_REVERSE_ON.
     'ousd→usdc.e': 3,
     'pathusd→usdc.e': 3,
+    // The USDT0 side of the OUSD book, measured on MEASURED_USDT0_SIDE_ON. The pair edge
+    // is 5 and the book quit quoting near it: four readings in a row, the CI gate among
+    // them, held at 14.00 bps while the reverse side sat at -7 to -9 (#517).
+    'usdt0→ousd': 14,
   },
   testnet: {
     'ousd↔pathusd': 1,
