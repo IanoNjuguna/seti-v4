@@ -69,6 +69,14 @@ export interface SavingsDepositQuote {
   /** The network fee this deposit pays, in the funding asset, reserved out of the balance. */
   networkFee?: string;
   networkFeeSource?: 'estimate' | 'reserve';
+  /**
+   * One exit's fee, kept OUT of the vault so the position can always be taken back (#522).
+   * `'0'` when the deposit was funded from another asset, where the leftover would not be
+   * the token the exit's fee is charged in.
+   */
+  keptForExit?: string;
+  /** That figure in the customer's currency, so the sheet prints money. */
+  keptForExitFiat?: string;
   spendableFiat: string;
 }
 

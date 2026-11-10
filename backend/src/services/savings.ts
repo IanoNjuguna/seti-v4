@@ -537,6 +537,14 @@ export interface SavingsDepositQuote {
   networkFee: string;
   /** Whether that fee was measured or is a conservative reserve. */
   networkFeeSource: 'estimate' | 'reserve';
+  /**
+   * One EXIT's fee, kept OUT of the vault so the position can always be brought back
+   * (#522). In the vault's asset units; `'0'` when the deposit was funded from another
+   * asset, where the leftover would not be the token the exit's fee is charged in.
+   */
+  keptForExit: string;
+  /** That figure in the customer's currency, so a sheet prints money and not a unit. */
+  keptForExitFiat: string;
   /** The spendable balance converted to fiat, for the "is this more than I have" line. */
   spendableFiat: string;
 }
@@ -703,6 +711,30 @@ export function spendableAfterFee(balance: bigint, fee: bigint): bigint {
 }
 
 /**
+ * The most a customer may put in while one EXIT's fee stays outside the vault (#522).
+ *
+ * The deposit already reserves the fee the DEPOSIT pays (`spendableAfterFee`). Nothing
+ * reserved the fee the EXIT will pay, so a customer who saved everything reached a
+ * position they could see and could not take out: the redeem simulates clean, and the
+ * send cannot be signed, because the OUSD that would pay it is the OUSD sitting in the
+ * vault.
+ *
+ * Measured on production 2026-11-10: 0.003847 OUSD saved, 0.000000 OUSD available, an
+ * exit fee of KES 0.06, and the withdraw sheet as the only place that said so.
+ *
+ * So the ceiling is the balance less BOTH fees: the one this transaction pays now, and one
+ * exit's worth kept back. `exitReserve` is priced by the same estimate the withdrawal quote
+ * uses, so the two surfaces cannot disagree about what leaving costs.
+ *
+ * Pure and exported so `check:save` holds the boundary — exactly the ceiling passes, one
+ * unit over does not — because the failure mode is a figure nobody re-derives.
+ */
+export function depositCeiling(balance: bigint, depositFee: bigint, exitReserve: bigint): bigint {
+  const reserved = depositFee + exitReserve;
+  return balance > reserved ? balance - reserved : BigInt(0);
+}
+
+/**
  * Whether the wallet can pay this EXIT's network fee (#511).
  *
  * A withdrawal cannot fund its own transaction. Tempo validates and debits the fee from
@@ -837,12 +869,33 @@ export async function quoteSavingsDeposit(input: {
   const feeEstimate = await estimateNetworkFee(assetIn, network);
   const networkFee = parseUnits(feeEstimate.feeAsset, ASSET_DECIMALS);
 
-  const hasEnoughBalance = depositFitsWithFee(chosen.balance, amountIn, networkFee);
+  /*
+   * ONE EXIT'S FEE STAYS OUTSIDE THE VAULT (#522).
+   *
+   * The customer this exists for saved everything, then could not take it out: the exit's
+   * gas comes out of the OUSD they hold OUTSIDE the vault, and there was none. Priced by
+   * the same `estimateNetworkFee` the withdrawal quote prices its own gas with, so the two
+   * surfaces cannot disagree about what leaving costs.
+   *
+   * Only when the vault is taking the asset that fee is charged in. A deposit funded from
+   * USDT0 leaves USDT0 behind, which the exit's fee check does not accept, so reserving
+   * there would hold money back without buying the customer an exit — a promise the code
+   * could not keep.
+   */
+  const exitFeeEstimate =
+    assetIn === SAVINGS_ASSET ? await estimateNetworkFee(SAVINGS_ASSET, network) : null;
+  const keptForExit = exitFeeEstimate
+    ? parseUnits(exitFeeEstimate.feeAsset, ASSET_DECIMALS)
+    : BigInt(0);
+
+  const hasEnoughBalance = amountIn <= depositCeiling(chosen.balance, networkFee, keptForExit);
   const spendableTotal = funding.reduce((sum, candidate) => sum + candidate.balance, BigInt(0));
-  // What the customer can actually put in, which is the balance less one fee. The screen
-  // prints this as "available", so its maximum and the quote's limit are the same figure.
+  // What the customer can actually put in: the balance less the fee this transaction pays
+  // AND one exit's fee. The screen prints this as "available", so its maximum and the
+  // quote's limit are the same figure rather than two that disagree.
   const spendableFiat = (
-    Number(formatUnits(spendableAfterFee(spendableTotal, networkFee), ASSET_DECIMALS)) * fiatPerUsd
+    Number(formatUnits(depositCeiling(spendableTotal, networkFee, keptForExit), ASSET_DECIMALS)) *
+    fiatPerUsd
   ).toFixed(2);
 
   const quoteId = issueQuote({
@@ -869,6 +922,8 @@ export async function quoteSavingsDeposit(input: {
     hasEnoughBalance,
     networkFee: formatUnits(networkFee, ASSET_DECIMALS),
     networkFeeSource: feeEstimate.source,
+    keptForExit: formatUnits(keptForExit, ASSET_DECIMALS),
+    keptForExitFiat: (Number(formatUnits(keptForExit, ASSET_DECIMALS)) * fiatPerUsd).toFixed(2),
     spendableFiat,
   };
 }
