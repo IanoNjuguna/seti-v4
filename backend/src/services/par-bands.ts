@@ -61,6 +61,10 @@ export const PAR_BAND_BPS: Readonly<Record<Network, Readonly<Record<string, numb
     // is 5 and the book quit quoting near it: four readings in a row, the CI gate among
     // them, held at 14.00 bps while the reverse side sat at -7 to -9 (#517).
     'usdt0→ousd': 14,
+    // The same move on the other book: `pathusd↔usdt0` measured 6, and this side reads
+    // 14.00 on the same day, while `pathusd→usdt0` reads -8. One token, two books, the same
+    // sell side (#525).
+    'usdt0→pathusd': 14,
   },
   testnet: {
     'ousd↔pathusd': 1,
