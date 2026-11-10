@@ -194,9 +194,16 @@ export function useSave(): UseSaveReturn {
            * of a send that cannot run.
            */
           if (!fresh.canPayFee) {
+            /*
+             * The same sentence as the sheet, priced at signing time: this re-quote read the
+             * balance again, so the available figure here is the one that was actually there
+             * when the customer pressed the button. A sheet that said one thing and a refusal
+             * that said another is how a blocked action reads as a mystery (#521).
+             */
             setError(
-              SAVE_COPY.withdrawNeedsFee(
-                formatFiat(Number(fresh.networkFeeFiat), fresh.fiatCurrency)
+              SAVE_COPY.withdrawFeeShort(
+                formatFiat(Number(fresh.networkFeeFiat), fresh.fiatCurrency),
+                formatFiat(Number(summary?.spendableFiat ?? '0'), fresh.fiatCurrency)
               )
             );
             setStatus('idle');
@@ -241,7 +248,7 @@ export function useSave(): UseSaveReturn {
         setStatus('idle');
       }
     })();
-  }, [amountFiat, getSigningWallet, load, mode, network, reset, sendTempoTransaction, status]);
+  }, [amountFiat, getSigningWallet, load, mode, network, reset, sendTempoTransaction, status, summary]);
 
   const quote = mode === 'add' ? depositQuote : mode === 'withdraw' ? withdrawQuote : null;
   const ready =

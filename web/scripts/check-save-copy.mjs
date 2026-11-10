@@ -147,6 +147,35 @@ console.log('\nthe page reads figure, actions, then the claim (#427):');
   );
 }
 
+console.log('\nan uncovered exit fee is a blocked state, said plainly (#521):');
+{
+  const line = SAVE_COPY.withdrawFeeShort('KES 0.06', 'KES 0.00');
+  check('it names what the exit costs', line.includes('KES 0.06'), line);
+  check('and what the customer has', line.includes('KES 0.00'), line);
+  check('and that it cannot go through', /cannot go through/.test(line), line);
+  check('and the one thing that unblocks it', /Add money first/.test(line), line);
+  check(
+    'it is no longer the "keep at least" hint it used to be',
+    !/Keep at least/.test(line),
+    line
+  );
+
+  /*
+   * Placement, because the complaint was placement: the sentence sat in the field's hint
+   * slot while the button dimmed only to 60%. It has to render as its own alert.
+   */
+  const sheet = read('../components/save/SaveAmount.tsx').replace(/\/\*[\s\S]*?\*\//g, '');
+  check('the sheet renders it as an alert, not as the field hint', /role="alert"[\s\S]*withdrawFeeShort|withdrawFeeShort[\s\S]*role="alert"/.test(sheet));
+  check('the field hint no longer carries it', !/hint = feeShort/.test(sheet));
+
+  const hook = read('../hooks/useSave.ts').replace(/\/\*[\s\S]*?\*\//g, '');
+  check(
+    'and the signing-time refusal uses the same sentence',
+    hook.includes('SAVE_COPY.withdrawFeeShort('),
+    'useSave does not call withdrawFeeShort'
+  );
+}
+
 console.log('-'.repeat(74));
 console.log(`${passed} assertions passed${failed ? `, ${failed} failed` : ''}.`);
 process.exit(failed === 0 ? 0 : 1);
