@@ -55,13 +55,24 @@ export const SAVE_COPY = {
    * The withdrawal's network fee (#511), in the customer's currency.
    *
    * A Tempo transaction pays its gas before any call in it runs, so a customer whose money
-   * is all in the vault has nothing to pay the exit with. The sheet names the charge and,
-   * when the balance cannot cover it, names the figure to keep, rather than leaving a
-   * disabled button and a generic refusal at send time.
+   * is all in the vault has nothing to pay the exit with.
    */
   withdrawFeeLine: (fee: string) => `Network fee ${fee}, from your available balance.`,
-  withdrawNeedsFee: (fee: string) =>
-    `Keep at least ${fee} in your available balance to pay the network fee.`,
+  /**
+   * The BLOCKED state when that fee is not in the wallet (#521).
+   *
+   * This used to be a hint under the amount field — grey, below the figure, in the same
+   * slot as "from your available balance" — while the button dimmed only to 60% and still
+   * read as something to tap. It also only described the future ("keep at least …"), so a
+   * customer with KES 0.00 available read the whole screen as the vault refusing them.
+   *
+   * So it carries the three facts a blocked action owes: what it costs, what they have,
+   * and that it cannot go through — then the one thing that unblocks it. The figures are
+   * both the customer's currency, and neither is arithmetic done here.
+   */
+  withdrawFeeShort: (fee: string, available: string) =>
+    `Taking money out costs ${fee} in network fee, and that comes out of your available balance. ` +
+    `You have ${available} available, so this cannot go through. Add money first, then take it out.`,
   /** The vault's own answer, when it will not redeem at this size right now. */
   withdrawVaultRefused: 'The vault cannot pay this out right now. Nothing was moved.',
   amountTitle: 'How much are you saving?',
