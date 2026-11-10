@@ -11,6 +11,7 @@
 import {
   chooseDepositAsset,
   depositFitsWithFee,
+  depositCeiling,
   exitIsAvailable,
   feeIsCovered,
   orderDepositAssets,
@@ -462,6 +463,48 @@ check(
   pricing.includes("estimateNetworkFee('ousd', network)") &&
     /canPayFee:\s*feeIsCovered\(walletOusd,\s*networkFee\)/.test(pricing),
   'canPayFee is not wired to the fee and the balance'
+);
+
+// ---------------------------------------------------------------------------
+// ONE EXIT'S FEE ALSO STAYS OUTSIDE THE VAULT (#522). The deposit reserves the fee it pays
+// AND one exit's fee, so a customer who saves everything can still take it out. The customer
+// this exists for had 0.003847 OUSD saved, 0.000000 available, and an exit fee of KES 0.06.
+// ---------------------------------------------------------------------------
+console.log("\nand a deposit leaves one exit's fee outside the vault\n");
+
+const WHOLE = 231_112n;
+
+check(
+  'the ceiling is the balance less the deposit fee AND one exit fee',
+  depositCeiling(WHOLE, FEE, EXIT_FEE) === WHOLE - FEE - EXIT_FEE,
+  `got ${depositCeiling(WHOLE, FEE, EXIT_FEE)}`
+);
+check(
+  'exactly the ceiling may be saved',
+  depositCeiling(WHOLE, FEE, EXIT_FEE) + FEE + EXIT_FEE === WHOLE
+);
+check(
+  'and what is left over still pays the exit',
+  WHOLE - (depositCeiling(WHOLE, FEE, EXIT_FEE) + FEE) === EXIT_FEE
+);
+check(
+  'a balance smaller than both fees saves nothing, rather than going negative',
+  depositCeiling(FEE + EXIT_FEE - 1n, FEE, EXIT_FEE) === BigInt(0)
+);
+check(
+  'with no exit reserve the ceiling is the old spendable figure',
+  depositCeiling(WHOLE, FEE, BigInt(0)) === spendableAfterFee(WHOLE, FEE)
+);
+
+/*
+ * And the DEPOSIT quote has to call it, against the same estimate the exit uses. Without
+ * this the helper could be right and unused, which is the shape of the bug itself.
+ */
+check(
+  'the deposit quote reserves one exit fee, priced the way the exit prices its own',
+  pricing.includes('estimateNetworkFee(SAVINGS_ASSET, network)') &&
+    /depositCeiling\((chosen\.balance|spendableTotal), networkFee, keptForExit\)/.test(pricing),
+  'the deposit quote does not reserve an exit fee'
 );
 check(
   'and the balance it checks is the signing wallet\u2019s, not the vault\u2019s',

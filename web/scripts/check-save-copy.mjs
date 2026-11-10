@@ -176,6 +176,18 @@ console.log('\nan uncovered exit fee is a blocked state, said plainly (#521):');
   );
 }
 
+console.log('\na deposit leaves one exit fee available, and says so (#522):');
+{
+  const line = SAVE_COPY.depositKeepsExitFee('KES 0.06');
+  check('it names the figure kept back', line.includes('KES 0.06'), line);
+  check('and where it is kept', /available balance/.test(line), line);
+  check('and why', /take this money out later/.test(line), line);
+
+  const sheet = read('../components/save/SaveAmount.tsx').replace(/\/\*[\s\S]*?\*\//g, '');
+  check('the sheet renders it', sheet.includes('SAVE_COPY.depositKeepsExitFee('));
+  check('and it is not the blocked-exit sentence', !/cannot go through/.test(line), line);
+}
+
 console.log('-'.repeat(74));
 console.log(`${passed} assertions passed${failed ? `, ${failed} failed` : ''}.`);
 process.exit(failed === 0 ? 0 : 1);
