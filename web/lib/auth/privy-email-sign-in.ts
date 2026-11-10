@@ -44,6 +44,12 @@ import { readPrivyAccessToken } from './privy-access-token';
  * stays in `SessionProvider`. This file only speaks Privy.
  */
 export interface PrivyEmailSignIn {
+  /**
+   * End any Privy session this browser is still holding, before a new sign-in
+   * starts. Resolves either way: a session that will not end is not a reason to
+   * refuse to mail a code (#515).
+   */
+  endSession: () => Promise<void>;
   /** Mail the one-time passcode. Resolves once Privy has sent it. */
   sendCode: (email: string) => Promise<void>;
   /**
@@ -61,7 +67,7 @@ const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? '';
 
 function usePrivyEmailSignInImpl(): PrivyEmailSignIn {
   const { sendCode, loginWithCode } = useLoginWithEmail();
-  const { getAccessToken, authenticated } = usePrivy();
+  const { getAccessToken, authenticated, logout } = usePrivy();
   const { wallets } = useWallets();
   const { createWallet } = useCreateWallet();
   const { acceptTerms } = useAcceptTerms();
@@ -83,6 +89,36 @@ function usePrivyEmailSignInImpl(): PrivyEmailSignIn {
   useEffect(() => {
     walletsRef.current = wallets;
   }, [wallets]);
+
+  /**
+   * End the Privy session THIS BROWSER still holds, before a code is mailed (#515).
+   *
+   * A Privy session outlives Seti's. When Seti's is gone (token refused on restore,
+   * a tab left open past the hour, storage cleared) and Privy's is not, the next
+   * `passwordless/authenticate` rides the session that is still there — so Privy
+   * reads the login as *linking this email onto the user I am already signed in as*
+   * and refuses with `cannot_link_more_of_type`. The person sees a correct code
+   * refused, in that browser only, and Seti used to blame the code for it.
+   *
+   * A FAILURE HERE IS LOGGED, NOT FATAL. `logout()` is a network call and answers
+   * 400 for a session that is already gone; refusing to mail a code over that would
+   * strand someone who just wants to sign in. What is left if it fails is a session
+   * that is still there, and `describePrivySignInFailure` now names that state
+   * instead of calling the code wrong — so the failure is survivable either way,
+   * and this line is the only record of why.
+   */
+  const endSession = useCallback(async () => {
+    if (!authenticatedRef.current) return;
+
+    try {
+      await logout();
+    } catch (error) {
+      console.error(
+        '[auth] could not end the Privy session left by an earlier sign-in:',
+        (error as Error | null)?.message ?? error
+      );
+    }
+  }, [logout]);
 
   const send = useCallback((email: string) => sendCode({ email }), [sendCode]);
 
@@ -203,8 +239,8 @@ function usePrivyEmailSignInImpl(): PrivyEmailSignIn {
   );
 
   return useMemo(
-    () => ({ sendCode: send, submitCode: submit, accessToken, walletAddress }),
-    [send, submit, accessToken, walletAddress]
+    () => ({ endSession, sendCode: send, submitCode: submit, accessToken, walletAddress }),
+    [endSession, send, submit, accessToken, walletAddress]
   );
 }
 
@@ -225,15 +261,18 @@ function useNoPrivyEmailSignIn(): PrivyEmailSignIn {
 
   const noToken = useCallback(async () => null, []);
   const noWallet = useCallback((): string | undefined => undefined, []);
+  /** Nothing is signed in, so there is never a session to end. */
+  const noSession = useCallback(() => Promise.resolve(), []);
 
   return useMemo(
     () => ({
+      endSession: noSession,
       sendCode: unavailable,
       submitCode: unavailable,
       accessToken: noToken,
       walletAddress: noWallet,
     }),
-    [unavailable, noToken, noWallet]
+    [noSession, unavailable, noToken, noWallet]
   );
 }
 
