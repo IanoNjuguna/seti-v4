@@ -8,6 +8,7 @@ import { checkAcceptedTermsVersion } from './accepted-terms';
 import {
   describeDevSignInFailure,
   describePrivySignInFailure,
+  logPrivySignInFailure,
   resolveAuthSource,
 } from './auth.constants';
 import { clearStoredSession, persistSession } from './auth.storage';
@@ -257,9 +258,25 @@ export function SessionProvider({
 
       setSignInStatus('sending');
       try {
+        /*
+         * End the session THIS BROWSER still holds before mailing anything (#515).
+         *
+         * Privy's session outlives Seti's — a token refused on restore, a tab left open
+         * past the hour, or cleared storage all end ours and leave theirs — and the next
+         * `loginWithCode` rides that session, so Privy reads it as *linking this email
+         * onto the account already signed in here* and refuses a perfectly good code.
+         * The person then saw "That code was not right" in the one browser it happened,
+         * and it worked in another. Ending it first makes every sign-in a plain
+         * login-or-sign-up, which is all this page ever means.
+         *
+         * `endSession` never rejects: a session that will not end is reported by the
+         * mapping below, not by refusing to send a code.
+         */
+        await privyEmail.endSession();
         await privyEmail.sendCode(address);
         setSignInStatus('sent');
       } catch (cause) {
+        logPrivySignInFailure('session', cause);
         failPrivySignIn(describePrivySignInFailure(cause));
       }
     },
@@ -323,11 +340,12 @@ export function SessionProvider({
       try {
         await privyEmail.submitCode(entered);
       } catch (cause) {
-        // The CODE was refused — mistyped, expired, or already used. It is the one
-        // failure of this flow that is about the code rather than the session, so it
-        // is named as such. The retry is not a button rendered by this message: the
-        // code field, the submit button and "send a new code" are all already on the
-        // screen under it.
+        // The CODE was refused — mistyped, expired, already used, throttled, or refused
+        // because this browser still holds another account's session. Each of those now
+        // has its own sentence (#515) and the vendor's identifier is written down; the
+        // retry is not a button this message renders, because the code field, the submit
+        // button and "send a new code" are all already on the screen under it.
+        logPrivySignInFailure('code', cause);
         failPrivySignIn(describePrivySignInFailure(cause, 'code'));
         return;
       }
@@ -364,6 +382,7 @@ export function SessionProvider({
          */
         if (inviteCode) void clearInviteCode();
       } catch (cause) {
+        logPrivySignInFailure('session', cause);
         failPrivySignIn(describePrivySignInFailure(cause));
       }
     },
