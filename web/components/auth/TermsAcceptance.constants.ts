@@ -27,17 +27,25 @@ export const TERMS_CHECKBOX_HINT_ID = `${TERMS_CHECKBOX_ID}-hint`;
  */
 export const TERMS_SENTENCE_ID = `${TERMS_CHECKBOX_ID}-sentence`;
 
-export const TERMS_LABEL_PREFIX = 'I am 18 or over, and I accept Seti’s';
+export const TERMS_LABEL_PREFIX = 'I am 18 or over and accept';
 
 export const TERMS_LINK_LABEL = 'Terms of Use';
 
-export const TERMS_LABEL_SUFFIX = ', and I understand that Seti never holds my money.';
+/**
+ * The sentence's tail (#567).
+ *
+ * It used to carry the non-custodial disclosure as well — "and I understand that Seti never holds my
+ * money" — which the front door had also printed as a footnote below the form. One page, one place:
+ * the fact stays here, in the sentence a customer actually agrees to, and the footnote it duplicated
+ * is gone.
+ */
+export const TERMS_LABEL_SUFFIX = '.';
 
 /**
  * Shown, and only shown, while the box is unticked. It names the cause of the
  * blocked button and the fix, rather than leaving a dead control unexplained.
  */
-export const TERMS_BLOCKED_HINT = 'Accept the Terms of Use to continue.';
+export const TERMS_BLOCKED_HINT = 'Tick to continue.';
 
 /**
  * The control's token classes, per canvas — the same recipe as `Input`'s two tones.

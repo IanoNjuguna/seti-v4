@@ -24,23 +24,18 @@
  */
 
 export const SIGN_IN_COPY = {
-  /** The page's one heading: the instruction, in the customer's own words. */
-  title: 'Sign in with your email.',
-  /** The mechanic, said once — no password, and the code arrives by email. */
-  lede: 'No password. We email you a code.',
+  /**
+   * The page's accessible name, and the only heading it has (#567).
+   *
+   * A visible `Sign in with your email.` sat above a field labelled Email, on a page whose whole
+   * content is that field: the route's own name, restated at 32px. The sentence is gone and the
+   * document still needs a name, so it is here, read by a screen reader and drawn for nobody.
+   */
+  pageTitle: 'Sign in',
   emailLabel: 'Email',
-  submit: 'Continue with email',
+  submit: 'Continue',
   /** Shared with the app: the same "we are still finding out" line it renders. */
   restoring: 'One moment…',
-  /**
-   * The footnote at the foot of the column.
-   *
-   * Not a marketing line and not a second promise: it is the one thing a person handing
-   * over money should know before they type an address, said in the product's own
-   * words. "Not a bank" is deliberate — `bank` is a licensed word in this market and
-   * this product is not one.
-   */
-  footnote: 'Seti is not a bank. Your money is held in stablecoins you control.',
 } as const;
 
 /**
@@ -58,17 +53,15 @@ export const SIGN_IN_COPY = {
  * side effect (typing) is not reachable by a keyboard.
  */
 export const SIGN_IN_SENT_COPY = {
-  /** The instruction, at the same level and weight as the entry page's heading. */
-  title: 'Enter the code.',
   /** The address, echoed IN FULL: the commonest failure here is a typo, not a slow email. */
   sentTo: 'Sent to',
   submit: 'Sign in',
-  deliverabilityLead: 'Nothing in your inbox? Check your spam folder, then',
-  resend: 'send a new code',
+  deliverabilityLead: 'No code? Check spam, or',
+  resend: 'send a new one',
   /** While a new code is on its way. Says why the control is not tappable. */
-  resending: 'sending a new code…',
-  deliverabilityMiddle: '. Wrong email?',
-  useAnother: 'Use a different email',
+  resending: 'sending…',
+  deliverabilityMiddle: '. Wrong address?',
+  useAnother: 'Change it',
   deliverabilityTail: '.',
 } as const;
 

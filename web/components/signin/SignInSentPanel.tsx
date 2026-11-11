@@ -49,8 +49,9 @@ export function SignInSentPanel({
 
   return (
     <div className="flex flex-col">
-      <h1 className="font-brand text-heading-lg font-medium text-on-dark">{SIGN_IN_SENT_COPY.title}</h1>
-      <p className="mt-3 text-body-md text-on-dark-mute">
+      {/* No heading (#567): the six cells say "code", and the line under them says where it went.
+          `Enter the code.` above a row of six inputs was the route name again. */}
+      <p className="text-body-md text-on-dark-mute">
         {SIGN_IN_SENT_COPY.sentTo} <span className="text-on-dark">{address}</span>
       </p>
 
