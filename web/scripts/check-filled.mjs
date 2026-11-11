@@ -39,12 +39,16 @@ function check(name, ok, detail = '') {
  * The filled controls, each with the screen it owns and why it is the commit.
  *
  * A landing BAND is a screen in this sense: a visitor scrolls one band at a time, and each band's CTA is the
- * only action visible when it is read. Four bands, four CTAs, one per band.
+ * only action visible when it is read.
+ *
+ * TWO LANDING BANDS, NOT FOUR (#540). The page used to spend the lime commit in the hero, the mechanic, the
+ * price and the close, which is four copies of its loudest object on one scroll: by the time the closing
+ * action arrived it had no volume left to add, and every band ended on a "next" button. The mechanic and the
+ * price now carry a quiet link instead (the ghost variant, and the hero's own dark-canvas recipe), so the
+ * commit means the same thing every time it appears: the two places a reader can actually start.
  */
 const DECLARED = {
   'app/components/landing/HeroActions.tsx': 'landing hero: the only action above the fold',
-  'app/components/landing/FeesSection.tsx': 'landing fee band: start the sign-up from the price',
-  'app/components/landing/HowSection.tsx': 'landing how band: the CTA after the explanation',
   'app/components/landing/ClosingSection.tsx': 'landing closing band: the last action on the page',
   'components/home/SendSubmit.tsx': 'app send: the money leaves here',
   'components/ask/AskScreen.tsx': 'app claim: the figure is committed here',

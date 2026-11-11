@@ -1,6 +1,4 @@
-import { ButtonLink } from '@/components/ui/ButtonLink';
 import Link from 'next/link';
-import { SIGN_IN_PATH } from '@/lib/routes';
 import { QUIET_ACTION_CLASSES } from './HeroActions.constants';
 import { Band } from './Band';
 import { SectionHeader } from './SectionHeader';
@@ -37,41 +35,60 @@ import { FEE_COPY } from './FeesSection.constants';
  * page a reader could go and verify on chain. Both the link and the block are gone
  * (the owner's call), so the price list stands on its own and the number is
  * unverified from here. That is recorded rather than quietly accepted.
+ *
+ * THE COLUMN STAYS 22rem IN THE PANEL (#540). It was tried at 20rem to give the label
+ * column 32px back, and 20rem is where the widest detail gives up: "A small payment is
+ * charged the same flat fee." measures 322px at `body-sm` in the rendered panel, so a 320px
+ * column took it to two lines and the second line was one word, right-aligned under the
+ * first. Measured in the browser rather than estimated, and the panel's own padding comes
+ * out of the label column instead. Re-measure this pair when the fee copy moves again: it
+ * moved in #348.
  */
 export function FeesSection() {
   return (
-    <Band id="fees" className="bg-canvas-dark py-[var(--band-pad-block)]">
+    <Band id="fees" className="bg-canvas-dark pt-[var(--band-pad-top)] pb-[var(--band-pad-bottom)]">
       <div className="mx-auto max-w-6xl px-6">
-        <SectionHeader eyebrow="What it costs" onDark />
+        {/* THE PRICE LIST IS AN OBJECT INSIDE THE DARK RUN (#540). It used to be a second
+            black stripe under `Your money` with nothing between them but 189px of black, so
+            the two bands read as one long band with a gap in it — neither joined nor
+            separated. An inset panel (`surface-elevated`, the system's dark elevation step,
+            hairline edge, no shadow) gives the list an edge and a top and bottom of its own,
+            which is the separation the seam was missing, and it puts the price in the one
+            thing on the page a reader can point at.
 
-        <dl className="mt-12">
-          {FEE_COPY.map((row) => (
-            <div
-              key={row.label}
-              className="border-t border-hairline-dark py-6 first:border-t-0 first:pt-0 sm:grid sm:grid-cols-[minmax(0,1fr)_22rem] sm:items-baseline sm:gap-10"
-            >
-              <dt className="font-brand text-heading-md font-medium text-on-dark">{row.label}</dt>
-              <dd className="mt-2 text-body-sm text-on-dark-mute sm:mt-0 sm:text-right">{row.detail}</dd>
-            </div>
-          ))}
-        </dl>
+            THE PANEL IS ALSO WHAT LETS THE TWO DECISION POINTS SHARE A BAND: `Your money`
+            and the price are one movement (what it is, then what it costs) and stay on one
+            canvas, as #359 argued, while the price now has a shape of its own. */}
+        <div className="rounded-md border border-hairline-dark bg-surface-elevated p-6 sm:p-8 lg:p-10">
+          <SectionHeader
+            eyebrow="What it costs"
+            onDark
+            /* THE WAY OUT TO `/pricing` IS A QUIET LINK, not a ghost button: the ghost
+               variant draws its label in cobalt, which measures 4.27:1 on black and fails
+               AA at this size, so this band uses the hero's dark-canvas recipe instead.
+               It sits on the header's trailing edge now (#540) rather than under the
+               rows, where it used to share a row with the lime commit: the band ends on
+               the price, and one thing to read sits beside the label that names it. */
+            trailing={
+              <Link href="/pricing" className={QUIET_ACTION_CLASSES}>
+                What that costs against a till
+              </Link>
+            }
+          />
 
-        {/* THE SECOND DECISION POINT ON THE PAGE (#359), and the band is dark on purpose:
-            `Your money` and the price are one movement — what it is, then what it costs —
-            and this is the second half of it. Two flips back to white between them broke
-            the page into eight white bands with nothing changing for three thousand pixels.
-
-            THE WAY OUT TO `/pricing` IS A QUIET LINK, not a ghost button: the ghost
-            variant draws its label in cobalt, which measures 4.27:1 on black and fails AA
-            at this size, so this band uses the hero's dark-canvas recipe instead. One
-            filled action, one thing to read. */}
-        <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-8">
-          <ButtonLink href={SIGN_IN_PATH} variant="accent">
-            Claim your name
-          </ButtonLink>
-          <Link href="/pricing" className={QUIET_ACTION_CLASSES}>
-            What that costs against a till
-          </Link>
+          <dl className="mt-10">
+            {FEE_COPY.map((row) => (
+              <div
+                key={row.label}
+                className="border-t border-hairline-dark py-5 first:border-t-0 first:pt-0 sm:grid sm:grid-cols-[minmax(0,1fr)_22rem] sm:items-baseline sm:gap-10"
+              >
+                <dt className="font-brand text-heading-md font-medium text-on-dark">{row.label}</dt>
+                <dd className="mt-1 text-body-sm text-on-dark-mute sm:mt-0 sm:text-right">
+                  {row.detail}
+                </dd>
+              </div>
+            ))}
+          </dl>
         </div>
       </div>
     </Band>
