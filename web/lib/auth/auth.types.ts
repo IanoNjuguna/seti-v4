@@ -150,4 +150,15 @@ export interface SessionValue {
    */
   submitSignInCode: (code: string, acceptedTermsVersion: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /**
+   * Re-read the caller from the server and adopt the answer (#536).
+   *
+   * The session is the copy most surfaces print: the profile page reads the display name from
+   * `user.firstName`, so a name that saves and does not appear is the bug this exists for. The
+   * screen that writes it calls this afterwards, and the new name is visible without a reload.
+   *
+   * It NEVER signs anybody out. A failed read leaves the session exactly as it was — a saved
+   * name failing to paint is a smaller problem than a name change ending someone's session.
+   */
+  refreshUser: () => Promise<void>;
 }
