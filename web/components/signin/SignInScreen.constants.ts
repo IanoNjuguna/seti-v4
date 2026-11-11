@@ -43,11 +43,25 @@ export const SIGN_IN_COPY = {
   footnote: 'Seti is not a bank. Your money is held in stablecoins you control.',
 } as const;
 
+/**
+ * The code screen, in the shape the reference uses: the instruction as the heading, the
+ * address it went to as the only supporting line, and the six cells under it.
+ *
+ * The old copy said the same thing three times — "Check your email", "We sent a sign-in
+ * code to <address>.", "Enter it below to sign in." — around a single unlabelled field,
+ * so the page spent three sentences explaining what one label and one address row now
+ * carry. What is left is the instruction and the address, which are the two facts a
+ * person needs to know whether to look in their inbox or fix a typo.
+ *
+ * `submit` survives the six cells on purpose. The code auto-submits when the sixth digit
+ * lands, but a refused code has to be resubmitted, and a control that exists only as a
+ * side effect (typing) is not reachable by a keyboard.
+ */
 export const SIGN_IN_SENT_COPY = {
-  title: 'Check your email',
-  bodyPrefix: 'We sent a sign-in code to',
-  bodySuffix: 'Enter it below to sign in.',
-  codeLabel: 'Code',
+  /** The instruction, at the same level and weight as the entry page's heading. */
+  title: 'Enter the code.',
+  /** The address, echoed IN FULL: the commonest failure here is a typo, not a slow email. */
+  sentTo: 'Sent to',
   submit: 'Sign in',
   deliverabilityLead: 'Nothing in your inbox? Check your spam folder, then',
   resend: 'send a new code',

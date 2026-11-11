@@ -31,6 +31,8 @@ export interface UseSignInScreenReturn {
   previewAvailable: boolean;
   onAddressChange: (value: string) => void;
   onCodeChange: (value: string) => void;
+  /** The sixth digit landed: submit without a press (`CodeCells`). */
+  onCodeComplete: (code: string) => void;
   onAcceptChange: (accepted: boolean) => void;
   onSubmitAddress: (event: React.FormEvent<HTMLFormElement>) => void;
   onSubmitCode: (event: React.FormEvent<HTMLFormElement>) => void;
