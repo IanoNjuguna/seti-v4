@@ -179,12 +179,18 @@ console.log('\nan uncovered exit fee is a blocked state, said plainly (#521, tig
   );
 }
 
-console.log('\na deposit leaves one exit fee available, and says so (#522):');
+console.log('\na deposit leaves one exit fee available, and says so (#522, tightened in #529):');
 {
   const line = SAVE_COPY.depositKeepsExitFee('KES 0.06');
-  check('it names the figure kept back', line.includes('KES 0.06'), line);
-  check('and where it is kept', /available balance/.test(line), line);
-  check('and why', /take this money out later/.test(line), line);
+  check('the figure is the subject, not us', line.startsWith('KES 0.06'), line);
+  check('it is the money that stayed, said as staying', /\bstays\b/.test(line), line);
+  check('and where it stayed', /available balance/.test(line), line);
+  check('the action is the withdraw sheet\'s own phrase', /take this out later/.test(line), line);
+  check(
+    'and it does not point "this money" at the deposit',
+    !/take this money out/.test(line) && !/^We keep/.test(line),
+    line
+  );
 
   const sheet = read('../components/save/SaveAmount.tsx').replace(/\/\*[\s\S]*?\*\//g, '');
   check('the sheet renders it', sheet.includes('SAVE_COPY.depositKeepsExitFee('));

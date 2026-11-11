@@ -89,15 +89,20 @@ export const SAVE_COPY = {
   /** No earning claim here either: the swap is a fact, "starts earning" is a rate. */
   amountNote: 'Swapped into the vault, in your own name.',
   /**
-   * One exit's fee is kept OUT of the vault (#522).
+   * One exit's fee is kept OUT of the vault (#522, tightened in #529).
    *
    * A customer who saved everything could see their money and not take it out, because the
    * exit's gas comes out of the OUSD held outside the vault. The deposit now stops one
-   * exit's fee short, and this is the sentence that says so: money left available is a fact
-   * about their money, not an implementation detail to discover at the withdraw sheet.
+   * exit's fee short, and this is the sentence that says so.
+   *
+   * It used to read "We keep KES 0.06 in your available balance so you can take this money
+   * out later": us first on a line about their money, and "this money" pointing at the
+   * deposit when the kept fee is the part that STAYED. Now the figure is the subject, the
+   * verb is what actually happens to it, and the action uses the withdraw sheet's own words
+   * ("take this out"), so the two ends of one fact read as one idea.
    */
   depositKeepsExitFee: (fee: string) =>
-    `We keep ${fee} in your available balance so you can take this money out later.`,
+    `${fee} stays in your available balance so you can take this out later.`,
   amountButton: 'Add to savings',
   withdrawTitle: 'How much are you taking out?',
   withdrawLabel: 'Amount to withdraw',
