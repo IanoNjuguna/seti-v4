@@ -1,4 +1,5 @@
 import type { AppNavItem } from './AppNav.types';
+import { APP_HOME_PATH } from '@/lib/routes';
 
 /**
  * The three destinations.
@@ -13,7 +14,7 @@ import type { AppNavItem } from './AppNav.types';
  * needs it, and a nav that forgets is the bug that rule exists to prevent.
  */
 export const APP_NAV_ITEMS: AppNavItem[] = [
-  { href: '/app', label: 'Home', icon: 'home' },
+  { href: APP_HOME_PATH, label: 'Home', icon: 'home' },
   { href: '/app/activity', label: 'Activity', icon: 'activity' },
   { href: '/app/profile', label: 'Profile', icon: 'profile' },
 ];

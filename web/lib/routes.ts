@@ -12,3 +12,13 @@
  * put its front door inside a room.
  */
 export const SIGN_IN_PATH = '/signin';
+
+/**
+ * The app's home, which is also the destination the header's brand points at.
+ *
+ * Two surfaces link here and they must never disagree: the dock's `Home` item and
+ * the lockup. A brand that goes somewhere else than the tab called Home is a link
+ * a customer has already learned to trust (#559), and the failure is invisible —
+ * both render, one is just wrong.
+ */
+export const APP_HOME_PATH = '/app';
