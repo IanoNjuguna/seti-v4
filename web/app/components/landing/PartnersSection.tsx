@@ -102,11 +102,12 @@ import { cn } from '@/lib/cn';
  */
 export function PartnersSection() {
   return (
-    <Band id="partners" className="bg-canvas-dark py-[var(--band-pad-block)]">
+    <Band
+      id="partners"
+      className="border-t border-hairline-dark bg-canvas-dark pt-[var(--band-pad-top)] pb-[var(--band-pad-bottom)]"
+    >
       <div className="mx-auto max-w-6xl px-6">
-        <SectionEyebrow label={PARTNERS_EYEBROW} onDark />
-
-        <ul className="mt-12 grid grid-cols-2 gap-x-6 gap-y-10 lg:grid-cols-4">
+        <ul className="grid grid-cols-2 gap-x-6 gap-y-10 lg:grid-cols-4">
           {PARTNER_ENTRIES.map((entry, index) => (
             <li
               key={entry.label}
@@ -131,6 +132,17 @@ export function PartnersSection() {
             </li>
           ))}
         </ul>
+
+        {/* THE MARKS OPEN THE BAND, AND THE NAME FOLLOWS THEM (#540). This is the second
+            of the two bands that now open on their object: the eyebrow used to sit above
+            the row, which made four names the page could not yet see the subject of. Read
+            as a caption rather than a header, "Integrations" labels what a reader has just
+            looked at instead of announcing something it has not seen. It stays the same
+            `SectionEyebrow`, so this band still carries no heading element, which is what
+            its outline was always allowed to be. */}
+        <div className="mt-10">
+          <SectionEyebrow label={PARTNERS_EYEBROW} onDark />
+        </div>
       </div>
     </Band>
   );
