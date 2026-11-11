@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Mark, Text } from '@/components/ui';
+import { Text } from '@/components/ui';
 import { SIGN_IN_PATH } from '@/lib/routes';
 import { useSession } from '@/lib/auth';
 import { useAccountIdentity } from '@/lib/account';
@@ -14,11 +14,13 @@ import { useAppNetwork } from './useAppNetwork';
  *    one frame, is the one thing this control must not do.
  * 2. **Not signed in** — `Sign in`, the app's one way in. This is where the rail's signed-out card
  *    went: the rail had a foot and a paragraph, a header has one row, so the control is the row.
- * 3. **Signed in** — the account's own `Mark`: initials on the tone its handle derives, the same
- *    object `ProfileIdentity` draws at 64px, at 32px here. Every bank in the reference set puts the
- *    person in the app's top corner this way (Zopa, Revolut and Monzo top-left; Neo Financial
- *    top-right), and a right-hand slot that empties the moment you sign in reads as a control that
- *    failed rather than as a state that is fine.
+ * 3. **Signed in** — `@handle`, in the same text control `Sign in` wears, opening `/app/profile`.
+ *    The handle rather than `Mark`, deliberately: the mark is now the PRODUCT's face (one alien for
+ *    every account), so drawing it here would put a second alien beside the brand's for no gain.
+ *    The handle is the string that identifies the person — it is what a sender types — and it is
+ *    what every bank prints beside the avatar when it is not drawing a photo (Zopa's "Hi <name>",
+ *    Revolut's name under the avatar). A right-hand slot that empties the moment you sign in reads
+ *    as a control that failed rather than as a state that is fine.
  * 4. **In practice, a chip before it** — `Practice`, in the network's own attention ink, linking to
  *    the page where the network is switched. The practice strip that used to state this on every
  *    screen is gone; this chip is that signal now, which is why the header is sticky.
@@ -82,9 +84,11 @@ export function TopBarState() {
       <Link
         href="/app/profile"
         aria-label="Your profile"
-        className="flex h-11 items-center justify-center rounded-full px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        className="flex h-11 max-w-40 items-center rounded-lg px-3 whitespace-nowrap transition-colors duration-(--duration-quick) ease-out hover:bg-surface-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
-        <Mark size="sm" handle={handle} />
+        <Text variant="tab" as="span" color="inverse" className="truncate">
+          {handle ? `@${handle}` : 'Profile'}
+        </Text>
       </Link>
     </span>
   );
