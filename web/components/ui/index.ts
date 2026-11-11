@@ -19,7 +19,7 @@ export type { ButtonProps } from './Button.types';
 export type { ChoiceRowProps } from './ChoiceRow.types';
 export type { ButtonLinkProps } from './ButtonLink.types';
 export type { CardProps, CardPadding } from './Card';
-export type { MarkProps, MarkSize, MarkTone } from './Mark.types';
+export type { MarkProps, MarkSize } from './Mark.types';
 export type { RowMarkProps, RowMarkTone } from './RowMark.types';
 export type { BadgeProps } from './Badge.types';
 export type { SkeletonProps } from './Skeleton';
