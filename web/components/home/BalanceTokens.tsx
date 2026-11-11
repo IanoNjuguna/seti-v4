@@ -18,10 +18,17 @@ import type { BalanceTokensProps } from './BalanceTokens.types';
  * rows would answer nothing. The names are here to make provenance visible, not to read
  * as four brands.
  *
- * ZEROS ARE ROWS. The payload carries one row per asset the NETWORK lists, so a token
- * this account holds none of is a row printing zero, one step quieter (`BalanceTokenRow`)
- * — never a filtered-out line. A customer who cannot see a token cannot tell "I hold
- * none of it" from "it disappeared", and the second is what they conclude.
+ * ZEROS ARE ROWS, IN A FUNDED ACCOUNT (#533). The payload carries one row per asset the
+ * NETWORK lists, so a token this account holds none of is a row printing zero, one step
+ * quieter (`BalanceTokenRow`) — never a filtered-out line. A customer who cannot see a token
+ * cannot tell "I hold none of it" from "it disappeared", and the second is what they conclude.
+ *
+ * NO SECTION WHEN THERE IS NOTHING TO SHOW (#533). That rule is about a token you held and no
+ * longer do, and it only means something where the account holds SOMETHING: the zeros read as
+ * "not here, not gone" beside a figure that is not zero. An account holding nothing got a
+ * `Tokens` heading and four rows of `KES 0.00` directly under the starter card, which is an empty
+ * shelf, not a balance — there is no token to have vanished. So the whole section is absent when
+ * every row is zero, and the balance card above already says the one true thing.
  *
  * ABSENT, NOT EMPTY, when there is nothing to list: no rows or no currency means the
  * payload did not say, and the card falls back to the single figure it showed before.
@@ -43,6 +50,8 @@ export function BalanceTokens({ assets, currency }: BalanceTokensProps) {
   const rows = useBalanceTokens(assets);
 
   if (rows.length === 0 || !currency) return null;
+  // An account holding nothing has no parts to show: the heading and its zeros would be a shelf.
+  if (rows.every((row) => row.zero)) return null;
 
   return (
     <section aria-labelledby="tokens-heading" className="flex flex-col gap-2">
