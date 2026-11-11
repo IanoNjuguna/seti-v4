@@ -20,11 +20,17 @@ import type { HomeActionProps } from './HomeActions.types';
  * `flex-1` is what makes four tiles equal quarters of one row.
  *
  * THE BADGE IS A WORD AGAIN (#377). A 6px corner dot said "something here" without saying what,
- * so the door read as decoration. The owner's call was a glowing `New` chip: a word at 9px fits
- * the corner of a 56px tile where the old `Save Soon` did not fit beside the label, and the glow
- * is what makes a small word on a white tile read at a glance. `accent-lime` because it is the one
- * chip fill in the system that is legible with `ink` on it; the glow is the same hue, so the chip
- * does not introduce a second colour into the row.
+ * so the door read as decoration. The owner's call was a `New` chip: a word at 9px fits the corner
+ * of a 56px tile where the old `Save Soon` did not fit beside the label. `accent-lime` because it
+ * is the one chip fill in the system that is legible with `ink` on it.
+ *
+ * THE CHIP HAS AN EDGE, NOT A GLOW (#539). It was drawn with a 10px halo at 85% of its own fill,
+ * wider than the chip it surrounded, and that is a light-emitting claim about a door whose entire
+ * meaning is that it is shut. It was also compensating for the fill: `accent-lime` is 1.64:1 on
+ * `canvas-light`, so the chip cannot hold its own edge on a white tile. The system already answers
+ * exactly that problem once, on the commit control, with a 1px `ink` boundary and no light
+ * (`Button.constants.ts`) — so the badge wears the same one. One fill, one boundary, no second
+ * colour, and the raised control in the row stays the only thing throwing a shadow.
  *
  * The word stays in the link's accessible name as well, so "Save, New" is what a screen reader
  * hears, and the page behind the door still says in a sentence why it is not open yet.
@@ -81,7 +87,7 @@ export function HomeAction({ action }: HomeActionProps) {
            * chip sat on the glyph's shoulder and cut it in half. Hung off the top edge it reads as
            * a tag stuck to the door, and the tile's own icon and word stay whole.
            */
-          className="absolute -top-2 right-1.5 rounded-full bg-accent-lime px-1.5 py-px text-[9px] font-semibold uppercase leading-[1.35] tracking-wide text-ink shadow-[0_0_10px_rgba(215,207,7,0.85)]"
+          className="absolute -top-2 right-1.5 rounded-full border border-ink bg-accent-lime px-1.5 py-px text-[9px] font-semibold uppercase leading-[1.35] tracking-wide text-ink"
         >
           {action.badge}
         </span>
