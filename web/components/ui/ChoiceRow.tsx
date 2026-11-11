@@ -22,6 +22,7 @@ import type { ChoiceRowProps } from './ChoiceRow.types';
  */
 export function ChoiceRow({
   label,
+  mark,
   detail,
   onSelect,
   disabled,
@@ -37,15 +38,23 @@ export function ChoiceRow({
       aria-pressed={selected}
       className={cn(CHOICE_ROW_CLASS, selected && 'border-ink bg-surface-soft', className)}
     >
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <Text as="span" variant="button">
-          {label}
-        </Text>
-        {detail ? (
-          <Text as="span" variant="micro" color="secondary">
-            {detail}
-          </Text>
+      <span className="flex min-w-0 flex-1 items-center gap-3">
+        {mark ? (
+          <span aria-hidden className="flex shrink-0 items-center">
+            {mark}
+          </span>
         ) : null}
+
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <Text as="span" variant="button">
+            {label}
+          </Text>
+          {detail ? (
+            <Text as="span" variant="micro" color="secondary">
+              {detail}
+            </Text>
+          ) : null}
+        </span>
       </span>
 
       {selected ? (
