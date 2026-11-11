@@ -24,7 +24,7 @@ import type { FaqSectionCopy } from './FaqSection.types';
  * THE COPY IS THE OWNER'S, REPRODUCED, including the full stops.
  */
 export const FAQ_COPY: FaqSectionCopy = {
-  heading: 'Questions',
+  heading: 'What people ask before they sign up.',
   items: [
     {
       question: 'What does Seti cost?',

@@ -15,6 +15,12 @@ export interface MoneyTile {
 
 /** The money band: the tiles, in the order they are shown. */
 export interface MoneySectionCopy {
-  /** The four squares, in the order they are shown. */
+  /**
+   * The band's `h2`: one sentence saying what the three tiles have in common. It is a
+   * sentence rather than a label because the band's label ("Your money") was the caps
+   * marker, and every band on the page opened with one (#552).
+   */
+  heading: string;
+  /** The three squares, in the order they are shown. */
   tiles: MoneyTile[];
 }

@@ -1,5 +1,4 @@
 import { Band } from './Band';
-import { SectionHeader } from './SectionHeader';
 import { YOUR_CUSTOMER_COPY } from './YourCustomerSection.constants';
 
 /**
@@ -24,36 +23,56 @@ import { YOUR_CUSTOMER_COPY } from './YourCustomerSection.constants';
  * prose, which is the one place this list differs from the fee rows below it (that column
  * is right-aligned `body-sm` and holds numbers).
  *
- * LIGHT CANVAS, with a top hairline, following the same discipline as the band above. The
- * three light bands in the middle of the page (`how`, `who`, `what your customer does`)
- * are one catalogue run between the hero and the first dark band, and the run is left
- * light on purpose: `MoneySection` records that its own band is "the first dark band after
- * the hero", and painting this one dark would have made that sentence false and put one
- * black band directly above another.
+ * DARK CANVAS SINCE #552, with a top hairline. `who` above it is dark too, so the flip no
+ * longer separates them and the rule does the work; a dark band under a dark band with
+ * nothing between them is one band with a gap in it. The earlier note here argued the run
+ * from `how` to this band had to stay light so `MoneySection` could keep calling itself "the
+ * first dark band after the hero". The owner took that call the other way: the stretch from
+ * `who` to the price is one movement about money, it is dark end to end, and every record
+ * that said otherwise moved with it.
  *
  * NOTHING HERE ASKS THE READER TO DO ANYTHING. There is no action in the band: it answers
  * "what do I ask my customer for", and the page's actions stay in the hero and the close,
  * where a decision is actually being made.
+ *
+ * THE OPENING MOVED INTO THE MARGIN (#540). The band used to open with the shared header:
+ * a 12px caps marker over a 40px heading, the eighth band on the page to do so. The
+ * sentence is now a `heading-md` note in the left column, level with the first row, and the
+ * rows have the right eight columns. Nothing about the rows changed; what changed is that
+ * the band no longer announces itself before saying anything, which is the band's whole
+ * job (it is the payer's side of the same payment, not a new subject).
  */
 export function YourCustomerSection() {
   return (
     <Band
       id="customer"
-      className="border-t border-hairline-light bg-canvas-light py-[var(--band-pad-block)]"
+      className="border-t border-hairline-dark bg-canvas-dark pt-[var(--band-pad-top)] pb-[var(--band-pad-bottom)]"
     >
       <div className="mx-auto max-w-6xl px-6">
-        <SectionHeader eyebrow={YOUR_CUSTOMER_COPY.eyebrow} title={YOUR_CUSTOMER_COPY.heading} />
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-12 lg:gap-16">
+          {/* THE SENTENCE IS A MARGIN NOTE, NOT A BAND HEADER (#540). It used to be the
+              shared header: a 12px caps marker over a 40px heading, the same opening as
+              most of the page. Here it sits in the left column at `heading-md`, level with
+              the first row, so the band opens straight into the list it is about and the
+              sentence reads as the note beside it. One h2 either way: it is the `h2` now
+              rather than `SectionHeader`'s promotion. */}
+          <div className="lg:col-span-4">
+            <h2 className="max-w-xs font-brand text-heading-md font-medium text-on-dark">
+              {YOUR_CUSTOMER_COPY.heading}
+            </h2>
+          </div>
 
-        <div className="mt-12">
-          {YOUR_CUSTOMER_COPY.items.map((item) => (
-            <div
-              key={item.title}
-              className="border-t border-hairline-light py-6 first:border-t-0 first:pt-0 sm:grid sm:grid-cols-[18rem_minmax(0,1fr)] sm:items-baseline sm:gap-10"
-            >
-              <h3 className="font-brand text-heading-sm font-medium text-ink">{item.title}</h3>
-              <p className="mt-2 text-body-md text-mute sm:mt-0">{item.body}</p>
-            </div>
-          ))}
+          <div className="lg:col-span-8">
+            {YOUR_CUSTOMER_COPY.items.map((item) => (
+              <div
+                key={item.title}
+                className="border-t border-hairline-dark py-6 first:border-t-0 first:pt-0 sm:grid sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-baseline sm:gap-10"
+              >
+                <h3 className="font-brand text-heading-sm font-medium text-on-dark">{item.title}</h3>
+                <p className="mt-2 text-body-md text-on-dark-mute sm:mt-0">{item.body}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </Band>
