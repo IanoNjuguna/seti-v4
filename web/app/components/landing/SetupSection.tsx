@@ -27,7 +27,7 @@ export function SetupSection() {
   return (
     <Band
       id="start"
-      className="bg-canvas-light py-[var(--band-pad-block)]"
+      className="bg-canvas-light pt-[var(--band-pad-top)] pb-[var(--band-pad-bottom)]"
     >
       <div className="mx-auto max-w-6xl px-6">
         <SectionHeader eyebrow={SETUP_COPY.eyebrow} />
