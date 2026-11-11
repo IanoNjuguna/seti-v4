@@ -38,7 +38,7 @@ export function FaqSection() {
   return (
     <Band
       id="questions"
-      className="bg-canvas-dark py-[var(--band-pad-block)]"
+      className="bg-canvas-dark pt-[var(--band-pad-top)] pb-[var(--band-pad-bottom)]"
     >
       <div className="mx-auto max-w-6xl px-6">
         <SectionHeader eyebrow={FAQ_COPY.heading} onDark />
