@@ -34,11 +34,19 @@ import { MONEY_COPY } from './MoneySection.constants';
  */
 export function MoneySection() {
   return (
-    <Band id="money" className="bg-canvas-dark py-[var(--band-pad-block)]">
+    <Band id="money" className="bg-canvas-dark pt-[var(--band-pad-top)] pb-[var(--band-pad-bottom)]">
       <div className="mx-auto max-w-6xl px-6">
         <SectionHeader eyebrow="Your money" onDark />
 
-        <ul className="mt-12 grid grid-cols-1 gap-x-5 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
+        {/* THE ONE BAND THAT LEAVES THE COLUMN (#540). Every band on the page starts and
+            ends at the same x, which is the loudest reason the page scanned as nine slides:
+            nothing ever suggested the page was wider than the text. This row breaks the
+            1104px content box by 64px on each side at `lg` and nothing is clipped, so the
+            three tiles open out toward the viewport edges and no band after this one is the
+            same width as the one before it. It is the trade `design/revolut.md` already
+            sanctions for a band whose content is an object rather than a column of text:
+            the row IS the band. */}
+        <ul className="mt-12 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:-mx-16 lg:grid-cols-3">
           {MONEY_COPY.tiles.map((tile) => (
             <MoneyCard key={tile.label} tile={tile} />
           ))}
