@@ -18,10 +18,13 @@ import type { CopyRowProps } from './CopyRow.types';
  * it. That is the whole point of the row: the string and the way to take it are
  * one object, and nothing else may come between them.
  *
- * The control is a small round icon that becomes a green check, not a button with
- * the word "Copy" in it: the row already says what is being copied, and a labelled
- * button beside a labelled value is the same fact twice — which is what made the
- * first version of the receive card read as a form.
+ * The control is a bare glyph that becomes a green check — not a button with the
+ * word "Copy" in it, and not a grey circle either. The row already says what is
+ * being copied, so a labelled button beside a labelled value is the same fact twice,
+ * which is what made the first version of the receive card read as a form. The
+ * circle went for the second reason: a `surface-soft` disc at the end of a value is
+ * a heavier object than the value, and the references (`Binance`, `Revolut`,
+ * `Coinbase`) all print the glyph bare on the line it acts on.
  *
  * A row per value, each with its OWN control, because a person may need either
  * half: a sender types the name, or opens the link. One shared control underneath
@@ -55,6 +58,7 @@ export function CopyRow({
       name={copied ? 'check' : 'copy'}
       tone={copied ? 'confirmed' : 'default'}
       surface={surface}
+      well="none"
       label={label}
       onClick={copy}
       className={wrap ? 'align-middle' : undefined}
