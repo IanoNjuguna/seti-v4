@@ -1,4 +1,4 @@
-import type { FormEvent, ReactNode } from 'react';
+import type { FormEvent, KeyboardEvent, ReactNode, RefObject } from 'react';
 import type { ConvertQuote } from '@/lib/api/convert';
 import type { Network } from '@/lib/network';
 
@@ -67,23 +67,35 @@ export interface SwapSelectProps {
 }
 
 /**
- * The token on one side, as a pill (#417).
+ * The token on one side, as a control (#545).
  *
- * `label` is the card's caption, and it is the select's ACCESSIBLE name rather than a
- * second visible label: the caption sits above the figure, so the pill needs no words of
- * its own.
+ * `label` is the card's caption, and it is the trigger's ACCESSIBLE name rather than a second
+ * visible label: the caption sits above the row, so the control needs no words of its own
+ * besides the token's symbol. `menuTitle` names the dialog it opens, which is a different
+ * sentence: what the list is for, not what the control currently holds.
  */
-export interface SwapTokenPillProps {
+export interface SwapTokenControlProps {
   id: string;
   label: string;
+  /** The dialog's `h2`: what choosing here decides. */
+  menuTitle: string;
   value: string;
   options: readonly SwapAssetOption[];
   disabled?: boolean;
   onChoose: (asset: string) => void;
 }
 
+/** The dialog itself: one row per option, and the way out. */
+export interface SwapTokenPickerProps {
+  title: string;
+  value: string;
+  options: readonly SwapAssetOption[];
+  onChoose: (asset: string) => void;
+  onClose: () => void;
+}
+
 /**
- * One side of the pair: the pill, the figure, and one quiet row under them.
+ * One side of the pair: the caption, the figure, and one quiet row under them.
  *
  * `figure` is an input on the pay side and a reading on the get side, which is why it is
  * a slot rather than a string: the two look the same and behave differently, and only the
@@ -92,6 +104,7 @@ export interface SwapTokenPillProps {
 export interface SwapCardProps {
   selectId: string;
   label: string;
+  menuTitle: string;
   asset: string;
   options: readonly SwapAssetOption[];
   busy: boolean;
@@ -139,6 +152,19 @@ export type SwapStateLineProps = SwapStateLineModel;
 export interface SwapReferenceProps {
   txHash: string;
   network: Network;
+}
+
+/** The token list's open state, and the two ways it changes. */
+export interface UseSwapTokenPickerReturn {
+  open: boolean;
+  show: () => void;
+  hide: () => void;
+}
+
+/** The dialog's DOM contract: the box focus stays inside, and the Tab trap. */
+export interface UseSwapTokenDialogReturn {
+  containerRef: RefObject<HTMLDivElement | null>;
+  onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
 }
 
 /** The four controls, wired to the one state object that decides them. */

@@ -1,20 +1,25 @@
 'use client';
 
 import { SWAP_CARD_CLASS, SWAP_CARD_FOOTER_CLASS } from './SwapForm.constants';
-import { SwapTokenPill } from './SwapTokenPill';
+import { SwapTokenControl } from './SwapTokenControl';
 import type { SwapCardProps } from './SwapForm.types';
 
 /**
  * One side of the pair: what the token is, what the figure is, and one quiet row under it.
  *
- * The card is the category's shape (#417): a token pill on the left, the figure filling the
- * rest of the row at display size, and a hairline row beneath that carries the supporting
- * fact, which is the balance on the pay side and what it is worth on the get side. Before
- * this, both sides were the same 56px form control with a label above it, so nothing on the
- * page said which side was the money and which was the shape it turns into.
+ * The card is the category's shape (#417), read the way every reference draws it (#545): the
+ * caption, then ONE row carrying the figure at the leading edge and the token control at the
+ * trailing edge, then a hairline row carrying the supporting fact — the balance on the pay
+ * side, what it is worth on the get side.
  *
- * The caption (`You pay` / `You get`) is the card's heading and the pill's accessible name
- * at once: one sentence, said once, wired to the control it names.
+ * The order is the swap. Before #545 the token sat on the LEFT and a right-aligned figure
+ * filled the rest of a 728px row, which on a desk put the two things that belong together at
+ * opposite ends of a very long line. A figure that starts at the card's edge and a token that
+ * ends at it read as one line with two halves, and that is what makes "this becomes that"
+ * legible without a caption to explain it.
+ *
+ * The caption (`You pay` / `You get`) is the card's heading and the token control's accessible
+ * name at once: one sentence, said once, wired to the control it names.
  *
  * Both slots are nodes because the two sides look identical and behave differently: the pay
  * side's figure is an input, and the get side's is a figure the server sent.
@@ -22,6 +27,7 @@ import type { SwapCardProps } from './SwapForm.types';
 export function SwapCard({
   selectId,
   label,
+  menuTitle,
   asset,
   options,
   busy,
@@ -31,19 +37,20 @@ export function SwapCard({
 }: SwapCardProps) {
   return (
     <div className={SWAP_CARD_CLASS}>
-      <p className="text-body-sm text-mute">{label}</p>
+      <p className="text-caption text-mute">{label}</p>
 
-      <div className="mt-2 flex items-center justify-between gap-3">
-        <SwapTokenPill
+      <div className="mt-1 flex items-center justify-between gap-2">
+        <div className="min-w-0 flex-1">{figure}</div>
+
+        <SwapTokenControl
           id={selectId}
           label={label}
+          menuTitle={menuTitle}
           value={asset}
           options={options}
           disabled={busy}
           onChoose={onChoose}
         />
-
-        <div className="min-w-0 flex-1">{figure}</div>
       </div>
 
       <div className={SWAP_CARD_FOOTER_CLASS}>{footer}</div>
