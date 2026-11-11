@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { AppDock } from './AppDock';
+import { AppTopBar } from './AppTopBar';
 import { PracticeFrame } from './PracticeFrame';
 
 export interface AppShellProps {
@@ -27,7 +28,8 @@ export function AppShell({ children }: AppShellProps) {
   return (
     <div className="min-h-dvh bg-canvas-light text-ink">
       <PracticeFrame />
-      <main className="mx-auto w-full max-w-3xl px-5 pt-6 pb-[calc(var(--app-nav-reserved)_+_var(--app-nav-clearance))]">
+      <main className="mx-auto w-full max-w-3xl px-5 pt-4 pb-[calc(var(--app-nav-reserved)_+_var(--app-nav-clearance))]">
+        <AppTopBar />
         {children}
       </main>
       <AppDock />

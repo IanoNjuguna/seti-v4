@@ -39,7 +39,7 @@ export function AppNavLink({ item, active }: AppNavLinkProps) {
       href={item.href}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'flex h-11 min-w-11 flex-col items-center justify-center gap-1 rounded-lg px-1.5 transition-colors duration-(--duration-quick) ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+        'flex h-11 flex-1 flex-col items-center justify-center gap-1 rounded-lg px-1.5 transition-colors duration-(--duration-quick) ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
         active
           ? 'bg-surface-elevated text-on-dark'
           : 'text-on-dark-mute hover:bg-surface-deep active:bg-surface-elevated'
