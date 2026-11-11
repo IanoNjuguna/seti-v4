@@ -1,25 +1,25 @@
+#!/usr/bin/env node
 /**
- * `npm run check:profile-mark` — the account's mark is derived, stable, and not a Gravatar.
+ * `npm run check:profile-mark` — the account's face is OURS, and it is drawn locally.
  *
- * A mark looks like decoration and is not: it is the one thing on a profile that is stable
- * across sessions, and the only reason two accounts with the same initials look different.
- * Two properties have to hold or it is worse than no mark:
+ * The mark on a profile is the one image on an account page, so it is where two mistakes are
+ * cheapest to make and hardest to see: pointing an `<img>` at somebody else's server, and
+ * quietly growing a second face beside the first. This suite pins both.
  *
- *   1. **Stable.** The same account always draws the same mark, on every render and every
- *      device. A hash that drifts means a person's identity changes colour while they look
- *      at it.
- *   2. **Local.** No request, no third party. A Gravatar URL is the md5 of an email address,
- *      so serving one would leak an email-derived identifier on every profile view and give
- *      anyone with a handle an email-enumeration oracle. Our own CSP is `img-src 'self'`,
- *      which would block it regardless.
+ * ## What it used to assert, and why that changed
+ *
+ * Until the owner replaced it, the mark was two letters from the username on a tone hashed
+ * from it: distinct per account, and this file proved the hash was stable and spread. The
+ * decision is now that an account looks like SETI — our smiling alien — and the handle printed
+ * beside it identifies the person. So the assertions moved from "the letters and the tone" to
+ * "one face, ours, local", plus the one that matters most after a deletion: the initials
+ * machinery must not come back as a second, unused face.
  *
  * Run from `web/`: npm run check:profile-mark (part of the root `verify` gate).
  */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { markInitials, markTone } from '../components/ui/Mark.tsx';
-import { MARK_TONES } from '../components/ui/Mark.constants.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const WEB = join(HERE, '..');
@@ -38,50 +38,47 @@ function check(label, ok, detail = '') {
   console.log(`FAIL  ${label}${detail ? `  (${detail})` : ''}`);
 }
 
-// --- the letters -----------------------------------------------------------
-console.log('the letters\n');
-check('a single name gives two letters', markInitials('javahouse') === 'JA', String(markInitials('javahouse')));
-check('a hyphenated name gives one per part', markInitials('ian-njuguna') === 'IN', String(markInitials('ian-njuguna')));
-check('a spaced name gives one per part', markInitials('ian njuguna') === 'IN', String(markInitials('ian njuguna')));
-check('an at-sign is not a letter', markInitials('@seti') === 'SE', String(markInitials('@seti')));
-check('no name gives no letters', markInitials(null) === null);
-check('an empty name gives no letters', markInitials('   ') === null);
-
-// --- the tone --------------------------------------------------------------
-console.log('\nthe tone\n');
-const A = '0x1111111111111111111111111111111111111111';
-check('the same name always gives the same tone', markTone('javahouse') === markTone('javahouse'));
-check('an at-sign does not change the tone', markTone('@javahouse') === markTone('javahouse'));
-check('case does not change the tone', markTone('JavaHouse') === markTone('javahouse'));
-check('the tone is one of the declared five', MARK_TONES.includes(markTone('javahouse')));
-check('an account with no name still has a tone', MARK_TONES.includes(markTone(A)));
-
-// Twenty addresses must not all land on one tone, or the tone distinguishes nothing.
-const tones = new Set();
-for (let i = 0; i < 20; i += 1) {
-  tones.add(markTone(`name-${i}`));
-}
-check('twenty names spread across more than one tone', tones.size > 1, `${tones.size} tone(s)`);
-
-// --- it is local -----------------------------------------------------------
-console.log('\nno third party\n');
 const mark = read('components/ui/Mark.tsx');
-check('the mark makes no request', !/https?:\/\//.test(mark) && !/\bfetch\(/.test(mark));
-check('gravatar is not mentioned as a source', !/gravatar\.com/i.test(mark.replace(/Gravatar URL is the md5/g, '')));
-
+const constants = read('components/ui/Mark.constants.ts');
+const types = read('components/ui/Mark.types.ts');
 const identity = read('components/profile/ProfileIdentity.tsx');
-check('the identity block renders the mark', /<Mark\b/.test(identity));
-check('the identity block no longer draws a single initial', !/\binitial\b/.test(identity));
+const csp = read('lib/security-headers.ts');
 
-// The name is what generates the mark, so the component must seed from it first.
-check('the mark is generated from the name', /markTone\(handle \?\? address\)/.test(mark));
+// --- it is our face ---------------------------------------------------------
+console.log('the face\n');
+check('the mark draws the brand mark', /<BrandMark\b/.test(mark));
+check('and it is the friendly face', /expression="friendly"/.test(mark));
+check('on the light canvas, which the neutral well allows', /canvas="light"/.test(mark));
+check('in the neutral well, never a tone', /MARK_WELL_CLASS/.test(mark) && /bg-surface-soft/.test(constants));
+check('the glyph is set per size, not scaled from the box', /MARK_GLYPH_CLASS\[size\]/.test(mark));
 
-// An unnamed account shows the product's face, in the neutral well: the cream mark on a
-// coloured circle is the pair BrandMark's own rule forbids.
-check('an unnamed account falls back to the brand mark', /<BrandMark\b/.test(mark));
-check('the fallback is the friendly face', /expression="friendly"/.test(mark));
-check('the fallback uses the light canvas', /canvas="light"/.test(mark));
-check('the fallback is not drawn on a tone', /MARK_FALLBACK_CLASS/.test(mark) && !/MARK_TONE_CLASS\[markToneFor\(address, handle\)\]\s*>\s*<BrandMark/.test(mark));
+// --- it is local ------------------------------------------------------------
+console.log('\nand it is drawn locally\n');
+check('the mark makes no request', !/https?:\/\//.test(mark) && !/\bfetch\(/.test(mark));
+check('it renders no <img>, so no remote host is involved', !/<img\b/.test(mark.replace(/\/\*[\s\S]*?\*\//g, '')));
+check('gravatar is not used as a source', !/gravatar\.com/i.test(mark));
+check(
+  'the CSP still blocks third-party images',
+  /img-src 'self' data: blob:/.test(csp),
+  'img-src changed'
+);
+
+// --- one face, not two ------------------------------------------------------
+console.log('\nand there is exactly one face\n');
+/* Comments are stripped first: the component's own doc explains what was REMOVED, and naming
+   the helpers there must not read as the helpers being present. */
+const markCode = mark.replace(/\/\*[\s\S]*?\*\//g, '');
+const constantsCode = constants.replace(/\/\*[\s\S]*?\*\//g, '');
+check('the initials helper is gone', !/markInitials/.test(markCode) && !/markInitials/.test(constantsCode));
+check('the tone helper is gone', !/markTone/.test(markCode) && !/MARK_TONE_CLASS/.test(constantsCode));
+check('the tone type is gone', !/MarkTone/.test(types));
+check('the mark takes no seed', !/handle\?:|address\?:/.test(types));
+check(
+  'the identity block renders it without a seed',
+  /<Mark size="lg" \/>/.test(identity),
+  'ProfileIdentity still passes a seed'
+);
+check('and the identity block does not draw letters itself', !/markInitials/.test(identity));
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

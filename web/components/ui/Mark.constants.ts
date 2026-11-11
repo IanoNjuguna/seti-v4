@@ -1,60 +1,38 @@
-import type { MarkSize, MarkTone } from './Mark.types';
+import type { MarkSize } from './Mark.types';
 
 /**
- * The tones a mark may take, and why these five.
+ * The three sizes the mark exists at.
  *
- * A mark has no photograph and no upload, so its ONLY distinguishing feature besides the
- * letters is colour. That makes the palette a legibility decision, not a decorative one:
- * every tone here is measured against the text that sits on it, and every one clears
- * 4.5:1 for white initials. The five are existing system colours, so nothing new enters
- * `design/revolut.md` and no raw hex appears in a component.
- *
- * Measured (white on tone): primary 6.06:1, primary-deep 7.75:1, charcoal 10.93:1,
- * accent-blue-link 4.92:1, accent-brown 4.56:1.
- *
- * Three colours from the same accent family were deliberately left out: accent-teal
- * (3.04:1), accent-danger (4.24:1) and accent-lime (well under 4:1). They are fine as
- * an accent on white, which is how the system uses them, and too weak as a surface with
- * white text on top.
+ * `lg` is the profile header, `md` is the 40px well a row reserves, `sm` is the same object at
+ * the size a dense list can afford. A shared rhythm, not a wrapper with padding.
  */
-export const MARK_TONES: readonly MarkTone[] = [
-  'primary',
-  'primary-deep',
-  'charcoal',
-  'accent-blue-link',
-  'accent-brown',
-];
-
-export const MARK_TONE_CLASS: Record<MarkTone, string> = {
-  primary: 'bg-primary text-on-primary',
-  'primary-deep': 'bg-primary-deep text-on-primary',
-  charcoal: 'bg-charcoal text-on-dark',
-  'accent-blue-link': 'bg-accent-blue-link text-on-dark',
-  'accent-brown': 'bg-accent-brown text-on-dark',
+export const MARK_SIZE_CLASS: Record<MarkSize, string> = {
+  lg: 'h-16 w-16',
+  md: 'h-10 w-10',
+  sm: 'h-8 w-8',
 };
 
 /**
- * The two sizes that exist.
+ * The face inside the well, per size.
  *
- * `md` is the 40px well the profile and activity rows already reserve; `sm` is the same
- * object at the size a list row can afford. Nothing smaller: two letters at 24px stop
- * being letters.
+ * Set by hand at each step rather than derived from the box: the mark is art with its own
+ * optical weight, and scaling it from the container is how a 64px well ends up with a glyph
+ * that reads 4px too small.
  */
-export const MARK_SIZE_CLASS: Record<MarkSize, string> = {
-  lg: 'h-16 w-16 text-heading-md',
-  md: 'h-10 w-10 text-button',
-  sm: 'h-8 w-8 text-body-sm',
+export const MARK_GLYPH_CLASS: Record<MarkSize, string> = {
+  lg: 'h-9 w-9',
+  md: 'h-6 w-6',
+  sm: 'h-5 w-5',
 };
 
 export const MARK_BASE_CLASS =
-  'inline-flex shrink-0 select-none items-center justify-center rounded-full font-semibold uppercase';
+  'inline-flex shrink-0 select-none items-center justify-center rounded-full';
 
 /**
- * The well used when an account has no name to take letters from.
+ * The well the face sits in: NEUTRAL, never a tone.
  *
- * Not a tone: the brand mark is drawn in the colourway the surface dictates, and the cream
- * mark on a coloured circle is the one pair `BrandMark`'s own rule forbids. So an unnamed
- * account gets the same neutral well a shortcut's mark uses, with the product's face in it,
- * and the moment the account is named it takes its initials and a tone instead.
+ * The brand mark is drawn in the colourway the surface dictates, and the cream mark on a
+ * coloured circle is the one pair `BrandMark`'s own rule forbids. So it takes the same neutral
+ * well a shortcut's mark uses — the same well, on every surface, for every account.
  */
-export const MARK_FALLBACK_CLASS = 'bg-surface-soft';
+export const MARK_WELL_CLASS = 'bg-surface-soft';
