@@ -20,9 +20,12 @@ import { WHO_ITS_FOR_COPY } from './WhoItsForSection.constants';
  * equal weight against a product page that is deliberately one column of prose. The
  * hairline is the only line in the band.
  *
- * LIGHT CANVAS, with a top hairline because the band above it is light too: the rule
- * separates two white bands rather than shading one, which is the same discipline
- * `HowSection` uses at its own top edge.
+ * DARK CANVAS SINCE #552, with no top hairline. The page now runs `how` (white) into this
+ * band and on through `customer`, `money` and `fees` without a canvas flip, so the band's own
+ * edge against `how` above it is the flip and a rule there would draw a line on a change
+ * that is already visible. `customer` below it is dark too, so THAT boundary carries the
+ * hairline. The switch is the owner's: the whole stretch from this band to the price is one
+ * movement about money, and the white bands around it are the mechanics.
  *
  * THE HEADING IS THE COPY'S OWN ("Three kinds of seller.") and it is the band's opening
  * (#540). It used to sit under a 12px caps marker, which made this band open the same way
@@ -40,18 +43,18 @@ export function WhoItsForSection() {
   return (
     <Band
       id="who"
-      className="border-t border-hairline-light bg-canvas-light pt-[var(--band-pad-top)] pb-[var(--band-pad-bottom)]"
+      className="bg-canvas-dark pt-[var(--band-pad-top)] pb-[var(--band-pad-bottom)]"
     >
       <div className="mx-auto max-w-6xl px-6">
-        <h2 className="max-w-3xl font-brand text-display-lg font-medium text-ink lg:text-display-xl">
+        <h2 className="max-w-3xl font-brand text-display-lg font-medium text-on-dark lg:text-display-xl">
           {WHO_ITS_FOR_COPY.heading}
         </h2>
 
         <ul className="mt-14 grid grid-cols-1 gap-x-8 gap-y-10 sm:grid-cols-2 lg:mt-16 lg:grid-cols-3">
           {WHO_ITS_FOR_COPY.items.map((item) => (
-            <li key={item.title} className="border-t border-hairline-light pt-6">
-              <h3 className="font-brand text-heading-sm font-medium text-ink">{item.title}</h3>
-              <p className="mt-2 text-body-md text-mute">{item.body}</p>
+            <li key={item.title} className="border-t border-hairline-dark pt-6">
+              <h3 className="font-brand text-heading-sm font-medium text-on-dark">{item.title}</h3>
+              <p className="mt-2 text-body-md text-on-dark-mute">{item.body}</p>
             </li>
           ))}
         </ul>

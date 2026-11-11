@@ -23,12 +23,13 @@ import { YOUR_CUSTOMER_COPY } from './YourCustomerSection.constants';
  * prose, which is the one place this list differs from the fee rows below it (that column
  * is right-aligned `body-sm` and holds numbers).
  *
- * LIGHT CANVAS, with a top hairline, following the same discipline as the band above. The
- * three light bands in the middle of the page (`how`, `who`, `what your customer does`)
- * are one catalogue run between the hero and the first dark band, and the run is left
- * light on purpose: `MoneySection` records that its own band is "the first dark band after
- * the hero", and painting this one dark would have made that sentence false and put one
- * black band directly above another.
+ * DARK CANVAS SINCE #552, with a top hairline. `who` above it is dark too, so the flip no
+ * longer separates them and the rule does the work; a dark band under a dark band with
+ * nothing between them is one band with a gap in it. The earlier note here argued the run
+ * from `how` to this band had to stay light so `MoneySection` could keep calling itself "the
+ * first dark band after the hero". The owner took that call the other way: the stretch from
+ * `who` to the price is one movement about money, it is dark end to end, and every record
+ * that said otherwise moved with it.
  *
  * NOTHING HERE ASKS THE READER TO DO ANYTHING. There is no action in the band: it answers
  * "what do I ask my customer for", and the page's actions stay in the hero and the close,
@@ -45,7 +46,7 @@ export function YourCustomerSection() {
   return (
     <Band
       id="customer"
-      className="border-t border-hairline-light bg-canvas-light pt-[var(--band-pad-top)] pb-[var(--band-pad-bottom)]"
+      className="border-t border-hairline-dark bg-canvas-dark pt-[var(--band-pad-top)] pb-[var(--band-pad-bottom)]"
     >
       <div className="mx-auto max-w-6xl px-6">
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-12 lg:gap-16">
@@ -56,7 +57,7 @@ export function YourCustomerSection() {
               sentence reads as the note beside it. One h2 either way: it is the `h2` now
               rather than `SectionHeader`'s promotion. */}
           <div className="lg:col-span-4">
-            <h2 className="max-w-xs font-brand text-heading-md font-medium text-ink">
+            <h2 className="max-w-xs font-brand text-heading-md font-medium text-on-dark">
               {YOUR_CUSTOMER_COPY.heading}
             </h2>
           </div>
@@ -65,10 +66,10 @@ export function YourCustomerSection() {
             {YOUR_CUSTOMER_COPY.items.map((item) => (
               <div
                 key={item.title}
-                className="border-t border-hairline-light py-6 first:border-t-0 first:pt-0 sm:grid sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-baseline sm:gap-10"
+                className="border-t border-hairline-dark py-6 first:border-t-0 first:pt-0 sm:grid sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-baseline sm:gap-10"
               >
-                <h3 className="font-brand text-heading-sm font-medium text-ink">{item.title}</h3>
-                <p className="mt-2 text-body-md text-mute sm:mt-0">{item.body}</p>
+                <h3 className="font-brand text-heading-sm font-medium text-on-dark">{item.title}</h3>
+                <p className="mt-2 text-body-md text-on-dark-mute sm:mt-0">{item.body}</p>
               </div>
             ))}
           </div>

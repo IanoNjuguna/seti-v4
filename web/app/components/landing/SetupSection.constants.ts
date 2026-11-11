@@ -15,7 +15,7 @@ import type { SetupSectionCopy } from './SetupSection.types';
  * period, because none of those is part of it.
  */
 export const SETUP_COPY: SetupSectionCopy = {
-  eyebrow: 'Getting started',
+  heading: 'From a name to your first payment.',
   closing:
     'That is the whole setup: a name, a code, and a customer who already trusts you. There is no terminal to buy, nothing to install, and no monthly fee to keep paying.',
   steps: [

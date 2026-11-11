@@ -1,5 +1,4 @@
 import { Band } from './Band';
-import { SectionHeader } from './SectionHeader';
 import { FaqItem } from './FaqItem';
 import { FAQ_COPY } from './FaqSection.constants';
 
@@ -21,14 +20,14 @@ import { FAQ_COPY } from './FaqSection.constants';
  * JSON-LD saying different things, which is the failure a hand-written schema block
  * always eventually produces.
  *
- * ONE STRING, NOT TWO: the copy gives this band a heading ("Questions") and no marker, so
- * the marker IS the heading, promoted to the `h2` exactly as the three bands whose display
- * heading was deleted do it (`SectionHeader`). The render is a marker line; the outline
- * gets an `h2`.
+ * ONE STRING, NOT TWO: the copy gives this band one heading and no marker. Until #552 that
+ * string was rendered as the marker line and promoted to the `h2`; it is a heading now, and
+ * the string itself changed with it (see the constant).
  *
- * LIGHT CANVAS, AND IT CLOSES THE LIGHT RUN. `PartnersSection` below it is dark, so the
- * page's canvas step does the separating and this band carries no bottom rule; the top
- * hairline separates it from the fee rows above, which are light as well.
+ * DARK CANVAS, and the canvas step does the separating on both sides: `start` above is white
+ * and `partners` below carries its own top hairline, so this band needs no rules of its own.
+ * (This comment used to say the band was light and closed the light run, which had been false
+ * since the band was painted `canvas-dark`; corrected while the heading changed.)
  *
  * WHERE IT SITS: after the price list and before the integrations row. A reader who has
  * just seen what it costs is asking the six things this band answers, and the band is the
@@ -41,7 +40,14 @@ export function FaqSection() {
       className="bg-canvas-dark pt-[var(--band-pad-top)] pb-[var(--band-pad-bottom)]"
     >
       <div className="mx-auto max-w-6xl px-6">
-        <SectionHeader eyebrow={FAQ_COPY.heading} onDark />
+        {/* THE HEADING SAYS WHO ASKS AND WHEN (#552). It was the word "Questions", which
+            named the shape of the band rather than anything a reader wanted. The string is
+            still `FAQ_COPY.heading` and still the band's only `h2`; it is set as a heading
+            now instead of as the marker, so the page's bands no longer open with the same
+            12px label. */}
+        <h2 className="max-w-2xl font-brand text-heading-lg font-medium text-balance text-on-dark sm:text-display-md">
+          {FAQ_COPY.heading}
+        </h2>
 
         <div className="mt-12">
           {FAQ_COPY.items.map((entry, index) => (
