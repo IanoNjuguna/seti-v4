@@ -16,12 +16,13 @@
  *     `md:hidden` / `hidden md:` pair — the two classes whose removal is the whole point.
  *  3. **Rounded rectangle, not a pill.** A 14px radius on the slab and an 8px radius on the wells;
  *     `rounded-full` appears nowhere in either file.
- *  4. **The head is the mark, wearing the friendly face**, on the dark colourway, and it is not a
- *     second way to `/app`.
+ *  4. **The head is the lockup: the product's face and its name in one image**, at the size every
+ *     chrome surface draws it, and it is not a second way to `/app`.
  *  5. **The header is the frame, not a slab.** Mounted above `main` rather than inside it, edge to
  *     edge with no width cap and no corners, the dock's own black and its own height, its row on the
  *     content column's own `max-w` and padding, and `sticky` — with no edge at rest and a short dim
- *     strip under it only while content is passing beneath.
+ *     strip under it only while content is passing beneath. Its grain is drawn at the poster
+ *     strength, so the band reads as texture rather than as flat black.
  *  6. **A hairline separates the dock's head from the destinations**, so it cannot be counted as one.
  *  7. **A signed-out visitor has a door**: the dock's tail links to `/signin`.
  *  8. **The reserved space is the dock's own geometry** — inset + slab + hairline + safe area — so
@@ -100,10 +101,10 @@ console.log('a rounded rectangle, not a pill:');
 
 console.log('the head is in the header, not the dock:');
 {
-  check('the header draws BrandMark', topBar.includes('<BrandMark'));
-  check('with the friendly expression', topBar.includes('expression="friendly"'));
-  check('on the dark colourway', topBar.includes('canvas="dark"'));
-  check('larger than the glyphs it sits above', topBar.includes('className="h-7"'));
+  check('the header draws the lockup, not a lone glyph', topBar.includes('<BrandLockup'));
+  check('at the size every other chrome surface uses', topBar.includes('className="h-7"'));
+  check('with the friendly face as its default', !topBar.includes('expression='));
+  check('and no canvas prop, because the artwork has one ink', !topBar.includes('canvas='));
   check('and it is not a link to /app', !topBar.includes('href="/app"'));
 
   check('the dock carries no mark at all', !dock.includes('BrandMark'));
@@ -128,6 +129,8 @@ console.log('the header is the frame, and the dock is the object:');
   check('its row is the page column', topBar.includes('max-w-3xl') && topBar.includes('px-5'));
   check('it is the dock\'s own height', topBar.includes('h-[var(--app-nav-bar)]'));
   check('with the chrome grain across the band', topBar.includes('chrome-grain') && dock.includes('chrome-grain'));
+  check('at the poster strength, so it reads on a full-width band', topBar.includes('--app-grain-highlight:0.10') && topBar.includes('--app-grain-shadow:0.12'));
+  check('and the dock keeps the pair its 12px labels need', !dock.includes('--app-grain-'));
   check('it sticks, so the state it carries stays visible', /className="sticky top-0/.test(topBar));
   check('and it is not fixed', !/className="[^"]*\bfixed\b/.test(topBar));
 }
