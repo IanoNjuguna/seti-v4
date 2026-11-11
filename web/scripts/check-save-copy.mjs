@@ -147,18 +147,21 @@ console.log('\nthe page reads figure, actions, then the claim (#427):');
   );
 }
 
-console.log('\nan uncovered exit fee is a blocked state, said plainly (#521):');
+console.log('\nan uncovered exit fee is a blocked state, said plainly (#521, tightened in #527):');
 {
-  const line = SAVE_COPY.withdrawFeeShort('KES 0.06', 'KES 0.00');
+  const line = SAVE_COPY.withdrawFeeShort('KES 0.06', 'KES 0.05');
+  check('it leads with the action, in the control\'s own words', line.startsWith('Add money'), line);
   check('it names what the exit costs', line.includes('KES 0.06'), line);
-  check('and what the customer has', line.includes('KES 0.00'), line);
-  check('and that it cannot go through', /cannot go through/.test(line), line);
-  check('and the one thing that unblocks it', /Add money first/.test(line), line);
+  check('and keeps the fee attributed to the network', /network fee/.test(line), line);
+  check('and names the available figure', line.includes('KES 0.05'), line);
+  check('and states the requirement, not just the numbers', /You need .* for the network fee/.test(line), line);
   check(
-    'it is no longer the "keep at least" hint it used to be',
-    !/Keep at least/.test(line),
+    'it is one instruction, not a sequence in one block',
+    !/then take it out/.test(line) && !/Add money first/.test(line),
     line
   );
+  check('it is no longer the "keep at least" hint it used to be', !/Keep at least/.test(line), line);
+  check('and it does not narrate the failure as a transaction', !/cannot go through/.test(line), line);
 
   /*
    * Placement, because the complaint was placement: the sentence sat in the field's hint
