@@ -197,6 +197,29 @@ console.log('\na deposit leaves one exit fee available, and says so (#522, tight
   check('and it is not the blocked-exit sentence', !/cannot go through/.test(line), line);
 }
 
+console.log('\nthe Save custody note is deleted, and the claim still lives elsewhere (#531):');
+{
+  const constants = read('../components/save/Save.constants.ts');
+  const actions = read('../components/save/SaveActions.tsx');
+  check(
+    'the sentence is gone from the copy',
+    !constants.includes('Seti never holds it'),
+    'the custody note came back'
+  );
+  check('and nothing renders it', !actions.includes('custodyNote'));
+
+  /*
+   * A deletion is not a claim being dropped. Both halves are asserted where they still
+   * live, so a later pass cannot delete the survivors thinking the sentence above covered
+   * them, nor restore the sentence thinking nothing carries it.
+   */
+  const pay = read('../components/pay-public/PayPublic.constants.ts');
+  check('the pay page still says Seti never holds it', /Seti never holds it/.test(pay));
+  const signIn = read('../components/signin/SignInScreen.constants.ts');
+  check('and the sign-in footnote still says the money is not Seti’s', /not a bank/.test(signIn));
+  check('this screen still says the position is in your own name', /in your own name/.test(constants));
+}
+
 console.log('-'.repeat(74));
 console.log(`${passed} assertions passed${failed ? `, ${failed} failed` : ''}.`);
 process.exit(failed === 0 ? 0 : 1);
