@@ -182,7 +182,7 @@ export const SWAP_TOKEN_CHEVRON_CLASS = 'h-4 w-4 shrink-0 text-mute';
 export const SWAP_MENU_OVERLAY_CLASS =
   'fixed inset-0 z-50 flex items-end justify-center bg-canvas-dark/70 p-0 sm:items-center sm:p-6';
 export const SWAP_MENU_PANEL_CLASS =
-  'max-h-[80dvh] w-full overflow-y-auto rounded-t-md bg-canvas-light p-4 focus:outline-none sm:max-w-sm sm:rounded-md';
+  'max-h-[80dvh] w-full overflow-y-auto rounded-t-md bg-canvas-light focus:outline-none sm:max-w-[29rem] sm:rounded-md';
 export const SWAP_MENU_TITLE_ID = 'swap-token-menu-title';
 /** The focus ring's selector for the dialog's own Tab trap. */
 export const SWAP_MENU_FOCUSABLE = 'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';

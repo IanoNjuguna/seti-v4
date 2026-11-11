@@ -459,6 +459,26 @@ console.log('\nthe page is a pair and an amount, not four form fields (#417):');
   );
 
   /*
+   * CONGRUENCE (#545). The first version drew each token as a bordered box in a bordered
+   * panel, and a panel narrower than the card it belongs to: boxes within a box, floating at a
+   * size nothing else on the page uses. The list is one surface now — rows without a frame,
+   * separators owned by the list — and it is exactly as wide as the swap card.
+   */
+  const choiceConstants = stripComments(readSource('../components/ui/ChoiceRow.constants.ts'));
+
+  check(
+    'the rows are one list, not boxes in a box',
+    picker.includes('variant="list"') &&
+      picker.includes('divide-y divide-hairline-light') &&
+      /export const CHOICE_ROW_LIST_CLASS =\s*'[^']*px-4[^']*'/.test(choiceConstants) &&
+      !/export const CHOICE_ROW_LIST_CLASS =[^;]*border-/.test(choiceConstants)
+  );
+  check(
+    'and the dialog is the swap card\'s own width, so it sits over the thing it belongs to',
+    /export const SWAP_MENU_PANEL_CLASS =\s*'[^']*sm:max-w-\[29rem\]/.test(constants)
+  );
+
+  /*
    * THE MARK (#423). The control named a token in text and showed nothing, so `USDC.e` and
    * `USDC` were one character apart on the one screen where the difference is money. The file
    * map is held to the assets this build supports, and every mapped file is checked on disk:
