@@ -24,11 +24,14 @@ import { LandingFooter } from './components/landing/LandingFooter';
  * The bands in order are hero, how, who it is for, what your customer does, money, fees,
  * questions, partners, close.
  *
- * THE TWO NEW BANDS ARE LIGHT, and that is what keeps `MoneySection`'s own record true: it
- * is the first dark band after the hero, so painting either new band `canvas-dark` would
- * have put a black band directly above another black one and made that sentence false.
- * The run from `how` to `what your customer does` is therefore one catalogue stretch,
- * separated by the same top hairline each of those bands carries.
+ * THE CANVAS IS ONE LIGHT BAND INSIDE TWO DARK RUNS (#552). `how` is the only white band
+ * above `start`: the page reads hero, how (white), then who, customer, money and fees as a
+ * single dark movement about money, then start (white), then questions, partners and the
+ * close. Before this the run from `how` to `what your customer does` was one light catalogue
+ * stretch, kept light so `MoneySection` could call itself "the first dark band after the
+ * hero". The owner took the other call: four bands arguing about the money are one movement,
+ * and the canvas says so. The hairlines moved with it, so every dark boundary now carries
+ * one and the two flips carry none.
  *
  * THE QUESTIONS BAND IS THE PAGE'S ONLY MACHINE-READABLE BAND: its `h2`, its `h3`s and its
  * answers are in the server HTML, and `web/lib/faq-schema.ts` builds the `FAQPage` node for
@@ -59,12 +62,17 @@ import { LandingFooter } from './components/landing/LandingFooter';
  * never about the band: the backend holds no key that can move a customer's money,
  * and the sentences the product still shows hold the voice.
  *
- * WHAT THE DELETION COSTS, RECORDED RATHER THAN PATCHED. The band was `canvas-light`
- * between two dark ones, so the page now runs dark into dark at the foot: Partners
- * and the close share a canvas and no hairline separates them. Nothing in a
- * neighbouring band was restyled to cover it — repainting the close, or hanging a
- * border off it, is a design decision about the page's last two bands and not a
- * side effect this deletion gets to make on its own.
+ * WHAT THE DELETION COST, AND WHAT #540 DID ABOUT IT. The band was `canvas-light`
+ * between two dark ones, so the page ran dark into dark at the foot: Partners and the
+ * close shared a canvas with no hairline between them. That was recorded rather than
+ * patched, because repainting the close or hanging a border off it is a design decision
+ * about the page's last two bands and not a side effect a deletion gets to make on its
+ * own. #540 is that decision, taken deliberately: both bands now carry
+ * `border-t border-hairline-dark`, so the foot of the page is separated the way every
+ * other boundary is. The page's rhythm is no longer "one band per slide" either: `how`
+ * opens on its object, `who` opens on its sentence at display scale, `customer` opens on a
+ * margin note, `fees` is an inset panel and `money`'s row runs wider than every other band.
+ * The band order, the copy and the palette are unchanged.
  *
  * The command palette's sections (`SEARCH_SECTIONS`) are the same six ids the bands
  * render, so a jump lands on a band whichever way the reader got here. The three new

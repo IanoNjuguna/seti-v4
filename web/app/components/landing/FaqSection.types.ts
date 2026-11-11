@@ -13,10 +13,9 @@ export interface FaqEntry {
 /** The questions band: its heading and the six entries, in order. */
 export interface FaqSectionCopy {
   /**
-   * The band's heading, and it is the band's `h2`. It is also its marker: the copy
-   * carries one string for this band rather than an eyebrow and a heading, and the page's
-   * established pattern for a band whose name is its heading is to promote the marker to
-   * the `h2` (see `SectionHeader`).
+   * The band's `h2`, and the only heading element the band carries. It is set as a heading
+   * rather than as the caps marker it used to be (#552): the marker said what shape the
+   * band had ("Questions"), the sentence says who is asking and when.
    */
   heading: string;
   /** Exactly six, in the order they are asked. */

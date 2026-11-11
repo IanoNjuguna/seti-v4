@@ -19,24 +19,29 @@ import type { MoneyCardProps } from './MoneyCard.types';
  * The edge is `hairline-dark`, the system's edge for that canvas, and there is no
  * shadow: the luminance step and the hairline ARE the depth here.
  *
- * THE TILE IS A SQUARE ON THE REFERENCE AND A 4:3 CARD HERE, and the difference is
- * content rather than taste. cash.app's squares hold a photograph, a big figure and
- * a floating UI chip, so 331px of tile is 331px of object. These hold a heading and
- * one sentence: at `sm:aspect-square` the tile the grid gives at 1440 put
- * ~140px of nothing between the label at the top and the sentence at the foot, and
- * four potholes in one row read as a missing image rather than as whitespace. So the
- * tile takes a height instead of a side (`min-h-[13rem]`), which keeps the grid, the
- * gutter and the edge-to-edge row the reference has while letting the words sit
- * closer together. The radius stays this system's 12px and the SIZE still does the
- * "tile" work.
+ * NO MINIMUM HEIGHT AND NO JUSTIFICATION (#540). The tile used to be `min-h-[13rem]` with
+ * `justify-between`, which pinned the sentence to the foot of the tile and left ~85px of
+ * nothing between it and the label: a hole in the middle of every card, in the one band
+ * whose whole job is three short facts. The sentence now follows the label at 8px and the
+ * tile is as tall as its words. The row still reads level because grid items stretch to the
+ * tallest tile by default, so the three cards keep one height without a hard-coded one.
+ *
+ * THE TILE IS A SQUARE ON THE REFERENCE AND A CONTENT-SIZED CARD HERE, and the difference
+ * is content rather than taste. cash.app's squares hold a photograph, a big figure and a
+ * floating UI chip, so 331px of tile is 331px of object. These hold a heading and one
+ * sentence, and the two rounds before this one both put space inside the tile to fake a
+ * square: `sm:aspect-square` left ~140px of nothing, and `min-h-[13rem]` with
+ * `justify-between` left ~85px. Both were potholes read as a missing image rather than as
+ * whitespace, which is the trade #540 records above. The tile now takes its height from what
+ * is in it, the grid gives the row one height, and the radius stays this system's 12px.
  */
 export function MoneyCard({ tile }: MoneyCardProps) {
   return (
-    <li className="flex flex-col justify-between gap-6 rounded-md border border-hairline-dark bg-surface-elevated p-5 sm:min-h-[13rem] sm:p-6">
+    <li className="flex flex-col rounded-md border border-hairline-dark bg-surface-elevated p-5 sm:p-6">
       <h3 className="font-brand text-heading-sm font-medium text-on-dark sm:text-heading-md">
         {tile.label}
       </h3>
-      <p className="text-body-sm text-on-dark-mute">{tile.detail}</p>
+      <p className="mt-2 text-body-sm text-on-dark-mute">{tile.detail}</p>
     </li>
   );
 }

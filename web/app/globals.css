@@ -45,20 +45,34 @@
      page that moves on its own besides the field. */
   --duration-float: 6s;
   --float-distance: 3px;
-  /* THE page's vertical rhythm: ONE token, read by every band's top AND bottom
-     padding, so no band can drift from its neighbours and no band's bottom can
-     exceed its top. Default here; the responsive steps are `:root` overrides in
-     the base layer below, because an `@theme` block cannot hold a media query.
+  /* THE page's vertical rhythm: ONE token PAIR, read by every band's top and
+     bottom padding, so no band can drift from its neighbours and no band's
+     bottom can exceed its top. Default here; the responsive steps are `:root`
+     overrides in the base layer below, because an `@theme` block cannot hold a
+     media query.
      The hero and the footer are deliberately NOT on it — a viewport-tall centred
      box and the page chrome are not bands, and both use smaller padding. They are
-     the only padding values on the page that do not come from this token.
+     the only padding values on the page that do not come from these tokens.
 
-     The desktop step is `{spacing.section}` (88px), not `{spacing.band}` (120px):
-     the doc gives 120px to "the hero band and the closing planning section" and
-     88px to the padding "between bands", and the page had every band on the
-     hero's number. Measured against a laptop fold, that is what overflowed
-     `#how`. See the ladder in the base layer below for the numbers. */
-  --band-pad-block: 4rem;
+     WHY IT IS SKEWED (#540). It used to be one value, 88px above and below, and
+     the consequence was measured: the gap across a seam (88 + 88 = 176px, 189px
+     from the last content of one band to the label of the next) was four times
+     the gap inside a band (48px, heading to content). A boundary that is wider
+     than the band's own internal spacing reads as a page turn, which is why the
+     page scanned as nine slides. The top now carries the larger number and the
+     bottom the smaller one, so a boundary sits CLOSER to the band above it than
+     to the label below it: the label gets the air, the boundary stops being
+     centred, and the reader is pulled down into the next band instead of being
+     asked to turn a page. The bottom never exceeds the top, which is the rule
+     this token pair exists for.
+
+     The desktop step is `{spacing.section}` (88px) split 96/64, not
+     `{spacing.band}` (120px): the doc gives 120px to "the hero band and the
+     closing planning section" and 88px to the padding "between bands", and the
+     page had every band on the hero's number. Measured against a laptop fold,
+     that is what overflowed `#how`. See the ladder in the base layer below. */
+  --band-pad-top: 4rem;
+  --band-pad-bottom: 3rem;
   /* The product app's fixed bottom bar, sized ONCE.
      `--app-nav-bar` is the doc's `nav-bar` row (64px): the black bar `AppNav`
      draws below `md`, and the rail's brand block, which is that same row
@@ -403,20 +417,28 @@
 
      Nothing else moved: the hero and the footer were never on this token
      (measured padding 0), no type size, row padding or object changed, and no
-     copy was cut — the only lever here was space. */
+     copy was cut — the only lever here was space.
+
+     THE SKEW (#540) keeps every one of those steps and moves the split: 4/3,
+     5/4 and 6/4 rem, against the old 4/4, 5/5 and 5.5/5.5. The seam loses 16px
+     at desktop (96 + 64 = 160 against 176) and, more to the point, the boundary
+     stops sitting at the midpoint of the gap between two bands' content. */
   :root {
-    --band-pad-block: 4rem;
+    --band-pad-top: 4rem;
+    --band-pad-bottom: 3rem;
   }
 
   @media (min-width: 48rem) {
     :root {
-      --band-pad-block: 5rem;
+      --band-pad-top: 5rem;
+      --band-pad-bottom: 4rem;
     }
   }
 
   @media (min-width: 64rem) {
     :root {
-      --band-pad-block: 5.5rem;
+      --band-pad-top: 6rem;
+      --band-pad-bottom: 4rem;
     }
   }
 

@@ -24,10 +24,21 @@ import { CLOSING_COPY } from './ClosingSection.constants';
  *
  * The action is `Claim your name` (`CLOSING_COPY`) and its destination is the
  * product's front door — the claim happens inside the product, in onboarding.
+ *
+ * IT HAS A TOP HAIRLINE NOW (#540). Partners and this band share the dark canvas, and the
+ * seam between them had no boundary at all — `page.tsx` recorded that as the cost of deleting
+ * the refusals band (#267) rather than fixing it. Two black bands with the same padding and
+ * nothing between them are one band with a gap in it, and the reader arrives at the last
+ * action without noticing the page has changed subject. The hairline is the same
+ * `hairline-dark` every other dark boundary uses, so the foot of the page is separated the
+ * way the rest of the page is.
  */
 export function ClosingSection() {
   return (
-    <Band id="open" className="bg-canvas-dark py-[var(--band-pad-block)]">
+    <Band
+      id="open"
+      className="border-t border-hairline-dark bg-canvas-dark pt-[var(--band-pad-top)] pb-[var(--band-pad-bottom)]"
+    >
       <div className="mx-auto max-w-6xl px-6">
         <div className="grid items-end gap-12 md:grid-cols-12 md:gap-16">
           <div className="md:col-span-7">
