@@ -313,6 +313,8 @@ console.log('\nthe page is a pair and an amount, not four form fields (#417):');
   const amountField = stripComments(readSource('../components/swap/SwapAmountField.tsx'));
   const card = stripComments(readSource('../components/swap/SwapCard.tsx'));
   const form = stripComments(readSource('../hooks/useSwapForm.ts'));
+  const formComponent = stripComments(readSource('../components/swap/SwapForm.tsx'));
+  const constants = stripComments(readSource('../components/swap/SwapForm.constants.ts'));
 
   /*
    * The amount is the figure the page is about, at figure size. Asserted as a CLASS on the
@@ -324,10 +326,41 @@ console.log('\nthe page is a pair and an amount, not four form fields (#417):');
     amountField.includes('SWAP_FIGURE_CLASS') && !amountField.includes('text-body-md')
   );
   check(
-    'and that size is one class, so a second one cannot win by emission order',
-    /export const SWAP_FIGURE_CLASS =\s*'[^']*text-heading-md[^']*'/.test(
-      stripComments(readSource('../components/swap/SwapForm.constants.ts'))
+    'and that size is a base step with its breakpoint steps, which emission order cannot swap',
+    /export const SWAP_FIGURE_CLASS =\s*'[^']*text-heading-md[^']*sm:text-heading-lg[^']*'/.test(
+      constants
     )
+  );
+  /*
+   * At 320px the figure and the token control share a 248px row, and a six-decimal amount at
+   * 24px is 115px into a 102px box — it painted its last digit under the control (measured).
+   * The narrow step is asserted so that a later "simplification" cannot quietly put the
+   * collision back on the smallest phone this app supports.
+   */
+  check(
+    'and it steps down below 360px, where a six-decimal amount would run under the token control',
+    /export const SWAP_FIGURE_CLASS =\s*'[^']*max-\[359px\]:text-heading-sm[^']*'/.test(constants)
+  );
+
+  /*
+   * PROPORTION (#545). The surface was the app column's full width, so the token and the
+   * figure sat at opposite ends of a 728px line and the pair read as two wide bands. A swap
+   * card is 464px and the figure starts at its leading edge, with the token on the trailing
+   * one: both are asserted because either alone still draws a wide, empty row.
+   */
+  check(
+    'the surface is a swap card wide, not the app column wide',
+    /export const SWAP_COLUMN_CLASS =\s*'[^']*max-w-\[29rem\]/.test(constants) &&
+      formComponent.includes('SWAP_COLUMN_CLASS')
+  );
+  check(
+    'the figure starts at the card\'s leading edge, because the token takes the trailing one',
+    /export const SWAP_FIGURE_CLASS =\s*'[^']*text-left/.test(constants) &&
+      !/export const SWAP_FIGURE_CLASS =\s*'[^']*text-right/.test(constants)
+  );
+  check(
+    'the token control follows the figure in the row, and is not drawn before it',
+    card.indexOf('{figure}') < card.indexOf('<SwapTokenControl')
   );
 
   /*
@@ -343,7 +376,7 @@ console.log('\nthe page is a pair and an amount, not four form fields (#417):');
     'the pair is two cards with the control between them',
     fields.indexOf('<SwapCard') < fields.indexOf('<SwapFlipControl') &&
       fields.indexOf('<SwapFlipControl') < fields.lastIndexOf('<SwapCard') &&
-      card.includes('<SwapTokenPill')
+      card.includes('<SwapTokenControl')
   );
 
   /*
@@ -363,16 +396,15 @@ console.log('\nthe page is a pair and an amount, not four form fields (#417):');
   );
 
   /*
-   * SHAPE (#421). The pill and the doubled seam were both live: the radius scale forbids a
-   * control that is a pill, and two flush cards give a seam of two borders and two sets of
+   * SHAPE (#421, #545). The pill and the doubled seam were both live: the radius scale forbids
+   * a control that is a pill, and two flush cards give a seam of two borders and two sets of
    * rounded corners. Both are asserted here because neither is detectable in a screenshot
    * diff, and both came back once already.
    */
-  const constants = stripComments(readSource('../components/swap/SwapForm.constants.ts'));
   check(
     'the token control uses the system radius, not a pill',
-    /export const SWAP_PILL_CLASS =\s*'[^']*rounded-md/.test(constants) &&
-      !/export const SWAP_PILL_CLASS =\s*'[^']*rounded-full/.test(constants)
+    /export const SWAP_TOKEN_BUTTON_CLASS =\s*'[^']*rounded-md/.test(constants) &&
+      !/export const SWAP_TOKEN_BUTTON_CLASS =\s*'[^']*rounded-full/.test(constants)
   );
   check(
     'the pair is one panel with two zones and a divider',
@@ -389,23 +421,76 @@ console.log('\nthe page is a pair and an amount, not four form fields (#417):');
   );
 
   /*
+   * THE TOKEN LIST (#545). The control was a native `<select>`: its menu was drawn by the
+   * operating system, its options could only be text, and it could not carry the token's mark
+   * without a sibling image and a `pl-10` hole punched for it. The list is now the app's own
+   * dialog of `ChoiceRow`s. Asserted by READING the sources, because the claim is about what
+   * draws the menu — a screenshot of an open native menu proves nothing about the markup, and
+   * a `<select>` left in the tree would silently come back with the same OS menu.
+   */
+  const control = stripComments(readSource('../components/swap/SwapTokenControl.tsx'));
+  const picker = stripComments(readSource('../components/swap/SwapTokenPicker.tsx'));
+  const pickerHook = stripComments(readSource('../components/swap/useSwapTokenPicker.ts'));
+
+  check(
+    'the token control is a button that opens a dialog, not a native select',
+    control.includes('<button') &&
+      control.includes('aria-haspopup="dialog"') &&
+      !control.includes('<select') &&
+      !picker.includes('<select')
+  );
+  check(
+    'the list is the app\'s choice row, with the token\'s mark in it',
+    picker.includes('<ChoiceRow') && picker.includes('<TokenMark') && picker.includes('mark={')
+  );
+  check(
+    'the chosen token is marked, and a row the book cannot fill says why instead of vanishing',
+    picker.includes('selected={option.asset === value}') &&
+      picker.includes('disabled={option.live === false}') &&
+      picker.includes('SWAP_FORM_COPY.noMarket')
+  );
+  check(
+    'the dialog carries the focus contract: role, Escape, a Tab trap, and focus returned',
+    picker.includes('role="dialog"') &&
+      picker.includes('aria-modal="true"') &&
+      pickerHook.includes("event.key === 'Escape'") &&
+      pickerHook.includes('SWAP_MENU_FOCUSABLE') &&
+      pickerHook.includes('opener?.focus()')
+  );
+
+  /*
+   * CONGRUENCE (#545). The first version drew each token as a bordered box in a bordered
+   * panel, and a panel narrower than the card it belongs to: boxes within a box, floating at a
+   * size nothing else on the page uses. The list is one surface now — rows without a frame,
+   * separators owned by the list — and it is exactly as wide as the swap card.
+   */
+  const choiceConstants = stripComments(readSource('../components/ui/ChoiceRow.constants.ts'));
+
+  check(
+    'the rows are one list, not boxes in a box',
+    picker.includes('variant="list"') &&
+      picker.includes('divide-y divide-hairline-light') &&
+      /export const CHOICE_ROW_LIST_CLASS =\s*'[^']*px-4[^']*'/.test(choiceConstants) &&
+      !/export const CHOICE_ROW_LIST_CLASS =[^;]*border-/.test(choiceConstants)
+  );
+  check(
+    'and the dialog is the swap card\'s own width, so it sits over the thing it belongs to',
+    /export const SWAP_MENU_PANEL_CLASS =\s*'[^']*sm:max-w-\[29rem\]/.test(constants)
+  );
+
+  /*
    * THE MARK (#423). The control named a token in text and showed nothing, so `USDC.e` and
    * `USDC` were one character apart on the one screen where the difference is money. The file
    * map is held to the assets this build supports, and every mapped file is checked on disk:
    * an entry pointing at a file nobody committed draws a broken image in production, which is
    * worse than no mark.
    */
-  const pill = stripComments(readSource('../components/swap/SwapTokenPill.tsx'));
   const marks = stripComments(readSource('../components/ui/TokenMark.constants.ts'));
   const mark = stripComments(readSource('../components/ui/TokenMark.tsx'));
 
   check(
     'the token control draws the token\'s mark beside its symbol',
-    pill.includes('<TokenMark') && pill.includes('asset={value}')
-  );
-  check(
-    'and the select carries the padding that makes room for it',
-    /export const SWAP_PILL_CLASS =\s*'[^']*pl-10/.test(constants)
+    control.includes('<TokenMark') && control.includes('asset={value}')
   );
   check(
     'the mark is decorative: the symbol already names the token',

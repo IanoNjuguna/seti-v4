@@ -2,8 +2,9 @@
 
 import { Skeleton } from '@/components/ui';
 import { PageHeader } from '@/components/app/PageHeader';
+import { cn } from '@/lib/cn';
 import { useSwapForm } from '@/hooks/useSwapForm';
-import { SWAP_FORM_COPY } from './SwapForm.constants';
+import { SWAP_COLUMN_CLASS, SWAP_FORM_COPY } from './SwapForm.constants';
 import { SwapFields } from './SwapFields';
 import { SwapRateLine } from './SwapRateLine';
 import { SwapStateLine } from './SwapStateLine';
@@ -31,15 +32,15 @@ export function SwapForm() {
   const form = useSwapForm();
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className={cn('flex flex-col gap-4', SWAP_COLUMN_CLASS)}>
       <PageHeader title={SWAP_FORM_COPY.title} />
 
       {form.quote !== null && <SwapRateLine quote={form.quote} />}
 
       {form.loading && (
         <>
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-32 w-full" />
         </>
       )}
 

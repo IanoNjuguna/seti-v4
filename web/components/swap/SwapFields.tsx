@@ -34,14 +34,17 @@ export function SwapFields({ form }: SwapFieldsProps) {
       {/*
         ONE panel, two zones, one divider (#421). The flip control is centred on that divider
         and straddles it, which is the reference shape expressed in this product's own
-        surface. The zones' `pb-7` / `pt-7` are the button's clearance: 28px against its 22px
-        half-height, so it can never cover the balance row above it or the label below.
+        surface. The zones' `pb-6` / `pt-6` are the button's clearance: 24px against its 24px
+        half-height (44px plus the 2px ring that hides the divider behind it), so it can never
+        cover the balance row above it or the caption below (#545 tightened the pair of them
+        from 28px, which left a seam wider than either zone's own content).
       */}
       <div className={SWAP_PANEL_CLASS}>
-        <div className="pb-7">
+        <div className="pb-6">
           <SwapCard
             selectId={form.sourceFieldId}
             label={SWAP_FORM_COPY.payLabel}
+            menuTitle={SWAP_FORM_COPY.tokenMenuPay}
             asset={form.assetIn}
             options={form.sourceOptions}
             busy={form.busy}
@@ -80,15 +83,18 @@ export function SwapFields({ form }: SwapFieldsProps) {
         </div>
 
         <div className="relative border-t border-hairline-light">
-          <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2">
+          {/* The button's own ring (#545): `canvas-light` like the panel it sits in, so the
+              divider stops at the control instead of being drawn through it. */}
+          <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 rounded-full bg-canvas-light p-0.5">
             <SwapFlipControl disabled={!form.canFlip || form.busy} onFlip={form.onFlip} />
           </div>
         </div>
 
-        <div className="pt-7">
+        <div className="pt-6">
           <SwapCard
             selectId={form.targetFieldId}
             label={SWAP_FORM_COPY.getLabel}
+            menuTitle={SWAP_FORM_COPY.tokenMenuGet}
             asset={form.assetOut}
             options={form.targetOptions}
             busy={form.busy}
