@@ -151,6 +151,21 @@ Branch protection requires the `verify` check on `main`. Your own PRs cannot be
 approved by you, so review is not enforced mechanically; reading your own diff
 before merging is.
 
+**`enforce_admins` is on, so a red required check cannot be merged around.**
+`gh pr merge --admin` is refused with `Required status check "…" is failing`, and the
+required contexts are `issue link + branch name` and `typecheck + lint + checks`. "Do not
+merge on red" therefore has no escape hatch, which matters when the only red check is a
+LIVE-MARKET one: `check:convert` fails when a third party's book drifts out of its recorded
+par band, on `main` as much as on a branch, and the band table is a measurement with a date
+rather than a promise. The unblock is its own issue → branch → PR that records a fresh
+measurement — a direction row in `backend/src/services/par-bands.ts`, held to
+`band + 1bp headroom <= PAR_BAND_CEILING_BPS` so the edit is visible against a limit —
+merged FIRST, then the blocked PR rebased onto it with its checks re-run. Re-read the number
+over a few minutes before writing it down: it moved 14 → 15 bps inside twenty minutes, so a
+band taken from one reading can go red on the next CI run. Never raise the ceiling, and never
+edit the band inside the unrelated PR: that is the quiet way to turn the gate green that the
+ceiling exists to prevent.
+
 ## Starting from an existing pile of work
 
 If you find uncommitted work with no issue, do not invent a PR over it and do
