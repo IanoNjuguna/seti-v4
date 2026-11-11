@@ -19,9 +19,9 @@
  *  4. **The head is the mark, wearing the friendly face**, on the dark colourway, and it is not a
  *     second way to `/app`.
  *  5. **The header is the frame, not a slab.** Mounted above `main` rather than inside it, edge to
- *     edge with no width cap and no corners, the dock's own black and its own height, closed by one
- *     hairline, its row on the content column's own `max-w` and padding, `sticky`, with a short
- *     gradient under it so content fades out instead of vanishing at a hard edge.
+ *     edge with no width cap and no corners, the dock's own black and its own height, its row on the
+ *     content column's own `max-w` and padding, and `sticky` — with no edge at rest and a short dim
+ *     strip under it only while content is passing beneath.
  *  6. **A hairline separates the dock's head from the destinations**, so it cannot be counted as one.
  *  7. **A signed-out visitor has a door**: the dock's tail links to `/signin`.
  *  8. **The reserved space is the dock's own geometry** — inset + slab + hairline + safe area — so
@@ -116,9 +116,15 @@ console.log('the header is the frame, and the dock is the object:');
   check('above the content column, not inside it', shell.indexOf('<AppTopBar />') < shell.indexOf('<main'));
   check('the header is full-bleed, so it carries no width cap', !topBar.includes('max-w-[26rem]') && !topBar.includes('max-w-none'));
   check('and no corners', !/className="[^"]*\brounded/.test(topBar));
-  check('one hairline closes it', topBar.includes('border-b border-hairline-dark'));
+  check('no edge is painted at rest', !topBar.includes('border-b'));
   check('it is the dock\'s own black, not a grey wash', topBar.includes('bg-canvas-dark text-on-dark'));
-  check('and content fades under it rather than being cut', topBar.includes('bg-gradient-to-b') && topBar.includes('top-full'));
+  check('the edge is earned, only once content is under it', topBar.includes('scrolled &&') && topBar.includes('top-full'));
+  check('and it is a short dim strip, not a drop shadow', topBar.includes('h-1.5') && topBar.includes('from-canvas-dark/30'));
+  {
+    const scrolledHook = read('../components/app/useScrolled.ts');
+    check('the scroll read is throttled to a frame', scrolledHook.includes('requestAnimationFrame'));
+    check('and its listener is passive', scrolledHook.includes('passive: true'));
+  }
   check('its row is the page column', topBar.includes('max-w-3xl') && topBar.includes('px-5'));
   check('it is the dock\'s own height', topBar.includes('h-[var(--app-nav-bar)]'));
   check('with the chrome grain across the band', topBar.includes('chrome-grain') && dock.includes('chrome-grain'));
