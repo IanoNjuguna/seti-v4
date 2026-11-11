@@ -4,8 +4,9 @@ import { NO_ACCOUNT_COPY } from '@/components/app/no-account.constants';
 import { PageHeader } from '@/components/app/PageHeader';
 import { SignInPrompt } from '@/components/auth/SignInPrompt';
 import { Text } from '@/components/ui';
+import { cn } from '@/lib/cn';
 import { useSession } from '@/lib/auth';
-import { SWAP_FORM_COPY, SWAP_SIGNED_OUT_COPY } from './SwapForm.constants';
+import { SWAP_COLUMN_CLASS, SWAP_FORM_COPY, SWAP_SIGNED_OUT_COPY } from './SwapForm.constants';
 import { SwapForm } from './SwapForm';
 
 /**
@@ -26,7 +27,7 @@ export function SwapScreen() {
     const restoring = session.status === 'restoring';
 
     return (
-      <div className="flex flex-col gap-4">
+      <div className={cn('flex flex-col gap-4', SWAP_COLUMN_CLASS)}>
         <PageHeader title={SWAP_FORM_COPY.title} />
 
         {restoring ? (
