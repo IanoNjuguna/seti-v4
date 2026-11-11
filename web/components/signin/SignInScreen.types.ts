@@ -52,6 +52,7 @@ export interface SignInEntryFormProps {
 
 export interface SignInSentPanelProps {
   address: string;
+  /** The digits so far, contiguous: the cells hold this and nothing else. */
   code: string;
   error: SessionProblem | null;
   /** A new code is being mailed (`resending`) versus the typed code being checked. */
@@ -63,7 +64,9 @@ export interface SignInSentPanelProps {
    * the length of the verify request, which is a control that refuses silently.
    */
   verifying: boolean;
-  onCodeChange: (value: string) => void;
+  onCodeChange: (code: string) => void;
+  /** The sixth digit landed: the reference's auto-submit, and the same path as the button. */
+  onCodeComplete: (code: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onResend: () => void;
   onUseAnotherAddress: () => void;

@@ -6,6 +6,7 @@ import { useSession } from '@/lib/auth';
 import { useTermsAcceptance } from '@/hooks/useTermsAcceptance';
 import { TERMS_VERSION } from '@/lib/legal/terms';
 import { resolveSignInStage } from './sign-in-stage';
+import { toDigits } from './otp/code.logic';
 import type { UseSignInScreenReturn } from './useSignInScreen.types';
 
 /**
@@ -56,7 +57,8 @@ export function useSignInScreen(): UseSignInScreenReturn {
   });
 
   const onAddressChange = useCallback((value: string) => setAddress(value), []);
-  const onCodeChange = useCallback((value: string) => setCode(value), []);
+  /** Digits only, always: the cells hand up whatever the OS autofilled, dirty or not. */
+  const onCodeChange = useCallback((value: string) => setCode(toDigits(value)), []);
   const onAcceptChange = useCallback((next: boolean) => setAccepted(next), [setAccepted]);
 
   /** Mail the code. Also the retry after a send that failed. */
@@ -76,16 +78,33 @@ export function useSignInScreen(): UseSignInScreenReturn {
     [signIn, address, accepted]
   );
 
-  /** Consume the code. `verifying` is cleared when the promise settles either way. */
+  /**
+   * Consume the code. `verifying` is cleared when the promise settles either way.
+   *
+   * One path for both callers: the button (`onSubmitCode`) and the sixth digit landing
+   * (`onCodeComplete`). The guard matters because the auto-submit fires from a keystroke
+   * that can repeat: without it, holding a key on the last cell would fire a second
+   * verify while the first is in flight, and the second would be refused for a spent code.
+   */
+  const submitCode = useCallback(
+    (value: string) => {
+      if (verifying) return;
+      setPastFirstSend(true);
+      setVerifying(true);
+      void submitSignInCode(toDigits(value), TERMS_VERSION).finally(() => setVerifying(false));
+    },
+    [submitSignInCode, verifying]
+  );
+
   const onSubmitCode = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      setPastFirstSend(true);
-      setVerifying(true);
-      void submitSignInCode(code, TERMS_VERSION).finally(() => setVerifying(false));
+      submitCode(code);
     },
-    [submitSignInCode, code]
+    [submitCode, code]
   );
+
+  const onCodeComplete = useCallback((next: string) => submitCode(next), [submitCode]);
 
   const onResend = useCallback(() => {
     setPastFirstSend(true);
@@ -115,6 +134,7 @@ export function useSignInScreen(): UseSignInScreenReturn {
     previewAvailable: source === 'dev' && address.trim() !== '',
     onAddressChange,
     onCodeChange,
+    onCodeComplete,
     onAcceptChange,
     onSubmitAddress,
     onSubmitCode,
