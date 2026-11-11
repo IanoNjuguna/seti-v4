@@ -17,6 +17,7 @@ import { ASSET_DECIMALS } from '@/lib/chain';
 import { useEmbeddedWallet } from '@/hooks/useEmbeddedWallet';
 import { useTempoSender } from '@/hooks/useTempoSender';
 import { useAppNetwork } from '@/components/app/useAppNetwork';
+import { swapCompleted, swapFailed } from '@/lib/feedback';
 import type { ConvertSwapState, UseConvertSwapReturn } from './useConvertSwap.types';
 
 const INITIAL: ConvertSwapState = { step: 'idle', quote: null, txHash: null, error: null };
@@ -115,6 +116,7 @@ export function useConvertSwap(input: { onSwapped?: () => void } = {}): UseConve
         });
       } catch (error) {
         setPartial({ step: 'error', error: quoteSentence(error) });
+        swapFailed();
         return;
       }
 
@@ -161,6 +163,10 @@ export function useConvertSwap(input: { onSwapped?: () => void } = {}): UseConve
         // Nothing was signed, so nothing moved — and the sentence says so.
         const { kind } = classifyPaymentError(error);
         setPartial({ step: 'error', error: walletSentence(kind) });
+        // A press the customer CANCELLED is not a failure (#546): the sound marks an attempt
+        // that ended badly, and this one ended because they said no. Telling them something
+        // went wrong when they were the one who decided would be the app arguing with them.
+        if (kind !== 'rejected') swapFailed();
         return;
       }
 
@@ -198,10 +204,12 @@ export function useConvertSwap(input: { onSwapped?: () => void } = {}): UseConve
         }
       } catch {
         setPartial({ step: 'error', txHash, error: SWAP_COPY.recordFailed });
+        swapFailed();
         return;
       }
 
       setPartial({ step: 'done', quote: fresh, error: null, txHash });
+      swapCompleted();
       onSwapped?.();
     },
     [getSigningWallet, sendTempoTransaction, network, setPartial, onSwapped]

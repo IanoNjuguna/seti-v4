@@ -22,3 +22,28 @@ export function quoteArrived(): void {
   pulse();
   play('settle');
 }
+
+/**
+ * A swap is done: signed, mined and recorded, with the row in Activity to prove it (#546).
+ *
+ * The double pulse is the shape a phone makes for "finished, and you can put it down" —
+ * two taps rather than one, because one is what a quote already gets and this must not
+ * read as the same event.
+ */
+export function swapCompleted(): void {
+  pulse([12, 60, 12]);
+  play('swapped');
+}
+
+/**
+ * A swap attempt ended without one (#546).
+ *
+ * Fires on every path that tells the customer the swap did not happen — a refused quote,
+ * a wallet failure, a record that could not be written. Never on a press the customer
+ * made on purpose (`useConvertSwap` checks that before calling), because a deliberate
+ * cancel is not an error and nothing went wrong.
+ */
+export function swapFailed(): void {
+  pulse([18, 90, 18]);
+  play('refused');
+}
