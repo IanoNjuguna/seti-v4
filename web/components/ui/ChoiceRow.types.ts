@@ -26,5 +26,11 @@ export interface ChoiceRowProps {
   selected?: boolean;
   /** A trailing chevron, for a row that opens something rather than acting in place. */
   showChevron?: boolean;
+  /**
+   * How the row is drawn (#545): `option` is one of a page of choices, `list` is one line of
+   * a list inside a panel. The difference is the frame: an option is its own box with an ink
+   * border, a list row has none and takes the list's own separators.
+   */
+  variant?: 'option' | 'list';
   className?: string;
 }

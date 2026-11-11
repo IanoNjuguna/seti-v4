@@ -20,9 +20,11 @@ import type { SwapAssetOption, SwapTokenPickerProps } from './SwapForm.types';
  * options could only be text: no mark, no second line, no way to say why a token the quote
  * will not fill is still listed. A picker that is the app's own surface can say all three.
  *
- * The rows are `ChoiceRow`, the control send and pay already use to choose a balance, so the
- * three flows cannot drift into three mental models of the same choice — and the row now takes
- * the token's mark (`mark`), which is what makes `USDC.e` and `USDT0` one glance apart.
+ * The rows are `ChoiceRow` in its `list` variant, so they carry no border of their own and the
+ * hairline between them belongs to the list: as bordered boxes inside a bordered panel they
+ * read as boxes within a box rather than as the one surface this is. The panel is the swap
+ * card's own width (`29rem`), so the dialog sits exactly over the thing it belongs to instead
+ * of floating at a different size.
  *
  * It is a portal for the same reason the receipt is: a dialog rendered inside the form is
  * clipped by any ancestor with `overflow` and can be given a form's submit semantics by the
@@ -50,7 +52,7 @@ export function SwapTokenPicker({
         onClick={(event) => event.stopPropagation()}
         className={SWAP_MENU_PANEL_CLASS}
       >
-        <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 py-2 pl-4 pr-2">
           <Text variant="card-title" as="h2" id={SWAP_MENU_TITLE_ID}>
             {title}
           </Text>
@@ -65,10 +67,11 @@ export function SwapTokenPicker({
           </button>
         </div>
 
-        <div className="space-y-2">
+        <div className="divide-y divide-hairline-light border-t border-hairline-light">
           {options.map((option) => (
             <ChoiceRow
               key={option.asset}
+              variant="list"
               mark={<TokenMark asset={option.asset} size="lg" />}
               label={option.symbol}
               detail={rowDetail(option)}

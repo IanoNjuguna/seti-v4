@@ -1,7 +1,7 @@
 import { cn } from '@/lib/cn';
 import { Icon } from './Icon';
 import { Text } from './Text';
-import { CHOICE_ROW_CLASS } from './ChoiceRow.constants';
+import { CHOICE_ROW_CLASS, CHOICE_ROW_LIST_CLASS } from './ChoiceRow.constants';
 import type { ChoiceRowProps } from './ChoiceRow.types';
 
 /**
@@ -28,15 +28,22 @@ export function ChoiceRow({
   disabled,
   selected = false,
   showChevron = false,
+  variant = 'option',
   className,
 }: ChoiceRowProps) {
+  const list = variant === 'list';
+
   return (
     <button
       type="button"
       onClick={onSelect}
       disabled={disabled}
       aria-pressed={selected}
-      className={cn(CHOICE_ROW_CLASS, selected && 'border-ink bg-surface-soft', className)}
+      className={cn(
+        list ? CHOICE_ROW_LIST_CLASS : CHOICE_ROW_CLASS,
+        selected && (list ? 'bg-surface-soft' : 'border-ink bg-surface-soft'),
+        className
+      )}
     >
       <span className="flex min-w-0 flex-1 items-center gap-3">
         {mark ? (
