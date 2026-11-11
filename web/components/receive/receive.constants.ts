@@ -23,10 +23,13 @@ export const RECEIVE_COPY = {
   /**
    * The row labels (#549). The page shows one of two strings and, until these existed,
    * nothing on it said which. The switch above names the choice; these name the VALUE,
-   * which is what a reader arriving mid-page needs, and they are the same words the
-   * switch uses so the two cannot drift.
+   * which is what a reader arriving mid-page needs.
+   *
+   * `User name` is spelled as the owner dictated it, in two words, while the switch and
+   * the accessible names still say `username` in one: the label is his copy, the rest is
+   * the house style, and the two are the same words out loud.
    */
-  usernameLabel: 'Username',
+  usernameLabel: 'User name',
   merchantNameLabel: 'Merchant name',
   /** The bare control's accessible name. The glyph alone announces nothing. */
   copyLabel: 'Copy your username',
@@ -35,14 +38,13 @@ export const RECEIVE_COPY = {
   copyFailed: 'Could not copy. Select your username above and copy it.',
 
   /**
-   * The merchant half's copy control (#549). It writes the HANDLE, not the business name:
-   * the name is what the customer reads and the handle is what the code, the link and the
-   * saved file are built from. The row prints both, so the control copies something the
-   * reader can see.
+   * The merchant half's copy control (#549). Both halves print a HANDLE and copy it, so the
+   * words name the same string the row's label names rather than the handle-vs-name split
+   * the row used to explain.
    */
-  merchantCopyLabel: 'Copy your merchant username',
-  merchantCopyConfirmed: 'Merchant username copied.',
-  merchantCopyFailed: 'Could not copy. Select your merchant username above and copy it.',
+  merchantCopyLabel: 'Copy your merchant name',
+  merchantCopyConfirmed: 'Merchant name copied.',
+  merchantCopyFailed: 'Could not copy. Select your merchant name above and copy it.',
 
   /**
    * The address block (#419).
