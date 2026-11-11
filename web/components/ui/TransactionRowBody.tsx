@@ -1,7 +1,7 @@
 import { cn } from '@/lib/cn';
-import { Icon } from './Icon';
 import { initialOf, rowGlyph } from './transaction-glyph';
 import { formatFiat } from '@/lib/formatCurrency';
+import { RowMark } from './RowMark';
 import { Text } from './Text';
 import { TransactionRowSubtitle } from './TransactionRowSubtitle';
 import type { TransactionRowBodyProps } from './TransactionRow.types';
@@ -69,21 +69,14 @@ export function TransactionRowBody({ transaction }: TransactionRowBodyProps) {
 
         It used to hold the first letter of the title, so a page of transfers read `S S R S S` — a
         column of letters that were not names. The glyph says what happened; a merchant's initial stays,
-        because that one is a name. Money arriving is the only thing tinted.
+        because that one is a name. Money arriving is the only thing tinted. The geometry and the two
+        cases live in `RowMark` now (#533), so Home's rows wear the same circle rather than a copy.
       */}
-      <span
-        aria-hidden
-        className={cn(
-          'flex h-10 w-10 shrink-0 items-center justify-center rounded-full',
-          glyph.tone === 'in' ? 'bg-accent-light-green/20' : 'bg-surface-soft'
-        )}
-      >
-        {glyph.icon ? (
-          <Icon name={glyph.icon} className={cn('h-5 w-5', glyph.tone === 'in' ? 'text-ink-success' : 'text-ink')} />
-        ) : (
-          <Text variant="card-title">{initialOf(merchant)}</Text>
-        )}
-      </span>
+      <RowMark
+        icon={glyph.icon}
+        initial={glyph.icon ? undefined : initialOf(merchant ?? '')}
+        tone={glyph.tone}
+      />
 
       <span className="min-w-0 flex-1">
         <Text variant="card-title" as="span" className="block truncate">
