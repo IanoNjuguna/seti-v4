@@ -24,11 +24,14 @@ import { LandingFooter } from './components/landing/LandingFooter';
  * The bands in order are hero, how, who it is for, what your customer does, money, fees,
  * questions, partners, close.
  *
- * THE TWO NEW BANDS ARE LIGHT, and that is what keeps `MoneySection`'s own record true: it
- * is the first dark band after the hero, so painting either new band `canvas-dark` would
- * have put a black band directly above another black one and made that sentence false.
- * The run from `how` to `what your customer does` is therefore one catalogue stretch,
- * separated by the same top hairline each of those bands carries.
+ * THE CANVAS IS ONE LIGHT BAND INSIDE TWO DARK RUNS (#552). `how` is the only white band
+ * above `start`: the page reads hero, how (white), then who, customer, money and fees as a
+ * single dark movement about money, then start (white), then questions, partners and the
+ * close. Before this the run from `how` to `what your customer does` was one light catalogue
+ * stretch, kept light so `MoneySection` could call itself "the first dark band after the
+ * hero". The owner took the other call: four bands arguing about the money are one movement,
+ * and the canvas says so. The hairlines moved with it, so every dark boundary now carries
+ * one and the two flips carry none.
  *
  * THE QUESTIONS BAND IS THE PAGE'S ONLY MACHINE-READABLE BAND: its `h2`, its `h3`s and its
  * answers are in the server HTML, and `web/lib/faq-schema.ts` builds the `FAQPage` node for

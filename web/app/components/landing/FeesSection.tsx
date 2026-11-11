@@ -46,7 +46,10 @@ import { FEE_COPY } from './FeesSection.constants';
  */
 export function FeesSection() {
   return (
-    <Band id="fees" className="bg-canvas-dark pt-[var(--band-pad-top)] pb-[var(--band-pad-bottom)]">
+    <Band
+      id="fees"
+      className="border-t border-hairline-dark bg-canvas-dark pt-[var(--band-pad-top)] pb-[var(--band-pad-bottom)]"
+    >
       <div className="mx-auto max-w-6xl px-6">
         {/* THE PRICE LIST IS AN OBJECT INSIDE THE DARK RUN (#540). It used to be a second
             black stripe under `Your money` with nothing between them but 189px of black, so
