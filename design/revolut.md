@@ -644,11 +644,51 @@ louder than the commit it sits beside.
 - Background `{colors.surface-soft}`, text `{colors.ink}`, type `{typography.body-sm}`, `rounded: {rounded.md}`, padding `12px 20px`, height 56px.
 - App Store + Google Play download buttons, side-by-side.
 
+### Loading (#556)
+
+Two states, and they make different claims. A **skeleton** claims the SHAPE of something arriving; a
+track claims only that work is running and its length is unknown. Sign-in uses both for exactly that
+reason: the page assembling has a known shape and gets blocked rows measured from the real form, while
+a session handoff has none and gets the track.
+
+**`infinity-track`** — the product's one indeterminate wait
+- A port of `@loading-ui/infinity-track`: a static 9x5 monospace grid draws the path out of `░`, and
+  three block glyphs travel it on staggered delays, each painting the SURFACE's own token behind itself
+  so it reads as a hole cut in the path.
+- The keyframes live in `globals.css`, not in the component: one rule, one place, beside every other
+  keyframe on the site.
+- The surface is a `canvas` prop over tokens (`dark` / `light` / `elevated`), never a passed colour. A
+  loader matched by hand is a loader one shade off the card it sits on.
+- `role="status"` with a text label. The wait is announced in words and is never carried by motion or
+  by the glyph alone.
+- `prefers-reduced-motion` removes the travelling blocks and keeps the static path. Less motion is
+  honoured as NO motion — the repo's guardrail, not a slower version of the animation.
+- It needs a monospace face to work: the animation moves in `ch`, one cell per step. `--font-mono` is
+  JetBrains Mono here, self-hosted.
+
+It does NOT go inside a button. A 48px control has no room for a 5-row glyph, so a control's own
+in-flight affordance stays the small inline spinner and the track belongs to the surface.
+
 ### Inputs & Forms
 
 **`text-input`** — default input
 - Background `{colors.canvas-light}`, text `{colors.ink}`, type `{typography.body-md}`, 1px solid `{colors.hairline-light}`, `rounded: {rounded.md}`, padding `14px 16px`, height 56px.
 - Generous height for fintech accessibility — comfortably exceeds WCAG AAA touch target.
+
+**`code-input`** — a one-time code, as cells (#556)
+- One cell per digit, each the `text-input` shape at the height it already has (`rounded.md`, 56px,
+  `surface-elevated` on the dark canvas), `flex-1` across the form's measure so the row shares the
+  column's two edges with the field and the button around it. Centring the row inside the column
+  breaks the one edge the page shares and was tried and rejected.
+- The digit is `heading-md` weight 500. A six-digit code is a number to read at a glance, not prose.
+- Six digits is not a form to submit: the sixth digit submits. The commit stays for the retry a
+  refused code needs, and it is disabled until there are six.
+- A refused code does NOT repaint the cells. The failure block above them names the cause; six red
+  boxes under a sentence that already explains it is the screen shouting twice.
+- `fieldset` + `legend` for the group, `Digit n of 6` per cell. A lone digit names nothing.
+
+**Form headings** sit at `{typography.heading-lg}` (32px), never at a display step. Display sizes are
+the landing page's; a 40px line inside a 384px form column is a hero that ran into a form.
 
 ### Navigation
 
