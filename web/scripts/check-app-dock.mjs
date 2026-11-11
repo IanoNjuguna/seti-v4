@@ -94,8 +94,7 @@ console.log('a rounded rectangle, not a pill:');
 {
   check('the slab has a 14px radius', dock.includes('rounded-[14px]'));
   check('and no pill radius', !dock.includes('rounded-full'));
-  check('the wells have an 8px radius', link.includes('rounded-lg'));
-  check('and are not circles', !link.includes('rounded-full'));
+  check('the well is not a circle either', !link.includes('rounded-full'));
   check('the well is the tap target', link.includes('h-11 flex-1'));
 }
 
@@ -105,7 +104,8 @@ console.log('the head is in the header, not the dock:');
   check('at the size every other chrome surface uses', topBar.includes('className="h-7"'));
   check('with the friendly face as its default', !topBar.includes('expression='));
   check('and no canvas prop, because the artwork has one ink', !topBar.includes('canvas='));
-  check('and it is not a link to /app', !topBar.includes('href="/app"'));
+  check('the lockup is the way home', /<Link[\s\S]{0,200}href=\{APP_HOME_PATH\}/.test(topBar));
+  check('and the dock\'s Home item takes the same route', read('../components/app/AppNav.constants.ts').includes('href: APP_HOME_PATH'));
 
   check('the dock carries no mark at all', !dock.includes('BrandMark'));
   check('and no sign-in control', !dock.includes('SIGN_IN_PATH'));
@@ -116,7 +116,8 @@ console.log('the header is the frame, and the dock is the object:');
   check('the shell mounts the header once', (shell.match(/<AppTopBar \/>/g) ?? []).length === 1);
   check('above the content column, not inside it', shell.indexOf('<AppTopBar />') < shell.indexOf('<main'));
   check('the header is full-bleed, so it carries no width cap', !topBar.includes('max-w-[26rem]') && !topBar.includes('max-w-none'));
-  check('and no corners', !/className="[^"]*\brounded/.test(topBar));
+  const headerTag = topBar.match(/<header className="([^"]+)"/)?.[1] ?? '';
+  check('and no corners on the frame itself', !/rounded/.test(headerTag));
   check('no edge is painted at rest', !topBar.includes('border-b'));
   check('it is the dock\'s own black, not a grey wash', topBar.includes('bg-canvas-dark text-on-dark'));
   check('the edge is earned, only once content is under it', topBar.includes('scrolled &&') && topBar.includes('top-full'));
@@ -146,6 +147,9 @@ console.log('a signed-out visitor still has a door:');
 {
   check('the header renders the state slot', topBar.includes('<TopBarState />'));
   check('which links to the front door', state.includes('SIGN_IN_PATH'));
+  check('in the app\'s action fill, the one "Claim your name" carries', state.includes('bg-accent-lime'));
+  check('labelled in ink, because white measures 1.64:1 on it', state.includes('color="primary"'));
+  check('with a hover that steps the fill, not the label', state.includes('hover:bg-accent-lime-deep'));
   check('signed in, the row names the account by its handle', state.includes('@${handle}') && state.includes('href="/app/profile"'));
   check('and draws no second product face', !state.includes('<Mark'));
   check('and it opens the profile', state.includes('href="/app/profile"'));
@@ -202,7 +206,11 @@ console.log('one destination, rendered:');
   check('the label is drawn, not only the glyph', html.includes('Activity'));
   check('the active destination is a filled well', html.includes('bg-surface-elevated'));
   check('and it says so to a screen reader', html.includes('aria-current="page"'));
-  check('the well is rounded, not round', html.includes('rounded-lg') && !html.includes('rounded-full'));
+  /* The radius is asserted on the RENDERED markup and against the token scale, because the first
+     version of this check asserted the class `rounded-lg` while its comment claimed 8px: `lg` is
+     20px in this project, so the well rendered a capsule and the check agreed with it (#559). */
+  check('the well is the 12px step: square with round edges', html.includes('rounded-md') && !html.includes('rounded-lg'));
+  check('and the scale really is 12px and 20px for those two steps', css.includes('--radius-md: 12px') && css.includes('--radius-lg: 20px'));
 }
 
 console.log(`\n${passed} assertions passed.`);
