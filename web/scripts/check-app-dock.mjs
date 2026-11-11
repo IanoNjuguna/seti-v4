@@ -1,12 +1,14 @@
 /**
- * `npm run check:app-dock` — the app has ONE nav, and it floats (#542).
+ * `npm run check:app-dock` — the app has ONE nav, and it floats (#542); the header
+ * above it is the frame (#559).
  *
  * The defect this suite exists for is arrangement and identity, so the assertions are about
  * MEMBERSHIP and GEOMETRY rather than paint: a screenshot proves a dock rendered, it cannot prove
  * that the desktop rail is gone rather than merely hidden, that the dock is a rounded rectangle
- * and not the pill its reference draws, or that a signed-out visitor still has a door.
+ * and not the pill its reference draws, or that the header is a frame across the window rather
+ * than a panel hovering over the column.
  *
- * Nine claims:
+ * Ten claims:
  *
  *  1. **One nav at every width.** `AppShell` mounts the dock once; the rail and the old bottom bar
  *     are deleted and imported nowhere.
@@ -16,13 +18,17 @@
  *     `rounded-full` appears nowhere in either file.
  *  4. **The head is the mark, wearing the friendly face**, on the dark colourway, and it is not a
  *     second way to `/app`.
- *  5. **A hairline separates the head from the destinations**, so it cannot be counted as one.
- *  6. **A signed-out visitor has a door**: the dock's tail links to `/signin`.
- *  7. **The reserved space is the dock's own geometry** — inset + slab + hairline + safe area — so
+ *  5. **The header is the frame, not a slab.** Mounted above `main` rather than inside it, edge to
+ *     edge with no width cap and no corners, the dock's own black and its own height, closed by one
+ *     hairline, its row on the content column's own `max-w` and padding, `sticky`, with a short
+ *     gradient under it so content fades out instead of vanishing at a hard edge.
+ *  6. **A hairline separates the dock's head from the destinations**, so it cannot be counted as one.
+ *  7. **A signed-out visitor has a door**: the dock's tail links to `/signin`.
+ *  8. **The reserved space is the dock's own geometry** — inset + slab + hairline + safe area — so
  *     the fixed dock cannot rest on content.
- *  8. **The content column no longer pays for a rail**: no `md:pl-56`, and no `md:ml-56` on the
+ *  9. **The content column no longer pays for a rail**: no `md:pl-56`, and no `md:ml-56` on the
  *     practice strip.
- *  9. **The brand rule still has an owner**: the lockup map carries both expressions, the three
+ * 10. **The brand rule still has an owner**: the lockup map carries both expressions, the three
  *     chrome surfaces draw the lockup, and a document draws `neutral` explicitly.
  *
  * Run from `web/`: npm run check:app-dock (part of the root `verify` gate).
@@ -104,14 +110,19 @@ console.log('the head is in the header, not the dock:');
   check('and no sign-in control', !dock.includes('SIGN_IN_PATH'));
 }
 
-console.log('the header and the dock are one system:');
+console.log('the header is the frame, and the dock is the object:');
 {
   check('the shell mounts the header once', (shell.match(/<AppTopBar \/>/g) ?? []).length === 1);
-  check('both slabs cap at the same width on a phone', topBar.includes('max-w-[26rem]') && dock.includes('max-w-[26rem]'));
-  check('and the header grows with the content column above sm', topBar.includes('md:max-w-none'));
-  check('the header is a rounded slab too', topBar.includes('rounded-[14px]'));
-  check('with the chrome grain', topBar.includes('chrome-grain') && dock.includes('chrome-grain'));
-  check('it sticks, so the state it carries stays visible', /className="sticky [?a-z0-9:.-]*/.test(topBar));
+  check('above the content column, not inside it', shell.indexOf('<AppTopBar />') < shell.indexOf('<main'));
+  check('the header is full-bleed, so it carries no width cap', !topBar.includes('max-w-[26rem]') && !topBar.includes('max-w-none'));
+  check('and no corners', !/className="[^"]*\brounded/.test(topBar));
+  check('one hairline closes it', topBar.includes('border-b border-hairline-dark'));
+  check('it is the dock\'s own black, not a grey wash', topBar.includes('bg-canvas-dark text-on-dark'));
+  check('and content fades under it rather than being cut', topBar.includes('bg-gradient-to-b') && topBar.includes('top-full'));
+  check('its row is the page column', topBar.includes('max-w-3xl') && topBar.includes('px-5'));
+  check('it is the dock\'s own height', topBar.includes('h-[var(--app-nav-bar)]'));
+  check('with the chrome grain across the band', topBar.includes('chrome-grain') && dock.includes('chrome-grain'));
+  check('it sticks, so the state it carries stays visible', /className="sticky top-0/.test(topBar));
   check('and it is not fixed', !/className="[^"]*\bfixed\b/.test(topBar));
 }
 
