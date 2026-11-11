@@ -1,6 +1,12 @@
 import { cn } from '@/lib/cn';
 import { BrandMark } from './BrandMark';
-import { MARK_BASE_CLASS, MARK_GLYPH_CLASS, MARK_SIZE_CLASS, MARK_WELL_CLASS } from './Mark.constants';
+import {
+  MARK_BASE_CLASS,
+  MARK_CANVAS,
+  MARK_GLYPH_CLASS,
+  MARK_SIZE_CLASS,
+  MARK_WELL_CLASS,
+} from './Mark.constants';
 import type { MarkProps } from './Mark.types';
 
 /**
@@ -29,6 +35,13 @@ import type { MarkProps } from './Mark.types';
  *
  * Decorative. The name and the handle sit beside it as text and are what a reader reads, which
  * is why the whole mark is `aria-hidden`.
+ *
+ * ## The pairing, and why it is a constant
+ *
+ * The face sits on the DARK canvas in a medallion, and the colourway that goes in it is
+ * `MARK_CANVAS`. They are exported together because choosing them independently is how this
+ * shipped at **1.3:1** once: the cream mark on `surface-soft`. `Mark.constants` carries the
+ * measurement for both pairs, and `check:profile-mark` holds the pairing.
  */
 export function Mark({ size = 'md', className }: MarkProps) {
   return (
@@ -36,7 +49,7 @@ export function Mark({ size = 'md', className }: MarkProps) {
       aria-hidden
       className={cn(MARK_BASE_CLASS, MARK_SIZE_CLASS[size], MARK_WELL_CLASS, className)}
     >
-      <BrandMark expression="friendly" canvas="light" className={MARK_GLYPH_CLASS[size]} />
+      <BrandMark expression="friendly" canvas={MARK_CANVAS} className={MARK_GLYPH_CLASS[size]} />
     </span>
   );
 }

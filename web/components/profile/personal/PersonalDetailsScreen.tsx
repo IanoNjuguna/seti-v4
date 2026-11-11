@@ -80,7 +80,6 @@ export function PersonalDetailsScreen() {
         <ProfileRow
           title={PERSONAL_COPY.phoneLabel}
           value={details.phone ?? PERSONAL_COPY.phoneNone}
-          subtitle={PERSONAL_COPY.phoneNote}
         />
       </div>
 
