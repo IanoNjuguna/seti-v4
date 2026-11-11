@@ -117,7 +117,7 @@ check('the comet announces itself once', /role="status"/.test(read('components/u
 check('and the mark is not drawn while the session resolves', /showMark=\{screen\.stage !== 'restoring'\}/.test(read('components/signin/SignInScreen.tsx')));
 check('the front door is one column, centred', /items-center justify-center/.test(read('components/signin/SignInPanel.tsx')) && !/grid-cols-2/.test(read('components/signin/SignInPanel.tsx')));
 check('with the page grain, and no decorative panel', /grain-layer/.test(read('components/signin/SignInPanel.tsx')) && !/SignInAmbientPanel/.test(read('components/signin/SignInPanel.tsx')));
-check('the document keeps a name without a visible heading', /<h1 className="sr-only">/.test(read('components/signin/SignInPanel.tsx')));
+check('the page names itself with one visible heading', /<h1 className=\{`[^`]*font-brand/.test(read('components/signin/SignInPanel.tsx')) && /SIGN_IN_COPY\.pageTitle/.test(read('components/signin/SignInPanel.tsx')));
 check('and the footnote the consent already states is gone', !/footnote/.test(copy));
 check('and so does the handoff into the app', /<InfinityTrack/.test(handoff));
 check('the handoff no longer pulses a bar', !/animate-pulse/.test(handoff));

@@ -1,4 +1,4 @@
-import { BrandMark } from '@/components/ui';
+import { BrandLockup } from '@/components/ui';
 import { SIGN_IN_COPY } from './SignInScreen.constants';
 import type { SignInPanelProps } from './SignInScreen.types';
 
@@ -41,20 +41,30 @@ export function SignInPanel({ children, showMark = true }: SignInPanelProps) {
       <div aria-hidden className="grain-layer" />
 
       <div className="relative w-full max-w-sm">
-        {/* The page's only heading, and it is for the document rather than the eye: the visible
-            "Sign in with your email." was the route's own name above a field labelled Email. */}
-        <h1 className="sr-only">{SIGN_IN_COPY.pageTitle}</h1>
-
         {showMark ? (
-          <BrandMark
-            expression="friendly"
-            canvas="dark"
-            preload
-            className="entrance mx-auto block h-10 w-auto"
-          />
+          /* The LOCKUP, not the bare mark (#567). Three of the four sign-in screens in the
+             reference set (TradingView, Disney+, Mindtrip) open with the wordmark above the form,
+             sized around 110-150px wide; the fourth (Linear) draws its circular mark in the same
+             position at the same weight, and Coinbase puts its mark top-left. A lone 40px head on
+             an otherwise empty field identifies nothing: it reads as an avatar. `h-10` is 40px
+             tall, which is 110px of lockup — the same width as the references — and it is one
+             image, so the face and the name cannot drift apart. */
+          <BrandLockup className="entrance mx-auto block h-10 w-auto" preload />
         ) : null}
 
-        <div className={showMark ? 'entrance entrance-2 mt-10' : 'entrance'}>{children}</div>
+        {/* The page's ONE heading, and it is visible (#567).
+            Every sign-in and sign-up screen in the reference set carries a title above the field
+            — TradingView's nav row, Mindtrip's "Welcome to Mindtrip", Linear's "What's your email
+            address?", Disney+'s "Enter your email address to continue", Crypto.com's "What is your
+            Email Address?", Medium's "Sign up with email.", Coinbase's "Create your account" — and
+            a page with a logo, a checkbox and a field whose label is the only other word on it has
+            nothing saying what it is for. It opens the column's left edge under the centred lockup,
+            which is Mindtrip's and Disney+'s arrangement and the majority of the set. */}
+        <h1 className={`font-brand text-heading-lg font-medium text-on-dark ${showMark ? 'mt-10' : ''}`}>
+          {SIGN_IN_COPY.pageTitle}
+        </h1>
+
+        <div className={showMark ? 'entrance entrance-2 mt-8' : 'entrance mt-8'}>{children}</div>
       </div>
     </div>
   );
