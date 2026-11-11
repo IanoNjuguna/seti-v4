@@ -6,6 +6,9 @@ export type IconButtonTone = 'default' | 'confirmed';
 /** Which canvas the control sits on — the rail is black, an app card is white. */
 export type IconButtonSurface = 'light' | 'dark';
 
+/** The shape the control is drawn in: a resting `soft` circle, or a bare glyph. */
+export type IconButtonWell = 'soft' | 'none';
+
 export interface IconButtonProps {
   /** The glyph to draw. A caller swapping it on state is the point of the control. */
   name: IconName;
@@ -26,6 +29,15 @@ export interface IconButtonProps {
    * bright chip competing with the brand, not a quiet control.
    */
   surface?: IconButtonSurface;
+  /**
+   * The shape the control is drawn in.
+   *
+   * `soft` (default) is the `surface-soft` circle: a control that stands on its own.
+   * `none` keeps the 44px hit area and drops the paint in every state, for a glyph that
+   * belongs to a line of type rather than to the page — the copy action at the end of a
+   * value. See `IconButton` for why the two are one component.
+   */
+  well?: IconButtonWell;
   /**
    * The control cannot act right now, and says so rather than accepting the press and doing
    * nothing (the swap page's flip, #421). `Button` has carried this for the same reason; an
