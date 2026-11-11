@@ -1,10 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { Text } from '@/components/ui';
+import { RowMark, Text } from '@/components/ui';
+import { initialOf } from '@/components/ui/transaction-glyph';
 import { MaskedAmount } from '@/components/ui/MaskedAmount';
 import { formatFiat } from '@/lib/formatCurrency';
 import { useAmountPrivacy } from '@/lib/privacy/amount-privacy.context';
+import type { AnalyticsMerchant } from '@/lib/api/analytics';
+import { formatAddress } from './home.format';
 import { HOME_PAGE_COPY } from './HomePage.constants';
 import type { HomeMerchantsProps } from './HomeMerchants.types';
 
@@ -49,11 +52,22 @@ export function HomeMerchants({ merchants, currency }: HomeMerchantsProps) {
           <li key={merchant.name}>
             <Link
               href={HOME_PAGE_COPY.activityHref}
-              className="flex min-h-16 items-center justify-between gap-4 border-b border-hairline-light py-2.5 transition-colors duration-(--duration-quick) ease-out hover:bg-surface-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+              className="flex min-h-16 items-center gap-3 border-b border-hairline-light py-2.5 transition-colors duration-(--duration-quick) ease-out hover:bg-surface-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
             >
-              <span className="min-w-0">
+              {/*
+                THE CIRCLE FOLLOWS #409's RULE, NOT A COPY OF IT. A merchant whose name a wallet
+                signed for keeps its initial. A counterparty with no name (`kind: 'address'`) has
+                nothing to reduce, and drawing its first character would put a column of `0`s down the
+                list — the same letter-column bug #409 fixed on Activity. It wears the outgoing arrow
+                instead, which is what every row on this section is.
+              */}
+              <RowMark
+                icon={merchant.kind === 'address' ? 'send' : null}
+                initial={initialOf(merchant.name)}
+              />
+              <span className="min-w-0 flex-1">
                 <Text variant="card-title" as="span" className="block truncate">
-                  {merchant.name}
+                  {titleFor(merchant)}
                 </Text>
                 <Text variant="micro" as="span" color="secondary">
                   {HOME_PAGE_COPY.paymentCount(merchant.count)}
@@ -72,4 +86,20 @@ export function HomeMerchants({ merchants, currency }: HomeMerchantsProps) {
       </ul>
     </section>
   );
+}
+
+/**
+ * The row's title: a merchant's own name, or an address shortened to `0xde80…CB6`.
+ *
+ * An unresolved counterparty's name IS its address, and 42 characters set at card-title weight was
+ * the widest, least readable thing on the section: it truncated at 390px and told nobody anything at
+ * 1280px. The short form is what every consumer wallet prints, and the full address is where it
+ * belongs, on the row in Activity that this one points at.
+ *
+ * Decided by the payload's own `kind`, never by testing the string: the server already knows which
+ * rows are an address standing in for a name (#402), and a regex here would be a second opinion that
+ * disagrees the first time a merchant registers a name that looks like hex.
+ */
+function titleFor(merchant: AnalyticsMerchant): string {
+  return merchant.kind === 'address' ? formatAddress(merchant.name) : merchant.name;
 }
