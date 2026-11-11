@@ -61,15 +61,23 @@ export function SaveAmount({
   const vaultRefused =
     withdrawing !== null && !withdrawing.canWithdraw && !overLimit && !feeShort;
 
-  const hint = feeShort
-    ? SAVE_COPY.withdrawNeedsFee(feeText)
-    : overLimit
-      ? adding
-        ? `That is more than your ${formatFiat(Number(spendableFiat), currency)} available balance.`
-        : `That is more than the ${formatFiat(Number(savedFiat), currency)} you have saved.`
-      : adding
-        ? SAVE_COPY.amountHint
-        : SAVE_COPY.withdrawHint;
+  /*
+   * One exit's fee is kept outside the vault on a deposit funded from OUSD (#522). The
+   * figure is the server's, and it is only shown when there is one: a deposit funded by
+   * another asset keeps that asset, which is not the token an exit's fee is charged in.
+   */
+  const keepsExitFee =
+    adding && quote !== null && 'keptForExitFiat' in quote && Number(quote.keptForExitFiat) > 0
+      ? formatFiat(Number(quote.keptForExitFiat), currency)
+      : null;
+
+  const hint = overLimit
+    ? adding
+      ? `That is more than your ${formatFiat(Number(spendableFiat), currency)} available balance.`
+      : `That is more than the ${formatFiat(Number(savedFiat), currency)} you have saved.`
+    : adding
+      ? SAVE_COPY.amountHint
+      : SAVE_COPY.withdrawHint;
 
   return (
     <form
@@ -97,6 +105,26 @@ export function SaveAmount({
       {willMove && !overLimit ? (
         <Text variant="micro" color="secondary" as="p">
           {adding ? `${willMove} — ${SAVE_COPY.amountNote}` : `${willMove} — ${SAVE_COPY.withdrawNote}`}
+        </Text>
+      ) : null}
+
+      {/* One exit's fee is kept available by the deposit (#522). Under what will move,
+          because it is a fact about this deposit's figures, not about the page. */}
+      {keepsExitFee ? (
+        <Text variant="micro" color="secondary" as="p">
+          {SAVE_COPY.depositKeepsExitFee(keepsExitFee)}
+        </Text>
+      ) : null}
+
+      {/* A BLOCKED exit, said as one. It used to live in the field's hint slot, in grey,
+          under the figure the customer had just typed, which is the least alarming place on
+          the sheet — and the button still looked tappable. Three facts and the way out. */}
+      {feeShort ? (
+        <Text variant="micro" color="alert" as="p" role="alert">
+          {SAVE_COPY.withdrawFeeShort(
+            feeText,
+            formatFiat(Number(spendableFiat), currency)
+          )}
         </Text>
       ) : null}
 

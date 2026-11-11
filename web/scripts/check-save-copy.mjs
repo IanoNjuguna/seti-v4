@@ -147,6 +147,79 @@ console.log('\nthe page reads figure, actions, then the claim (#427):');
   );
 }
 
+console.log('\nan uncovered exit fee is a blocked state, said plainly (#521, tightened in #527):');
+{
+  const line = SAVE_COPY.withdrawFeeShort('KES 0.06', 'KES 0.05');
+  check('it leads with the action, in the control\'s own words', line.startsWith('Add money'), line);
+  check('it names what the exit costs', line.includes('KES 0.06'), line);
+  check('and keeps the fee attributed to the network', /network fee/.test(line), line);
+  check('and names the available figure', line.includes('KES 0.05'), line);
+  check('and states the requirement, not just the numbers', /You need .* for the network fee/.test(line), line);
+  check(
+    'it is one instruction, not a sequence in one block',
+    !/then take it out/.test(line) && !/Add money first/.test(line),
+    line
+  );
+  check('it is no longer the "keep at least" hint it used to be', !/Keep at least/.test(line), line);
+  check('and it does not narrate the failure as a transaction', !/cannot go through/.test(line), line);
+
+  /*
+   * Placement, because the complaint was placement: the sentence sat in the field's hint
+   * slot while the button dimmed only to 60%. It has to render as its own alert.
+   */
+  const sheet = read('../components/save/SaveAmount.tsx').replace(/\/\*[\s\S]*?\*\//g, '');
+  check('the sheet renders it as an alert, not as the field hint', /role="alert"[\s\S]*withdrawFeeShort|withdrawFeeShort[\s\S]*role="alert"/.test(sheet));
+  check('the field hint no longer carries it', !/hint = feeShort/.test(sheet));
+
+  const hook = read('../hooks/useSave.ts').replace(/\/\*[\s\S]*?\*\//g, '');
+  check(
+    'and the signing-time refusal uses the same sentence',
+    hook.includes('SAVE_COPY.withdrawFeeShort('),
+    'useSave does not call withdrawFeeShort'
+  );
+}
+
+console.log('\na deposit leaves one exit fee available, and says so (#522, tightened in #529):');
+{
+  const line = SAVE_COPY.depositKeepsExitFee('KES 0.06');
+  check('the figure is the subject, not us', line.startsWith('KES 0.06'), line);
+  check('it is the money that stayed, said as staying', /\bstays\b/.test(line), line);
+  check('and where it stayed', /available balance/.test(line), line);
+  check('the action is the withdraw sheet\'s own phrase', /take this out later/.test(line), line);
+  check(
+    'and it does not point "this money" at the deposit',
+    !/take this money out/.test(line) && !/^We keep/.test(line),
+    line
+  );
+
+  const sheet = read('../components/save/SaveAmount.tsx').replace(/\/\*[\s\S]*?\*\//g, '');
+  check('the sheet renders it', sheet.includes('SAVE_COPY.depositKeepsExitFee('));
+  check('and it is not the blocked-exit sentence', !/cannot go through/.test(line), line);
+}
+
+console.log('\nthe Save custody note is deleted, and the claim still lives elsewhere (#531):');
+{
+  const constants = read('../components/save/Save.constants.ts');
+  const actions = read('../components/save/SaveActions.tsx');
+  check(
+    'the sentence is gone from the copy',
+    !constants.includes('Seti never holds it'),
+    'the custody note came back'
+  );
+  check('and nothing renders it', !actions.includes('custodyNote'));
+
+  /*
+   * A deletion is not a claim being dropped. Both halves are asserted where they still
+   * live, so a later pass cannot delete the survivors thinking the sentence above covered
+   * them, nor restore the sentence thinking nothing carries it.
+   */
+  const pay = read('../components/pay-public/PayPublic.constants.ts');
+  check('the pay page still says Seti never holds it', /Seti never holds it/.test(pay));
+  const signIn = read('../components/signin/SignInScreen.constants.ts');
+  check('and the sign-in footnote still says the money is not Seti’s', /not a bank/.test(signIn));
+  check('this screen still says the position is in your own name', /in your own name/.test(constants));
+}
+
 console.log('-'.repeat(74));
 console.log(`${passed} assertions passed${failed ? `, ${failed} failed` : ''}.`);
 process.exit(failed === 0 ? 0 : 1);

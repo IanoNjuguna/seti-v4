@@ -15,6 +15,21 @@ import type { SaveActionsProps } from "@/hooks/useSave.types";
  *
  * When it is enabled it opens the same amount sheet as `Add money`, mirrored: the
  * withdrawal it signs is approve-the-shares → redeem → swap home, in one transaction.
+ *
+ * ## The custody note that used to sit under this pair
+ *
+ * It read "Your money sits in a Tempo vault in your own name. Seti never holds it." The
+ * owner deleted it, and it is not a gap: both halves are still said, in the places that
+ * carry them by being about that thing.
+ *
+ *   "in your own name"   the empty state, the deposit note and the confirmation on this
+ *                        screen (Save.constants: `empty`, `amountNote`, `depositedBody`)
+ *   "Seti never holds it" the pay page (`PayPublic.constants: custody`), the person page,
+ *                        the landing FAQ, and the sign-in footnote
+ *
+ * A sentence that restates what the screen and the flow already say is the shape this
+ * surface has been cut back to twice; do not restore it as a fix for "the page never says
+ * where the money is".
  */
 export function SaveActions({
   canWithdraw,
@@ -56,10 +71,6 @@ export function SaveActions({
           {withdrawReason}
         </Text>
       ) : null}
-
-      <Text variant="micro" color="secondary" as="p" className="text-center">
-        {SAVE_COPY.custodyNote}
-      </Text>
     </div>
   );
 }

@@ -55,13 +55,30 @@ export const SAVE_COPY = {
    * The withdrawal's network fee (#511), in the customer's currency.
    *
    * A Tempo transaction pays its gas before any call in it runs, so a customer whose money
-   * is all in the vault has nothing to pay the exit with. The sheet names the charge and,
-   * when the balance cannot cover it, names the figure to keep, rather than leaving a
-   * disabled button and a generic refusal at send time.
+   * is all in the vault has nothing to pay the exit with.
    */
   withdrawFeeLine: (fee: string) => `Network fee ${fee}, from your available balance.`,
-  withdrawNeedsFee: (fee: string) =>
-    `Keep at least ${fee} in your available balance to pay the network fee.`,
+  /**
+   * The BLOCKED state when that fee is not in the wallet (#521, tightened in #527).
+   *
+   * This used to be a hint under the amount field — grey, below the figure, in the same
+   * slot as "from your available balance" — while the button dimmed only to 60% and still
+   * read as something to tap. It also only described the future ("keep at least …"), so a
+   * customer with KES 0.00 available read the whole screen as the vault refusing them.
+   *
+   * The first rewrite said the mechanic twice and buried the point in the third clause:
+   * "… costs KES 0.06 in network fee, and that comes out of your available balance. You have
+   * KES 0.05 available, so this cannot go through. Add money first, then take it out." Two
+   * instructions in one block, and the only useful part last.
+   *
+   * So: the ACTION first, in the control's own words (`Add money`), then one sentence with
+   * the requirement and both figures. The fee keeps its name — the sheet's own fee line is
+   * hidden in this state, so this is the only place the figure is attributed. One
+   * instruction, because "add money, then take it out" asks the reader to hold a sequence
+   * that is already implied by the two controls in front of them.
+   */
+  withdrawFeeShort: (fee: string, available: string) =>
+    `Add money to take this out. You need ${fee} for the network fee and you have ${available} available.`,
   /** The vault's own answer, when it will not redeem at this size right now. */
   withdrawVaultRefused: 'The vault cannot pay this out right now. Nothing was moved.',
   amountTitle: 'How much are you saving?',
@@ -71,6 +88,21 @@ export const SAVE_COPY = {
   amountHint: 'From your available balance.',
   /** No earning claim here either: the swap is a fact, "starts earning" is a rate. */
   amountNote: 'Swapped into the vault, in your own name.',
+  /**
+   * One exit's fee is kept OUT of the vault (#522, tightened in #529).
+   *
+   * A customer who saved everything could see their money and not take it out, because the
+   * exit's gas comes out of the OUSD held outside the vault. The deposit now stops one
+   * exit's fee short, and this is the sentence that says so.
+   *
+   * It used to read "We keep KES 0.06 in your available balance so you can take this money
+   * out later": us first on a line about their money, and "this money" pointing at the
+   * deposit when the kept fee is the part that STAYED. Now the figure is the subject, the
+   * verb is what actually happens to it, and the action uses the withdraw sheet's own words
+   * ("take this out"), so the two ends of one fact read as one idea.
+   */
+  depositKeepsExitFee: (fee: string) =>
+    `${fee} stays in your available balance so you can take this out later.`,
   amountButton: 'Add to savings',
   withdrawTitle: 'How much are you taking out?',
   withdrawLabel: 'Amount to withdraw',
@@ -106,8 +138,6 @@ export const SAVE_COPY = {
   /** The date is the promise: the rate belongs to the campaign, not to the vault. */
   rewardsEnds: 'ends',
   rewardsClaimed: 'Claimed. The rewards are in your wallet.',
-  /** The custody sentence: the thing a customer most wants to know. */
-  custodyNote: 'Your money sits in a Tempo vault in your own name. Seti never holds it.',
 } as const;
 
 /** What a customer with no account sees. */
