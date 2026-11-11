@@ -15,6 +15,9 @@ import { useSession } from '@/lib/auth';
  * There is no page title here any more, and that is the change this route was
  * filed for. The page opens on the person (`ProfileIdentity`, which is the `h1`),
  * so a noun over the top would be the app introducing the customer to themselves.
+ * A VISITOR is the exception: with no person to open on, `ProfileSignedOut` draws the
+ * page's name as the `h1` (#562), because a document with no heading at all is a
+ * screen a screen reader cannot name.
  * The branch stays at page level because it is what decides whether there is a
  * person to draw at all.
  */

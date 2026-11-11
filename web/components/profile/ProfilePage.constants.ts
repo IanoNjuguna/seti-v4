@@ -1,17 +1,22 @@
 /**
  * Copy the Profile page itself owns.
  *
- * The page has no title of its own any more: the first thing on it is the person
- * (medallion, name, handle), so the word "Profile" no longer opens anything. What
- * is left here is the settings group's heading, the label over the legal
- * documents, the plain title of each settings row, and the one sentence a visitor
- * gets.
+ * A SIGNED-IN page has no title of its own: the first thing on it is the person
+ * (medallion, name, handle), so the word "Profile" would open nothing. What is left
+ * here is the settings group's heading, the label over the legal documents, the plain
+ * title of each settings row, and the one sentence a visitor gets.
+ *
+ * A VISITOR'S page does have one (#562). With nobody to open on, the page had no `h1`
+ * at all — a heading-less document, where Activity's visitor state has had "Activity"
+ * since it was written. `title` exists for exactly that state and is drawn only there.
  *
  * Row-level words that belong to a control stay with that control:
  * `PROFILE_INTENT_COPY` for the mode row, `PROFILE_LEGAL_LINKS` for the three
  * documents, `PROFILE_SHORTCUTS` for the two rows above the list.
  */
 export const PROFILE_PAGE_COPY = {
+  /** The `h1`, drawn only when there is no person to be one. */
+  title: 'Profile',
   /** The heading over the dense settings list. */
   settingsHeading: 'Settings',
   /** The label over the three documents. */
