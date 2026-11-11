@@ -48,7 +48,7 @@ export function SignInPanel({ children, title, showMark = true }: SignInPanelPro
              an otherwise empty field identifies nothing: it reads as an avatar. `h-10` is 40px
              tall, which is 110px of lockup — the same width as the references — and it is one
              image, so the face and the name cannot drift apart. */
-          <BrandLockup className="entrance mx-auto block h-10 w-auto" preload />
+          <BrandLockup className="entrance block h-10 w-auto" preload />
         ) : null}
 
         {/* The page's ONE heading, and it is visible (#567).
@@ -66,14 +66,15 @@ export function SignInPanel({ children, title, showMark = true }: SignInPanelPro
             what was deleted. The loading stage passes none: it has nothing to announce but the wait.
             `text-balance` keeps a two-line title from ending on one short word. */}
         {title ? (
-          /* CENTRED, like the lockup above it (#567). The heading was flush left under a centred
-             mark, which is two compositions stacked: measured in the render, the lockup's ink sat at
-             the column's exact centre while the title's ink started at its left edge, so nothing
-             shared an axis and the mark read as off-centre even though it was not. A centred title
-             over a centred wordmark is Linear's arrangement; the consent, the field and the button
-             stay left-aligned, because a form whose labels centre is a form you cannot scan. */
+          /* ONE LEFT EDGE, for the lockup, the title and every control under them (#567).
+             Centring the title alone was measured and rejected: the centred pair then shared no edge
+             with the form, so the title floated between the column's left edge and the field's right
+             one and the block read as two compositions. Centring the whole stack is worse — a centred
+             `Email` label over a full-width field is a label that belongs to nothing. Coinbase's
+             sign-up screen is this arrangement: mark top-left, title left, controls left, one axis.
+             `text-balance` keeps a two-line title from ending on one short word. */
           <h1
-            className={`text-balance text-center font-brand text-heading-lg font-medium text-on-dark ${showMark ? 'mt-10' : ''}`}
+            className={`text-balance font-brand text-heading-lg font-medium text-on-dark ${showMark ? 'mt-10' : ''}`}
           >
             {title}
           </h1>
