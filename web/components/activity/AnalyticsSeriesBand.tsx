@@ -1,69 +1,39 @@
 'use client';
 
 import { Text } from '@/components/ui';
-import { formatFiat } from '@/lib/formatCurrency';
 import { AnalyticsDailyBars } from './AnalyticsDailyBars';
-import { ANALYTICS_COPY, DAILY_BAR_FLOOR } from './Analytics.constants';
+import { ANALYTICS_COPY, DAILY_MARK_FLOOR } from './Analytics.constants';
 import type { AnalyticsSeriesBandProps } from './Analytics.types';
-import type { AnalyticsWindow } from '@/lib/api/analytics';
 
 /**
  * Band 2 of three (#441): the shape of the window.
  *
- * One heading, one line of figures, one chart. The line is what `What moved` used to be a section
- * about: how many payments each direction carried, and the average and median ticket of each. Those
- * four numbers per half are the answer to "was that typical", and they belong beside the chart rather
- * than above it in a block of their own.
+ * One heading, one chart. That is the whole band: the counts and ticket sizes that used to sit
+ * above the chart in a sentence now live in band 1's three figures, where they are numbers with
+ * names instead of prose with zeroes in it.
  *
- * Below the floor the chart is not drawn and the line says so. A shape inferred from a handful of
- * payments is a pattern that exists only in the sampling (`DAILY_BAR_FLOOR`, #404), and a page that
- * draws it anyway teaches the reader to trust noise.
+ * ## The chart is drawn for any window that moved (#534)
+ *
+ * It used to be refused below fifty payments, and the band printed "Not enough movement in this
+ * period to draw a shape" in place of it. For every account in its first months that meant the
+ * only picture on the page was missing, and a page of sentences is not a page an owner opens
+ * twice. `HomeSummary` already settled this argument for the same data (#381): the map is never
+ * hidden, only short. A three-payment week drawn as seven bars, six of them quiet, is a truthful
+ * picture of a three-payment week; the busiest day is named in words underneath, so the reader
+ * is never asked to infer a trend from four marks.
+ *
+ * An empty window is the one case with nothing to draw, and band 1 already says so.
  */
-export function AnalyticsSeriesBand({ window: selected, currency }: AnalyticsSeriesBandProps) {
+export function AnalyticsSeriesBand({ window: selected }: AnalyticsSeriesBandProps) {
+  if (selected.count < DAILY_MARK_FLOOR) return null;
+
   return (
     <section className="flex flex-col gap-2">
       <Text variant="section" as="h2">
-        {ANALYTICS_COPY.dailyTitle(selected.days)}
+        {ANALYTICS_COPY.seriesTitle}
       </Text>
 
-      <Text variant="micro" as="p" color="secondary">
-        {seriesLine(selected, currency)}
-      </Text>
-
-      {selected.count >= DAILY_BAR_FLOOR ? (
-        <AnalyticsDailyBars daily={selected.daily} />
-      ) : (
-        <Text variant="micro" as="p" color="secondary">
-          {ANALYTICS_COPY.seriesBelowFloor}
-        </Text>
-      )}
+      <AnalyticsDailyBars daily={selected.daily} />
     </section>
   );
-}
-
-/**
- * The two halves as one line.
- *
- * `in` and `out` are each a count plus two ticket sizes, because a total cannot say whether
- * KES 12,000 was three sales or one, and an average alone is dragged by a single large payment while
- * the median says what the middle one did. Nothing here re-derives a figure: every number is printed
- * from the payload, to the minor unit the server formatted it at.
- */
-function seriesLine(selected: AnalyticsWindow, currency: string): string {
-  const fiat = (value: string): string => formatFiat(Number(value), currency);
-
-  const received = ANALYTICS_COPY.halfLine(
-    ANALYTICS_COPY.splitIn,
-    selected.received.count,
-    fiat(selected.received.average),
-    fiat(selected.received.median)
-  );
-  const paid = ANALYTICS_COPY.halfLine(
-    ANALYTICS_COPY.splitOut,
-    selected.paidOut.count,
-    fiat(selected.paidOut.average),
-    fiat(selected.paidOut.median)
-  );
-
-  return `${received} · ${paid}`;
 }

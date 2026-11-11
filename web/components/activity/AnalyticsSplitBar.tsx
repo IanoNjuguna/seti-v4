@@ -15,11 +15,22 @@ import type { AnalyticsSplitBarProps } from './Analytics.types';
  *
  * Colour is never the only signal. Each segment is named in words with its amount beside it, and the
  * bar itself is `aria-hidden` because it says nothing those two labels do not.
+ *
+ * ## Money out is stone, not ink (#534)
+ *
+ * The departure segment used to be `bg-ink`, the strongest colour in the system. On the ordinary
+ * account that paid merchants and received nothing, that drew the whole bar in the page's heaviest
+ * ink: the loudest mark on the screen was the money leaving, sitting under a legend dot that said
+ * `Money in` on its left edge. Green already means money in across this app (the streak map, the
+ * received line), and a full-width stone rule reads as the quiet, ordinary fact that paying
+ * merchants is — decorative, `aria-hidden`, and never mistaken for an error, which is what brick
+ * would say.
  */
 export function AnalyticsSplitBar({ window, currency }: AnalyticsSplitBarProps) {
   const [inShare, outShare] = splitShare(window.in, window.out);
   const empty = inShare === 0 && outShare === 0;
   const fiat = (value: string): string => formatFiat(Number(value), currency);
+  const fee = Number(window.paidOut.fee);
 
   return (
     <div className="flex flex-col gap-3">
@@ -32,7 +43,7 @@ export function AnalyticsSplitBar({ window, currency }: AnalyticsSplitBarProps) 
               className="rounded-sm bg-accent-light-green"
               style={{ flexGrow: inShare, flexBasis: 0 }}
             />
-            <span className="rounded-sm bg-ink" style={{ flexGrow: outShare, flexBasis: 0 }} />
+            <span className="rounded-sm bg-stone" style={{ flexGrow: outShare, flexBasis: 0 }} />
           </>
         )}
       </div>
@@ -42,9 +53,12 @@ export function AnalyticsSplitBar({ window, currency }: AnalyticsSplitBarProps) 
         <Segment tone="out" label={ANALYTICS_COPY.splitOut} value={fiat(window.out)} />
       </ul>
 
-      <Text variant="micro" as="p" color="secondary">
-        {ANALYTICS_COPY.feeCaption(fiat(window.paidOut.fee))}
-      </Text>
+      {/* Only when there is a fee: `Includes KES 0.00 fee` is a caption apologising for a zero. */}
+      {fee > 0 ? (
+        <Text variant="micro" as="p" color="secondary">
+          {ANALYTICS_COPY.feeCaption(fiat(window.paidOut.fee))}
+        </Text>
+      ) : null}
     </div>
   );
 }
@@ -57,7 +71,7 @@ interface SegmentProps {
 
 /** One end of the bar, on its own side of the shared edge. */
 function Segment({ tone, label, value }: SegmentProps) {
-  const dot = tone === 'in' ? 'bg-accent-light-green' : 'bg-ink';
+  const dot = tone === 'in' ? 'bg-accent-light-green' : 'bg-stone';
 
   return (
     <li className={`flex min-w-0 flex-col gap-1 ${tone === 'out' ? 'items-end' : ''}`}>

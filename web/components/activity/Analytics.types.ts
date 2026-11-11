@@ -55,10 +55,30 @@ export interface AnalyticsSummaryBandProps {
   settlement: AnalyticsSettlement;
 }
 
-/** The one figure the page is about. */
+/**
+ * The one figure the page is about (#534).
+ *
+ * `label` and `caption` are arguments rather than constants because the figure is not always
+ * the same one: a window with inflow leads with money in, and a window with none leads with
+ * money out. A hero whose label is fixed has to print a `net`, and a `net` is the one figure
+ * on this page that can carry a minus in front of it.
+ */
 export interface AnalyticsHeroProps {
+  label: string;
   value: string;
-  days: number;
+  caption: string;
+}
+
+/**
+ * The three numbers under the bar (#534), already formatted.
+ *
+ * `typical` is the median of whichever direction the hero prints: an average is dragged by one
+ * large payment, the median is what the middle payment did, and "typical" is the word for it.
+ */
+export interface AnalyticsTileRowProps {
+  payments: number;
+  typical: string;
+  net: string;
 }
 
 /** Money in and money out as the two segments of one bar, each labelled directly. */
@@ -73,10 +93,14 @@ export interface AnalyticsQualifierProps {
   settlement: AnalyticsSettlement;
 }
 
-/** Band 2: the shape of the window. */
+/**
+ * Band 2: the shape of the window (#441).
+ *
+ * No currency: the band draws counts, never money, and a prop it cannot print is a prop that
+ * invites a second figure onto a line the band does not own.
+ */
 export interface AnalyticsSeriesBandProps {
   window: AnalyticsWindow;
-  currency: string;
 }
 
 /** Band 3: one list slot, three questions. */

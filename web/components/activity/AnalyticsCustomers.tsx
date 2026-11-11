@@ -25,7 +25,12 @@ import type { AnalyticsCustomersProps } from './Analytics.types';
  *
  * `repeat` is how many came back at least once, which is the closest thing this ledger has to
  * loyalty. `lapsed` is the win-back list: no payment in thirty days. Both are counts, not rates: a
- * percentage of three customers is a lie told with decimal places.
+ * percentage of three customers is a lie told with decimal places, and both are omitted when they
+ * are zero (#534) — a line of absences reads as a broken read, not as a small account.
+ *
+ * The scope is stated ABOVE the list now, not inside its tab label: `Who pays · all time` made one
+ * member of a three-member switch longer than the others and put a qualifier where a reader looks
+ * for a name (#534).
  */
 export function AnalyticsCustomers({ customers, currency }: AnalyticsCustomersProps) {
   if (customers.count === 0) return null;
@@ -33,7 +38,11 @@ export function AnalyticsCustomers({ customers, currency }: AnalyticsCustomersPr
   return (
     <div className="flex flex-col gap-2">
       <Text variant="micro" as="p" color="secondary">
-        {ANALYTICS_COPY.customersLine(customers.count, customers.repeat, customers.lapsed)}
+        {`${ANALYTICS_COPY.payersScope} · ${ANALYTICS_COPY.customersLine(
+          customers.count,
+          customers.repeat,
+          customers.lapsed
+        )}`}
       </Text>
 
       {customers.top.length > 0 ? (

@@ -9,6 +9,8 @@ export {
   refusalMessageFor,
 } from './refusal.constants';
 export { API_BASE_URL } from './api.constants';
+export { updateAccountName } from './account';
+export type { AccountNameUpdate } from './account';
 export { fetchHomeDashboard } from './home';
 export type {
   AssetBalanceRow,

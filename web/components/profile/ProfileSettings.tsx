@@ -32,10 +32,14 @@ export function ProfileSettings({ name, handle, businesses }: ProfileSettingsPro
       </Text>
 
       <div className="flex flex-col divide-y divide-hairline-light">
+        {/* The way into the personal-information screen (#536). A row that navigates is the
+            LINK, so the chevron appears by itself; the value stays the name, which is what
+            this list is for, and the subtitle stays the handle. */}
         <ProfileRow
           title={PROFILE_PAGE_COPY.personalTitle}
           value={name}
           subtitle={handle ? `@${handle}` : undefined}
+          href="/app/profile/personal"
         />
 
         <ProfileModeRow />
