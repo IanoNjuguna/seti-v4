@@ -41,6 +41,12 @@ import type { MoneySectionCopy } from './MoneySection.types';
  * out of it.
  */
 export const MONEY_COPY: MoneySectionCopy = {
+  /* THE HEADING SAYS WHAT THE TILES HAVE IN COMMON (#552). The band used to open with the
+     marker "Your money", which named the subject and nothing else; the three tiles are all
+     about a balance that is denominated in dollars and is not converted on arrival, which
+     is the claim a merchant from abroad is looking for. It repeats no tile: the tiles are
+     three things you can do, the heading is the fact underneath all three. */
+  heading: 'Your dollars stay dollars.',
   tiles: [
     {
       label: 'Get paid by name',

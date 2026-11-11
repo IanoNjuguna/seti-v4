@@ -3,7 +3,7 @@ import type { MarketingBandProps } from './MarketingBand.types';
 
 /**
  * One white band, in the landing's own pattern: `border-t border-hairline-light
- * bg-canvas-light py-[var(--band-pad-block)]`, then `SectionHeader`, then the content.
+ * bg-canvas-light pt-[var(--band-pad-top)] pb-[var(--band-pad-bottom)]`, then `SectionHeader`, then the content.
  *
  * THE MARKER IS THE HEADING. Every band on these routes is named by the dictated h2 — "How
  * that compares", "What we are not", "What lands where", "When something goes wrong" — and
@@ -22,7 +22,7 @@ import type { MarketingBandProps } from './MarketingBand.types';
  */
 export function MarketingBand({ eyebrow, children }: MarketingBandProps) {
   return (
-    <section className="relative z-10 border-t border-hairline-light bg-canvas-light py-[var(--band-pad-block)]">
+    <section className="relative z-10 border-t border-hairline-light bg-canvas-light pt-[var(--band-pad-top)] pb-[var(--band-pad-bottom)]">
       <div className="mx-auto max-w-6xl px-6">
         <SectionHeader eyebrow={eyebrow} />
         <div className="mt-10 md:mt-12">{children}</div>

@@ -26,7 +26,7 @@ import type { MarketingCloseProps } from './MarketingClose.types';
  */
 export function MarketingClose({ link }: MarketingCloseProps) {
   return (
-    <section className="relative z-10 border-t border-hairline-dark bg-canvas-dark py-[var(--band-pad-block)]">
+    <section className="relative z-10 border-t border-hairline-dark bg-canvas-dark pt-[var(--band-pad-top)] pb-[var(--band-pad-bottom)]">
       <div className="mx-auto max-w-6xl px-6">
         <div className="grid items-end gap-12 md:grid-cols-12 md:gap-16">
           <div className="md:col-span-7">

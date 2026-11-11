@@ -25,7 +25,7 @@ import type { MarketingMastheadProps } from './MarketingMasthead.types';
  */
 export function MarketingMasthead({ title, lede, children }: MarketingMastheadProps) {
   return (
-    <section className="relative z-10 bg-canvas-dark py-[var(--band-pad-block)]">
+    <section className="relative z-10 bg-canvas-dark pt-[var(--band-pad-top)] pb-[var(--band-pad-bottom)]">
       <div className="mx-auto max-w-6xl px-6">
         <h1 className="text-balance max-w-3xl font-brand text-display-md font-medium text-on-dark sm:text-display-lg">
           {title}
