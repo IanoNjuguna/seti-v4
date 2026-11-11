@@ -1,30 +1,34 @@
 import { CometSpinner } from '@/components/ui';
-import { SIGN_IN_COPY } from './SignInScreen.constants';
 
 /**
  * The sign-in page while the session works out whether anyone is signed in (#567).
  *
- * ## What it was, and why it is one spinner now
+ * ## No words, and that is the reference set's answer
  *
- * It was a block skeleton — two heading bars, a lede, a field, the consent, the button — under an
- * infinity track, left-aligned inside a column that was left-aligned because the page was a split.
- * With the page centred, that shape was the only thing on the screen still hanging from an edge, and
- * it was a skeleton of a form that no longer has a heading to stand in for.
+ * The loading screens checked in Mobbin draw no text at all: Granola and Life Reset put their brand
+ * mark on the field and nothing else, Opal draws a spinner alone, WHOOP wraps a ring around its mark.
+ * Not one writes "Loading…", and this one does not either — the sentence that used to sit under the
+ * indicator was the second thing saying the same word.
  *
- * A wait this short does not need the shape of the page that is coming; it needs something that is
- * obviously working. So it is the comet: centred, on its own, with no copy above it — the mark is
- * hidden for this stage too (`SignInPanel`'s `showMark`), because a product's face over a wait that
- * has not yet found out who is here greets nobody.
+ * What is left is the comet and nothing else, which is Opal's arrangement and the closest of the four
+ * to this page: a page whose whole content is one field does not need a caption explaining that it is
+ * arriving.
  *
- * `aria-busy` on the container and the panel's own words for assistive tech: the spinner announces
- * "Loading" through its own `status`, and the sentence the app uses everywhere is kept here rather
- * than dropped, so the wait is described twice on purpose — once by the shape, once by the words.
+ * ## What a screen reader hears
+ *
+ * `CometSpinner` is a `role="status"` named "Loading", so the wait is announced once, by the thing
+ * doing it. There is deliberately no second invisible sentence: two announcements of one fact is how
+ * a screen reader user learns to ignore both. `aria-busy` on the container is the other half of the
+ * same information.
+ *
+ * The product mark is not drawn here (`SignInPanel`'s `showMark`), though Granola, Life Reset and
+ * WHOOP all draw theirs: this page does not yet know who is here, so the greeting waits with the
+ * rest of it.
  */
 export function SignInSkeleton() {
   return (
-    <div className="flex flex-col items-center gap-8" aria-busy="true">
+    <div className="flex flex-col items-center" aria-busy="true">
       <CometSpinner className="h-16 w-16 text-on-dark" />
-      <span className="sr-only">{SIGN_IN_COPY.restoring}</span>
     </div>
   );
 }

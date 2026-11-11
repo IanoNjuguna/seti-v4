@@ -94,7 +94,7 @@ check('the sixth digit submits without a press', /if \(isComplete\(edit\.code\)\
 check('backspace is handled by the cells, not the browser', /event\.preventDefault\(\);\s*\n\s*apply\(deleteAt/.test(hook));
 check('the code screen holds cells, not one field', /<CodeCells/.test(panel) && !/codeLabel/.test(panel));
 check('the address is echoed in full', /SIGN_IN_SENT_COPY\.sentTo/.test(panel) && /text-on-dark"?>\{address\}/.test(panel));
-check('the code screen has no heading of its own', !/SIGN_IN_SENT_COPY\.title/.test(panel) && !/<h1/.test(panel));
+check('the code screen carries no second heading of its own', !/<h1/.test(panel));
 check('and the address line is what it opens with', /SIGN_IN_SENT_COPY\.sentTo/.test(panel));
 
 // --- the loader -------------------------------------------------------------
@@ -117,7 +117,10 @@ check('the comet announces itself once', /role="status"/.test(read('components/u
 check('and the mark is not drawn while the session resolves', /showMark=\{screen\.stage !== 'restoring'\}/.test(read('components/signin/SignInScreen.tsx')));
 check('the front door is one column, centred', /items-center justify-center/.test(read('components/signin/SignInPanel.tsx')) && !/grid-cols-2/.test(read('components/signin/SignInPanel.tsx')));
 check('with the page grain, and no decorative panel', /grain-layer/.test(read('components/signin/SignInPanel.tsx')) && !/SignInAmbientPanel/.test(read('components/signin/SignInPanel.tsx')));
-check('the page names itself with one visible heading', /<h1 className=\{`[^`]*font-brand/.test(read('components/signin/SignInPanel.tsx')) && /SIGN_IN_COPY\.pageTitle/.test(read('components/signin/SignInPanel.tsx')));
+check('the page names itself with one visible heading', /<h1/.test(read('components/signin/SignInPanel.tsx')) && /font-brand/.test(read('components/signin/SignInPanel.tsx')));
+check('and the STAGE supplies the sentence, not the route name', /SIGN_IN_COPY\.pageTitle/.test(read('components/signin/SignInScreen.tsx')) && /SIGN_IN_SENT_COPY\.title/.test(read('components/signin/SignInScreen.tsx')));
+check('the entry heading is the question the field answers', /pageTitle: 'What.s your email address\?'/.test(copy));
+check('the code heading is the instruction the cells answer', /title: 'Enter the code\.'/.test(copy));
 check('and the footnote the consent already states is gone', !/footnote/.test(copy));
 check('and so does the handoff into the app', /<InfinityTrack/.test(handoff));
 check('the handoff no longer pulses a bar', !/animate-pulse/.test(handoff));
