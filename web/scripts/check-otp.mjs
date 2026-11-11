@@ -119,7 +119,11 @@ check('the front door is one column, centred', /items-center justify-center/.tes
 check('with the page grain, and no decorative panel', /grain-layer/.test(read('components/signin/SignInPanel.tsx')) && !/SignInAmbientPanel/.test(read('components/signin/SignInPanel.tsx')));
 check('the page names itself with one visible heading', /<h1/.test(read('components/signin/SignInPanel.tsx')) && /font-brand/.test(read('components/signin/SignInPanel.tsx')));
 check('and the STAGE supplies the sentence, not the route name', /SIGN_IN_COPY\.pageTitle/.test(read('components/signin/SignInScreen.tsx')) && /SIGN_IN_SENT_COPY\.title/.test(read('components/signin/SignInScreen.tsx')));
-check('the entry heading is the question the field answers', /pageTitle: 'What.s your email address\?'/.test(copy));
+/* The heading is asserted against its MEASURED fit, not only its words: `What’s your email address?`
+   is 448px at heading-lg in the 342px column the phone gives it, which is what wrapped it onto two
+   lines and made the copy the thing that had to give (#567). */
+check('the entry heading is the question the field answers', /pageTitle: 'What.s your email\?'/.test(copy));
+check('and it is short enough for the column', !/email address\?/.test(copy));
 check('the code heading is the instruction the cells answer', /title: 'Enter the code\.'/.test(copy));
 check('and the footnote the consent already states is gone', !/footnote/.test(copy));
 check('and so does the handoff into the app', /<InfinityTrack/.test(handoff));
