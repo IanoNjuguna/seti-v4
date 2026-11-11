@@ -5,7 +5,11 @@ import type { TokenMarkProps } from './TokenMark.types';
 const SIZE_CLASSES = {
   sm: 'h-5 w-5',
   md: 'h-6 w-6',
+  /** The size a list row reserves, matching `RowMark`'s 40px well so two lists share one title edge. */
+  lg: 'h-10 w-10',
 } as const;
+
+const SIZE_PIXELS = { sm: 20, md: 24, lg: 40 } as const;
 
 /**
  * A token's own mark, in a circle.
@@ -29,8 +33,8 @@ export function TokenMark({ asset, size = 'md', className }: TokenMarkProps) {
     <img
       src={`/tokens/${file}`}
       alt=""
-      width={24}
-      height={24}
+      width={SIZE_PIXELS[size]}
+      height={SIZE_PIXELS[size]}
       draggable={false}
       className={cn('shrink-0 rounded-full object-cover', SIZE_CLASSES[size], className)}
     />

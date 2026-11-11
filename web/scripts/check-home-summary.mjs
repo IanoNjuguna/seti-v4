@@ -24,8 +24,9 @@
  *     added (so a chain that lists three renders three) and nothing is dropped;
  *  3. a zero row renders and recedes to the muted ink, while a funded row keeps its white
  *     name and value: a token with nothing in it is a line of record, not a missing line;
- *  4. an account with no funds renders every row at zero under one `KES 0.00` figure — the
- *     surface looks answered rather than broken;
+ *  4. an account with NO funds renders no rows and no heading at all — the zero-row rule
+ *     protects a token that could have vanished, and an empty account has nothing that
+ *     could (#533). The figure is the whole answer;
  *  5. no raw colour anywhere in the two files that print the rows: the rows are ink
  *     tokens, so `design/revolut.md` stays the only vocabulary.
  */
@@ -173,10 +174,15 @@ function figureOf(markup) {
  * The rows as rendered: the name is the first text run in the row, the value is the last
  * fiat string in it. Nothing is read from the payload — the name, the units and the
  * masked value all sit in the same chunk, which is why the value is the LAST figure.
+ *
+ * SPLIT ON THE TAG, NOT ON `<li` (#533). Adding a token mark put an `<img>` in every row, and
+ * React 19 emits a `<link rel="preload" as="image">` for each one before the markup; splitting on
+ * the bare prefix counted four preloads as four extra rows and the check failed about a number
+ * nobody changed. The boundary is what makes it a tag.
  */
 function rowsOf(markup) {
   return markup
-    .split('<li')
+    .split(/<li[\s>]/)
     .slice(1)
     .map((chunk) => {
       const cell = chunk.split('</li>')[0];
@@ -302,13 +308,49 @@ console.log('an account with nothing in it:');
   const figure = figureOf(markup);
 
   check('the figure is nil, not a placeholder', figure === `${CURRENCY} 0.00`, String(figure));
-  check(
-    'and all four rows are there, at zero',
-    rows.length === 4 && rows.every((row) => row.value === `${CURRENCY} 0.00`),
-    JSON.stringify(rows.map((row) => row.value))
+  /*
+   * NO SHELF OF ZEROS (#533). The zero-row rule protects a token the customer HELD: it stops a
+   * balance looking like it vanished. An account holding nothing has nothing that could have
+   * vanished, so four rows of `KES 0.00` under a heading is an empty shelf — it used to sit
+   * directly under the starter card. The section is absent instead, and the figure says the one
+   * true thing on its own.
+   */
+  check('and no rows are printed at all', rows.length === 0, `${rows.length}`);
+  check('no heading promises a list that is not there', !markup.includes('Tokens'));
+  check('the identity holds trivially: nothing rendered, nothing to add up', sumOf(rows) === 0);
+}
+
+console.log('who was paid, as a row:');
+{
+  const { HomeMerchants } = await import('../components/home/HomeMerchants.tsx');
+  const ADDRESS = '0xde80f5361e101a395bbf8C7c6De98A3b6c273CB6';
+  const markup = renderToStaticMarkup(
+    createElement(
+      AmountPrivacyProvider,
+      null,
+      createElement(HomeMerchants, {
+        currency: CURRENCY,
+        merchants: [
+          { name: ADDRESS, kind: 'address', count: 3, total: '153.23' },
+          { name: 'Java House', kind: 'merchant', count: 1, total: '137.82' },
+        ],
+      })
+    )
   );
-  check('the identity still holds at zero', cents(figure) === sumOf(rows));
-  check('the list is still labelled, so the surface is answered rather than empty', markup.includes('Tokens'));
+  const rows = markup.split(/<li[\s>]/).slice(1).map((chunk) => chunk.split('</li>')[0]);
+
+  /*
+   * THE CIRCLE FOLLOWS #409, AND SO DOES THE TITLE (#533). A counterparty with no name is titled by
+   * its address, and 42 characters at card-title weight was the widest thing on the section. The
+   * payload's own `kind` decides it, and the circle draws the same distinction Activity draws:
+   * a name gets a letter, an address gets the glyph for what happened rather than a column of `0`s.
+   */
+  check('an address is shortened, not printed whole', rows[0].includes('0xde80…3CB6'), rows[0].slice(0, 200));
+  check('and the 42 characters appear nowhere in the section', !markup.includes(ADDRESS));
+  check('a named merchant keeps its own name', rows[1].includes('Java House'));
+  check('an address row wears the outgoing glyph, not a letter', rows[0].includes('<svg'));
+  check('a named row wears its initial and no glyph', !rows[1].includes('<svg') && />J</.test(rows[1]));
+  check('the count still says how many payments', markup.includes('3 payments') && markup.includes('1 payment'));
 }
 
 console.log('the rows are ink tokens, not colours:');
