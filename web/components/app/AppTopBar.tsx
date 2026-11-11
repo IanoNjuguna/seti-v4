@@ -4,53 +4,78 @@ import { BrandMark } from '@/components/ui';
 import { TopBarState } from './TopBarState';
 
 /**
- * The app's header: a floating slab that carries the brand and whatever the ACCOUNT's state is
- * (#542, revised).
+ * The app's header: the FRAME across the top of the canvas (#559).
  *
- * ## Why the mark and the sign-in live here and not in the dock
+ * ## Why it is not a slab any more
  *
- * The first cut put everything in the bottom dock: the mark, a hairline, three destinations, a
- * second hairline and `Sign in`. At 390px that is five things in one 324px slab, and the owner's
- * read was that it was cramped by its own density. Splitting it is the fix: the dock is for PLACES
- * you go, this is for what the account IS — the brand, whether you are signed in, whether the money
- * is real. Two objects, each with one job, and the dock keeps three items and the air to spread
- * them.
+ * The first cut drew it as the dock's twin — a panel of `canvas-dark` with its own corners, capped
+ * at `26rem` on a phone and the content column's width above it, floating off the top edge with the
+ * page's own heading 24px below. Three things were wrong with that, and only one of them was taste:
  *
- * ## Its shape is the dock's shape, its WIDTH is the content's
+ *  1. **It was an object over an object.** A panel floating above the content says "this is a
+ *     control". The header is not a control, it is the window. The dock floats because it IS a
+ *     control over the page; the header floating too leaves a page with two floating things and no
+ *     frame.
+ *  2. **Three widths, no shared edge.** The panel capped at 416px, the swap card at 464px, the rate
+ *     line on the card's width: nothing on the screen agreed with anything. That is the defect the
+ *     swap column was fixed for (#545), one object up.
+ *  3. **Content was CUT, not scrolled.** `sticky` plus an opaque fill plus a hard bottom edge means
+ *     the page's own title and the pair's rate line vanish under a black edge with nothing to say
+ *     they went anywhere. On `/app/swap` that is the screen's heading disappearing behind its own
+ *     chrome.
  *
- * Same material, same radius, same treatment as the dock: a rounded rectangle of `canvas-dark` with
- * the chrome grain and one hairline. Fey draws its chrome as floating pills and Luma and Fabric as
- * floating toolbars; the rule this app keeps is that chrome is a slab with rounded corners, never a
- * full-bleed band.
+ * The header cannot be fixed page by page: `AppShell` mounts it once on every `/app` surface, so
+ * the fault was its FORM and the fix is here.
  *
- * Below `md` it is the column's own width, minus the page's padding — a phone has one width to be.
- * From `md` up it stops capping at the dock's `max-w` and spans the content column instead, so the
- * masthead shares the balance card's left and right edges. A 416px pill floating above a 768px
- * column, 176px in from its left edge, was a slab aligned to nothing; the dock stays the floating
- * object because it has three items to float with.
+ * ## What it is now
  *
- * ## It is sticky, and it carries the practice state
+ * Edge to edge, one bottom hairline, no corners: the shape the design doc already gives `nav-bar`
+ * (`canvas-dark`, `on-dark`) and the same height as the dock's slab, because both ends of the
+ * chrome sharing one number is what makes them one system. The ROW inside it is the page column —
+ * `max-w-3xl` and `px-5`, the same numbers `AppShell` puts on `main` — so the brand and the account
+ * control sit on the card's own left and right edges instead of 176px in from them.
  *
- * The practice strip that used to sit above the content — a full-width sticky band reading
- * `PRACTICE · <note>` — is gone (#542): the state now lives in this slab's right-hand slot, which is
- * the same fact in the same place, and a strip plus a header would be two statements of it on every
- * screen. That move is why this is `sticky`: the strip was always visible, so the signal it carried
- * must stay always visible, and a header that scrolled away would have quietly weakened a money
- * fact. The sentence the strip printed stays where the money is signed (`PracticeNote`), which is
- * where the frame's own comment always said the loud moment belonged.
+ * It stays `sticky`, and that is not cosmetic: the practice chip is the only standing signal that
+ * the money is not real, and #542 moved it here from a full-width strip precisely so it could stay
+ * visible. A header that scrolled away would quietly weaken a money fact.
  *
- * The dock is the fixed control; this sticks, which keeps one object at each end of the column and
- * nothing else floating over the page.
+ * Its fill is the dock's fill — solid `canvas-dark` — and the content fades out under it through a
+ * 12px gradient below the hairline. A translucent bar was the first attempt and it measured wrong:
+ * `/85` over a white canvas composites to `rgb(47,47,47)` while the dock stays `rgb(13,11,13)`, so
+ * one screen carried two different blacks and the header read as a grey wash rather than as the
+ * same material. The gradient does the job the alpha was there for — content leaves through a fade
+ * instead of being cut at a hard line — without moving the colour.
+ *
+ * The brand stays here rather than in the dock: the dock holds PLACES, the header holds what the
+ * ACCOUNT is (#542), and the five-in-one slab that made the dock crammed at 390px is why that split
+ * exists at all.
+ *
+ * The reference set does this and does not float a pill above a card: Uniswap and OKX web carry a
+ * full-bleed brand-left / account-right bar with a hairline, and the transaction screens that drop
+ * the brand (Fuse, Orb) put the title alone at the top rather than a second floating object.
  */
 export function AppTopBar() {
   return (
-    <header className="sticky top-2 z-20 mx-auto mb-6 flex h-14 w-full max-w-[26rem] md:max-w-none items-center justify-between gap-3 overflow-hidden rounded-[14px] border border-hairline-dark bg-canvas-dark px-4 text-on-dark">
-      <BrandMark expression="friendly" canvas="dark" className="h-7" />
+    <header className="sticky top-0 z-20 border-b border-hairline-dark bg-canvas-dark text-on-dark">
+      <div className="mx-auto flex h-[var(--app-nav-bar)] w-full max-w-3xl items-center justify-between gap-3 px-5">
+        <BrandMark expression="friendly" canvas="dark" className="h-7" />
 
-      <TopBarState />
+        <TopBarState />
+      </div>
 
-      {/* The chrome's grain, clipped to the slab's own corners. */}
+      {/* The chrome's grain, across the whole band: the same inert, static layer the dock draws.
+          A sibling of the row rather than a child, so it textures the full-width frame and not only
+          the column inside it; `pointer-events: none` keeps the brand and the state control
+          working through it. */}
       <div aria-hidden className="chrome-grain" />
+
+      {/* The fade under the frame: content leaves the viewport through 12px of the frame's own
+          colour rather than being cut at a hard line, which is what an opaque sticky bar does on
+          its own. Decoration, so it takes no clicks and names nothing to a screen reader. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-full h-3 bg-gradient-to-b from-canvas-dark/40 to-transparent"
+      />
     </header>
   );
 }
