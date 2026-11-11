@@ -1,5 +1,4 @@
 import { BrandLockup } from '@/components/ui';
-import { SIGN_IN_COPY } from './SignInScreen.constants';
 import type { SignInPanelProps } from './SignInScreen.types';
 
 /**
@@ -35,7 +34,7 @@ import type { SignInPanelProps } from './SignInScreen.types';
  * for the loading stage (`showMark`): a greeting has nothing to greet while the page does not yet
  * know who is here.
  */
-export function SignInPanel({ children, showMark = true }: SignInPanelProps) {
+export function SignInPanel({ children, title, showMark = true }: SignInPanelProps) {
   return (
     <div className="relative flex w-full flex-1 items-center justify-center px-6 py-14">
       <div aria-hidden className="grain-layer" />
@@ -58,11 +57,21 @@ export function SignInPanel({ children, showMark = true }: SignInPanelProps) {
             address?", Disney+'s "Enter your email address to continue", Crypto.com's "What is your
             Email Address?", Medium's "Sign up with email.", Coinbase's "Create your account" — and
             a page with a logo, a checkbox and a field whose label is the only other word on it has
-            nothing saying what it is for. It opens the column's left edge under the centred lockup,
-            which is Mindtrip's and Disney+'s arrangement and the majority of the set. */}
-        <h1 className={`font-brand text-heading-lg font-medium text-on-dark ${showMark ? 'mt-10' : ''}`}>
-          {SIGN_IN_COPY.pageTitle}
-        </h1>
+            nothing saying what it is for.
+
+            The TITLE IS A PROP, because the two stages ask different questions: the entry stage is
+            "What's your email address?" (Linear's own words, and the question the field answers) and
+            the code stage is "Enter the code." One panel, one heading, and the stage supplies the
+            sentence — a heading that has to cover both would be the route's name again, which is
+            what was deleted. The loading stage passes none: it has nothing to announce but the wait.
+            `text-balance` keeps a two-line title from ending on one short word. */}
+        {title ? (
+          <h1
+            className={`text-balance font-brand text-heading-lg font-medium text-on-dark ${showMark ? 'mt-10' : ''}`}
+          >
+            {title}
+          </h1>
+        ) : null}
 
         <div className={showMark ? 'entrance entrance-2 mt-8' : 'entrance mt-8'}>{children}</div>
       </div>

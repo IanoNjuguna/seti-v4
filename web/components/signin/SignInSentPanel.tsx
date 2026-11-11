@@ -49,8 +49,8 @@ export function SignInSentPanel({
 
   return (
     <div className="flex flex-col">
-      {/* No heading (#567): the six cells say "code", and the line under them says where it went.
-          `Enter the code.` above a row of six inputs was the route name again. */}
+      {/* The heading is the panel's now (`Enter the code.`, supplied per stage), and this is the
+          line under it: where it went. */}
       <p className="text-body-md text-on-dark-mute">
         {SIGN_IN_SENT_COPY.sentTo} <span className="text-on-dark">{address}</span>
       </p>

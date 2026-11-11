@@ -25,17 +25,16 @@
 
 export const SIGN_IN_COPY = {
   /**
-   * The page's accessible name, and the only heading it has (#567).
+   * The page's heading: the QUESTION the field answers (#567).
    *
-   * A visible `Sign in with your email.` sat above a field labelled Email, on a page whose whole
-   * content is that field: the route's own name, restated at 32px. The sentence is gone and the
-   * document still needs a name, so it is here, read by a screen reader and drawn for nobody.
+   * It is `Linear`'s own words for this screen, and the reference set is unanimous that the title
+   * is a question or an instruction rather than the route's name: `What is your Email Address?`,
+   * `Sign up with email.`, `Enter your email address to continue`. `Sign in` said nothing the field
+   * did not; this says what to type.
    */
-  pageTitle: 'Sign in',
+  pageTitle: 'What’s your email address?',
   emailLabel: 'Email',
   submit: 'Continue',
-  /** Shared with the app: the same "we are still finding out" line it renders. */
-  restoring: 'One moment…',
 } as const;
 
 /**
@@ -53,6 +52,8 @@ export const SIGN_IN_COPY = {
  * side effect (typing) is not reachable by a keyboard.
  */
 export const SIGN_IN_SENT_COPY = {
+  /** The code stage's heading: the instruction the six cells answer (#567). */
+  title: 'Enter the code.',
   /** The address, echoed IN FULL: the commonest failure here is a typo, not a slow email. */
   sentTo: 'Sent to',
   submit: 'Sign in',

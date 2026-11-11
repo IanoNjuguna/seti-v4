@@ -35,6 +35,12 @@ export interface SignInStageInput {
 export interface SignInPanelProps {
   children: ReactNode;
   /**
+   * The page's heading for the stage being drawn (#567): the question the entry field answers, or
+   * the instruction the code cells answer. Absent for the loading stage, which has nothing to say
+   * but the wait.
+   */
+  title?: string;
+  /**
    * Whether the panel draws the product mark above its children (#567).
    *
    * False for the loading stage. The mark is the page's greeting, and a greeting over a spinner
