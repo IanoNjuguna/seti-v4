@@ -37,11 +37,22 @@ export function PersonalDetailsScreen() {
       />
 
       <div className="flex flex-col divide-y divide-hairline-light">
-        <ProfileRow
-          title={PERSONAL_COPY.nameLabel}
-          value={details.name}
-          subtitle={PERSONAL_COPY.nameNote}
-        >
+        <div className="pb-3">
+          <ProfileRow
+            title={PERSONAL_COPY.nameLabel}
+            value={details.name}
+            subtitle={PERSONAL_COPY.nameNote}
+          >
+            {details.editing ? null : (
+              <Button variant="ghost" onClick={details.beginEdit}>
+                {PERSONAL_COPY.nameAction}
+              </Button>
+            )}
+          </ProfileRow>
+
+          {/* The form is a SIBLING of the row, not a child: `ProfileRow` renders its children
+              inside a `<span>`, and a `<form>` in a span is invalid HTML that browsers only
+              tolerate. The divider between them is the list's own. */}
           {details.editing ? (
             <PersonalNameForm
               value={details.draft}
@@ -51,12 +62,8 @@ export function PersonalDetailsScreen() {
               onSave={details.save}
               onCancel={details.cancelEdit}
             />
-          ) : (
-            <Button variant="ghost" onClick={details.beginEdit}>
-              {PERSONAL_COPY.nameAction}
-            </Button>
-          )}
-        </ProfileRow>
+          ) : null}
+        </div>
 
         <ProfileRow
           title={PERSONAL_COPY.handleLabel}
