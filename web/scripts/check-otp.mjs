@@ -94,7 +94,8 @@ check('the sixth digit submits without a press', /if \(isComplete\(edit\.code\)\
 check('backspace is handled by the cells, not the browser', /event\.preventDefault\(\);\s*\n\s*apply\(deleteAt/.test(hook));
 check('the code screen holds cells, not one field', /<CodeCells/.test(panel) && !/codeLabel/.test(panel));
 check('the address is echoed in full', /SIGN_IN_SENT_COPY\.sentTo/.test(panel) && /text-on-dark"?>\{address\}/.test(panel));
-check('the instruction is the heading', /title: 'Enter the code\.'/.test(copy));
+check('the code screen has no heading of its own', !/SIGN_IN_SENT_COPY\.title/.test(panel) && !/<h1/.test(panel));
+check('and the address line is what it opens with', /SIGN_IN_SENT_COPY\.sentTo/.test(panel));
 
 // --- the loader -------------------------------------------------------------
 console.log('\nthe track\n');
@@ -111,7 +112,13 @@ check('the keyframes live in the stylesheet, not in the component', !/<style/.te
 check('the travelling blocks share one animation', /infinity-track-block/.test(trackConstants) && /\.infinity-track-block \{/.test(globals));
 check('the surface is a token, not a passed colour', /bg-canvas-dark|bg-canvas-light|bg-surface-elevated/.test(trackConstants) && !/#[0-9a-fA-F]{3,8}/.test(trackConstants));
 check('reduced motion stops the blocks and keeps the path', /prefers-reduced-motion: reduce\)[\s\S]{0,160}\.infinity-track-block \{[\s\S]{0,80}display: none;/.test(globals));
-check('the page assembling shows it', /<InfinityTrack/.test(skeleton));
+check('the page assembling shows the comet, not the track', /<CometSpinner/.test(skeleton) && !/<InfinityTrack/.test(skeleton));
+check('the comet announces itself once', /role="status"/.test(read('components/ui/CometSpinner.tsx')));
+check('and the mark is not drawn while the session resolves', /showMark=\{screen\.stage !== 'restoring'\}/.test(read('components/signin/SignInScreen.tsx')));
+check('the front door is one column, centred', /items-center justify-center/.test(read('components/signin/SignInPanel.tsx')) && !/grid-cols-2/.test(read('components/signin/SignInPanel.tsx')));
+check('with the page grain, and no decorative panel', /grain-layer/.test(read('components/signin/SignInPanel.tsx')) && !/SignInAmbientPanel/.test(read('components/signin/SignInPanel.tsx')));
+check('the document keeps a name without a visible heading', /<h1 className="sr-only">/.test(read('components/signin/SignInPanel.tsx')));
+check('and the footnote the consent already states is gone', !/footnote/.test(copy));
 check('and so does the handoff into the app', /<InfinityTrack/.test(handoff));
 check('the handoff no longer pulses a bar', !/animate-pulse/.test(handoff));
 
