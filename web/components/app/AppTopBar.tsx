@@ -1,6 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { BrandLockup } from '@/components/ui';
+import { APP_HOME_PATH } from '@/lib/routes';
 import { TopBarState } from './TopBarState';
 import { useScrolled } from './useScrolled';
 
@@ -86,7 +88,18 @@ export function AppTopBar() {
   return (
     <header className="sticky top-0 z-20 bg-canvas-dark text-on-dark">
       <div className="mx-auto flex h-[var(--app-nav-bar)] w-full max-w-3xl items-center justify-between gap-3 px-5">
-        <BrandLockup className="h-7" preload />
+        {/* The lockup is the way home (#559). It reads that way to a customer — a brand in a
+            header is the door back to the front of the product — and it takes the same
+            `APP_HOME_PATH` the dock's Home item takes, because a brand that lands somewhere
+            else than the tab called Home is a link that is wrong in a way nobody reports. Its
+            accessible name is the artwork's own alt ("Seti"); the destination is the dock's
+            labelled Home, one tap away and already announced. */}
+        <Link
+          href={APP_HOME_PATH}
+          className="flex items-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-dark focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-dark"
+        >
+          <BrandLockup className="h-7" preload />
+        </Link>
 
         <TopBarState />
       </div>
