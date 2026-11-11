@@ -44,6 +44,7 @@
     "check:profile-edit": "tsx scripts/check-profile-edit.mjs",
     "check:analytics-bars": "tsx scripts/check-analytics-bars.mjs",
     "check:analytics-page": "tsx scripts/check-analytics-page.mjs",
+    "check:activity-signed-out": "tsx scripts/check-activity-signed-out.mjs",
     "check:app-dock": "tsx scripts/check-app-dock.mjs",
     "check:claims-row": "tsx scripts/check-claims-row.mjs",
     "check:receipt-chain": "tsx scripts/check-receipt-chain.mjs",
