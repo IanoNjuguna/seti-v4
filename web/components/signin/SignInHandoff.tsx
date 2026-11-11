@@ -1,6 +1,6 @@
 'use client';
 
-import { BrandMark, InfinityTrack, Text } from '@/components/ui';
+import { BrandLockup, InfinityTrack, Text } from '@/components/ui';
 import { SIGN_IN_HANDOFF_COPY, SIGN_IN_HANDOFF_DELAY_MS } from './SignInHandoff.constants';
 import { useHandoffVisible } from './useHandoffVisible';
 
@@ -41,18 +41,12 @@ export function SignInHandoff() {
     <div className="fixed inset-0 z-50 bg-canvas-dark text-on-dark">
       {visible ? (
         <>
-          {/* The rail's brand block, in the rail's own box. */}
+          {/* The product's own lockup, in the dock's box (#542). It used to draw the rail's
+              brand block — a neutral mark with the word typeset beside it — which was the
+              reconstruction the supplied lockup retired, and a chrome that no longer exists. */}
           <div className="px-3">
             <div className="flex h-[var(--app-nav-bar)] items-center gap-3 px-4">
-              <BrandMark
-                expression="neutral"
-                canvas="dark"
-                preload
-                className="h-8"
-              />
-              <Text variant="heading-md" as="span" color="inverse">
-                {SIGN_IN_HANDOFF_COPY.wordmark}
-              </Text>
+              <BrandLockup className="h-8" preload />
             </div>
           </div>
 

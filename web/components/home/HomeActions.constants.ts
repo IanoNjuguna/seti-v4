@@ -70,8 +70,8 @@ export const HOME_ACTIONS: HomeAction[] = [
   /*
    * Save is the third door, and it is here because the strip this replaces had it:
    * it is the one thing a funded account can do with money it is NOT spending, and
-   * `/app/save` is reachable from nowhere else (`AppNav` carries Home, Activity and
-   * Profile only). Removing the strip without carrying this across would have
+   * `/app/save` is reachable from nowhere else (the dock carries Home, Activity and
+   * Profile only, #542). Removing the strip without carrying this across would have
    * orphaned a shipped page.
    *
    * Four short labels in one row, at the system's button height: a quarter of the

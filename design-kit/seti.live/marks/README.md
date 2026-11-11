@@ -1,9 +1,10 @@
 # Seti marks
 
-Two expressions, three colourways, six files. This README is the rule; the script
-is the source.
+Two expressions, three colourways, six files — and the lockup, which is not a
+384 canvas at all and ships in two expressions of its own. This README is the
+rule; the script is the source.
 
-    python3 generate.py            # build the six marks + the app icon
+    python3 generate.py            # build the six marks, the icons and the lockup
     python3 generate.py --install  # build, then copy into web/public and web/app
 
 ## The sources, and what was wrong with one of them
@@ -47,8 +48,9 @@ expression and colourway, which is the whole point:
 | `seti-mark-friendly-dark.png` | friendly | dark | as above, smile punched |
 | `seti-mark-neutral-code.png` | neutral | code | ink `#000000`, same shading, **eyes punched** |
 | `seti-mark-friendly-code.png` | friendly | code | as above, smile punched |
+| `seti-lockup-friendly.png` | friendly | dark | the supplied 308×112 lockup, smile punched through its own head |
 
-All six are 384×384 with one crop, one scale, and the head at 93% of the
+The six marks are 384×384 with one crop, one scale, and the head at 93% of the
 canvas, so swapping expression or canvas never shifts the mark by a pixel. The
 head is 356px tall inside that canvas, downscaled from the 359px source: no
 variant is upscaled.
@@ -62,6 +64,73 @@ is being measured by. That bug shipped once — the first build framed the head 
 
 Eyes are punched rather than filled dark because the dark canvas is black and a
 painted pupil breaks the moment the mark sits on anything else.
+
+## The lockup, and its friendly twin
+
+`seti-lockup.png` is the head and the wordmark as ONE drawn object: 308×112, ink
+`#f5f5f5`, transparent, and it is what the chrome draws. Chrome now wears the
+friendly face, so it needed a smiling twin whose wordmark is the same object and
+whose face smiles — and the wordmark had to be pixel-identical, because a
+wordmark that shifts by a pixel between two expressions is two products.
+
+Its twin is `seti-lockup-friendly.png`, built by the same script and written to
+both homes in the same pass: `design-kit/seti.live/marks/` (authored) and
+`web/public/` (served). The supplied lockup is the one artwork in this kit with
+no copy in `marks/`, so its source is the served file, and a rebuild that changed
+the kit copy and not what the navbar shows is the failure the pair cannot afford.
+
+Which face a surface wears stays a product decision — `BrandMark` takes the
+expression as a prop, and the rule for choosing is under *When to use which*
+below. This file only makes sure both answers have artwork.
+
+**Why its head is not pasted in.** The lockup's head and the mark's head are the
+same head drawn at different proportions, and the numbers say so plainly
+(alpha > 128, eyes measured as the punched holes):
+
+| | head | aspect | eyes apart | horizontal scale | vertical scale |
+| --- | --- | --- | --- | --- | --- |
+| lockup | 96×106 | 0.906 | 45.30px | — | — |
+| mark | 276×356 | 0.775 | 135.42px | 0.3478 | 0.2978 |
+
+The two axes disagree by **16.8%**, so one uniform scale cannot land both. Fitted
+on the eyes — the face's one reliable anchor, 0.334541 — the mark's head maps to
+93×112 at (4, 0): six pixels taller than the lockup's own 106, running off the
+canvas and over the neutral outline at the top and the bottom. Pulling it back
+inside is the 16.8% squash that turns a smile into a smirk, and pasting it
+clipped to the lockup's silhouette leaves the layer's own feathered edge inside
+the head as a seam. That seam is measurable rather than theoretical: the
+**neutral** mark pasted the same way differs from the lockup's own head by mean
+3.1 and p95 13.5 levels of tone, which is registration drift and not expression.
+
+So only the expression crosses over. The two marks differ in 1,736 pixels, all of
+them in the lower face: the eyes are identical, and the smile is the whole of
+what the expression adds. The script transfers that smile — one uniform scale,
+one translation, fitted on the eye pair — and punches it through the lockup's own
+pixels. What that buys, verified on the built file rather than argued:
+
+| | before | after |
+| --- | --- | --- |
+| pixels differing outside the head box (3,3)-(98,108) | — | **0** |
+| head bbox, inclusive | (3,3,98,108) | (3,3,98,108) |
+| head aspect (w/h) | 0.905660 | 0.905660 |
+| eye centroids | (28.1284, 63.4422) (73.4320, 63.3562) | identical, 0.0000px residual |
+| alpha-0 pixels inside the head | 3,754 | 3,792 (+38: the smile) |
+
+The head keeps the lockup's ink by construction rather than by a colour match,
+and the face keeps the lockup's own outline, because nothing that draws them was
+rewritten.
+
+One measured concession. The smile is a 1–2px stroke in the 384 mark and arrives
+2.99× smaller here, where an honest area average of that stroke tops out well
+below full coverage: the mark's hole is 403px, which is 45px at the lockup's
+scale, and the plain average punches **10** of them — a smile of alpha ~40 beside
+two eyes at alpha 0, a grey line rather than a hole. `SMILE_GAIN = 1.3` puts the
+stroke's own core back (**38** of the 45) without widening its support, which
+stays 64px, and its lowest row still sits thirteen pixels above the chin.
+
+The lockup's head is 96px, so this file is at its own native size: 112px tall in
+the navbar is its limit. A header that wants it larger wants the wordmark SVG
+plus a 384 mark, not this raster scaled up.
 
 ## When to use which
 
