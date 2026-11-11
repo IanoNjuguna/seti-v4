@@ -6,8 +6,10 @@ import {
   getDepositTarget,
   isAccountIntent,
   setAccountIntent,
+  setAccountName,
   setAccountNetwork,
 } from '../services/account.js';
+import { normalizePersonName } from '../lib/person-name.js';
 import { isNetwork } from '../lib/network.js';
 
 /**
@@ -35,6 +37,15 @@ const intentSchema = z.object({ intent: z.string() });
  * deployment is not mainnet-ready.
  */
 const networkSchema = z.object({ network: z.string() });
+
+/**
+ * The display-name body.
+ *
+ * Shape only. The meaning is `normalizePersonName`'s: an empty name, a name of one
+ * character, or a name with a control character in it is a coded 400 rather than a column
+ * full of whatever a client sent.
+ */
+const nameSchema = z.object({ name: z.string() });
 
 export async function accountRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authMiddleware);
@@ -76,6 +87,37 @@ export async function accountRoutes(app: FastifyInstance) {
     }
 
     return setAccountIntent(caller.id, body.intent);
+  });
+
+  /**
+   * Change the name this account goes by.
+   *
+   * The one writable fact on the profile's personal screen. It writes a DISPLAY LABEL and
+   * nothing else: the handle — what people pay by — is signed, immutable, and unreachable
+   * from here (#536).
+   *
+   * Answered with the updated user so the client can paint the new name without a second
+   * read; the session's own copy is refreshed separately, because a name that saves and does
+   * not appear is the failure this endpoint would otherwise have.
+   */
+  app.post('/name', async (request, reply) => {
+    const caller = request.user;
+    if (!caller) {
+      return reply.status(401).send({ error: 'Unauthorized', code: 'unauthorized' });
+    }
+
+    const body = nameSchema.parse(request.body);
+    const name = normalizePersonName(body.name);
+
+    if (!name) {
+      return reply.status(400).send({
+        error: 'Enter the name you want to go by, up to 60 characters.',
+        code: 'invalid-name',
+      });
+    }
+
+    const user = await setAccountName({ userId: caller.id, name, ip: request.ip });
+    return { user };
   });
 
   /**
