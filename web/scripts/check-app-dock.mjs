@@ -53,7 +53,6 @@ const link = read('../components/app/AppNavLink.tsx');
 const topBar = read('../components/app/AppTopBar.tsx');
 const state = read('../components/app/TopBarState.tsx');
 const css = read('../app/globals.css');
-const practice = read('../components/app/PracticeFrame.tsx');
 
 console.log('one nav, at every width:');
 {
@@ -111,7 +110,8 @@ console.log('the header and the dock are one system:');
   check('both slabs cap at the same width', topBar.includes('max-w-[26rem]') && dock.includes('max-w-[26rem]'));
   check('the header is a rounded slab too', topBar.includes('rounded-[14px]'));
   check('with the chrome grain', topBar.includes('chrome-grain') && dock.includes('chrome-grain'));
-  check('and it is in the flow, not fixed', !/className="[^"]*\bfixed\b/.test(topBar));
+  check('it sticks, so the state it carries stays visible', /className="sticky [?a-z0-9:.-]*/.test(topBar));
+  check('and it is not fixed', !/className="[^"]*\bfixed\b/.test(topBar));
 }
 
 console.log('the dock spreads its three destinations:');
@@ -125,9 +125,12 @@ console.log('a signed-out visitor still has a door:');
 {
   check('the header renders the state slot', topBar.includes('<TopBarState />'));
   check('which links to the front door', state.includes('SIGN_IN_PATH'));
-  check('and says nothing when signed in and live', state.includes("session.status !== 'signed-in'") && state.includes('return null'));
+  check('signed in, the row is the account mark', state.includes('<Mark size="sm"'));
+  check('and it opens the profile', state.includes('href="/app/profile"'));
+  check('never an empty right-hand slot', !state.includes('return null'));
   check('and does not tell a restoring visitor to sign in', state.includes("session.status === 'restoring'"));
   check('practice is stated there too, linking to where it is switched', state.includes('practice') && state.includes('/app/profile'));
+  check('in the attention ink the practice strip used', state.includes('color="attention"'));
   check('both controls are a full touch target', (state.match(/h-11/g) ?? []).length >= 2);
 }
 
@@ -142,7 +145,7 @@ console.log('the reserved space is the dock\'s own geometry:');
 console.log('the content column no longer pays for a rail:');
 {
   check('no rail offset on the shell', !shell.includes('md:pl-56'));
-  check('no rail margin on the practice strip', !/className="[^"]*md:ml-56/.test(practice));
+  check('and no practice strip is left to double-state it', !existsSync(new URL('../components/app/PracticeFrame.tsx', import.meta.url)));
 }
 
 console.log('the brand rule has one owner, and it is the component:');
