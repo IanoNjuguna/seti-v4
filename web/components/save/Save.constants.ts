@@ -138,8 +138,6 @@ export const SAVE_COPY = {
   /** The date is the promise: the rate belongs to the campaign, not to the vault. */
   rewardsEnds: 'ends',
   rewardsClaimed: 'Claimed. The rewards are in your wallet.',
-  /** The custody sentence: the thing a customer most wants to know. */
-  custodyNote: 'Your money sits in a Tempo vault in your own name. Seti never holds it.',
 } as const;
 
 /** What a customer with no account sees. */
