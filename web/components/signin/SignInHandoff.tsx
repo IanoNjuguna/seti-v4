@@ -1,6 +1,6 @@
 'use client';
 
-import { BrandMark, Text } from '@/components/ui';
+import { BrandMark, InfinityTrack, Text } from '@/components/ui';
 import { SIGN_IN_HANDOFF_COPY, SIGN_IN_HANDOFF_DELAY_MS } from './SignInHandoff.constants';
 import { useHandoffVisible } from './useHandoffVisible';
 
@@ -57,18 +57,21 @@ export function SignInHandoff() {
           </div>
 
           <div className="px-3">
-            <div className="px-4" role="status">
+            <div className="px-4">
               <Text variant="body" as="p" color="inverse-muted">
                 {SIGN_IN_HANDOFF_COPY.line}
               </Text>
-              {/* One indicator, and it is opacity only: reduced motion shows the
-                  line plainly instead of a slower version of it. */}
-              <span
-                aria-hidden
-                className="mt-4 block h-0.5 w-40 overflow-hidden rounded-full bg-hairline-dark"
-              >
-                <span className="block h-0.5 w-1/3 rounded-full bg-on-dark-mute motion-safe:animate-pulse" />
-              </span>
+              {/* One indicator, and it is the product's own: the infinity track that
+                  `SignInSkeleton` uses, announcing the line above as its status label.
+                  The wrapper's `role="status"` moved into the track, so the wait is
+                  announced once rather than twice, and reduced motion leaves the static
+                  path instead of a different animation. */}
+              <InfinityTrack
+                canvas="dark"
+                size="sm"
+                label={SIGN_IN_HANDOFF_COPY.line}
+                className="mt-4 text-on-dark-mute"
+              />
             </div>
           </div>
         </>
