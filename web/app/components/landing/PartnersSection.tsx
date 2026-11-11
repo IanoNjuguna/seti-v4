@@ -140,7 +140,7 @@ export function PartnersSection() {
             looked at instead of announcing something it has not seen. It stays the same
             `SectionEyebrow`, so this band still carries no heading element, which is what
             its outline was always allowed to be. */}
-        <div className="mt-10">
+        <div className="mt-6">
           <SectionEyebrow label={PARTNERS_EYEBROW} onDark />
         </div>
       </div>
