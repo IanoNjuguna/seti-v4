@@ -73,12 +73,15 @@
      that is what overflowed `#how`. See the ladder in the base layer below. */
   --band-pad-top: 4rem;
   --band-pad-bottom: 3rem;
-  /* The product app's floating dock, sized ONCE (#542).
-     `--app-nav-bar` is the doc's `nav-bar` height (64px): the dock's slab, at
-     every width. There is one nav now and it floats rather than spanning the
-     viewport, so `--app-nav-inset` is the air between the slab and the bottom
-     edge — that gap is what makes it read as a dock instead of a bar — and
-     `--app-nav-hairline` is its border.
+  /* The product app's chrome, sized ONCE (#542).
+     `--app-nav-bar` is the doc's `nav-bar` height (64px), and BOTH ends of the
+     chrome are that tall: the dock's floating slab and the header's frame
+     (#559). One number for the two, so the app's top and bottom edges can never
+     drift apart into two chrome heights.
+     There is one nav now and it floats rather than spanning the viewport, so
+     `--app-nav-inset` is the air between the slab and the bottom edge — that gap
+     is what makes it read as a dock instead of a bar — and `--app-nav-hairline`
+     is its border.
      `--app-nav-reserved` is the height the dock actually OCCUPIES: the inset, the
      slab, the hairline and the device's bottom safe-area inset. The safe area is
      ADDED, not eaten out of the 64px: a phone with a home indicator gets 64px of
