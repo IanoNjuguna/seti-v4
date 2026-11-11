@@ -59,20 +59,26 @@ export const SAVE_COPY = {
    */
   withdrawFeeLine: (fee: string) => `Network fee ${fee}, from your available balance.`,
   /**
-   * The BLOCKED state when that fee is not in the wallet (#521).
+   * The BLOCKED state when that fee is not in the wallet (#521, tightened in #527).
    *
    * This used to be a hint under the amount field — grey, below the figure, in the same
    * slot as "from your available balance" — while the button dimmed only to 60% and still
    * read as something to tap. It also only described the future ("keep at least …"), so a
    * customer with KES 0.00 available read the whole screen as the vault refusing them.
    *
-   * So it carries the three facts a blocked action owes: what it costs, what they have,
-   * and that it cannot go through — then the one thing that unblocks it. The figures are
-   * both the customer's currency, and neither is arithmetic done here.
+   * The first rewrite said the mechanic twice and buried the point in the third clause:
+   * "… costs KES 0.06 in network fee, and that comes out of your available balance. You have
+   * KES 0.05 available, so this cannot go through. Add money first, then take it out." Two
+   * instructions in one block, and the only useful part last.
+   *
+   * So: the ACTION first, in the control's own words (`Add money`), then one sentence with
+   * the requirement and both figures. The fee keeps its name — the sheet's own fee line is
+   * hidden in this state, so this is the only place the figure is attributed. One
+   * instruction, because "add money, then take it out" asks the reader to hold a sequence
+   * that is already implied by the two controls in front of them.
    */
   withdrawFeeShort: (fee: string, available: string) =>
-    `Taking money out costs ${fee} in network fee, and that comes out of your available balance. ` +
-    `You have ${available} available, so this cannot go through. Add money first, then take it out.`,
+    `Add money to take this out. You need ${fee} for the network fee and you have ${available} available.`,
   /** The vault's own answer, when it will not redeem at this size right now. */
   withdrawVaultRefused: 'The vault cannot pay this out right now. Nothing was moved.',
   amountTitle: 'How much are you saving?',
