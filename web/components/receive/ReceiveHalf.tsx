@@ -41,9 +41,8 @@ function shareLabel(state: ShareState): string {
  *
  * The copy control sits AT the end of the row it acts on, bare, with no well (#549:
  * `IconButton`'s `well="none"`), so the glyph is a footnote to the value instead of a
- * disc competing with the code. It follows the LAST string in the row, which on the
- * merchant half is the handle: a control copies what it sits under, never something the
- * page has not printed.
+ * disc competing with the code. It follows the handle it writes: a control copies what
+ * it sits under, never something the page has not printed.
  *
  * THE ACTIONS ARE ONE ROW OF TWO, WITH ONE LINK UNDER IT. Share wears the fill, because
  * handing the code over is what this page is FOR and the screen gets exactly one filled
@@ -72,38 +71,20 @@ export function ReceiveHalf({ plate, name, share, download, claim }: ReceiveHalf
     <div className="flex w-full flex-col items-center gap-4">
       {plate}
 
-      {/* THE ROW IS THREE UNBREAKABLE SLOTS, not one text flow and not four equal flex items.
-          A flex row of label, value, handle and glyph pushed the 44px glyph onto a line of its
-          own under the merchant half at 390px; one inline text flow broke the BUSINESS NAME
-          instead (`Merchant name: Java` / `House @javahouse`). So the label is its own slot,
-          the value is its own slot, and the handle travels welded to the glyph it belongs to.
-          Flex-wrap then breaks between SLOTS: at 390px the merchant row reads
-          `Merchant name: Java House` / `@javahouse <glyph>`, and a name too long for the line
-          moves whole rather than splitting mid-word. */}
+      {/* TWO SLOTS: the label, then the handle welded to the glyph it belongs to. A flex row
+          of separate items once pushed the 44px glyph onto a line of its own at 390px, and a
+          single inline text flow broke the value mid-word instead; welding the string to its
+          control leaves exactly one break opportunity, before the handle. */}
       <p className="flex max-w-full flex-wrap items-center justify-center gap-x-1.5 gap-y-1">
         <Text variant="body" as="span" color="secondary" className="whitespace-nowrap">
           {name.label}:
         </Text>
-        {name.handle ? (
-          <>
-            <Text variant="body-medium" as="span" className="min-w-0 break-words">
-              {name.value}
-            </Text>
-            <span className="flex items-center gap-1 whitespace-nowrap">
-              <Text variant="body" as="span" color="secondary">
-                @{name.handle}
-              </Text>
-              {glyph}
-            </span>
-          </>
-        ) : (
-          <span className="flex items-center gap-1 whitespace-nowrap">
-            <Text variant="body-medium" as="span">
-              {name.value}
-            </Text>
-            {glyph}
-          </span>
-        )}
+        <span className="flex items-center gap-1 whitespace-nowrap">
+          <Text variant="body-medium" as="span">
+            {name.value}
+          </Text>
+          {glyph}
+        </span>
       </p>
 
       {share || claim ? (

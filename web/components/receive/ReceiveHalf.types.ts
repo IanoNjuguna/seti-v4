@@ -33,24 +33,22 @@ export interface ReceiveHalfCopy {
  * that takes it.
  *
  * The label is not decoration. This page shows one of two strings depending on which half
- * is on screen, and they are different kinds of fact — a username another Seti account
- * types, and the name a customer reads at a counter. Unlabelled, `@ian` and `Java House`
+ * is on screen, and they are different kinds of fact — a user name another Seti account
+ * types, and the name a customer pays at a counter. Unlabelled, `@ian` and `@javahouse`
  * sat under identical codes and nothing on the page said which one the reader was
  * looking at.
+ *
+ * BOTH HALVES PRINT A HANDLE, so the row has one shape: a label, a handle, the glyph.
+ * The merchant row briefly printed its business name plus the handle after it, which made
+ * the two halves differ in length and in kind; the owner's call is that the string a
+ * person pays is the one worth giving them, and the business name stays where a customer
+ * reads it — the code's own title and the share sheet.
  */
 export interface ReceiveHalfName {
-  /** The word the row calls the string by: `Username`, `Merchant name`. */
+  /** The word the row calls the string by: `User name`, `Merchant name`. */
   label: string;
-  /** The string as it is printed: `@ian`, `Java House`. */
+  /** The handle as it is printed: `@ian`, `@javahouse`. Never the business name. */
   value: string;
-  /**
-   * The account's handle, when the printed value is not it.
-   *
-   * The merchant half prints `Java House` while every string it hands out — the code, the
-   * link, the saved file — is built from `javahouse`. Printing the handle in the row is
-   * what makes the copy control honest: it writes the string the reader can see.
-   */
-  handle?: string;
   /** Absent means this half hands nothing over by hand — a counter code is printed. */
   copy?: ReceiveHalfCopy;
 }

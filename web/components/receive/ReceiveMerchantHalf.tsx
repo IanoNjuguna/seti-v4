@@ -20,13 +20,12 @@ import type { ReceiveMerchantHalfProps } from './ReceiveMerchantHalf.types';
  * `seti.live/m/Java House`, so the split is stated here rather than left to each caller
  * to remember.
  *
- * THE ROW PRINTS BOTH, and the control copies the handle (#549). This half used to offer
- * no copy at all: the string on screen was the name and every string it hands out was
- * built from the handle, so a control under `Java House` would have written something the
- * reader could not see. The row now reads `Merchant name: Java House @javahouse`, which
- * is the two facts the business actually holds — and the glyph sits after the handle it
- * writes, so the page never copies a string it has not printed. The two halves therefore
- * share one shape: a label, the string, the bare glyph.
+ * THE ROW PRINTS THE HANDLE (#549), not the business name. The owner's call, and it is
+ * the consistent one: both halves print the string a person actually pays, and the glyph
+ * after it copies what it sits under. `Java House` has not gone anywhere — it is still
+ * the code's own accessible name (`seti.live/m/<handle> at your counter`) and the share
+ * sheet's title, which is where a customer reads it after scanning. What left is a row
+ * that printed a name no copy control could honestly act on.
  *
  * The link row is gone, and with it the sentence that explained it. The code still
  * encodes the business link (`seti.live/m/<handle>`) so a customer's camera opens the
@@ -46,8 +45,7 @@ export function ReceiveMerchantHalf({ name, handle }: ReceiveMerchantHalfProps) 
       plate={<QrPlate value={link} title={RECEIVE_COPY.merchantQrTitle(name)} />}
       name={{
         label: RECEIVE_COPY.merchantNameLabel,
-        value: name,
-        handle,
+        value: `@${handle}`,
         copy: {
           value: handle,
           label: RECEIVE_COPY.merchantCopyLabel,
