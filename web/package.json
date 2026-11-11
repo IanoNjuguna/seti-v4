@@ -40,6 +40,7 @@
     "check:privy-mount": "node scripts/check-privy-mount.mjs",
     "check:privy-token-guard": "node scripts/check-privy-token-guard.mjs",
     "check:signin-sessions": "node scripts/check-signin-sessions.mjs",
+    "check:otp": "tsx scripts/check-otp.mjs",
     "check:profile-edit": "tsx scripts/check-profile-edit.mjs",
     "check:analytics-bars": "tsx scripts/check-analytics-bars.mjs",
     "check:analytics-page": "tsx scripts/check-analytics-page.mjs",
