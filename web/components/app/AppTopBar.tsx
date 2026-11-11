@@ -93,10 +93,15 @@ export function AppTopBar() {
             `APP_HOME_PATH` the dock's Home item takes, because a brand that lands somewhere
             else than the tab called Home is a link that is wrong in a way nobody reports. Its
             accessible name is the artwork's own alt ("Seti"); the destination is the dock's
-            labelled Home, one tap away and already announced. */}
+            labelled Home, one tap away and already announced.
+
+            `min-h-11` and `min-w-11` are the FLOOR, not the picture (#562): the artwork is 28px
+            tall, so the link measured 77x28 and sat under the app's 44px touch minimum — a target
+            that only works if a thumb is precise. The link's box grows to the floor and the
+            artwork stays centred inside it, so nothing moves on screen. */}
         <Link
           href={APP_HOME_PATH}
-          className="flex items-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-dark focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-dark"
+          className="flex min-h-11 min-w-11 items-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-dark focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-dark"
         >
           <BrandLockup className="h-7" preload />
         </Link>
