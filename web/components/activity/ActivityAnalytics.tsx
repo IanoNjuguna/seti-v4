@@ -58,7 +58,7 @@ export function ActivityAnalytics({ active }: { active: boolean }) {
 
           {selected.count > 0 ? (
             <>
-              <AnalyticsSeriesBand window={selected} currency={currency} />
+              <AnalyticsSeriesBand window={selected} />
               <AnalyticsDetailBand
                 window={selected}
                 customers={summary.customers}

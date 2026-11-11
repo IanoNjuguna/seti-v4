@@ -27,9 +27,12 @@ import type { AnalyticsDailyBarsProps } from './Analytics.types';
  *
  * ## Zero is drawn, not skipped
  *
- * A day with nothing is a bar of zero height, and the space it occupies is the point: a gap in the run
- * of bars is the same information as the quiet day in the streak map, and closing it up would draw a
- * week of trading that did not happen.
+ * A day with nothing is a two-pixel tick on the baseline, and the space it occupies is the point:
+ * a gap in the run of bars is the same information as the quiet day in the streak map, and closing
+ * it up would draw a week of trading that did not happen. The tick is `faint`, not
+ * `hairline-light` (#534): at two pixels the lightest rule in the system is invisible on white, so
+ * a quiet week read as two black slabs floating on nothing until the baseline rule and the darker
+ * tick were added.
  */
 export function AnalyticsDailyBars({ daily }: AnalyticsDailyBarsProps) {
   if (daily.length === 0) return null;
@@ -39,14 +42,18 @@ export function AnalyticsDailyBars({ daily }: AnalyticsDailyBarsProps) {
 
   return (
     <div className="flex flex-col gap-2">
-      <div aria-hidden className="flex h-24 items-end gap-[2px]">
+      <div aria-hidden className="flex h-24 items-end border-b border-hairline-light">
         {daily.map((day) => (
           <span
             key={day.date}
             title={`${day.date} · ${ANALYTICS_COPY.dailyCount(day.count)}`}
-            style={{ height: `${barHeight(day.count, busiest)}%` }}
-            className={`flex-1 rounded-t-[2px] ${day.count === 0 ? 'bg-hairline-light' : 'bg-ink'}`}
-          />
+            className="flex flex-1 items-end justify-center self-stretch"
+          >
+            <span
+              style={{ height: `${barHeight(day.count, busiest)}%` }}
+              className={`w-full max-w-5 rounded-t-sm ${day.count === 0 ? 'bg-faint' : 'bg-ink'}`}
+            />
+          </span>
         ))}
       </div>
 
