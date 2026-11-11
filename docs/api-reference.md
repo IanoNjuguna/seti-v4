@@ -144,6 +144,21 @@ before a business name exists is the normal order, and the claim that follows is
 creates the name. That is deliberate — refusing the switch until the name existed
 would make the mode a one-way door.
 
+### `POST /account/name`
+
+The name this account goes by. Body `{ "name": "Ian Mwangi" }`; answers `{ "user": … }` with
+the updated record.
+
+This is a DISPLAY LABEL and nothing else. The handle is what people pay by, it is signed, and
+it is **immutable** — no route in this API renames one, and this endpoint cannot reach it.
+
+The name is cleaned before it is stored: trimmed, inner runs of whitespace collapsed to one
+space, a leading `@` dropped. `400 { code: "invalid-name" }` when nothing is left, when it is
+fewer than 2 or more than 60 characters, or when it carries a control character.
+
+Changing it leaves one `profile.name.updated` audit row, so a name printed on a receipt can be
+traced to when it was set.
+
 ### `POST /account/network`
 
 Which Tempo network this account acts on. Body `{ "network": "testnet" | "mainnet" }`.

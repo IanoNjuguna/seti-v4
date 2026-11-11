@@ -131,7 +131,14 @@ export type AuditAction =
    * `oldHandleHeldUntil`, so "when does my old name stop working?" is a log read,
    * not a re-derivation.
    */
-  | 'handle.person.renamed';
+  | 'handle.person.renamed'
+  /**
+   * The name a person goes by was changed from the profile screen (#536).
+   *
+   * A display label, not an identity: the handle is the thing people pay by and it is
+   * immutable. This row exists so a name on a receipt can be traced to when it was set.
+   */
+  | 'profile.name.updated';
 
 export interface AuditLogInput {
   userId?: string;
