@@ -263,8 +263,8 @@ console.log('\nthe sheet scrolls under a bar that matches its card (#430):');
     /::-webkit-scrollbar-thumb[\s\S]{0,120}border-radius: var\(--radius-sm\)/.test(css)
   );
 
-  const rail = readFileSync(new URL('../components/app/AppRail.tsx', import.meta.url), 'utf8');
-  check('the rail, the app\'s other dark scroller, carries it too', rail.includes('data-scrollbar="dark"'));
+  const dock = readFileSync(new URL('../components/app/AppDock.tsx', import.meta.url), 'utf8');
+  check('the dock, the app\'s other dark scroller, carries it too', dock.includes('data-scrollbar="dark"'));
 }
 
 console.log('\nthe document names no network unless the money is not real (#431):');

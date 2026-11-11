@@ -41,9 +41,15 @@ so a punched eye is a white eye and the head is one solid ink shape.
 
 Every mark shares one crop, one scale and one canvas, so swapping expression,
 colourway or canvas never shifts the mark by a pixel.
+
+The one file here that is not a 384 canvas is the lockup: the head and the
+wordmark as one drawn object, 308x112, which now ships in two expressions because
+the chrome wears the friendly face. Its twin is built from the same mark, so the
+smile in it is the mark's smile and not a second drawing of one.
 """
 
 from pathlib import Path
+import math
 import shutil
 import sys
 
@@ -82,6 +88,25 @@ DARK_INK = (255, 255, 255)
 # is a document read by a camera before it is a surface seen by a person, and the
 # brand accent is not the thing to spend its contrast on.
 CODE_INK = (0, 0, 0)
+
+# THE LOCKUP, AND ITS FRIENDLY TWIN
+#
+# `seti-lockup.png` is the head and the wordmark as ONE drawn object — 308x112,
+# ink #f5f5f5, transparent — and it is what the navbar draws. It is the one
+# supplied artwork with no copy of its own in this folder: the file the app serves
+# is the only one on disk. So its twin is built from that copy and written back
+# beside it in the same pass, on every run rather than only on --install, because
+# a rebuild that changed the artwork and not what the chrome shows is the one
+# failure this pair cannot afford.
+LOCKUP = REPO / "web" / "public" / "seti-lockup.png"
+LOCKUP_FRIENDLY = "seti-lockup-friendly.png"
+# The smile is a 1-2px stroke in the 384 mark and arrives 2.99x smaller in the
+# lockup, where an area average of that stroke tops out well below full coverage.
+# Measured: the mark's hole is 403px, which is 45px at the lockup's scale, and an
+# honest average punches 10 of them — a smile of alpha ~40 beside two eyes at
+# alpha 0, which is a grey line and not a hole. This gain puts the stroke's own
+# core back (38 of the 45) without widening it: the support stays 64px.
+SMILE_GAIN = 1.3
 
 
 def _luma(rgb: np.ndarray) -> np.ndarray:
@@ -226,6 +251,182 @@ def _tiled(mark: Image.Image, size: int) -> Image.Image:
     return tile
 
 
+def _taken(img_l: Image.Image) -> np.ndarray:
+    """Pixels inside the ink but not painted: the eyes, and a friendly mark's smile.
+
+    The same test `_enclosed` above performs, on a COPY of the mask, because it
+    has to be the same test and it cannot be the same function: `Image.fromarray`
+    hands back a read-only image on this Pillow, `ImageDraw.floodfill` writes to a
+    private copy and drops it, and the fill no-ops — after which every pixel that
+    is not ink reads as "enclosed". Measured on the 1254px icon the two answers
+    are 1,216,881px and 95,677px, so this one is measured rather than assumed.
+    """
+    mask = Image.fromarray((np.asarray(img_l) > 128).astype(np.uint8) * 255, mode="L").copy()
+    w, h = mask.size
+    for seed in ((0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1)):
+        ImageDraw.floodfill(mask, seed, 128)
+    return np.asarray(mask) == 0
+
+
+def _regions(mask: np.ndarray) -> list[np.ndarray]:
+    """Each enclosed region on its own, largest first: two eyes, then a smile.
+
+    Flood-fill labelling rather than scipy, for the same reason the rest of this
+    file is numpy and PIL and nothing else, and because a mark has three of these
+    at most.
+    """
+    todo = mask.copy()
+    found: list[np.ndarray] = []
+    while todo.any():
+        ys, xs = np.nonzero(todo)
+        label = Image.fromarray(todo.astype(np.uint8) * 255, mode="L").copy()
+        ImageDraw.floodfill(label, (int(xs[0]), int(ys[0])), 128)
+        region = np.asarray(label) == 128
+        found.append(region)
+        todo &= ~region
+    return sorted(found, key=lambda r: -int(r.sum()))
+
+
+def _centroid(region: np.ndarray) -> tuple[float, float]:
+    ys, xs = np.nonzero(region)
+    return float(xs.mean()), float(ys.mean())
+
+
+def _eyes(img_l: Image.Image) -> list[tuple[float, float]]:
+    """The two eye centroids, left to right.
+
+    Size alone separates them. The lockup's only other enclosed region is a 213px
+    counter inside the `e` — a third of a pupil — and the mark's third region is
+    the smile at 403px against 7,420 and 7,452.
+    """
+    pair = [_centroid(r) for r in _regions(_taken(img_l))[:2]]
+    return sorted(pair, key=lambda p: p[0])
+
+
+def _eye_fit(src: list[tuple[float, float]], dst: list[tuple[float, float]]) -> tuple[float, float, float]:
+    """One scale and one translation: the source's eye pair onto the destination's.
+
+    No rotation, and no second scale. The eye pair is the only place these two
+    files state the same measurement, and a non-uniform fit is what turns a
+    transferred smile into a smirk.
+    """
+    span = math.dist(src[1], src[0])
+    if not span:
+        raise SystemExit("no eye pair to fit on")
+    scale = math.dist(dst[1], dst[0]) / span
+    tx = (dst[0][0] + dst[1][0]) / 2 - scale * (src[0][0] + src[1][0]) / 2
+    ty = (dst[0][1] + dst[1][1]) / 2 - scale * (src[0][1] + src[1][1]) / 2
+    return scale, tx, ty
+
+
+def _warp(mask: np.ndarray, size: tuple[int, int], scale: float, tx: float, ty: float) -> np.ndarray:
+    """Resample `mask` by one uniform scale and a translation, in float.
+
+    The half-pixel terms are pixel CENTRES: PIL maps an output pixel's index back
+    to a source index, so the affine has to carry the 0.5 in and take it out
+    again, or a 2.99x reduction lands the face a third of a pixel off the eyes it
+    was fitted to.
+    """
+    source = Image.fromarray(mask.astype(np.float32), mode="F")
+    affine = (1.0 / scale, 0.0, (0.5 - tx) / scale - 0.5, 0.0, 1.0 / scale, (0.5 - ty) / scale - 0.5)
+    warped = source.transform(size, Image.AFFINE, affine, resample=Image.BICUBIC)
+    return np.clip(np.asarray(warped), 0.0, 1.0)
+
+
+def _head_mask(alpha: np.ndarray) -> np.ndarray:
+    """The head as one region of ink, found from its own leftmost pixel.
+
+    Flood-fill on the INK rather than on the holes: the head is one region however
+    many features are punched into it, and the wordmark beside it stays out because
+    the two never touch.
+    """
+    ink = Image.fromarray(((alpha > 128) * 255).astype(np.uint8), mode="L").copy()
+    ys, xs = np.nonzero(np.asarray(ink))
+    ImageDraw.floodfill(ink, (int(xs.min()), int(ys[np.argmin(xs)])), 128)
+    return np.asarray(ink) == 128
+
+
+def _lockup_friendly(lockup: Image.Image, mark: Image.Image) -> Image.Image:
+    """The lockup with the friendly face, and why its head is not pasted in.
+
+    The two files are the same head drawn at different proportions. Measured on
+    the punched eyes and the solid head (alpha > 128):
+
+        lockup head   96 x 106   aspect 0.906   eyes 45.30px apart
+        mark head    276 x 356   aspect 0.775   eyes 135.42px apart
+
+    so the two axes disagree by 16.8%: 0.3478 across, 0.2978 down, and no single
+    scale can land both. Fitted on the eyes — the face's one reliable anchor —
+    the mark's head maps to 93 x 112 at (4, 0): six pixels taller than the
+    lockup's own 106 and running off the canvas, so it overflows the neutral
+    outline at the top and the bottom. Pulling it back inside is the 16.8% squash
+    that turns a smile into a smirk; pasting it and clipping it to the lockup's
+    silhouette leaves the layer's own feathered edge inside the head as a seam.
+    The size of that seam is measurable: the NEUTRAL mark pasted the same way
+    differs from the lockup's own head by mean 3.1 and p95 13.5 levels of tone,
+    which is registration drift and not expression.
+
+    So only the expression is transferred. The friendly and neutral marks differ
+    in 1,736 pixels, all of them in the lower face — the eyes are identical, and
+    the smile is the whole of what the expression adds. Punching that through the
+    lockup's own pixels gives the friendly face with the neutral outline intact:
+    every pixel outside the smile is byte-identical to the supplied file, the head
+    keeps the lockup's ink by construction rather than by a colour match, and the
+    head's box, aspect and eye centroids cannot move because nothing that draws
+    them was rewritten.
+    """
+    lock = np.asarray(lockup.convert("RGBA"))
+    face = np.asarray(mark.convert("RGBA"))
+    mark_l = Image.fromarray(face[:, :, 3], mode="L").copy()
+    lock_l = Image.fromarray(lock[:, :, 3], mode="L").copy()
+
+    regions = _regions(_taken(mark_l))
+    if len(regions) < 3:
+        raise SystemExit("that mark carries no mouth to transfer")
+    scale, tx, ty = _eye_fit(_eyes(mark_l), _eyes(lock_l))
+
+    # The punch the mark itself carries, so the smile keeps the source's own edge
+    # feather instead of acquiring this script's. Kept to the smile's own
+    # neighbourhood: the mark also carries a few hundred pixels of 1-2/255 rim
+    # around the chin, left by the mouth transfer that built it, and a 2% punch
+    # spread over a wide band is a grey patch on a black navbar.
+    punch = np.clip((255.0 - face[:, :, 3]) / 255.0, 0.0, 1.0)
+    punch *= (face[:, :, 3] > 128) | _taken(mark_l)
+    near = Image.fromarray((regions[2] * 255).astype(np.uint8), mode="L").filter(ImageFilter.MaxFilter(5))
+    punch *= np.asarray(near) > 0
+
+    punch = np.clip(_warp(punch, lockup.size, scale, tx, ty) * SMILE_GAIN, 0.0, 1.0)
+
+    # A smile that reaches the outline opens the silhouette and the head stops
+    # reading as one object, so the punch is confined to the head's interior.
+    interior = np.asarray(
+        Image.fromarray(((lock[:, :, 3] > 128) * 255).astype(np.uint8), mode="L").filter(ImageFilter.MinFilter(5))
+    ) > 0
+    if not interior[punch >= 1.0 / 255.0].all():
+        raise SystemExit("the smile reaches the lockup's outline")
+
+    out = lock.copy()
+    alpha = np.round(lock[:, :, 3] * (1.0 - punch)).astype(np.uint8)
+    out[:, :, 3] = alpha
+    # A hole carries no ink: the supplied lockup's own eye holes are rgb 0 under
+    # alpha 0, and the new ones are made to match, so the face has one hole
+    # treatment and not two.
+    out[(alpha == 0) & (lock[:, :, 3] > 0)] = 0
+
+    # The claim, checked at build time rather than in a review: nothing outside
+    # the head moves, and the head is the same box it was.
+    head = _head_mask(lock[:, :, 3])
+    box = _head_box(head)
+    outside = np.ones(lock.shape[:2], dtype=bool)
+    outside[box[1]:box[3], box[0]:box[2]] = False
+    if not (out[outside] == lock[outside]).all():
+        raise SystemExit("the lockup changed outside the head box")
+    if _head_box(_head_mask(out[:, :, 3])) != box:
+        raise SystemExit("the head's box moved")
+
+    return Image.fromarray(out, "RGBA")
+
+
 def main() -> None:
     neutral = np.asarray(Image.open(NEUTRAL_SRC).convert("RGBA"))
     opaque = neutral[:, :, 3] > 250
@@ -290,6 +491,14 @@ def main() -> None:
     for name, img in icons.items():
         img.save(HERE / name, optimize=True)
         print(f"{name}  {img.size[0]}x{img.size[1]}")
+
+    # The lockup, worn with the friendly face. Built last because the face it
+    # wears is the friendly dark mark, written a few lines above; installed in
+    # both homes in one pass, because the served copy is where its source lives.
+    lockup = _lockup_friendly(Image.open(LOCKUP).convert("RGBA"), marks["seti-mark-friendly-dark.png"])
+    lockup.save(HERE / LOCKUP_FRIENDLY, optimize=True)
+    shutil.copy2(HERE / LOCKUP_FRIENDLY, LOCKUP.with_name(LOCKUP_FRIENDLY))
+    print(f"{LOCKUP_FRIENDLY}  {lockup.size[0]}x{lockup.size[1]}")
 
     if "--install" in sys.argv:
         for name, img in marks.items():

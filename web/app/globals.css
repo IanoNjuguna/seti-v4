@@ -73,20 +73,23 @@
      that is what overflowed `#how`. See the ladder in the base layer below. */
   --band-pad-top: 4rem;
   --band-pad-bottom: 3rem;
-  /* The product app's fixed bottom bar, sized ONCE.
-     `--app-nav-bar` is the doc's `nav-bar` row (64px): the black bar `AppNav`
-     draws below `md`, and the rail's brand block, which is that same row
-     sideways. `--app-nav-hairline` is the bar's own top edge.
-     `--app-nav-reserved` is the height the bar actually OCCUPIES — the row plus
-     the hairline plus the device's bottom safe-area inset. The inset is ADDED,
-     not eaten out of the 64px: a phone with a home indicator gets 64px of bar
-     and the inset below it. The app shell reserves exactly this, plus
+  /* The product app's floating dock, sized ONCE (#542).
+     `--app-nav-bar` is the doc's `nav-bar` height (64px): the dock's slab, at
+     every width. There is one nav now and it floats rather than spanning the
+     viewport, so `--app-nav-inset` is the air between the slab and the bottom
+     edge — that gap is what makes it read as a dock instead of a bar — and
+     `--app-nav-hairline` is its border.
+     `--app-nav-reserved` is the height the dock actually OCCUPIES: the inset, the
+     slab, the hairline and the device's bottom safe-area inset. The safe area is
+     ADDED, not eaten out of the 64px: a phone with a home indicator gets 64px of
+     dock and the inset below it. The app shell reserves exactly this, plus
      `--app-nav-clearance`, below the last element of every screen, so the fixed
-     bar can never come to rest on content. Both sides read these names and
+     dock can never come to rest on content. Both sides read these names and
      neither restates a number: a bar that grows while the space reserved for it
-     does not is precisely how a fixed bar ends up covering content, and it is
+     does not is precisely how a fixed control ends up covering content, and it is
      invisible until someone measures. */
   --app-nav-bar: 4rem;
+  --app-nav-inset: 1rem;
   --app-nav-hairline: 1px;
   /* Air between the last element and the bar once the page is scrolled to its
      end. Deliberately not zero — content finishing flush against the bar reads
@@ -94,7 +97,7 @@
      existed, so nothing about the screens' bottom rhythm moves. */
   --app-nav-clearance: 3rem;
   --app-nav-reserved: calc(
-    var(--app-nav-bar) + var(--app-nav-hairline) + env(safe-area-inset-bottom)
+    var(--app-nav-inset) + var(--app-nav-bar) + var(--app-nav-hairline) + env(safe-area-inset-bottom)
   );
   /* Kept low on purpose. The first render had these at 40% and 26% and the
      result was a saturated cobalt-and-crimson nebula — the exact "AI mesh
@@ -1037,4 +1040,59 @@
 .ctl-raised-dark:disabled {
   box-shadow: none;
   transform: none;
+}
+
+/*
+ * The infinity track (`components/ui/InfinityTrack`).
+ *
+ * Ported from `@loading-ui/infinity-track`: the block travels the path one leg at a
+ * time, four `ch` per leg, which is why the values are in `ch` — a leg is one cell
+ * wide only if the face is monospace. `InfinityTrack.constants` explains the port;
+ * this is the animation the three staggered blocks share.
+ */
+@keyframes infinity-track-run {
+  0%,
+  100% {
+    transform: translate(4ch, 0);
+  }
+
+  12.5% {
+    transform: translate(0, 0);
+  }
+
+  25% {
+    transform: translate(0, 4ch);
+  }
+
+  37.5% {
+    transform: translate(4ch, 4ch);
+  }
+
+  50% {
+    transform: translate(4ch, 0);
+  }
+
+  62.5% {
+    transform: translate(8ch, 0);
+  }
+
+  75% {
+    transform: translate(8ch, 4ch);
+  }
+
+  87.5% {
+    transform: translate(4ch, 4ch);
+  }
+}
+
+.infinity-track-block {
+  animation: infinity-track-run var(--duration-track, 3.2s) linear infinite;
+}
+
+/* Less motion is honoured as NO motion: the path stays, the blocks go. */
+@media (prefers-reduced-motion: reduce) {
+  .infinity-track-block {
+    animation: none;
+    display: none;
+  }
 }

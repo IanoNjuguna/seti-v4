@@ -12,6 +12,7 @@ export { StateMessage } from './StateMessage';
 export { TransactionRow } from './TransactionRow';
 export { Input } from './Input';
 export { BrandMark, BrandLockup } from './BrandMark';
+export { InfinityTrack } from './InfinityTrack';
 export { Tabs, TabPanel } from './Tabs';
 
 export type { TextProps, TextVariant, TextColor } from './Text.types';
@@ -27,4 +28,5 @@ export type { StateMessageProps, StateMessageVariant } from './StateMessage';
 export type { TransactionRowProps } from './TransactionRow.types';
 export type { InputProps } from './Input.types';
 export type { BrandMarkProps, BrandLockupProps, BrandExpression, BrandCanvas } from './BrandMark.types';
+export type { InfinityTrackProps, InfinityTrackCanvas, InfinityTrackSize } from './InfinityTrack.types';
 export type { TabsProps, TabPanelProps, TabItem } from './Tabs.types';
