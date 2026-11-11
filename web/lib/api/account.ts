@@ -42,6 +42,32 @@ export async function setAccountNetwork(network: Network): Promise<AccountIdenti
   return post<AccountIdentity>('/account/network', { network });
 }
 
+/** The account record a name change answers with, as the session needs it. */
+export interface AccountNameUpdate {
+  user: {
+    id: string;
+    email: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    phone: string | null;
+  };
+}
+
+/**
+ * Change the name this account goes by (#536).
+ *
+ * A DISPLAY LABEL, and the only writable fact on the profile's personal screen. The handle is
+ * not here on purpose: a Seti name is signed, it is what people pay the account by, and it is
+ * immutable.
+ *
+ * The server cleans the value before storing it (trimmed, whitespace collapsed, a leading `@`
+ * dropped) and answers `400 invalid-name` when there is no name in it. Callers still validate
+ * locally, because a round trip to be told the field is empty is a round trip nobody needed.
+ */
+export async function updateAccountName(name: string): Promise<AccountNameUpdate> {
+  return post<AccountNameUpdate>('/account/name', { name });
+}
+
 /**
  * The address money arrives at, and the network it belongs to.
  *
