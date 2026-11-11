@@ -17,11 +17,10 @@ import { useAppNetwork } from './useAppNetwork';
  * is about to sign (`PracticeNote`), not in a band that is read for a day and
  * then not at all.
  *
- * `md:ml-56` fixes a real defect: the rail is `fixed` with no z-index, so a
- * full-width strip paints over the top of the rail's brand block on every desktop
- * screen. This has to be a MARGIN, not padding: `pl-56` moves the words and
- * leaves the black background spanning the whole viewport, which is the clip it
- * was meant to fix.
+ * `md:ml-56` is gone with the rail (#542): that margin existed only so the strip did not paint
+ * over the rail's brand block, and there is no rail to paint over. A margin, not padding, was the
+ * fix when it was needed: `pl-56` moved the words and left the black background spanning the whole
+ * viewport, which is the clip it was meant to fix.
  *
  * `py-1` and a `text-body-sm` strut are what make it one line of chrome rather
  * than a banner: 29px measured, and the strip is no longer 8px taller than the
@@ -41,7 +40,7 @@ export function PracticeFrame() {
   return (
     <div
       role="status"
-      className="sticky top-0 z-40 border-b border-hairline-dark bg-canvas-dark py-1 text-center text-body-sm md:ml-56"
+      className="sticky top-0 z-40 border-b border-hairline-dark bg-canvas-dark py-1 text-center text-body-sm"
     >
       <Text
         variant="micro"

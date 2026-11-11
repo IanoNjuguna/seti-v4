@@ -17,9 +17,9 @@ import type { UseRailIdentityReturn } from './RailIdentity.types';
  *
  * Three states, and they are not interchangeable:
  *
- *  - **signed out** — `signedIn: false`, and the card is the app's sign-in
- *    affordance. This hook is not even mounted for that visitor
- *    (`RailIdentityCard` renders `RailIdentitySignedOut` instead), so the account
+ *  - **signed out** — `signedIn: false`, and the dock's sign-in control is the
+ *    app's affordance. This hook is not even mounted for that visitor
+ *    (`DockSignIn` renders the `/signin` link instead, #542), so the account
  *    identity behind it is never consulted for handles that cannot exist;
  *  - **signed in, names unknown** — the label only. Reachable for one frame at
  *    most inside the shell, but a claim link offered on a guess would be a link to

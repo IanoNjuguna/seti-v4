@@ -30,13 +30,19 @@ export interface BrandMarkProps {
 }
 
 /**
- * The lockup, for the two places that used to draw the mark and type its word beside it.
+ * The lockup, for the chrome surfaces that identify the product.
  *
  * Unlike `BrandMark` it carries a name by default: the image IS the product's name, so
  * there is no separate wordmark to carry it, and an unlabelled link here would be a link
  * with no accessible name.
+ *
+ * `expression` defaults to `friendly` because every surface that draws the lockup IS chrome
+ * (#542). Nothing in the product calls this with `neutral`; documents draw `BrandMark`
+ * instead, and pass `neutral` explicitly.
  */
 export interface BrandLockupProps {
+  /** Which face. Defaults to `friendly`: every lockup surface is chrome (#542). */
+  expression?: BrandExpression;
   /** Sizes it: pass a height, the asset's own ratio gives the width. */
   className?: string;
   /** The accessible name. Defaults to the product's. */

@@ -19,10 +19,9 @@
  */
 export const SIGN_IN_HANDOFF_COPY = {
   /**
-   * The rail spells this inline (`AppRail.tsx`); one brand constant shared by
-   * both would be the neat fix and belongs to the chrome, not to this pass.
+   * The wordmark is on the supplied lockup now (#542), so there is no string to keep here: the
+   * `wordmark` entry lived to spell 'Seti' beside a `BrandMark` in a chrome that no longer exists.
    */
-  wordmark: 'Seti',
   line: 'You are signed in',
 } as const;
 
