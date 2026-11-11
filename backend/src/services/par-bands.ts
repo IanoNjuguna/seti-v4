@@ -40,6 +40,15 @@ export const MEASURED_REVERSE_ON = '2026-11-03';
 export const MEASURED_USDT0_SIDE_ON = '2026-11-10';
 
 /**
+ * The date the USDC.e side of both native books was measured, after it widened off par (#565).
+ *
+ * Its own constant for the reason the USDT0 one has one: the pair edges and the reverse rows
+ * taken before this date are still what their own sides are held to, and re-dating them would
+ * claim they were measured again. They were not.
+ */
+export const MEASURED_USDC_E_SIDE_ON = '2026-11-11';
+
+/**
  * Spread against par, in basis points, keyed `'a↔b'` for a pair measurement and
  * `'a→b'` for one direction of it.
  *
@@ -65,6 +74,16 @@ export const PAR_BAND_BPS: Readonly<Record<Network, Readonly<Record<string, numb
     // 14.00 on the same day, while `pathusd→usdt0` reads -8. One token, two books, the same
     // sell side (#525).
     'usdt0→pathusd': 14,
+    // The USDC.e side of both native books, measured on MEASURED_USDC_E_SIDE_ON: two
+    // readings forty minutes apart, agreeing to the basis point (#565). Both sell
+    // sides read 5.00 while the buy sides sat at 0.00 and 1.00 on the same book, and
+    // exactly 5.00 twice is a resting offer a few basis points above par rather than a book
+    // drifting: nothing in this repository prices a swap, the chain's own
+    // `quoteSwapExactAmountIn` does, and the only number applied to its answer is the 50bps
+    // tolerance behind `minAmountOut`. The pair rows stay where they are, because the side
+    // they were measured on still reads at par.
+    'usdc.e→ousd': 5,
+    'usdc.e→pathusd': 5,
   },
   testnet: {
     'ousd↔pathusd': 1,
