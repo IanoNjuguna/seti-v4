@@ -15,7 +15,7 @@ import { clearStoredSession, persistSession } from './auth.storage';
 import { usePrivyEmailSignIn } from './privy-email-sign-in';
 import { bootstrapStoredSession } from './session-bootstrap';
 import { SIGN_IN_FAILED_TITLE, SESSION_UNREACHABLE } from './session-problem.constants';
-import { devSignIn, privySignIn } from './session';
+import { devSignIn, fetchCurrentUser, privySignIn } from './session';
 import { clearInviteCode } from '@/lib/invite/invite.client';
 import type {
   AuthStatus,
@@ -398,6 +398,32 @@ export function SessionProvider({
     setState({ status: 'anonymous', error: null });
   }, []);
 
+  /**
+   * Re-read the caller and adopt the answer (#536).
+   *
+   * A display name is saved by one screen and printed by another, and the copy the profile page
+   * prints is the SESSION's — so a name that saves and does not appear is a failure the write
+   * endpoint cannot fix on its own. This asks `GET /auth/me` with the token the session already
+   * holds, persists the answer, and only then replaces the state.
+   *
+   * A failure is SWALLOWED on purpose: the session is about who may move money, and a profile
+   * name failing to refresh is not a reason to end it. The write itself still failed loudly on
+   * the screen that called this.
+   */
+  const refreshUser = useCallback(async () => {
+    if (state.status !== 'signed-in') return;
+
+    const { token } = state;
+
+    try {
+      const user = await fetchCurrentUser();
+      persistSession({ user, token });
+      setState({ status: 'signed-in', user, token });
+    } catch {
+      // Left as it was, deliberately. See above.
+    }
+  }, [state]);
+
   const value = useMemo<SessionValue>(() => {
     const status: AuthStatus = state.status;
 
@@ -413,6 +439,7 @@ export function SessionProvider({
       signIn,
       submitSignInCode,
       signOut,
+      refreshUser,
     };
   }, [
     state,
@@ -422,6 +449,7 @@ export function SessionProvider({
     signIn,
     submitSignInCode,
     signOut,
+    refreshUser,
   ]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

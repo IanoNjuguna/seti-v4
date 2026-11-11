@@ -39,6 +39,7 @@ import {
   type Network,
 } from '../lib/network.js';
 import { getActiveWallet } from './wallet-registry.js';
+import { logAuditEvent } from './audit.js';
 
 /**
  * The mode an account acts as: `personal` or `business`.
@@ -297,4 +298,36 @@ export async function setAccountIntent(
 ): Promise<AccountIdentity> {
   await prisma.user.update({ where: { id: userId }, data: { intent } });
   return getAccountIdentity(userId);
+}
+
+/**
+ * Set the display name, and nothing else.
+ *
+ * ONE name, not a first and a last: `firstName` holds the whole string and `lastName` is
+ * cleared, because the product asks for one "Your name" and splitting it on the last space is
+ * a guess that fails on names with three parts or one. The two columns stay because the
+ * session payload and the older rows already speak in them; the surface does not.
+ *
+ * The handle is untouched here on purpose: a Seti name is signed, it is what people pay by,
+ * and it is immutable. Nothing in this function can reach it.
+ */
+export async function setAccountName(input: {
+  userId: string;
+  name: string;
+  ip?: string;
+}): Promise<{ id: string; email: string | null; firstName: string | null; lastName: string | null; phone: string | null }> {
+  const updated = await prisma.user.update({
+    where: { id: input.userId },
+    data: { firstName: input.name, lastName: null },
+    select: { id: true, email: true, firstName: true, lastName: true, phone: true },
+  });
+
+  await logAuditEvent({
+    userId: input.userId,
+    action: 'profile.name.updated',
+    ip: input.ip,
+    metadata: { name: input.name },
+  });
+
+  return updated;
 }
