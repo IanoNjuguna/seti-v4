@@ -50,13 +50,6 @@ export function SignInEntryForm({
           were the two blocks a visitor had to read before the first thing they could type. The
           page keeps its name as a visually hidden `h1` in `SignInPanel`. */}
 
-      {/* Above the controls, so the reason and the thing to press are adjacent. */}
-      {error ? (
-        <div className="mt-6">
-          <SignInFailure error={error} />
-        </div>
-      ) : null}
-
       <div className="mt-6 flex flex-col gap-5">
         <TermsAcceptance tone="dark" checked={accepted} onChange={onAcceptChange} />
 
@@ -76,6 +69,11 @@ export function SignInEntryForm({
             value={address}
             onChange={(event) => onAddressChange(event.target.value)}
           />
+
+          {/* The failure sits DIRECTLY above the control it explains (#567): the reason and the
+              retry are one glance apart, which is what `SignInFailure`'s own comment always
+              promised and what its old position — above the consent and the field — broke. */}
+          {error ? <SignInFailure error={error} /> : null}
 
           <Button type="submit" variant="on-dark" fullWidth loading={sending} disabled={!accepted}>
             {SIGN_IN_COPY.submit}

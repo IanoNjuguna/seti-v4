@@ -55,12 +55,6 @@ export function SignInSentPanel({
         {SIGN_IN_SENT_COPY.sentTo} <span className="text-on-dark">{address}</span>
       </p>
 
-      {error ? (
-        <div className="mt-6">
-          <SignInFailure error={error} />
-        </div>
-      ) : null}
-
       <form onSubmit={onSubmit} noValidate className="mt-7 flex flex-col gap-6">
         <CodeCells
           code={code}
@@ -69,6 +63,8 @@ export function SignInSentPanel({
           onCodeChange={onCodeChange}
           onComplete={onCodeComplete}
         />
+        {/* Above the control it explains, the same rule the entry stage follows (#567). */}
+        {error ? <SignInFailure error={error} /> : null}
         <Button type="submit" variant="on-dark" fullWidth loading={verifying} disabled={!complete}>
           {SIGN_IN_SENT_COPY.submit}
         </Button>
