@@ -43,11 +43,15 @@ export function ReceiveNameHalf({ handle, link }: ReceiveNameHalfProps) {
   return (
     <ReceiveHalf
       plate={<QrPlate value={link} title={RECEIVE_COPY.qrTitle(handle)} />}
-      headline={`@${handle}`}
-      copy={{
-        value: handle,
-        label: RECEIVE_COPY.copyLabel,
-        confirmed: RECEIVE_COPY.copyConfirmed,
+      name={{
+        label: RECEIVE_COPY.usernameLabel,
+        value: `@${handle}`,
+        copy: {
+          value: handle,
+          label: RECEIVE_COPY.copyLabel,
+          confirmed: RECEIVE_COPY.copyConfirmed,
+          failed: RECEIVE_COPY.copyFailed,
+        },
       }}
       share={{ title: RECEIVE_COPY.qrTitle(handle), url: link }}
       download={<QrDownloadControl download={download} />}
