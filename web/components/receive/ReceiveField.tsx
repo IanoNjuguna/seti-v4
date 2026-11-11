@@ -37,6 +37,7 @@ export function ReceiveField({ label, value, copyLabel, copyFailed, copiedText }
         <IconButton
           name={copied ? 'check' : 'copy'}
           tone={copied ? 'confirmed' : 'default'}
+          well="none"
           label={copyLabel}
           onClick={copy}
           className="shrink-0"
