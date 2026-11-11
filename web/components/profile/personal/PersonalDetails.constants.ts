@@ -43,6 +43,14 @@ export const PERSONAL_COPY = {
   emailNote: 'This is how you sign in.',
   emailNone: 'Not added',
   phoneLabel: 'Phone',
-  phoneNote: 'Set by the number you sign in with.',
+  /**
+   * NO NOTE, on purpose.
+   *
+   * It used to say "Set by the number you sign in with", and sign-in is email only: nothing
+   * sets this, so the sentence explained a mechanism that does not exist (#548). A row that
+   * carries a value and no sentence is honest; a sentence describing a flow we do not have is
+   * the kind of claim this product cannot make. When a number can arrive — a phone login
+   * method, or a verified number for a payout leg — this row gets a note that is true.
+   */
   phoneNone: 'Not added',
 } as const;

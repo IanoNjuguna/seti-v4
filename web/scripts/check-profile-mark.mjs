@@ -48,9 +48,26 @@ const csp = read('lib/security-headers.ts');
 console.log('the face\n');
 check('the mark draws the brand mark', /<BrandMark\b/.test(mark));
 check('and it is the friendly face', /expression="friendly"/.test(mark));
-check('on the light canvas, which the neutral well allows', /canvas="light"/.test(mark));
-check('in the neutral well, never a tone', /MARK_WELL_CLASS/.test(mark) && /bg-surface-soft/.test(constants));
+check('its colourway comes from the pairing constant', /canvas=\{MARK_CANVAS\}/.test(mark));
+check('the well is applied from the constants, not typed at the call site', /MARK_WELL_CLASS/.test(mark));
 check('the glyph is set per size, not scaled from the box', /MARK_GLYPH_CLASS\[size\]/.test(mark));
+
+// --- fitted to its well -----------------------------------------------------
+console.log('\nfitted to its well\n');
+const { MARK_WELL_CLASS, MARK_CANVAS } = await import('../components/ui/Mark.constants.ts');
+check('the face sits in the dark medallion', MARK_WELL_CLASS === 'bg-canvas-dark', MARK_WELL_CLASS);
+check('and is the colourway drawn for it', MARK_CANVAS === 'dark', MARK_CANVAS);
+check(
+  'the cream colourway is not the one in the well',
+  MARK_CANVAS !== 'light' && MARK_WELL_CLASS !== 'bg-surface-soft',
+  `${MARK_CANVAS} on ${MARK_WELL_CLASS}`
+);
+check('the well is not a tone', !/bg-(primary|charcoal|accent)/.test(MARK_WELL_CLASS));
+check(
+  'the measurement is recorded next to the pairing',
+  /20\.3:1/.test(constants) && /1\.3:1/.test(constants),
+  'the contrast figures are not in Mark.constants'
+);
 
 // --- it is local ------------------------------------------------------------
 console.log('\nand it is drawn locally\n');
