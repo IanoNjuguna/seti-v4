@@ -34,7 +34,28 @@ export function ReceiveScreen() {
   const { state } = useReceiveView(requested);
 
   if (state.status === 'loading') return <ReceiveLoading />;
-  if (state.status === 'signed-out') return <SignInCard error={state.error} />;
+
+  /*
+   * A visitor gets the page's FRAME and then the ask (#562).
+   *
+   * This branch used to return `SignInCard` bare, so `/app/receive` signed out had no title and
+   * no back control: the one screen a visitor could reach with no way back and nothing naming it,
+   * on a route that signed in opens with both. Swap, Activity and every other visitor state keep
+   * their frame and put the prompt inside it; this one now does too.
+   *
+   * The frame is `start`-aligned rather than the centred treatment the resolved states use. The
+   * centred column belongs to the OBJECT — a name and a code to hold up — and a visitor has no
+   * object, so there is nothing to centre; what is left is a title, a sentence and a button, which
+   * is the shape every other visitor page already has.
+   */
+  if (state.status === 'signed-out') {
+    return (
+      <div className="flex flex-col gap-4">
+        <PageHeader title={RECEIVE_PAGE_COPY.title} />
+        <SignInCard error={state.error} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center gap-4 text-center">
