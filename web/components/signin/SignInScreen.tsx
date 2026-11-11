@@ -31,7 +31,9 @@ export function SignInScreen() {
 
   if (screen.stage === 'signed-in') return <SignInHandoff />;
 
-  return <SignInPanel>{body(screen)}</SignInPanel>;
+  return (
+    <SignInPanel showMark={screen.stage !== 'restoring'}>{body(screen)}</SignInPanel>
+  );
 }
 
 /** A named function rather than a nested ternary in JSX, so the branches read. */

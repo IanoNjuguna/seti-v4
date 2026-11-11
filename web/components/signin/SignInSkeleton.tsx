@@ -1,53 +1,30 @@
-import { InfinityTrack } from '@/components/ui';
+import { CometSpinner } from '@/components/ui';
 import { SIGN_IN_COPY } from './SignInScreen.constants';
 
 /**
- * The sign-in page while the session works out whether anyone is signed in.
+ * The sign-in page while the session works out whether anyone is signed in (#567).
  *
- * It used to be one grey sentence inside the panel, which meant the front door's only
- * above-the-fold content for a second or two was the word "One moment…" on an empty
- * black field. That reads as a page that failed to load, not a page loading: the shape of
- * what is coming was missing, which is the whole job of a skeleton.
+ * ## What it was, and why it is one spinner now
  *
- * ## Two indicators, two different claims
+ * It was a block skeleton — two heading bars, a lede, a field, the consent, the button — under an
+ * infinity track, left-aligned inside a column that was left-aligned because the page was a split.
+ * With the page centred, that shape was the only thing on the screen still hanging from an edge, and
+ * it was a skeleton of a form that no longer has a heading to stand in for.
  *
- * The blocks below are the SHAPE of the entry form — a two-line heading at `heading-lg`,
- * the lede, a label, a field, the consent and the button — measured from the real form,
- * so nothing moves when it arrives. The track above them is the other claim: that work is
- * running and its length is unknown. A skeleton alone can be a still image of a page that
- * never comes, which is why the one wait on this page now has both.
+ * A wait this short does not need the shape of the page that is coming; it needs something that is
+ * obviously working. So it is the comet: centred, on its own, with no copy above it — the mark is
+ * hidden for this stage too (`SignInPanel`'s `showMark`), because a product's face over a wait that
+ * has not yet found out who is here greets nobody.
  *
- * The words stay for assistive tech and are hidden visually: the track is a `status`, so
- * a screen reader is told "One moment…" while a sighted visitor sees the page assembling.
+ * `aria-busy` on the container and the panel's own words for assistive tech: the spinner announces
+ * "Loading" through its own `status`, and the sentence the app uses everywhere is kept here rather
+ * than dropped, so the wait is described twice on purpose — once by the shape, once by the words.
  */
 export function SignInSkeleton() {
   return (
-    <div className="flex flex-col" aria-busy="true">
-      <InfinityTrack canvas="dark" size="md" label={SIGN_IN_COPY.restoring} className="text-on-dark-mute" />
-
-      {/* The heading: two lines, at the size the entry form's one heading uses. */}
-      <div aria-hidden className="mt-8 flex flex-col gap-3">
-        <span className="block h-8 w-11/12 rounded-sm bg-surface-elevated" />
-        <span className="block h-8 w-1/2 rounded-sm bg-surface-elevated" />
-      </div>
-
-      {/* The lede, one step down. */}
-      <span aria-hidden className="mt-4 block h-4 w-3/5 rounded-sm bg-surface-elevated" />
-
-      {/* The field's label, then the field, at the height the real one occupies. */}
-      <span aria-hidden className="mt-8 block h-3 w-14 rounded-sm bg-surface-elevated" />
-      <span
-        aria-hidden
-        className="mt-2 block h-14 w-full rounded-md border border-hairline-dark bg-surface-deep"
-      />
-
-      {/* The consent: two lines, then the hint under it. */}
-      <span aria-hidden className="mt-5 block h-4 w-full rounded-sm bg-surface-elevated" />
-      <span aria-hidden className="mt-2 block h-4 w-2/3 rounded-sm bg-surface-elevated" />
-      <span aria-hidden className="mt-3 block h-3 w-1/2 rounded-sm bg-surface-elevated" />
-
-      {/* The button. */}
-      <span aria-hidden className="mt-6 block h-12 w-full rounded-md bg-surface-elevated" />
+    <div className="flex flex-col items-center gap-8" aria-busy="true">
+      <CometSpinner className="h-16 w-16 text-on-dark" />
+      <span className="sr-only">{SIGN_IN_COPY.restoring}</span>
     </div>
   );
 }
