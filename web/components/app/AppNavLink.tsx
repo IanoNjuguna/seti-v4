@@ -16,7 +16,16 @@ import type { AppNavLinkProps } from './AppNavLink.types';
  * indicator: the whole well fills, so the selected destination is a filled square with rounded
  * corners rather than a brighter glyph. The well is drawn around the ITEM rather than around the
  * glyph alone, which is the one geometric difference from the old bottom bar — in a dock the item
- * is the tap target, and its 8px radius is what makes the row read as "square with round edges".
+ * is the tap target, and `rounded-md` (12px) is what makes the row read as "square with round
+ * edges".
+ *
+ * `rounded-md`, not `rounded-lg` (#559). The project's radius scale is `sm` 8px, `md` 12px, `lg`
+ * 20px, `xl` 28px, so `lg` on a 44px-tall well rendered a 20px radius: a capsule 24px from being a
+ * pill, and ROUNDER than the 14px dock slab it sits inside. That inverted the shape the dock's own
+ * comment asks for in as many words ("square with round edges, not round with square edges"), and
+ * nothing caught it because the check asserted the class name `rounded-lg` while its comment claimed
+ * 8px. The system's one control radius is 12px (`design/revolut.md`: buttons, cards, inputs), and a
+ * filled well is a control.
  *
  * A tap is answered on the way there, not after: `active:bg-surface-elevated` fills the well while
  * the finger is down, so the destination lights up on the press rather than on the route change.
@@ -39,7 +48,7 @@ export function AppNavLink({ item, active }: AppNavLinkProps) {
       href={item.href}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'flex h-11 flex-1 flex-col items-center justify-center gap-1 rounded-lg px-1.5 transition-colors duration-(--duration-quick) ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+        'flex h-11 flex-1 flex-col items-center justify-center gap-1 rounded-md px-1.5 transition-colors duration-(--duration-quick) ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
         active
           ? 'bg-surface-elevated text-on-dark'
           : 'text-on-dark-mute hover:bg-surface-deep active:bg-surface-elevated'
