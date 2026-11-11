@@ -10,10 +10,15 @@ import type { SignInEntryFormProps } from './SignInScreen.types';
 /**
  * The front door: the one instruction, the consent, one field and one button.
  *
- * The type is the landing page's own — `font-brand` at `heading-lg` stepping to
- * `display-md` with the lede at `body-lg` in `on-dark-mute`, exactly the hero's pair.
- * The display line is raw markup rather than `Text` because the system's display sizes
- * have no `Text` variant; `HeroCopy` and `ClosingSection` do the same.
+ * ## The heading stepped down to the app's own size
+ *
+ * It was `display-md` (40px) stepping up from `heading-lg`, which is the landing page's
+ * marketing scale — a 40px line inside a 384px column is a hero trying to fit a form.
+ * The reference this page now follows sets its instruction near 30px with the supporting
+ * line at 16, and that ratio is what makes an instruction read as an instruction rather
+ * than as an advertisement. So the page uses `heading-lg` (32px) and `body-md` (16px):
+ * both are system tokens, both are the tokens the reference's proportions land on, and
+ * nothing new was invented for one screen.
  *
  * ## The consent sits above the form
  *
@@ -41,7 +46,7 @@ export function SignInEntryForm({
   return (
     <div className="flex flex-col">
       {/*
-        * `text-balance`: at 40px in a 384px column this instruction wrapped as
+        * `text-balance`: this instruction wraps, and at the heading size it wrapped as
         * "Sign in with your / email.", a six-glyph last line — a rag that reads as a
         * mistake on the page's only heading. Balancing gives two near-equal lines with
         * the copy, the size and the column untouched.
@@ -50,10 +55,12 @@ export function SignInEntryForm({
         * `text-wrap: balance` ignores the declaration and wraps exactly as it does
         * today, which is why this is safe on the front door.
         */}
-      <h1 className="text-balance font-brand text-heading-lg font-medium text-on-dark sm:text-display-md">
+      {/* One heading at the size the code screen's heading will be, so the two steps of
+          the flow do not change scale when the page changes job. */}
+      <h1 className="text-balance font-brand text-heading-lg font-medium text-on-dark">
         {SIGN_IN_COPY.title}
       </h1>
-      <p className="mt-5 text-body-lg text-on-dark-mute">{SIGN_IN_COPY.lede}</p>
+      <p className="mt-3 text-body-md text-on-dark-mute">{SIGN_IN_COPY.lede}</p>
 
       {/* Above the controls, so the reason and the thing to press are adjacent. */}
       {error ? (

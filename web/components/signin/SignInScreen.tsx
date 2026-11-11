@@ -60,6 +60,7 @@ function body(screen: UseSignInScreenReturn): ReactNode {
           resending={screen.sending}
           verifying={screen.verifying}
           onCodeChange={screen.onCodeChange}
+          onCodeComplete={screen.onCodeComplete}
           onSubmit={screen.onSubmitCode}
           onResend={screen.onResend}
           onUseAnotherAddress={screen.onUseAnotherAddress}
