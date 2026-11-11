@@ -27,12 +27,14 @@ export const SIGN_IN_COPY = {
   /**
    * The page's heading: the QUESTION the field answers (#567).
    *
-   * It is `Linear`'s own words for this screen, and the reference set is unanimous that the title
-   * is a question or an instruction rather than the route's name: `What is your Email Address?`,
-   * `Sign up with email.`, `Enter your email address to continue`. `Sign in` said nothing the field
-   * did not; this says what to type.
+   * It is `Linear`'s question, shortened (#567 follow-up). The reference set is unanimous that the
+   * title is a question or an instruction rather than the route's name, and `What’s your email
+   * address?` is Linear's own sentence — but at `heading-lg` (32px) in a 342px column it measures
+   * 448px and wraps to two lines, ending on the one short word `email`. `What’s your email?` measures
+   * 309px: one line, same size, same column, and the field below is still labelled Email, so nothing
+   * is lost by dropping `address`. Measured with the heading's own font, not estimated.
    */
-  pageTitle: 'What’s your email address?',
+  pageTitle: 'What’s your email?',
   emailLabel: 'Email',
   submit: 'Continue',
 } as const;
