@@ -20,11 +20,29 @@
  * both networks, so it works whoever sends it and whenever.
  */
 export const RECEIVE_COPY = {
-  /** The round control's accessible name. The glyph alone announces nothing. */
+  /**
+   * The row labels (#549). The page shows one of two strings and, until these existed,
+   * nothing on it said which. The switch above names the choice; these name the VALUE,
+   * which is what a reader arriving mid-page needs, and they are the same words the
+   * switch uses so the two cannot drift.
+   */
+  usernameLabel: 'Username',
+  merchantNameLabel: 'Merchant name',
+  /** The bare control's accessible name. The glyph alone announces nothing. */
   copyLabel: 'Copy your username',
   /** The announcement once the handle is on the clipboard. */
   copyConfirmed: 'Username copied.',
   copyFailed: 'Could not copy. Select your username above and copy it.',
+
+  /**
+   * The merchant half's copy control (#549). It writes the HANDLE, not the business name:
+   * the name is what the customer reads and the handle is what the code, the link and the
+   * saved file are built from. The row prints both, so the control copies something the
+   * reader can see.
+   */
+  merchantCopyLabel: 'Copy your merchant username',
+  merchantCopyConfirmed: 'Merchant username copied.',
+  merchantCopyFailed: 'Could not copy. Select your merchant username above and copy it.',
 
   /**
    * The address block (#419).
