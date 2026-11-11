@@ -34,6 +34,14 @@ export interface SignInStageInput {
 
 export interface SignInPanelProps {
   children: ReactNode;
+  /**
+   * Whether the panel draws the product mark above its children (#567).
+   *
+   * False for the loading stage. The mark is the page's greeting, and a greeting over a spinner
+   * that is waiting to find out WHO is here greets nobody: it was the alien above an empty column
+   * that made the one frame the page shows while assembling look broken.
+   */
+  showMark?: boolean;
 }
 
 export interface SignInEntryFormProps {

@@ -1,59 +1,61 @@
-import { BrandMark, Text } from '@/components/ui';
+import { BrandMark } from '@/components/ui';
 import { SIGN_IN_COPY } from './SignInScreen.constants';
-import { SignInAmbientPanel } from './SignInAmbientPanel';
 import type { SignInPanelProps } from './SignInScreen.types';
 
 /**
- * The front door as a SPLIT: the column you work in, and the panel that shows you what
- * you are signing in for.
+ * The front door: ONE centred column on a grainy dark field (#567).
  *
- * ## Two columns, one of which disappears
+ * ## What the split was, and why it is gone
  *
- * At `lg` and up the page is half form, half ambient panel. Below it, the panel is gone
- * and what is left is exactly the page that was here before: one column, the mark, the
- * heading, the doors. That is not a compromise, it is the phone design — on a narrow
- * screen the column IS the page, and a decorative half above it would push the one
- * instruction below the fold.
+ * The page was two halves — the form, and a decorative panel holding a mock payment receipt in a
+ * gradient field. The argument for it was that a visitor should see what they were signing in for.
+ * The argument against it won: the receipt is a picture of a payment that has not happened, it spent
+ * half a desktop viewport saying nothing the landing page had not already said, and on a phone it did
+ * not exist at all — so the page had two shapes and the phone's (the real one) was the poorer.
  *
- * ## The column is centred, the block is not stretched
+ * ## Centred, and the measure is unchanged
  *
- * `justify-center` on the column puts the block on the optical centre of the viewport
- * rather than hanging it from the top with a dead field beneath. The mark, the form and
- * the footnote move as one block, which is the nudge the first draft needed: the legal
- * line used to be pinned to the bottom of the page with 200px of nothing between it and
- * the button.
+ * One block on the optical centre of the viewport — mark, form, and nothing under them. `max-w-sm`
+ * (384px) is still the form's measure: centring a column does not widen it, and a form stretched to a
+ * 1440px viewport is a form nobody can read.
  *
- * ## The mark is back on the column's LEFT edge
+ * ## The grain is the page's, not a panel's
  *
- * It was centred over this column while the column was the whole page. In a split it
- * starts the column the way the heading continues it, so the whole left half shares one
- * vertical edge — the same argument that put the landing page's hero on its own edge,
- * and the reason a centred emblem over flush-left type reads as two compositions.
+ * `.grain-layer` is the landing page's own page-level texture (fixed, `inset: 0`, `z-100`,
+ * `pointer-events: none`). It was deliberately NOT used before, because the ambient panel wanted the
+ * field inside an edge and the form column had to stay plain. With one column there is no division to
+ * respect, so the whole page wears the product's field: the front door and the landing page are one
+ * surface, which is what the split was arguing about in the first place.
  *
- * `max-w-sm` (384px) still sets the form's measure: the column is now half the viewport,
- * the form inside it is not. The mark is `h-10`: a masthead over a 44px headline, not
- * the loudest object on the page, and `w-auto` derives the width from the square asset
- * so the class cannot disagree with the file.
+ * ## The footnote is gone, and the mark waits
+ *
+ * `footnote` said "Seti is not a bank. Your money is held in stablecoins you control." — the fact the
+ * consent sentence already states, on a page that had just been asked to say less. It lives in
+ * `TermsAcceptance` now, once, in the sentence the customer actually agrees to. The mark is hidden
+ * for the loading stage (`showMark`): a greeting has nothing to greet while the page does not yet
+ * know who is here.
  */
-export function SignInPanel({ children }: SignInPanelProps) {
+export function SignInPanel({ children, showMark = true }: SignInPanelProps) {
   return (
-    <div className="grid w-full grid-cols-1 lg:grid-cols-2">
-      <div className="flex flex-col justify-center px-6 py-14 sm:px-10 lg:px-14 xl:px-24">
-        <div className="mx-auto w-full max-w-sm lg:mx-0">
+    <div className="relative flex w-full flex-1 items-center justify-center px-6 py-14">
+      <div aria-hidden className="grain-layer" />
+
+      <div className="relative w-full max-w-sm">
+        {/* The page's only heading, and it is for the document rather than the eye: the visible
+            "Sign in with your email." was the route's own name above a field labelled Email. */}
+        <h1 className="sr-only">{SIGN_IN_COPY.pageTitle}</h1>
+
+        {showMark ? (
           <BrandMark
             expression="friendly"
             canvas="dark"
             preload
-            className="entrance block h-10 w-auto"
+            className="entrance mx-auto block h-10 w-auto"
           />
-          <div className="entrance entrance-2 mt-10">{children}</div>
-          <Text as="p" variant="micro" color="inverse-muted" className="entrance mt-14 opacity-60">
-            {SIGN_IN_COPY.footnote}
-          </Text>
-        </div>
-      </div>
+        ) : null}
 
-      <SignInAmbientPanel />
+        <div className={showMark ? 'entrance entrance-2 mt-10' : 'entrance'}>{children}</div>
+      </div>
     </div>
   );
 }
