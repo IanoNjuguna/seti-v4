@@ -50,7 +50,8 @@ const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const shell = read('../components/app/AppShell.tsx');
 const dock = read('../components/app/AppDock.tsx');
 const link = read('../components/app/AppNavLink.tsx');
-const signIn = read('../components/app/DockSignIn.tsx');
+const topBar = read('../components/app/AppTopBar.tsx');
+const state = read('../components/app/TopBarState.tsx');
 const css = read('../app/globals.css');
 const practice = read('../components/app/PracticeFrame.tsx');
 
@@ -89,25 +90,45 @@ console.log('a rounded rectangle, not a pill:');
   check('and no pill radius', !dock.includes('rounded-full'));
   check('the wells have an 8px radius', link.includes('rounded-lg'));
   check('and are not circles', !link.includes('rounded-full'));
-  check('the well is the tap target', link.includes('h-11 min-w-11'));
+  check('the well is the tap target', link.includes('h-11 flex-1'));
 }
 
-console.log('the head is the friendly mark, and not a destination:');
+console.log('the head is in the header, not the dock:');
 {
-  check('the dock draws BrandMark', dock.includes('<BrandMark'));
-  check('with the friendly expression', dock.includes('expression="friendly"'));
-  check('on the dark colourway', dock.includes('canvas="dark"'));
-  check('at the glyphs\' own size', dock.includes('className="h-6"'));
-  check('and it is not a link to /app', !dock.includes('href="/app"'));
-  check('a hairline separates it from the destinations', dock.includes('bg-hairline-dark'));
+  check('the header draws BrandMark', topBar.includes('<BrandMark'));
+  check('with the friendly expression', topBar.includes('expression="friendly"'));
+  check('on the dark colourway', topBar.includes('canvas="dark"'));
+  check('larger than the glyphs it sits above', topBar.includes('className="h-7"'));
+  check('and it is not a link to /app', !topBar.includes('href="/app"'));
+
+  check('the dock carries no mark at all', !dock.includes('BrandMark'));
+  check('and no sign-in control', !dock.includes('SIGN_IN_PATH'));
+}
+
+console.log('the header and the dock are one system:');
+{
+  check('the shell mounts the header once', (shell.match(/<AppTopBar \/>/g) ?? []).length === 1);
+  check('both slabs cap at the same width', topBar.includes('max-w-[26rem]') && dock.includes('max-w-[26rem]'));
+  check('the header is a rounded slab too', topBar.includes('rounded-[14px]'));
+  check('with the chrome grain', topBar.includes('chrome-grain') && dock.includes('chrome-grain'));
+  check('and it is in the flow, not fixed', !/className="[^"]*\bfixed\b/.test(topBar));
+}
+
+console.log('the dock spreads its three destinations:');
+{
+  check('each item takes an equal share', link.includes('flex-1'));
+  check('the slab is full width up to its cap', dock.includes('w-full max-w-[26rem]'));
+  check('and no divider crowds them', !dock.includes('w-px'));
 }
 
 console.log('a signed-out visitor still has a door:');
 {
-  check('the dock renders the sign-in control', dock.includes('<DockSignIn />'));
-  check('which links to the front door', signIn.includes('SIGN_IN_PATH'));
-  check('and says nothing when signed in', signIn.includes("session.status === 'signed-in'") && signIn.includes('return null'));
-  check('and does not tell a restoring visitor to sign in', signIn.includes("session.status === 'restoring'"));
+  check('the header renders the state slot', topBar.includes('<TopBarState />'));
+  check('which links to the front door', state.includes('SIGN_IN_PATH'));
+  check('and says nothing when signed in and live', state.includes("session.status !== 'signed-in'") && state.includes('return null'));
+  check('and does not tell a restoring visitor to sign in', state.includes("session.status === 'restoring'"));
+  check('practice is stated there too, linking to where it is switched', state.includes('practice') && state.includes('/app/profile'));
+  check('both controls are a full touch target', (state.match(/h-11/g) ?? []).length >= 2);
 }
 
 console.log('the reserved space is the dock\'s own geometry:');
