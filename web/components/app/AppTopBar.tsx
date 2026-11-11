@@ -16,12 +16,18 @@ import { TopBarState } from './TopBarState';
  * is real. Two objects, each with one job, and the dock keeps three items and the air to spread
  * them.
  *
- * ## Its shape is the dock's shape
+ * ## Its shape is the dock's shape, its WIDTH is the content's
  *
- * Same material, same radius, same width, same axis: a rounded rectangle of `canvas-dark` with the
- * chrome grain and one hairline, capped at the same `max-w` as the dock and centred on the content
- * column. Fey draws its chrome as floating pills and Luma and Fabric as floating toolbars; the rule
- * this app keeps is that chrome is a slab with rounded corners, never a full-bleed band.
+ * Same material, same radius, same treatment as the dock: a rounded rectangle of `canvas-dark` with
+ * the chrome grain and one hairline. Fey draws its chrome as floating pills and Luma and Fabric as
+ * floating toolbars; the rule this app keeps is that chrome is a slab with rounded corners, never a
+ * full-bleed band.
+ *
+ * Below `md` it is the column's own width, minus the page's padding — a phone has one width to be.
+ * From `md` up it stops capping at the dock's `max-w` and spans the content column instead, so the
+ * masthead shares the balance card's left and right edges. A 416px pill floating above a 768px
+ * column, 176px in from its left edge, was a slab aligned to nothing; the dock stays the floating
+ * object because it has three items to float with.
  *
  * ## It is sticky, and it carries the practice state
  *
@@ -38,7 +44,7 @@ import { TopBarState } from './TopBarState';
  */
 export function AppTopBar() {
   return (
-    <header className="sticky top-2 z-20 mx-auto mb-6 flex h-14 w-full max-w-[26rem] items-center justify-between gap-3 overflow-hidden rounded-[14px] border border-hairline-dark bg-canvas-dark px-4 text-on-dark">
+    <header className="sticky top-2 z-20 mx-auto mb-6 flex h-14 w-full max-w-[26rem] md:max-w-none items-center justify-between gap-3 overflow-hidden rounded-[14px] border border-hairline-dark bg-canvas-dark px-4 text-on-dark">
       <BrandMark expression="friendly" canvas="dark" className="h-7" />
 
       <TopBarState />

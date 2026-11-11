@@ -107,7 +107,8 @@ console.log('the head is in the header, not the dock:');
 console.log('the header and the dock are one system:');
 {
   check('the shell mounts the header once', (shell.match(/<AppTopBar \/>/g) ?? []).length === 1);
-  check('both slabs cap at the same width', topBar.includes('max-w-[26rem]') && dock.includes('max-w-[26rem]'));
+  check('both slabs cap at the same width on a phone', topBar.includes('max-w-[26rem]') && dock.includes('max-w-[26rem]'));
+  check('and the header grows with the content column above sm', topBar.includes('md:max-w-none'));
   check('the header is a rounded slab too', topBar.includes('rounded-[14px]'));
   check('with the chrome grain', topBar.includes('chrome-grain') && dock.includes('chrome-grain'));
   check('it sticks, so the state it carries stays visible', /className="sticky [?a-z0-9:.-]*/.test(topBar));
@@ -125,7 +126,8 @@ console.log('a signed-out visitor still has a door:');
 {
   check('the header renders the state slot', topBar.includes('<TopBarState />'));
   check('which links to the front door', state.includes('SIGN_IN_PATH'));
-  check('signed in, the row is the account mark', state.includes('<Mark size="sm"'));
+  check('signed in, the row names the account by its handle', state.includes('@${handle}') && state.includes('href="/app/profile"'));
+  check('and draws no second product face', !state.includes('<Mark'));
   check('and it opens the profile', state.includes('href="/app/profile"'));
   check('never an empty right-hand slot', !state.includes('return null'));
   check('and does not tell a restoring visitor to sign in', state.includes("session.status === 'restoring'"));
