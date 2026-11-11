@@ -51,11 +51,24 @@ export function HomeAction({ action }: HomeActionProps) {
          * of content in 48px, so the word sat on the fill's edge. `h-14` overrides `h-12` on the
          * same property, and Tailwind emits the scale in order, so the larger step wins.
          *
+         * `px-1!` and the phone step are #562, and they are the same defect seen twice. The
+         * recipe's `px-7` is 28px a side, which is right for a text button and wrong for a tile:
+         * `cn()` JOINS, so the `px-2` this file asked for never beat it — the winner was decided
+         * by emission order, and the measured padding was 28/28. Four tiles then gave a 65px word
+         * (`Receive`) a content box of 4px at 320 and 21px at 390, so the label spilled past the
+         * tile's own edge and, at 320, the whole tile measured `scrollWidth 62 > clientWidth 60`.
+         * A trailing `!` is the only thing that beats an emitted utility, which is why it is here
+         * and not a second copy of the recipe.
+         *
+         * The `max-[399px]` basis is the other half: two per row below 400. Four 81px tiles is
+         * the smallest row that holds a 65px word with any air beside it, so 360 and 320 get a
+         * 2x2 instead of four cramped columns. From 400 up the row is unchanged.
+         *
          * `relative` is what the grain plate and the corner tag are positioned against. No
          * `overflow-hidden` here: the tag hangs above the tile's top edge, so the clipping has to
          * happen on the plate itself.
          */
-        'relative flex-1 flex-col gap-1 px-2 h-14'
+        'relative flex-1 flex-col gap-1 px-1! h-14 max-[399px]:basis-[calc(50%-0.375rem)]'
       )}
     >
       {action.variant === 'primary' ? (
