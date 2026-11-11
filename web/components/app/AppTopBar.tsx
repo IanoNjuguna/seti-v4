@@ -23,16 +23,22 @@ import { TopBarState } from './TopBarState';
  * column. Fey draws its chrome as floating pills and Luma and Fabric as floating toolbars; the rule
  * this app keeps is that chrome is a slab with rounded corners, never a full-bleed band.
  *
- * ## It is in the flow, not fixed
+ * ## It is sticky, and it carries the practice state
  *
- * Deliberately. The dock is the fixed control; a second fixed slab would sit under the practice
- * strip (`PracticeFrame` is sticky at the top) and give every screen two things to clear. This one
- * scrolls away with the page, which is also the honest hierarchy: you can always reach a place from
- * the dock, and the header is the page's own first row.
+ * The practice strip that used to sit above the content — a full-width sticky band reading
+ * `PRACTICE · <note>` — is gone (#542): the state now lives in this slab's right-hand slot, which is
+ * the same fact in the same place, and a strip plus a header would be two statements of it on every
+ * screen. That move is why this is `sticky`: the strip was always visible, so the signal it carried
+ * must stay always visible, and a header that scrolled away would have quietly weakened a money
+ * fact. The sentence the strip printed stays where the money is signed (`PracticeNote`), which is
+ * where the frame's own comment always said the loud moment belonged.
+ *
+ * The dock is the fixed control; this sticks, which keeps one object at each end of the column and
+ * nothing else floating over the page.
  */
 export function AppTopBar() {
   return (
-    <header className="relative mb-6 flex h-14 w-full max-w-[26rem] items-center justify-between gap-3 overflow-hidden rounded-[14px] border border-hairline-dark bg-canvas-dark px-4 text-on-dark">
+    <header className="sticky top-2 z-20 mx-auto mb-6 flex h-14 w-full max-w-[26rem] items-center justify-between gap-3 overflow-hidden rounded-[14px] border border-hairline-dark bg-canvas-dark px-4 text-on-dark">
       <BrandMark expression="friendly" canvas="dark" className="h-7" />
 
       <TopBarState />
