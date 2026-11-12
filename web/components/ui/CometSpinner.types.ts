@@ -11,6 +11,14 @@ export interface CometSpinnerProps extends ComponentProps<'span'> {
   headScale?: number;
   /** The orbit's radius, as a fraction of the box. Clamped to `0.3–1.1`. */
   radiusScale?: number;
+  /**
+   * What a screen reader hears. Defaults to `Loading` (#569).
+   *
+   * The comet is the app's only indeterminate wait now, so it sits on frames that know exactly what
+   * they are waiting for: the handoff into the app and the gate reading the account both named their
+   * wait before this existed, and both would have been flattened to one generic word.
+   */
+  label?: string;
 }
 
 /** The two CSS variables the keyframes read. Set on the box, read by the shadow track. */

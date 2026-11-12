@@ -26,14 +26,19 @@ import type { CometSpinnerProps, CometSpinnerVars } from './CometSpinner.types';
  * `headScale` and `radiusScale` are clamped rather than trusted: a caller passing `0` would collapse
  * the trail into nothing and read as a stalled spinner.
  *
- * `role="status"` and an sr-only label, so a screen reader hears "Loading" once; the visual is
- * `aria-hidden`.
+ * `role="status"` and an sr-only label, so a screen reader hears the wait once; the visual is
+ * `aria-hidden`. The label is a prop because the comet is the app's ONE indeterminate wait now
+ * (#569): a frame that knows what it is waiting for says so instead of announcing "Loading".
+ *
+ * Under `prefers-reduced-motion` the animation is paused rather than removed — the collapsed trail
+ * is a full circle, and it is the only thing this component draws.
  */
 export function CometSpinner({
   className,
   style,
   headScale = COMET_SPINNER_DEFAULT_HEAD_SCALE,
   radiusScale = COMET_SPINNER_DEFAULT_RADIUS_SCALE,
+  label = COMET_SPINNER_LABEL,
   ...props
 }: CometSpinnerProps) {
   const [headMin, headMax] = COMET_SPINNER_HEAD_SCALE_RANGE;
@@ -53,20 +58,20 @@ export function CometSpinner({
       <style>{COMET_SPINNER_KEYFRAMES}</style>
       <span
         role="status"
-        aria-label={COMET_SPINNER_LABEL}
+        aria-label={label}
         className={cn('relative inline-flex aspect-square items-center justify-center align-middle', className)}
         style={cometStyle}
         {...props}
       >
         <span
           aria-hidden
-          className="absolute inset-0 rounded-full"
+          className="seti-comet-tail absolute inset-0 rounded-full"
           style={{
             animation: `${COMET_SPINNER_SHADOW_ANIMATION} ${COMET_SPINNER_DURATION} infinite ease, ${COMET_SPINNER_ROTATION_ANIMATION} ${COMET_SPINNER_DURATION} infinite ease`,
             transform: 'translateZ(0)',
           }}
         />
-        <span className="sr-only">{COMET_SPINNER_LABEL}</span>
+        <span className="sr-only">{label}</span>
       </span>
     </>
   );

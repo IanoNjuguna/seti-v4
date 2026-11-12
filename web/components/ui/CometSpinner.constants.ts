@@ -95,6 +95,20 @@ export const COMET_SPINNER_KEYFRAMES = `
     transform: rotate(360deg);
   }
 }
+
+/*
+ * Reduced motion keeps the MARK and drops the travel (#569).
+ *
+ * The comet's only ink is the box-shadow this animation writes, so removing the animation outright
+ * would paint nothing at all: an invisible spinner on the two frames a customer meets when the app is
+ * slow. Pausing instead holds the 0% frame, the trail collapsed behind the head, which is a full
+ * circle and reads as a mark rather than as a stall.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .seti-comet-tail {
+    animation-play-state: paused !important;
+  }
+}
 `;
 
 /** The dials' defaults and their legal range, in the order the reference clamps them. */
