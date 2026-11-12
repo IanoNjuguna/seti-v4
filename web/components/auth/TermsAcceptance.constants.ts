@@ -38,8 +38,13 @@ export const TERMS_LINK_LABEL = 'Terms of Use';
  * money" — which the front door had also printed as a footnote below the form. One page, one place:
  * the fact stays here, in the sentence a customer actually agrees to, and the footnote it duplicated
  * is gone.
+ *
+ * Which means this clause is the disclosure, not decoration. The footnote was the duplicate; the
+ * consent sentence is the survivor, and a pass that shortens the sentence to a full stop deletes the
+ * one place a person is told where their money is before they hand it over. `check:save-copy` asserts
+ * this clause is still here for exactly that reason (#531).
  */
-export const TERMS_LABEL_SUFFIX = '.';
+export const TERMS_LABEL_SUFFIX = ', and I understand that Seti never holds my money.';
 
 /**
  * Shown, and only shown, while the box is unticked. It names the cause of the
