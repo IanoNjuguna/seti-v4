@@ -1,6 +1,6 @@
 'use client';
 
-import { BrandLockup, InfinityTrack, Text } from '@/components/ui';
+import { BrandLockup, CometSpinner, Text } from '@/components/ui';
 import { SIGN_IN_HANDOFF_COPY, SIGN_IN_HANDOFF_DELAY_MS } from './SignInHandoff.constants';
 import { useHandoffVisible } from './useHandoffVisible';
 
@@ -24,7 +24,8 @@ import { useHandoffVisible } from './useHandoffVisible';
  *     the rail's too — neutral, on the dark canvas — because the whole point of this
  *     screen is that nothing changes when the app arrives: a friendly face here would
  *     be one object visibly swapping for another.
- *  3. **One indicator**: the mark, plus one thin indeterminate line, and nothing else.
+ *  3. **One indicator**: the mark, then the wait's one verb in words, then the comet that the
+ *     sign-in page waits on too (#569) — and nothing else.
  *  4. **No splash if the wait is short.** `useHandoffVisible` holds the CONTENT back
  *     for `SIGN_IN_HANDOFF_DELAY_MS`, so the common case — a client navigation that
  *     finishes in a few frames — leaves the app's canvas with nothing written on it
@@ -55,16 +56,15 @@ export function SignInHandoff() {
               <Text variant="body" as="p" color="inverse-muted">
                 {SIGN_IN_HANDOFF_COPY.line}
               </Text>
-              {/* One indicator, and it is the product's own: the infinity track that
-                  `SignInSkeleton` uses, announcing the line above as its status label.
-                  The wrapper's `role="status"` moved into the track, so the wait is
-                  announced once rather than twice, and reduced motion leaves the static
-                  path instead of a different animation. */}
-              <InfinityTrack
-                canvas="dark"
-                size="sm"
+              {/* One indicator, and it is the product's only one: the comet `SignInSkeleton`
+                  uses, announcing the line above as its status label (#569). The track that
+                  used to sit here retired with the rest of the infinity vocabulary, so the
+                  frame a customer sees after a code is accepted and the frame before it are
+                  the same object, drawn at two sizes. The wait is announced once, by the
+                  comet, and reduced motion holds a static mark instead of a different animation. */}
+              <CometSpinner
                 label={SIGN_IN_HANDOFF_COPY.line}
-                className="mt-4 text-on-dark-mute"
+                className="mt-4 h-5 w-5 text-on-dark-mute"
               />
             </div>
           </div>
