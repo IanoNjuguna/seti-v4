@@ -15,7 +15,7 @@
  *
  * Run from `web/`: npm run check:otp (part of the root `verify` gate).
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -98,22 +98,42 @@ check('the code screen carries no second heading of its own', !/<h1/.test(panel)
 check('and the address line is what it opens with', /SIGN_IN_SENT_COPY\.sentTo/.test(panel));
 
 // --- the loader -------------------------------------------------------------
-console.log('\nthe track\n');
+console.log('\nthe app waits with one object\n');
 
-const track = read('components/ui/InfinityTrack.tsx');
-const trackConstants = read('components/ui/InfinityTrack.constants.ts');
-const globals = read('app/globals.css');
+const comet = read('components/ui/CometSpinner.tsx');
+const cometConstants = read('components/ui/CometSpinner.constants.ts');
+const cometTypes = read('components/ui/CometSpinner.types.ts');
 const skeleton = read('components/signin/SignInSkeleton.tsx');
 const handoff = read('components/signin/SignInHandoff.tsx');
+const appLoading = read('components/app/AppLoading.tsx');
+const uiIndex = read('components/ui/index.ts');
 
-check('it announces itself as a status', /role="status"/.test(track));
-check('with words, not just motion', /sr-only/.test(track) && /label = 'Working…'/.test(track));
-check('the keyframes live in the stylesheet, not in the component', !/<style/.test(track) && /@keyframes infinity-track-run/.test(globals));
-check('the travelling blocks share one animation', /infinity-track-block/.test(trackConstants) && /\.infinity-track-block \{/.test(globals));
-check('the surface is a token, not a passed colour', /bg-canvas-dark|bg-canvas-light|bg-surface-elevated/.test(trackConstants) && !/#[0-9a-fA-F]{3,8}/.test(trackConstants));
-check('reduced motion stops the blocks and keeps the path', /prefers-reduced-motion: reduce\)[\s\S]{0,160}\.infinity-track-block \{[\s\S]{0,80}display: none;/.test(globals));
-check('the page assembling shows the comet, not the track', /<CometSpinner/.test(skeleton) && !/<InfinityTrack/.test(skeleton));
-check('the comet announces itself once', /role="status"/.test(read('components/ui/CometSpinner.tsx')));
+/* ONE loader (#569). The tree carried three vocabularies for one idea — the comet on the sign-in
+   page, the infinity track on the handoff into the app, four skeleton bars in the app gate — and two
+   of those components each called themselves the product's only indeterminate wait. The comet is
+   that loader. The track is DELETED rather than left unrendered, because a component nobody imports
+   is one the next session re-adopts; skeletons stay, because a skeleton claims the SHAPE of a page
+   that is arriving and that is a different job from a wait whose shape is unknown. */
+check('the one loader is exported, and the track is not', /export \{ CometSpinner \}/.test(uiIndex) && !/InfinityTrack/.test(uiIndex));
+check('the track is gone from the tree, not merely unrendered', !existsSync(join(WEB, 'components/ui/InfinityTrack.tsx')));
+check('and its stylesheet went with it', !/infinity-track/.test(read('app/globals.css')));
+check('it announces itself as a status', /role="status"/.test(comet));
+check('with words, not just motion', /sr-only/.test(comet) && /label = COMET_SPINNER_LABEL/.test(comet));
+check('and the words can name the wait they belong to', /label\?: string/.test(cometTypes) && /aria-label=\{label\}/.test(comet));
+check('the keyframes are the product’s own names, not the vendor’s', /seti-comet-shadow/.test(cometConstants) && /seti-comet-rotation/.test(cometConstants));
+/* The comet's only ink is the box-shadow its animation writes, so `animation: none` under reduced
+   motion would paint an invisible spinner on the two frames a slow app spends longest on. Pausing
+   holds the 0% frame instead: the trail collapsed behind the head, a full circle. */
+check(
+  'reduced motion holds a static mark, not nothing',
+  /@media \(prefers-reduced-motion: reduce\)[\s\S]{0,200}animation-play-state: paused/.test(cometConstants)
+);
+check('the page assembling shows the comet', /<CometSpinner/.test(skeleton));
+check('the handoff into the app shows the same one', /<CometSpinner/.test(handoff) && !/<InfinityTrack/.test(handoff));
+check('and it names the line above it, rather than saying Loading', /label=\{SIGN_IN_HANDOFF_COPY\.line\}/.test(handoff));
+check('the handoff no longer pulses a bar', !/animate-pulse/.test(handoff));
+check('the gate waits with the comet, not four bars', /<CometSpinner/.test(appLoading) && !/<Skeleton/.test(appLoading));
+check('and its words name the account it is loading', /label="Loading your account…"/.test(appLoading));
 check('and the mark is not drawn while the session resolves', /showMark=\{screen\.stage !== 'restoring'\}/.test(read('components/signin/SignInScreen.tsx')));
 check('the front door is one column, centred', /items-center justify-center/.test(read('components/signin/SignInPanel.tsx')) && !/grid-cols-2/.test(read('components/signin/SignInPanel.tsx')));
 check('with the page grain, and no decorative panel', /grain-layer/.test(read('components/signin/SignInPanel.tsx')) && !/SignInAmbientPanel/.test(read('components/signin/SignInPanel.tsx')));
@@ -126,8 +146,6 @@ check('the entry heading is the question the field answers', /pageTitle: 'What.s
 check('and it is short enough for the column', !/email address\?/.test(copy));
 check('the code heading is the instruction the cells answer', /title: 'Enter the code\.'/.test(copy));
 check('and the footnote the consent already states is gone', !/footnote/.test(copy));
-check('and so does the handoff into the app', /<InfinityTrack/.test(handoff));
-check('the handoff no longer pulses a bar', !/animate-pulse/.test(handoff));
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);
