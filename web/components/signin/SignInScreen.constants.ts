@@ -24,23 +24,19 @@
  */
 
 export const SIGN_IN_COPY = {
-  /** The page's one heading: the instruction, in the customer's own words. */
-  title: 'Sign in with your email.',
-  /** The mechanic, said once — no password, and the code arrives by email. */
-  lede: 'No password. We email you a code.',
-  emailLabel: 'Email',
-  submit: 'Continue with email',
-  /** Shared with the app: the same "we are still finding out" line it renders. */
-  restoring: 'One moment…',
   /**
-   * The footnote at the foot of the column.
+   * The page's heading: the QUESTION the field answers (#567).
    *
-   * Not a marketing line and not a second promise: it is the one thing a person handing
-   * over money should know before they type an address, said in the product's own
-   * words. "Not a bank" is deliberate — `bank` is a licensed word in this market and
-   * this product is not one.
+   * It is `Linear`'s question, shortened (#567 follow-up). The reference set is unanimous that the
+   * title is a question or an instruction rather than the route's name, and `What’s your email
+   * address?` is Linear's own sentence — but at `heading-lg` (32px) in a 342px column it measures
+   * 448px and wraps to two lines, ending on the one short word `email`. `What’s your email?` measures
+   * 309px: one line, same size, same column, and the field below is still labelled Email, so nothing
+   * is lost by dropping `address`. Measured with the heading's own font, not estimated.
    */
-  footnote: 'Seti is not a bank. Your money is held in stablecoins you control.',
+  pageTitle: 'What’s your email?',
+  emailLabel: 'Email',
+  submit: 'Continue',
 } as const;
 
 /**
@@ -58,17 +54,17 @@ export const SIGN_IN_COPY = {
  * side effect (typing) is not reachable by a keyboard.
  */
 export const SIGN_IN_SENT_COPY = {
-  /** The instruction, at the same level and weight as the entry page's heading. */
+  /** The code stage's heading: the instruction the six cells answer (#567). */
   title: 'Enter the code.',
   /** The address, echoed IN FULL: the commonest failure here is a typo, not a slow email. */
   sentTo: 'Sent to',
   submit: 'Sign in',
-  deliverabilityLead: 'Nothing in your inbox? Check your spam folder, then',
-  resend: 'send a new code',
+  deliverabilityLead: 'No code? Check spam, or',
+  resend: 'send a new one',
   /** While a new code is on its way. Says why the control is not tappable. */
-  resending: 'sending a new code…',
-  deliverabilityMiddle: '. Wrong email?',
-  useAnother: 'Use a different email',
+  resending: 'sending…',
+  deliverabilityMiddle: '. Wrong address?',
+  useAnother: 'Change it',
   deliverabilityTail: '.',
 } as const;
 

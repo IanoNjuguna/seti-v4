@@ -49,16 +49,11 @@ export function SignInSentPanel({
 
   return (
     <div className="flex flex-col">
-      <h1 className="font-brand text-heading-lg font-medium text-on-dark">{SIGN_IN_SENT_COPY.title}</h1>
-      <p className="mt-3 text-body-md text-on-dark-mute">
+      {/* The heading is the panel's now (`Enter the code.`, supplied per stage), and this is the
+          line under it: where it went. */}
+      <p className="text-body-md text-on-dark-mute">
         {SIGN_IN_SENT_COPY.sentTo} <span className="text-on-dark">{address}</span>
       </p>
-
-      {error ? (
-        <div className="mt-6">
-          <SignInFailure error={error} />
-        </div>
-      ) : null}
 
       <form onSubmit={onSubmit} noValidate className="mt-7 flex flex-col gap-6">
         <CodeCells
@@ -68,6 +63,8 @@ export function SignInSentPanel({
           onCodeChange={onCodeChange}
           onComplete={onCodeComplete}
         />
+        {/* Above the control it explains, the same rule the entry stage follows (#567). */}
+        {error ? <SignInFailure error={error} /> : null}
         <Button type="submit" variant="on-dark" fullWidth loading={verifying} disabled={!complete}>
           {SIGN_IN_SENT_COPY.submit}
         </Button>

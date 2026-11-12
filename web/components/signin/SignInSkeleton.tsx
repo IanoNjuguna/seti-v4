@@ -1,53 +1,34 @@
-import { InfinityTrack } from '@/components/ui';
-import { SIGN_IN_COPY } from './SignInScreen.constants';
+import { CometSpinner } from '@/components/ui';
 
 /**
- * The sign-in page while the session works out whether anyone is signed in.
+ * The sign-in page while the session works out whether anyone is signed in (#567).
  *
- * It used to be one grey sentence inside the panel, which meant the front door's only
- * above-the-fold content for a second or two was the word "One moment…" on an empty
- * black field. That reads as a page that failed to load, not a page loading: the shape of
- * what is coming was missing, which is the whole job of a skeleton.
+ * ## No words, and that is the reference set's answer
  *
- * ## Two indicators, two different claims
+ * The loading screens checked in Mobbin draw no text at all: Granola and Life Reset put their brand
+ * mark on the field and nothing else, Opal draws a spinner alone, WHOOP wraps a ring around its mark.
+ * Not one writes "Loading…", and this one does not either — the sentence that used to sit under the
+ * indicator was the second thing saying the same word.
  *
- * The blocks below are the SHAPE of the entry form — a two-line heading at `heading-lg`,
- * the lede, a label, a field, the consent and the button — measured from the real form,
- * so nothing moves when it arrives. The track above them is the other claim: that work is
- * running and its length is unknown. A skeleton alone can be a still image of a page that
- * never comes, which is why the one wait on this page now has both.
+ * What is left is the comet and nothing else, which is Opal's arrangement and the closest of the four
+ * to this page: a page whose whole content is one field does not need a caption explaining that it is
+ * arriving.
  *
- * The words stay for assistive tech and are hidden visually: the track is a `status`, so
- * a screen reader is told "One moment…" while a sighted visitor sees the page assembling.
+ * ## What a screen reader hears
+ *
+ * `CometSpinner` is a `role="status"` named "Loading", so the wait is announced once, by the thing
+ * doing it. There is deliberately no second invisible sentence: two announcements of one fact is how
+ * a screen reader user learns to ignore both. `aria-busy` on the container is the other half of the
+ * same information.
+ *
+ * The product mark is not drawn here (`SignInPanel`'s `showMark`), though Granola, Life Reset and
+ * WHOOP all draw theirs: this page does not yet know who is here, so the greeting waits with the
+ * rest of it.
  */
 export function SignInSkeleton() {
   return (
-    <div className="flex flex-col" aria-busy="true">
-      <InfinityTrack canvas="dark" size="md" label={SIGN_IN_COPY.restoring} className="text-on-dark-mute" />
-
-      {/* The heading: two lines, at the size the entry form's one heading uses. */}
-      <div aria-hidden className="mt-8 flex flex-col gap-3">
-        <span className="block h-8 w-11/12 rounded-sm bg-surface-elevated" />
-        <span className="block h-8 w-1/2 rounded-sm bg-surface-elevated" />
-      </div>
-
-      {/* The lede, one step down. */}
-      <span aria-hidden className="mt-4 block h-4 w-3/5 rounded-sm bg-surface-elevated" />
-
-      {/* The field's label, then the field, at the height the real one occupies. */}
-      <span aria-hidden className="mt-8 block h-3 w-14 rounded-sm bg-surface-elevated" />
-      <span
-        aria-hidden
-        className="mt-2 block h-14 w-full rounded-md border border-hairline-dark bg-surface-deep"
-      />
-
-      {/* The consent: two lines, then the hint under it. */}
-      <span aria-hidden className="mt-5 block h-4 w-full rounded-sm bg-surface-elevated" />
-      <span aria-hidden className="mt-2 block h-4 w-2/3 rounded-sm bg-surface-elevated" />
-      <span aria-hidden className="mt-3 block h-3 w-1/2 rounded-sm bg-surface-elevated" />
-
-      {/* The button. */}
-      <span aria-hidden className="mt-6 block h-12 w-full rounded-md bg-surface-elevated" />
+    <div className="flex flex-col items-center" aria-busy="true">
+      <CometSpinner className="h-16 w-16 text-on-dark" />
     </div>
   );
 }

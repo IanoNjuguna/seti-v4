@@ -6,6 +6,7 @@ import { SignInHandoff } from './SignInHandoff';
 import { SignInPanel } from './SignInPanel';
 import { SignInSentPanel } from './SignInSentPanel';
 import { SignInSkeleton } from './SignInSkeleton';
+import { SIGN_IN_COPY, SIGN_IN_SENT_COPY } from './SignInScreen.constants';
 import { useSignInScreen } from './useSignInScreen';
 import { useSignedInRedirect } from './useSignedInRedirect';
 import type { UseSignInScreenReturn } from './useSignInScreen.types';
@@ -31,7 +32,24 @@ export function SignInScreen() {
 
   if (screen.stage === 'signed-in') return <SignInHandoff />;
 
-  return <SignInPanel>{body(screen)}</SignInPanel>;
+  /*
+   * The heading is the panel's, and the STAGE supplies the sentence (#567). One title for both
+   * stages would have to be the route's name — `Sign in` — which is the heading that was deleted
+   * for saying nothing the field did not. The entry stage asks the question its field answers; the
+   * code stage gives the instruction its six cells answer; the loading stage asks nothing.
+   */
+  const title =
+    screen.stage === 'entry'
+      ? SIGN_IN_COPY.pageTitle
+      : screen.stage === 'sent'
+        ? SIGN_IN_SENT_COPY.title
+        : undefined;
+
+  return (
+    <SignInPanel title={title} showMark={screen.stage !== 'restoring'}>
+      {body(screen)}
+    </SignInPanel>
+  );
 }
 
 /** A named function rather than a nested ternary in JSX, so the branches read. */

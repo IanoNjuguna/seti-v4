@@ -215,8 +215,22 @@ console.log('\nthe Save custody note is deleted, and the claim still lives elsew
    */
   const pay = read('../components/pay-public/PayPublic.constants.ts');
   check('the pay page still says Seti never holds it', /Seti never holds it/.test(pay));
+  /*
+   * The sign-in home of the claim MOVED in #567, it was not dropped. The front door's footnote —
+   * "Seti is not a bank. Your money is held in stablecoins you control." — was a duplicate of the
+   * consent sentence and was deleted on purpose, so a check that reads `SignInScreen.constants.ts`
+   * for it would now fail on a correct page. The survivor is the sentence a customer actually ticks,
+   * which is the stronger place for it: `TermsAcceptance`, once, with the box that blocks the button.
+   * Asserting the CLAUSE rather than the old sentence means a pass that shortens the sentence to a
+   * full stop still fails here, while a pass that deletes the footnote passes.
+   */
+  const terms = read('../components/auth/TermsAcceptance.constants.ts');
+  check(
+    'and the sign-in consent sentence still says Seti never holds the money',
+    /Seti never holds my money/.test(terms)
+  );
   const signIn = read('../components/signin/SignInScreen.constants.ts');
-  check('and the sign-in footnote still says the money is not Seti’s', /not a bank/.test(signIn));
+  check('the front door no longer repeats it as a second footnote', !/not a bank/.test(signIn));
   check('this screen still says the position is in your own name', /in your own name/.test(constants));
 }
 

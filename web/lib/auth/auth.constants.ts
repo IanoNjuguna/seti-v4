@@ -52,7 +52,14 @@ export function describeDevSignInFailure(error: unknown): string {
     );
   }
 
-  return 'Sign-in failed. Try again.';
+  /*
+   * The failure's own sentence, when it is not one we can name.
+   *
+   * It used to read `Sign-in failed. Try again.` under a title that already said
+   * `Could not sign in` (#567): the same fact twice, in the two lines a person reads while
+   * something has gone wrong. The title carries what happened; this line carries what to do.
+   */
+  return 'Try again.';
 }
 
 /**

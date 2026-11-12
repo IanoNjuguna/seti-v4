@@ -45,29 +45,10 @@ export function SignInEntryForm({
 }: SignInEntryFormProps) {
   return (
     <div className="flex flex-col">
-      {/*
-        * `text-balance`: this instruction wraps, and at the heading size it wrapped as
-        * "Sign in with your / email.", a six-glyph last line — a rag that reads as a
-        * mistake on the page's only heading. Balancing gives two near-equal lines with
-        * the copy, the size and the column untouched.
-        *
-        * The fallback is the current behaviour, not a broken one: an engine without
-        * `text-wrap: balance` ignores the declaration and wraps exactly as it does
-        * today, which is why this is safe on the front door.
-        */}
-      {/* One heading at the size the code screen's heading will be, so the two steps of
-          the flow do not change scale when the page changes job. */}
-      <h1 className="text-balance font-brand text-heading-lg font-medium text-on-dark">
-        {SIGN_IN_COPY.title}
-      </h1>
-      <p className="mt-3 text-body-md text-on-dark-mute">{SIGN_IN_COPY.lede}</p>
-
-      {/* Above the controls, so the reason and the thing to press are adjacent. */}
-      {error ? (
-        <div className="mt-6">
-          <SignInFailure error={error} />
-        </div>
-      ) : null}
+      {/* No heading and no lede (#567). The page's content is one field and one button: a 32px
+          restatement of the route name above them, and a sentence explaining that a code arrives,
+          were the two blocks a visitor had to read before the first thing they could type. The
+          page keeps its name as a visually hidden `h1` in `SignInPanel`. */}
 
       <div className="mt-6 flex flex-col gap-5">
         <TermsAcceptance tone="dark" checked={accepted} onChange={onAcceptChange} />
@@ -88,6 +69,11 @@ export function SignInEntryForm({
             value={address}
             onChange={(event) => onAddressChange(event.target.value)}
           />
+
+          {/* The failure sits DIRECTLY above the control it explains (#567): the reason and the
+              retry are one glance apart, which is what `SignInFailure`'s own comment always
+              promised and what its old position — above the consent and the field — broke. */}
+          {error ? <SignInFailure error={error} /> : null}
 
           <Button type="submit" variant="on-dark" fullWidth loading={sending} disabled={!accepted}>
             {SIGN_IN_COPY.submit}
