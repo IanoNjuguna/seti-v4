@@ -55,6 +55,7 @@ const DECLARED = {
   'components/ask/AskResult.tsx': 'app claim result: the one action after creating a claim',
   'components/receive/ReceiveHalf.tsx': 'app receive: sharing the name is the action',
   'components/receive/ReceiveNoName.tsx': 'app receive before a name exists: claiming one',
+  'components/activity/ActivitySignedOut.tsx': 'a visitor activity page: the door under the sentence that asks',
   'components/profile/ProfileSignedOut.tsx': 'signed-out profile: sign in, the only action',
   'components/receipt/ReceiptStates.tsx': 'receipt error state: retry, the only action',
   'components/mfa/MfaEnrolTotp.tsx': 'MFA enrolment: finishing enrolment',
