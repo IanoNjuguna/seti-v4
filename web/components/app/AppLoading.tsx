@@ -1,28 +1,29 @@
-import { Skeleton } from '@/components/ui';
+import { CometSpinner } from '@/components/ui';
 
 /**
  * The gate's own loading state, and it deliberately renders NO shell.
  *
- * Both halves matter. Without the skeleton an account would see an empty page
+ * Both halves matter. Without an indicator an account would see an empty page
  * while its handles are read, which reads as a broken app; with the shell it
- * would see the nav — destinations it may not be allowed to reach. So the
- * skeleton takes the app's canvas and content column but none of the chrome, and
- * it is what the SERVER renders too (the session and the handles are both client
+ * would see the nav — destinations it may not be allowed to reach. So the frame
+ * takes the app's canvas and content column but none of the chrome, and it is
+ * what the SERVER renders too (the session and the handles are both client
  * reads), which is why no app surface is ever present in a server-rendered
  * document.
+ *
+ * It is one comet now, not four skeleton bars (#569). The bars claimed the shape
+ * of the page that was coming, and the gate does not know that shape: whether
+ * this account holds a handle, and therefore what the app will even contain, is
+ * the question this frame is waiting on. A skeleton promises a layout; this wait
+ * has none. The comet is also the object the sign-in page waits on, so the two
+ * frames on either side of the code are the same indicator, and the wait is
+ * announced once, by the comet's own label.
  */
 export function AppLoading() {
   return (
     <div className="min-h-dvh bg-canvas-light text-ink">
-      <main
-        className="mx-auto w-full max-w-3xl px-5 pt-6 pb-[calc(var(--app-nav-reserved)_+_var(--app-nav-clearance))] md:pb-10"
-        aria-busy="true"
-      >
-        <p className="sr-only">Loading your account…</p>
-        <Skeleton className="h-7 w-44" />
-        <Skeleton className="mt-4 h-40 w-full" />
-        <Skeleton className="mt-6 h-16 w-full" />
-        <Skeleton className="mt-4 h-16 w-full" />
+      <main className="flex min-h-dvh items-center justify-center px-5" aria-busy="true">
+        <CometSpinner label="Loading your account…" className="h-12 w-12 text-stone" />
       </main>
     </div>
   );
