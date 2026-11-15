@@ -1,10 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { API_BASE_URL } from '@/lib/api/api.constants';
 import { INVITE_COOKIE, INVITE_COOKIE_MAX_AGE } from '@/lib/invite/invite.constants';
-
-/** Where an invite lands, and where a dead one says so. */
-const APP_HOME = '/app';
-const APP_HOME_INVITE_COLD = '/app?invite=not-live';
+import { appInviteLanding, SITE_COOKIE_DOMAIN } from '@/lib/site';
 
 /**
  * `seti.live/i/<handle>` — open an invitation.
@@ -20,10 +17,10 @@ const APP_HOME_INVITE_COLD = '/app?invite=not-live';
  *     cookie from an earlier link is cleared: the link that was opened last is the
  *     honest answer to "who invited you", and a stale one would count the wrong
  *     person.
- *  3. Forward to `/app` in both cases. A dead invite is not an error page: the
- *     person following it is a visitor, and they should land in the product. The
- *     ONE difference is a flag on the query, which is what lets the app say the
- *     invite is not live rather than silently pretending it worked.
+ *  3. Forward to the app in both cases, on the app's own host (#574). A dead invite is
+ *     not an error page: the person following it is a visitor, and they should land in
+ *     the product. The ONE difference is a flag on the query, which is what lets the app
+ *     say the invite is not live rather than silently pretending it worked.
  *
  * `no-store` on the API read, because a name can be claimed or parked a moment
  * ago and this response must not be cached by anything.
@@ -58,7 +55,7 @@ export async function GET(request: NextRequest, { params }: InviteRouteContext) 
   const code = await fetchInviteCode(handle);
 
   const response = NextResponse.redirect(
-    new URL(code ? APP_HOME : APP_HOME_INVITE_COLD, request.url),
+    new URL(appInviteLanding(code !== null), request.url),
     // 307: a GET that stays a GET, and no cache can pin "this link works" from the
     // moment it was opened.
     { status: 307 }
@@ -75,10 +72,21 @@ export async function GET(request: NextRequest, { params }: InviteRouteContext) 
       // by the browser, which would make the feature untestable locally.
       secure: process.env.NODE_ENV === 'production',
       path: '/',
+      // The app answers on its own host (#574). A cookie without a domain belongs to
+      // the host that set it, so this link would be dropped at the host boundary and
+      // attribution would stop silently. Unscoped in development: `localhost` refuses
+      // a `.seti.live` cookie.
+      domain: SITE_COOKIE_DOMAIN,
       maxAge: INVITE_COOKIE_MAX_AGE,
     });
   } else {
-    response.cookies.set({ name: INVITE_COOKIE, value: '', path: '/', maxAge: 0 });
+    response.cookies.set({
+      name: INVITE_COOKIE,
+      value: '',
+      path: '/',
+      domain: SITE_COOKIE_DOMAIN,
+      maxAge: 0,
+    });
   }
 
   return response;
