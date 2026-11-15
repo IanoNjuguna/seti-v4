@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { INVITE_COOKIE } from '@/lib/invite/invite.constants';
+import { SITE_COOKIE_DOMAIN } from '@/lib/site';
 
 /**
  * Discard the invite cookie once it has been carried to the one call it is for.
@@ -17,7 +18,17 @@ import { INVITE_COOKIE } from '@/lib/invite/invite.constants';
  */
 export async function DELETE() {
   const response = new NextResponse(null, { status: 204 });
-  response.cookies.set({ name: INVITE_COOKIE, value: '', path: '/', maxAge: 0 });
+  response.cookies.set({
+    name: INVITE_COOKIE,
+    value: '',
+    path: '/',
+    // Same domain the invite route sets it on (#574): a clear that names no domain
+    // cannot expire a cookie that was scoped to `.seti.live`, so the value would
+    // survive and the next account in this browser would be attributed to the last
+    // invite link.
+    domain: SITE_COOKIE_DOMAIN,
+    maxAge: 0,
+  });
 
   return response;
 }

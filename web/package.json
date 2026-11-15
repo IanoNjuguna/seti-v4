@@ -56,7 +56,8 @@
     "check:claim-link": "tsx scripts/check-claim-link.mjs",
     "check:raised": "tsx scripts/check-raised.mjs",
     "check:filled": "tsx scripts/check-filled.mjs",
-    "check:ask": "tsx scripts/check-ask.mjs"
+    "check:ask": "tsx scripts/check-ask.mjs",
+    "check:hosts": "node scripts/check-hosts.mjs"
   },
   "dependencies": {
     "@privy-io/react-auth": "^3.48.1",
