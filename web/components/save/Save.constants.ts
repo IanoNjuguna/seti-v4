@@ -204,3 +204,31 @@ export function rateLines(
     secondary: null,
   };
 }
+
+/**
+ * The one rate line the CARD shows, and whether it shows one at all (#581).
+ *
+ * The gate is the CAMPAIGN, not the position. A live campaign is the offer, the number a
+ * customer opens this page to compare, so it belongs on the card before a cent is saved.
+ * The card used to hide it until a deposit had settled (`hasSavings`), which asked for the
+ * decision first and showed the reason for it afterwards: at KES 0.00 the whole page read
+ * "Money you set aside goes into a Tempo vault in your own name" and never mentioned that
+ * anyone was paying 3.60% to be there. The number was never missing from the API — a wallet
+ * with no shares gets the same `campaign` as one with a position.
+ *
+ * The vault's own rate is the other way round, and stays gated on savings: over a position it
+ * explains what is being earned, while over an empty card `0.0001%` is not an offer, it is a
+ * reason not to save.
+ *
+ * Over a real position the rule is `rateLines`' own, unchanged: a campaign leads and names who
+ * pays and when it stops, the vault follows, and a failed read says so rather than printing a
+ * zero.
+ */
+export function cardRateLine(
+  campaign: { apr: string; endsAt: string } | null,
+  apy: string | null,
+  hasSavings: boolean
+): string | null {
+  if (!campaign && !hasSavings) return null;
+  return rateLines(campaign, apy).primary;
+}
