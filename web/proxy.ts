@@ -41,6 +41,18 @@ const APP_HOST = 'app.seti.live';
 export const APP_PATH = /^\/app(?:\/|$)/;
 
 /**
+ * The ONE product route that is not under `/app`: the sign-in page (#578).
+ *
+ * `app/(product)/signin/page.tsx` serves `/signin`, and the session it creates lands in
+ * `localStorage`, which is per origin. Served on the apex it signed a reader in on
+ * `seti.live` and then dropped them into `app.seti.live` signed out, because the app
+ * cannot read another origin's storage. So `/signin` belongs to the app host exactly as
+ * `/app/*` does: the apex sends it there, and the app host serves the real route instead
+ * of rewriting it into `/app/signin`, which does not exist.
+ */
+export const APP_OWNED_PATH = /^\/signin(?:\/|$)/;
+
+/**
  * Paths the framework and the route handlers serve THEMSELVES, on any host.
  *
  * These must never be rewritten into the `/app` tree, and the first deploy proved why:
@@ -69,8 +81,9 @@ export function proxy(request: NextRequest) {
   const url = request.nextUrl.clone();
 
   // seti.live/app/anything -> app.seti.live/anything, permanently, query intact.
-  // `url` is cloned from the request, so the protocol and the search string ride along.
-  if (APEX_HOSTS.has(host) && APP_PATH.test(url.pathname)) {
+  // `/signin` goes with it: a session created on the apex is a session the app cannot
+  // read (#578).
+  if (APEX_HOSTS.has(host) && (APP_PATH.test(url.pathname) || APP_OWNED_PATH.test(url.pathname))) {
     url.host = APP_HOST;
     url.pathname = url.pathname.replace(/^\/app/, '') || '/';
 
@@ -78,9 +91,15 @@ export function proxy(request: NextRequest) {
   }
 
   // app.seti.live/anything -> the /app tree, without changing the address bar. Only
-  // PAGE paths: `/_next/*`, `/api/*` and files keep their own paths, or the framework's
-  // own assets 404 (#576).
-  if (host === APP_HOST && !APP_PATH.test(url.pathname) && !INFRA_PATH.test(url.pathname)) {
+  // PAGE paths: `/_next/*`, `/api/*`, files and the app's own root routes
+  // (`/signin`) keep their own paths, or the framework's assets 404 (#576) and the
+  // sign-in page 404s on the host that signs people in (#578).
+  if (
+    host === APP_HOST &&
+    !APP_PATH.test(url.pathname) &&
+    !APP_OWNED_PATH.test(url.pathname) &&
+    !INFRA_PATH.test(url.pathname)
+  ) {
     url.pathname = `/app${url.pathname}`;
 
     return withSecurityHeaders(NextResponse.rewrite(url));
