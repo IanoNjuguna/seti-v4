@@ -15,7 +15,7 @@ import { readFileSync } from 'node:fs';
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
-const { SAVE_COPY, rateLines } = await import('../components/save/Save.constants.ts');
+const { SAVE_COPY, cardRateLine, rateLines } = await import('../components/save/Save.constants.ts');
 
 let passed = 0;
 let failed = 0;
@@ -82,13 +82,56 @@ console.log('\nthe campaign\'s operator is named once, where the claim happens:'
   );
 }
 
+console.log('\nthe offer is on the card before anyone has saved (#581):');
+{
+  const empty = cardRateLine(campaign, vault, false);
+  check(
+    'a live campaign leads an empty card',
+    empty === '3.60% campaign rewards, ends 6 Jan 2027',
+    String(empty)
+  );
+  check(
+    "the vault's own rate does not appear over an empty card",
+    cardRateLine(null, vault, false) === null,
+    String(cardRateLine(null, vault, false))
+  );
+  check(
+    'over a position the vault rate still stands alone',
+    cardRateLine(null, vault, true) === SAVE_COPY.vaultOnlyLine(vault),
+    String(cardRateLine(null, vault, true))
+  );
+  check(
+    'and a failed read is still said, not hidden, over a position',
+    cardRateLine(null, null, true) === SAVE_COPY.rateUnavailable,
+    String(cardRateLine(null, null, true))
+  );
+  check(
+    'a measured zero still shows the campaign above it',
+    cardRateLine(campaign, '0.0000', true) === SAVE_COPY.campaignRateLine(campaign.apr, campaign.endsAt)
+  );
+  check(
+    'and the campaign line never prints a bare rate',
+    !/^[\d.]+%$/.test(String(empty)),
+    String(empty)
+  );
+
+  const figure = read('../components/save/SaveFigure.tsx').replace(/\/\*[\s\S]*?\*\//g, '');
+  check('the card asks the one builder', figure.includes('cardRateLine('), 'card does not call cardRateLine');
+  check('and the promise line survives under it', figure.includes('{SAVE_COPY.empty}'));
+  check(
+    'the promise line is still gated on having nothing saved',
+    /!hasSavings[\s\S]{0,120}SAVE_COPY\.empty/.test(figure),
+    'promise line is not gated on !hasSavings'
+  );
+}
+
 console.log('\nthe card itself carries one rate line, and it is tinted (#426):');
 {
   const figure = read('../components/save/SaveFigure.tsx');
   const code = figure.replace(/\/\*[\s\S]*?\*\//g, '');
-  check('the card prints the lead rate', code.includes('{rates.primary}'));
+  check('the card prints the lead rate', code.includes('{rateLine}'));
   check(
-    'and not the vault\'s, which came off the card',
+    "and not the vault's, which came off the card",
     !code.includes('rates.secondary'),
     'rates.secondary rendered'
   );
@@ -96,7 +139,7 @@ console.log('\nthe card itself carries one rate line, and it is tinted (#426):')
     'and not an earnings sentence, which came off with it',
     !code.includes('earnedUnknown') && !code.includes('earnedLabel')
   );
-  check('the rate wears the success ink', /color="success"[\s\S]{0,40}rates\.primary/.test(code));
+  check('the rate wears the success ink', /color="success"[\s\S]{0,40}\{rateLine\}/.test(code));
 }
 
 console.log('\nnone of it breaks the page voice:');
