@@ -40,6 +40,22 @@ const APP_HOST = 'app.seti.live';
 /** A path that belongs to the product app, matched as a segment. */
 export const APP_PATH = /^\/app(?:\/|$)/;
 
+/**
+ * Paths the framework and the route handlers serve THEMSELVES, on any host.
+ *
+ * These must never be rewritten into the `/app` tree, and the first deploy proved why:
+ * `/_next/image` and `/_next/static/*` were rewritten to `/app/_next/...` and answered
+ * 404 on `app.seti.live`, so the header's lockup rendered broken and Next's chunks
+ * missed (#576). `/api/*` is the same shape from the other direction: `app/api/invite`
+ * is served at `/api/invite`, NOT at `/app/api/invite`, so rewriting it would move a
+ * route that is already in the right place.
+ *
+ * The third alternative is a file: a path whose last segment carries an extension is a
+ * static asset (`/favicon.ico`, `/seti-lockup.png`, `/robots.txt`, `/sitemap.xml`), and
+ * those resolve from the public directory regardless of host.
+ */
+export const INFRA_PATH = /^\/(?:_next\/|api\/|[^/]+\.[a-z0-9]+$)/i;
+
 function withSecurityHeaders(response: NextResponse): NextResponse {
   for (const [name, value] of Object.entries(securityHeaders())) {
     response.headers.set(name, value);
@@ -61,8 +77,10 @@ export function proxy(request: NextRequest) {
     return withSecurityHeaders(NextResponse.redirect(url, 301));
   }
 
-  // app.seti.live/anything -> the /app tree, without changing the address bar.
-  if (host === APP_HOST && !APP_PATH.test(url.pathname)) {
+  // app.seti.live/anything -> the /app tree, without changing the address bar. Only
+  // PAGE paths: `/_next/*`, `/api/*` and files keep their own paths, or the framework's
+  // own assets 404 (#576).
+  if (host === APP_HOST && !APP_PATH.test(url.pathname) && !INFRA_PATH.test(url.pathname)) {
     url.pathname = `/app${url.pathname}`;
 
     return withSecurityHeaders(NextResponse.rewrite(url));
