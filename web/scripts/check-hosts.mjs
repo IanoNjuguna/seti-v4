@@ -66,6 +66,37 @@ if (!source) {
   }
 }
 
+// ── the framework's own paths stay where they are (#576) ──────────────────────
+const infraSource = proxy.match(/const INFRA_PATH = (\/[^\n]*\/[a-z]*);/);
+
+if (!infraSource) {
+  check('proxy.ts declares the infrastructure path rule', false, 'no `const INFRA_PATH = /…/;`');
+} else {
+  const infra = eval(infraSource[1]);
+
+  for (const path of [
+    '/_next/image',
+    '/_next/static/chunks/webpack.js',
+    '/_next/static/css/app.css',
+    '/api/invite',
+    '/favicon.ico',
+    '/seti-lockup-friendly.png',
+    '/robots.txt',
+    '/sitemap.xml',
+  ]) {
+    check(`the rewrite leaves ${path} alone`, infra.test(path));
+  }
+
+  for (const path of ['/pay', '/receive', '/save', '/activity', '/profile', '/app/pay']) {
+    check(`the rewrite still claims ${path}`, !infra.test(path));
+  }
+}
+
+check(
+  'the rewrite consults the infrastructure rule',
+  /host === APP_HOST && !APP_PATH\.test\(url\.pathname\) && !INFRA_PATH\.test\(url\.pathname\)/.test(proxy)
+);
+
 // ── the two movements ─────────────────────────────────────────────────────────
 check('the URL is cloned from the request, so the query survives', /request\.nextUrl\.clone\(\)/.test(proxy));
 check('seti.live/app 301s to the app host', /NextResponse\.redirect\(url,\s*301\)/.test(proxy));
