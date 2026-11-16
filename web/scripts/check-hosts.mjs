@@ -94,8 +94,33 @@ if (!infraSource) {
 
 check(
   'the rewrite consults the infrastructure rule',
-  /host === APP_HOST && !APP_PATH\.test\(url\.pathname\) && !INFRA_PATH\.test\(url\.pathname\)/.test(proxy)
+  /!INFRA_PATH\.test\(url\.pathname\)/.test(proxy),
+  'the rewrite no longer excludes /_next/*, /api/* and files'
 );
+
+// ── the sign-in page belongs to the app host (#578) ───────────────────────────
+const ownedSource = proxy.match(/const APP_OWNED_PATH = (\/[^\n]*\/[a-z]*);/);
+
+if (!ownedSource) {
+  check('proxy.ts declares the app-owned root routes', false, 'no `const APP_OWNED_PATH = /…/;`');
+} else {
+  const owned = eval(ownedSource[1]);
+
+  for (const path of ['/signin', '/signin/']) {
+    check(`the sign-in page is app-owned: ${path}`, owned.test(path));
+  }
+
+  for (const path of ['/signing', '/sign', '/app/signin']) {
+    check(`the rule does not overreach: ${path}`, !owned.test(path));
+  }
+}
+
+check(
+  'the apex sends /signin to the app host',
+  /APP_PATH\.test\(url\.pathname\) \|\| APP_OWNED_PATH\.test\(url\.pathname\)/.test(proxy),
+  'the redirect does not consult the app-owned rule'
+);
+check('the app host serves /signin without rewriting it', /!APP_OWNED_PATH\.test\(url\.pathname\)/.test(proxy));
 
 // ── the two movements ─────────────────────────────────────────────────────────
 check('the URL is cloned from the request, so the query survives', /request\.nextUrl\.clone\(\)/.test(proxy));
