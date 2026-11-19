@@ -41,7 +41,7 @@ import type { NavMenuPanelProps } from './NavMenuPanel.types';
  * standalone `translate` property and a transition on `transform` would animate
  * nothing.
  */
-export function NavMenuPanel({ open, onNavigate }: NavMenuPanelProps) {
+export function NavMenuPanel({ open, onNavigate, links }: NavMenuPanelProps) {
   return (
     <div
       id={MENU_PANEL_ID}
@@ -53,7 +53,7 @@ export function NavMenuPanel({ open, onNavigate }: NavMenuPanelProps) {
     >
       <div className="mx-auto max-w-6xl px-6 pb-2 pt-3">
         <ul>
-          {MENU_LINKS.map((link) => (
+          {(links ?? MENU_LINKS).map((link) => (
             <li key={link.href}>
               <a
                 href={link.href}

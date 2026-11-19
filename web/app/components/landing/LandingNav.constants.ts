@@ -1,12 +1,23 @@
 import type { LandingLink, SearchSection } from './Landing.types';
 
-/** The nav's centre links. Two destinations, because the page has two answers
- *  to give: what happens to the money, and what it costs. */
+/** The nav's centre links. They are anchors, because every one of them is a band on
+ *  this page: what happens to the money, your money, and what it costs. */
 export const NAV_LINKS: LandingLink[] = [
   { label: 'How it works', href: '#how' },
   { label: 'Your money', href: '#money' },
   { label: 'Fees', href: '#fees' },
 ];
+
+/**
+ * The bar's one destination that is a PAGE rather than a band (#586).
+ *
+ * Kept out of `NAV_LINKS` on purpose: those are fragments inside the prerendered
+ * document and render as plain `<a>`s (see `NavLinks`), while this one is a route and
+ * renders through `next/link` so the app router can take it. Mixing the two in one list
+ * would have forced every anchor to carry the router for a scroll the browser already
+ * does, or this link to drop the router for a page load it does not need.
+ */
+export const ROUTE_LINKS: LandingLink[] = [{ label: 'Convert', href: '/convert' }];
 
 /**
  * The mobile menu's destinations, and it is the SAME LIST plus one — not a
@@ -27,6 +38,7 @@ export const NAV_LINKS: LandingLink[] = [
  */
 export const MENU_LINKS: LandingLink[] = [
   ...NAV_LINKS,
+  ...ROUTE_LINKS,
   { label: 'Integrations', href: '#partners' },
 ];
 
