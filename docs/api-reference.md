@@ -1471,6 +1471,39 @@ and nothing that identifies the requester: the holder of the link was told about
 about an account. `404 { code: "request-not-found" }` on a miss, because an ask either exists or the
 link is wrong.
 
+## Rates
+
+### `GET /rates`
+
+UNAUTHENTICATED, because a rate is not an account fact: `/convert` is a page anyone can open, and
+this is the figure it prints. Read-only, one currency.
+
+```json
+{
+  "rate": {
+    "fiatCurrency": "KES",
+    "fiatPerUsd": 129.99,
+    "source": "cbk",
+    "publishedFor": "2026-11-19",
+    "asOf": "2026-11-19T17:17:41.998Z",
+    "stale": false
+  }
+}
+```
+
+`fiatPerUsd` is the figure a payment is PRICED AT, not a reference beside it: the route and the
+payment path call the same `getFxQuote`, so the page and the preview cannot quote different numbers.
+
+`source` names the publisher: `cbk` (the Central Bank of Kenya), `open.er-api.com` (the fallback),
+or `fallback` (the static figure, which is always `stale`). `publishedFor` is the day the publisher
+says the rate applies to, `YYYY-MM-DD`, and is `null` when the publisher does not publish per day.
+`asOf` is when this process accepted the figure, which is a different question and a different field
+on purpose. `stale` is judged per publisher: five days for the Bank (business days only, so a normal
+weekend is not an outage) and 36 hours for the provider.
+
+The response is cacheable for five minutes (`cache-control: public, max-age=300,
+stale-while-revalidate=600`). There is no history and no per-date read.
+
 ## What is not here
 
 No refunds, no payouts, no fiat off-ramp, no pagination cursors, and no OpenAPI

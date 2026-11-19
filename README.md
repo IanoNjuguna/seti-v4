@@ -73,7 +73,7 @@ npm run dev --workspace web        # next dev; http://localhost:3000
 
 Point `NEXT_PUBLIC_API_URL` in `web/.env.local` at the backend.
 
-**5. Prove it works.** This is the gate we hold ourselves to: typecheck, lint, and 95
+**5. Prove it works.** This is the gate we hold ourselves to: typecheck, lint, and 97
 check suites, several of which read real receipts off Tempo:
 
 ```bash

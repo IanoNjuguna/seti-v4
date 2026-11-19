@@ -25,6 +25,7 @@ import { referralRoutes } from './routes/referrals.js';
 import { merchantAppRoutes } from './routes/merchant-apps.js';
 import { requestRoutes } from './routes/requests.js';
 import { publicRequestRoutes } from './routes/public-requests.js';
+import { publicRateRoutes } from './routes/public-rates.js';
 import { networkScopeHook } from './middleware/network-scope.js';
 
 /**
@@ -255,6 +256,11 @@ export async function buildServer(options: BuildServerOptions = {}) {
   // The link page's read, with no auth hook for the same reason the charge page has
   // none: the payer opened a link, not a session, and may have no account at all.
   await app.register(publicRequestRoutes, { prefix: '/public/requests' });
+
+  // The published shilling rate (#586): the figure `/convert` prints and the figure a
+  // payment pays at, read from one function so the page and the price cannot disagree.
+  // No auth hook, because a rate is not an account fact and the page is open to anyone.
+  await app.register(publicRateRoutes, { prefix: '/rates' });
 
   // Invites. One public route (the code a `seti.live/i/<handle>` link hands out,
   // which a signed-out visitor must be able to get) and one behind the session

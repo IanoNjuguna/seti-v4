@@ -108,7 +108,7 @@ const PRIVATE_SURFACES = [
 ];
 
 /** Public paths the sitemap is allowed to name, and the prefixes it is never allowed to. */
-const PUBLIC_PATHS = ['/', '/pricing', '/how-it-works', '/privacy', '/terms', '/cookies'];
+const PUBLIC_PATHS = ['/', '/pricing', '/how-it-works', '/convert', '/privacy', '/terms', '/cookies'];
 const PRIVATE_PREFIXES = ['/app', '/signin', '/r/', '/pay/', '/m/', '/u/', '/i/'];
 /** The legal documents: public, but not pages a breadcrumb is meant to describe (#306). */
 const KNOWN_LEGAL = new Set(['/privacy', '/terms', '/cookies']);

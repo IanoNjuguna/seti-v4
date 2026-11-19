@@ -6,6 +6,7 @@ import { getUserBalance, pickSpendAsset, type SpendAssetChoice } from './balance
 import { estimateNetworkFee, reserveNetworkFee, isListedOn, SUPPORTED_ASSETS } from './chain.js';
 import { calculateMerchantFee, minimumTicketForFloor } from './fees.js';
 import { issueQuote } from './quote.js';
+import { CBK_RATE_SOURCE, fetchCbkRate } from './fx-cbk.js';
 import { servedNetwork, treasuryAddressFor } from '../config/networks.js';
 import { normalizeNetwork, type Network } from '../lib/network.js';
 import type { SupportedAsset } from './chain.js';
@@ -134,6 +135,17 @@ export interface FxQuote {
   fiatPerUsd: number;
   source: string;
   asOf: Date;
+  /**
+   * The day the publisher says this rate is FOR, `YYYY-MM-DD`, when the publisher is a
+   * central bank that publishes per day rather than per request.
+   *
+   * Carried beside `asOf` rather than folded into it because they answer different
+   * questions: `asOf` is when this process accepted the figure, `publishedFor` is the day
+   * the Bank says it applies to. A surface that printed `asOf` as "the rate for today"
+   * would be claiming an instant on the Bank's behalf, and a surface that re-derived the
+   * day from `asOf` would put a Nairobi reader on the wrong date for nine hours a day.
+   */
+  publishedFor?: string;
   stale: boolean;
 }
 
@@ -142,6 +154,8 @@ interface RateCache {
   rates: Record<string, number>;
   asOf: Date;
   source: string;
+  /** The publisher's own day, when it publishes per day. */
+  publishedFor?: string;
   /** Rates this process has already accepted, to judge the next fetch against. */
   accepted: Record<string, number>;
   expiresAt: number;
@@ -186,6 +200,42 @@ const RATE_CACHE_MS = 60 * 60 * 1000; // 1 hour
  * rate right now" and the UI should say so.
  */
 const STALE_AFTER_MS = 36 * 60 * 60 * 1000;
+
+/**
+ * How old the Bank's rate may be before it is reported as stale.
+ *
+ * THE BANK PUBLISHES ON KENYAN BUSINESS DAYS, so the provider's 36 hours would call a
+ * normal weekend an outage: Friday's rate is still the current rate on Sunday, and it is
+ * still the current rate on Monday if Monday is a public holiday. Five days covers a
+ * three-day weekend plus a holiday with a day to spare, and it is a claim about the
+ * publisher's cadence rather than a tolerance invented for the number.
+ *
+ * This window is measured from `publishedFor` (the day the Bank says the rate is for),
+ * never from `asOf`, which is when this process happened to fetch it.
+ */
+const CBK_STALE_AFTER_MS = 5 * 24 * 60 * 60 * 1000;
+
+/**
+ * Is this quote old enough that a surface should say so?
+ *
+ * Three sources, three cadences, one function: the static fallback is always stale (it is
+ * not a rate anybody published), the Bank's is judged on its publication day, and the
+ * provider's on when we fetched its daily table. Keeping the rule here rather than at
+ * each call site is what stops the receipt, the preview and the public page disagreeing
+ * about whether the same rate is current.
+ */
+function isStaleQuote(source: string, asOf: Date, publishedFor?: string): boolean {
+  if (source === FALLBACK_RATE_SOURCE) return true;
+
+  if (source === CBK_RATE_SOURCE) {
+    if (!publishedFor) return true;
+    const published = Date.parse(`${publishedFor}T00:00:00Z`);
+    if (!Number.isFinite(published)) return true;
+    return Date.now() - published > CBK_STALE_AFTER_MS;
+  }
+
+  return Date.now() - asOf.getTime() > STALE_AFTER_MS;
+}
 
 /**
  * How far a rate may move from the last accepted one before we reject it.
@@ -247,17 +297,26 @@ async function fetchRates(): Promise<Record<string, number> | null> {
 /**
  * The exchange rate used for fiat figures, for one currency.
  *
- * Fetches the provider's table and caches it. Fails soft to a configured fallback
- * for that currency: a transient provider outage must not 500 a payment preview or
- * block recording a payment that already settled on-chain.
+ * THE CHAIN OF SOURCES, in order, and each step is a fallback rather than an error:
  *
- * Refuses a currency that is not enabled, rather than falling back to a number:
- * pricing in a currency nobody configured would produce rows whose figures cannot
- * be explained.
+ *   1. the CENTRAL BANK OF KENYA's indicative rate for the day (`fx-cbk.ts`);
+ *   2. the provider's daily table (`open.er-api.com`), which was the only source;
+ *   3. the static `FALLBACK_FX` figure, flagged `stale`.
  *
- * The provider refreshes daily, so a cached rate is marked `stale` once it is
- * older than STALE_AFTER_MS. Callers persist `source`/`asOf` alongside every
- * figure, so a historical row can always be explained.
+ * The Bank comes first because it is the publisher of the number a Kenyan merchant,
+ * accountant or tax filing references, and ours used to be a reseller's copy of it with no
+ * date anybody could check. Steps 2 and 3 exist so that a second host being slow degrades
+ * the provenance of a price, never the ability to take one: a transient outage must not 500
+ * a payment preview or block recording a payment that already settled on-chain.
+ *
+ * Refuses a currency that is not enabled, rather than falling back to a number: pricing in
+ * a currency nobody configured would produce rows whose figures cannot be explained.
+ *
+ * Every quote carries when it was fetched (`asOf`), which day its publisher says it applies
+ * to (`publishedFor`, when it publishes per day) and whether it is current (`stale`, judged
+ * per source by `isStaleQuote`). Callers persist those beside the figure, so a historical
+ * row can always be explained, and no two surfaces can disagree about whether the same rate
+ * is fresh.
  */
 export async function getFxQuote(fiatCurrency: string = DEFAULT_FIAT): Promise<FxQuote> {
   if (!isEnabledFiat(fiatCurrency)) {
@@ -266,25 +325,55 @@ export async function getFxQuote(fiatCurrency: string = DEFAULT_FIAT): Promise<F
     );
   }
 
+  const anchorFor = (currency: string) =>
+    rateCache?.accepted[currency] ?? FALLBACK_FX[currency];
+
   if (rateCache && Date.now() < rateCache.expiresAt) {
     const cached = rateCache.rates[fiatCurrency];
-    if (isSaneRate(cached, rateCache.accepted[fiatCurrency] ?? FALLBACK_FX[fiatCurrency])) {
+    if (isSaneRate(cached, anchorFor(fiatCurrency))) {
       rateCache.accepted[fiatCurrency] = cached;
       return {
         fiatCurrency,
         fiatPerUsd: cached,
         source: rateCache.source,
         asOf: rateCache.asOf,
-        stale:
-          rateCache.source === FALLBACK_RATE_SOURCE ||
-          Date.now() - rateCache.asOf.getTime() > STALE_AFTER_MS,
+        ...(rateCache.publishedFor ? { publishedFor: rateCache.publishedFor } : {}),
+        stale: isStaleQuote(rateCache.source, rateCache.asOf, rateCache.publishedFor),
       };
     }
   }
 
+  // 1. The Central Bank's rate for the day.
+  const bank = await fetchCbkRate(fiatCurrency);
+  if (bank && isSaneRate(bank.fiatPerUsd, anchorFor(fiatCurrency))) {
+    rateCache = {
+      rates: { ...(rateCache?.rates ?? {}), [fiatCurrency]: bank.fiatPerUsd },
+      asOf: new Date(),
+      source: CBK_RATE_SOURCE,
+      publishedFor: bank.publishedFor,
+      accepted: { ...(rateCache?.accepted ?? {}), [fiatCurrency]: bank.fiatPerUsd },
+      expiresAt: Date.now() + RATE_CACHE_MS,
+    };
+
+    return {
+      fiatCurrency,
+      fiatPerUsd: bank.fiatPerUsd,
+      source: CBK_RATE_SOURCE,
+      asOf: rateCache.asOf,
+      publishedFor: bank.publishedFor,
+      stale: isStaleQuote(CBK_RATE_SOURCE, rateCache.asOf, bank.publishedFor),
+    };
+  }
+
+  if (bank) {
+    console.warn(
+      `[fx] the Central Bank returned an implausible ${fiatCurrency} rate, falling back to the provider:`,
+      bank.fiatPerUsd
+    );
+  }
+
+  // 2. The provider's whole USD table.
   const fetched = await fetchRates();
-  const anchorFor = (currency: string) =>
-    rateCache?.accepted[currency] ?? FALLBACK_FX[currency];
 
   const live = fetched?.[fiatCurrency];
   const usableRate = isSaneRate(live, anchorFor(fiatCurrency)) ? live : undefined;
@@ -306,12 +395,13 @@ export async function getFxQuote(fiatCurrency: string = DEFAULT_FIAT): Promise<F
     expiresAt: Date.now() + RATE_CACHE_MS,
   };
 
+  // 3. The static figure, if neither publisher answered.
   return {
     fiatCurrency,
     fiatPerUsd: rates[fiatCurrency],
     source,
     asOf: rateCache.asOf,
-    stale: source === FALLBACK_RATE_SOURCE,
+    stale: isStaleQuote(source, rateCache.asOf),
   };
 }
 

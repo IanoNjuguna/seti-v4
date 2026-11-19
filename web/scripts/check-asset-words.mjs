@@ -17,7 +17,11 @@
  *    tolerates "symbols in this shape" is a regex that tolerates the next leak.
  *  - The chain table, the receipt's symbol map and the page metadata are the only
  *    places that may name a token, because they are the places a token is a FACT
- *    rather than a label shown to a customer.
+ *    rather than a label shown to a customer. `/convert` is the fourth, and the one
+ *    deliberate addition: a converter's subject IS the token the reader holds, so
+ *    naming it there is the page's function rather than a label on a money figure
+ *    (#586). Nothing on that page labels an amount with a symbol the customer did not
+ *    choose.
  *  - Comments are not scanned. Explaining a token in code is not showing it to
  *    anyone, and pretending otherwise would push the reasoning out of the code.
  *
@@ -46,6 +50,14 @@ const ALLOWED = new Map([
   [
     'components/receipt/receipt.format.ts',
     'the comment explaining how a stored label is printed',
+  ],
+  [
+    'app/components/convert/ConvertCalculator.constants.ts',
+    'the converter\'s asset list: the subject of the page is the token the reader holds (#586)',
+  ],
+  [
+    'app/convert/ConvertPage.constants.ts',
+    'the converter page\'s head: the token names are the search terms, and they are not rendered as a label on any figure (#586)',
   ],
 ]);
 
