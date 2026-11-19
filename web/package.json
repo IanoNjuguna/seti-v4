@@ -57,7 +57,8 @@
     "check:raised": "tsx scripts/check-raised.mjs",
     "check:filled": "tsx scripts/check-filled.mjs",
     "check:ask": "tsx scripts/check-ask.mjs",
-    "check:hosts": "node scripts/check-hosts.mjs"
+    "check:hosts": "node scripts/check-hosts.mjs",
+    "check:convert-page": "tsx scripts/check-convert-page.mjs"
   },
   "dependencies": {
     "@privy-io/react-auth": "^3.48.1",
