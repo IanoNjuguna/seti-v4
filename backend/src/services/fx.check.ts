@@ -71,7 +71,13 @@ interface Quote {
 function probe(scenario: string): Quote | null {
   const result = spawnSync(process.execPath, [tsxCli, probePath], {
     cwd: neutralCwd,
-    env: { PATH: process.env.PATH ?? '', ...PROBE_ENV, FX_PROBE_SCENARIO: scenario },
+    // The PARENT's environment, not a hand-written subset: the probe imports the real
+    // service, so it validates the real configuration, and a subset that happens to be
+    // complete on a developer's machine (where `backend/.env` exists) is not complete on
+    // a runner (where only the workflow's `env:` block is). Inheriting is what makes the
+    // probe measure the code rather than the fixture. The neutral cwd stays, so a stray
+    // `.env` cannot become the crutch either way.
+    env: { ...process.env, ...PROBE_ENV, FX_PROBE_SCENARIO: scenario },
     encoding: 'utf8',
     timeout: 60_000,
   });
