@@ -27,6 +27,10 @@
  *     linked to the explorer of the network it settled on, with a copy that reports whether
  *     the copy happened (#413). Asserted by reading the state line, its model and the well,
  *     because the defect was that a sentence promised something no component drew.
+ *  6. **A swap that is over REPLACES the form (#593).** Both endings are a view, not a
+ *     sentence under a still-armed form: a recorded swap reports the figures it signed,
+ *     an unrecorded one reports the hash and offers nothing that signs. The ending is
+ *     decided by whether a hash exists, so a failure before the signature stays retryable.
  *
  * Plus the copy: every `convert-*` refusal this backend can emit has a sentence of its
  * own in `refusal.constants.ts`, held to the same voice rules as the rest.
@@ -638,6 +642,112 @@ console.log('\nevery convert refusal has a sentence of its own:');
     /nothing moved|nothing was swapped|nothing was sent|went through on-chain/i.test(
       [SWAP_COPY.cancelled, SWAP_COPY.failed, SWAP_COPY.recordFailed].join(' ')
     )
+  );
+}
+
+console.log('\na swap that is over replaces the form, instead of sitting under it (#593):');
+{
+  const form = stripComments(readSource('../hooks/useSwapForm.ts'));
+  const formComponent = stripComments(readSource('../components/swap/SwapForm.tsx'));
+  const submit = stripComments(readSource('../components/swap/SwapSubmit.tsx'));
+  const result = stripComments(readSource('../components/swap/SwapResult.tsx'));
+  const notRecorded = stripComments(readSource('../components/swap/SwapNotRecorded.tsx'));
+  const outcome = stripComments(readSource('../components/swap/SwapOutcome.tsx'));
+  const figures = stripComments(readSource('../components/swap/SwapResultFigures.tsx'));
+  const rows = stripComments(readSource('../hooks/useSpendAssetRows.ts'));
+  const { SWAP_RESULT_COPY } = await import('../lib/pay/convert-swap.constants.ts');
+
+  /*
+   * The branch is BEFORE the fields, not beside them. A result drawn under a form leaves
+   * the amount field, the pair and the sign control on screen for a swap that is finished,
+   * which is the defect this section exists for: the page must return, not lay out.
+   */
+  const gate = formComponent.indexOf('form.result !== null');
+  check(
+    'the page returns a result before it draws any field',
+    gate > -1 && gate < formComponent.indexOf('<SwapFields'),
+    `gate at ${gate}`
+  );
+  check(
+    'the sign control has no finished branch left to fall into',
+    !/if \(done\)/.test(submit) && !submit.includes('SWAP_FORM_COPY.finish')
+  );
+  check(
+    'and the submit button cannot submit a result, because it is never rendered with one',
+    result.includes('<Button type="button"') && !result.includes('<Button type="submit"')
+  );
+
+  /*
+   * The two endings are different VIEWS, not one view with a tone: a recorded swap reports
+   * figures, a swap whose write-up was refused reports the hash and says so as an alert.
+   */
+  check(
+    'a recorded swap draws the success and an unrecorded one draws the alert',
+    outcome.includes("result.kind === 'done'") && outcome.includes('<SwapNotRecorded') && !outcome.includes('<SwapSubmit')
+  );
+  check(
+    'the failure is announced as an alert, not as a green check',
+    notRecorded.includes('role="alert"') && notRecorded.includes('name="alert"') && !notRecorded.includes('name="check"')
+  );
+
+  /*
+   * The figures are the SIGNED quote's. A result drawn from `quote` on the page would price
+   * the figure the customer tapped, which is not the one the confirm step re-asked and
+   * signed.
+   */
+  check(
+    'the result reports what was signed: paid, got and the network fee, from that quote',
+    figures.includes('quote.amountIn') &&
+      figures.includes('quote.amountOut') &&
+      figures.includes('quote.networkFee') &&
+      figures.includes('formatFiat(Number(quote.fiatAmountOut)')
+  );
+  check(
+    'and it computes no figure of its own',
+    !figures.includes('parseUnits(') && !figures.includes('amountIn) *')
+  );
+  check(
+    'both endings print the hash the sentence tells the customer to keep',
+    result.includes('<SwapReference') && notRecorded.includes('<SwapReference')
+  );
+
+  /*
+   * The outcome is decided by the HASH, not by the sentence. A failure before the signature
+   * has no hash because nothing was sent, and that is the case where the form must stay
+   * armed and retryable.
+   */
+  check(
+    'the ending is decided by whether a hash exists, so a pre-signature failure is not terminal',
+    /txHash === null\) return null/.test(form) && form.includes("if (step === 'error')")
+  );
+  check(
+    'a failed record does not offer the control that would sign a second swap',
+    !notRecorded.includes('<SwapSubmit') && !notRecorded.includes('onSubmit')
+  );
+
+  /*
+   * The page's promise was unbacked: "your balance will update" with nothing re-reading it.
+   * `useConvertSwap` already took an `onSwapped`; nothing passed one.
+   */
+  check(
+    'a recorded swap re-reads the balances it moved',
+    form.includes('onSwapped: reloadRows') && rows.includes('reload')
+  );
+  check(
+    'and the way back clears the figure the finished swap spent',
+    /const onReset[\s\S]{0,240}setDraft\(''\)/.test(form) && form.includes('reloadRows();')
+  );
+
+  const resultLines = Object.values(SWAP_RESULT_COPY);
+  check(
+    'the result copy says nothing with an em dash, an exclamation or a question mark',
+    !resultLines.some((line) => /[—–!?]/.test(line))
+  );
+  check(
+    'an unrecorded swap says the money moved, that the record did not, and what to keep',
+    /could not record/i.test(SWAP_RESULT_COPY.unrecordedBody) &&
+      /may not appear in your activity/i.test(SWAP_RESULT_COPY.unrecordedBody) &&
+      /keep this reference/i.test(SWAP_RESULT_COPY.unrecordedBody)
   );
 }
 
