@@ -102,6 +102,10 @@ export async function recordAppOpen(input: RecordAppOpenInput): Promise<RecordAp
     action: 'app.open',
     ip: input.ip,
     metadata: { day, timeZone: zone },
+    // The row carries the instant that was bucketed, not the wall clock at
+    // write time. They are the same thing in production; carrying it means the
+    // row and the lookback above can never disagree about when this happened.
+    createdAt: now,
   });
 
   return { recorded: true, day };

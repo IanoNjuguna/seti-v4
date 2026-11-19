@@ -169,6 +169,17 @@ export interface AuditLogInput {
    */
   txHash?: string;
   metadata?: Record<string, unknown>;
+  /**
+   * The instant the event happened, when the caller already holds one.
+   *
+   * `AuditLog.createdAt` defaults to `now()`, so most callers omit this and the
+   * row is stamped at the moment of the write. A caller that buckets an event
+   * into a day needs the row to carry the SAME instant it counted, or the row
+   * and its own dedupe window disagree: `recordAppOpen` looks back from the
+   * instant it was given, and a row stamped at wall-clock time is invisible to
+   * that lookback whenever the two differ.
+   */
+  createdAt?: Date;
 }
 
 export async function logAuditEvent(input: AuditLogInput) {
@@ -179,6 +190,7 @@ export async function logAuditEvent(input: AuditLogInput) {
       ip: input.ip ?? null,
       txHash: input.txHash ?? null,
       metadata: (input.metadata ?? {}) as Prisma.InputJsonValue,
+      ...(input.createdAt ? { createdAt: input.createdAt } : {}),
     },
   });
 }
