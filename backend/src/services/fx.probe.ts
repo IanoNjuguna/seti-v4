@@ -52,7 +52,7 @@ globalThis.fetch = (async (
   }
 
   return realFetch(input, init);
-}) as typeof fetch;
+});
 
 async function main(): Promise<void> {
   const { getFxQuote } = await import('./payments.js');

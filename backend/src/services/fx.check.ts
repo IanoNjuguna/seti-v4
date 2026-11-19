@@ -184,7 +184,7 @@ async function main(): Promise<void> {
     await app.ready();
 
     const response = await app.inject({ method: 'GET', url: '/rates' });
-    const body = response.json() as { rate?: Record<string, unknown> };
+    const body = response.json<{ rate?: Record<string, unknown> }>();
     const rate = body.rate ?? {};
 
     check('GET /rates answers without a token', response.statusCode === 200, String(response.statusCode));
