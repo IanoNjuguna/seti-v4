@@ -148,6 +148,43 @@ export interface SwapRateLineProps {
 /** The one line about where the swap stands, and the hash when there is one to keep. */
 export type SwapStateLineProps = SwapStateLineModel;
 
+/**
+ * The two ways a swap ENDS (#593).
+ *
+ * `done`: signed, verified off the receipt and recorded. `unrecorded`: signed and
+ * mined, but the write-up was refused, so the money moved and the ledger has no row.
+ *
+ * There is deliberately no third kind. A failure BEFORE the signature is not an
+ * outcome: nothing moved, the form stays armed, and its sentence is a state line.
+ */
+export type SwapResultKind = 'done' | 'unrecorded';
+
+/**
+ * What the page says once the swap is over, and what it is allowed to say it from.
+ *
+ * `quote` is the quote that was SIGNED, not the one the customer first tapped: the
+ * confirm step re-asks the book, and a result drawn from the earlier figure would
+ * price a swap that never happened.
+ */
+export interface SwapResultModel {
+  kind: SwapResultKind;
+  quote: ConvertQuote;
+  txHash: string;
+  network: Network;
+}
+
+/** The terminal view's props. No `form`: a finished swap has nothing left to edit. */
+export interface SwapResultProps {
+  result: SwapResultModel;
+  onDone: () => void;
+}
+
+/** The three figures a finished swap is allowed to report, and the quote they come from. */
+export interface SwapResultFiguresProps {
+  /** The quote that was signed. Every figure on the card is this object's own. */
+  quote: ConvertQuote;
+}
+
 /** The hash well: the reference the record-failure line tells the customer to keep. */
 export interface SwapReferenceProps {
   txHash: string;
@@ -174,11 +211,8 @@ export interface SwapFieldsProps {
 
 export interface SwapSubmitProps {
   busy: boolean;
-  /** The swap is signed, mined and recorded. */
-  done: boolean;
   /** Nothing can be signed yet: no quote, no pair, or no amount. */
   disabled: boolean;
-  onReset: () => void;
 }
 
 /**
@@ -223,7 +257,11 @@ export interface SwapFormState {
   /** The amount field should take the cursor. */
   refocusAmount: boolean;
   busy: boolean;
-  done: boolean;
+  /**
+   * The swap is over and the page is a result (#593), not a form. Null while there is
+   * still something to sign: a pre-signature failure is a state line, not an outcome.
+   */
+  result: SwapResultModel | null;
   canSubmit: boolean;
   onSource: (asset: string) => void;
   onTarget: (asset: string) => void;

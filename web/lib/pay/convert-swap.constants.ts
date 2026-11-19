@@ -28,9 +28,6 @@ export const SWAP_COPY = {
   getAtLeast: 'You get at least',
   networkFee: 'Network fee',
 
-  /** The swap was signed, mined and recorded. */
-  done: 'Swapped. Your balance will update in a moment.',
-
   /**
    * The book moved between the quote the customer tapped and the one that would be
    * signed. The new figure is shown; nothing is signed against the old one.
@@ -52,4 +49,36 @@ export const SWAP_COPY = {
   insufficientGas: 'This balance cannot cover the network fee as well. Nothing moved.',
   /** The quote itself failed, before anything was signed. */
   notPriced: 'Seti could not price this swap. Try again in a moment.',
+} as const;
+
+/**
+ * The words of a swap that is OVER (#593).
+ *
+ * The page used to end a successful swap with a grey sentence under a still-armed form,
+ * which is the shape of a request nobody finished. These are the words of the view that
+ * replaces it, and they are held to the same two rules as `SWAP_COPY`: nothing claims
+ * more than the receipt proves, and "nothing moved" is only said where nothing did.
+ *
+ * The two endings are not the same sentence with a different colour. A recorded swap
+ * tells the customer where the row is. An unrecorded one tells them the money moved and
+ * the record did not, because that is what happened and the hash is all that can find it.
+ */
+export const SWAP_RESULT_COPY = {
+  /** Signed, verified off the receipt and recorded. */
+  doneTitle: 'Swap complete',
+  /** Where the record is now. The row is written by the record path, not by this view. */
+  doneBody: 'It is in your activity now.',
+
+  /** Signed and mined, but the write-up was refused. */
+  unrecordedTitle: 'Swapped, not recorded',
+  unrecordedBody:
+    'Seti could not record this swap, so it may not appear in your activity. Keep this reference.',
+
+  /** The two rows of figures, and the fee under them. */
+  paid: 'You paid',
+  got: 'You got',
+  networkFee: SWAP_COPY.networkFee,
+
+  /** The way back: the page is where the next swap starts. */
+  finish: 'Done',
 } as const;

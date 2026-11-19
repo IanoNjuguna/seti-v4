@@ -6,6 +6,7 @@ import { cn } from '@/lib/cn';
 import { useSwapForm } from '@/hooks/useSwapForm';
 import { SWAP_COLUMN_CLASS, SWAP_FORM_COPY } from './SwapForm.constants';
 import { SwapFields } from './SwapFields';
+import { SwapOutcome } from './SwapOutcome';
 import { SwapRateLine } from './SwapRateLine';
 import { SwapStateLine } from './SwapStateLine';
 
@@ -30,6 +31,18 @@ import { SwapStateLine } from './SwapStateLine';
  */
 export function SwapForm() {
   const form = useSwapForm();
+
+  // A swap that is over REPLACES the page's body (#593): rate line, pairs, figures and
+  // the control that signs are all about the NEXT swap, and drawing them under a result
+  // is how the page used to end up with an armed `Swap now` under a finished one.
+  if (form.result !== null) {
+    return (
+      <div className={cn('flex flex-col gap-4', SWAP_COLUMN_CLASS)}>
+        <PageHeader title={SWAP_FORM_COPY.title} />
+        <SwapOutcome result={form.result} onDone={form.onReset} />
+      </div>
+    );
+  }
 
   return (
     <div className={cn('flex flex-col gap-4', SWAP_COLUMN_CLASS)}>

@@ -38,8 +38,6 @@ export const SWAP_FORM_COPY = {
   flipLabel: 'Swap the two sides',
 
   amountPlaceholder: '0.00',
-  /** The way off a finished swap, so a second one can be priced. */
-  finish: 'Done',
 
   /**
    * The two figures, reused from the row's confirm step rather than written a second

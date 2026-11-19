@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { fetchHomeDashboard } from '@/lib/api';
 import type { AssetBalanceRow } from '@/lib/api';
 import type { SpendAssetRowsState } from './useSpendAssetRows.types';
@@ -22,12 +22,20 @@ import type { SpendAssetRowsState } from './useSpendAssetRows.types';
  * from what the account holds whether or not this list arrived — so the failure is
  * reported as `unavailable` and the selector says so in words rather than blocking a
  * payment that would have worked.
+ *
+ * `reload` exists for the one moment the figures are KNOWN to be stale: after a swap
+ * has moved a balance (#593). It bumps a nonce from an event handler, which is a legal
+ * setState, and the effect below is what re-reads. Without it a finished swap left the
+ * old balance on screen while the success sentence claimed an update nobody performed.
  */
 export function useSpendAssetRows(userId?: string): SpendAssetRowsState {
   const [rows, setRows] = useState<AssetBalanceRow[]>([]);
   const [currency, setCurrency] = useState('');
   const [settled, setSettled] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
+  const [read, setRead] = useState(0);
+
+  const reload = useCallback(() => setRead((count) => count + 1), []);
 
   useEffect(() => {
     if (!userId) return;
@@ -53,11 +61,11 @@ export function useSpendAssetRows(userId?: string): SpendAssetRowsState {
     return () => {
       active = false;
     };
-  }, [userId]);
+  }, [userId, read]);
 
   // No account, no balances to choose between, and no request either: a visitor is
   // never shown another account's money.
-  if (!userId) return { rows: [], currency: '', loading: false, unavailable: false };
+  if (!userId) return { rows: [], currency: '', loading: false, unavailable: false, reload };
 
-  return { rows, currency, loading: !settled, unavailable };
+  return { rows, currency, loading: !settled, unavailable, reload };
 }

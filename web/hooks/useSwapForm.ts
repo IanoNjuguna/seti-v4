@@ -20,6 +20,7 @@ import type {
   SwapFormState,
   SwapLineTone,
   SwapReferenceModel,
+  SwapResultModel,
   SwapStateLineModel,
 } from '@/components/swap/SwapForm.types';
 import { useAppNetwork } from '@/components/app/useAppNetwork';
@@ -135,7 +136,8 @@ export function useSwapForm(): SwapFormState {
   // The network the swap settles on, so a hash on the failure line links to the explorer
   // that can actually find it.
   const { network } = useAppNetwork();
-  const { rows, loading: rowsLoading, unavailable: rowsUnavailable } = useSpendAssetRows(userId);
+  const { rows, loading: rowsLoading, unavailable: rowsUnavailable, reload: reloadRows } =
+    useSpendAssetRows(userId);
 
   const [pairs, setPairs] = useState<PairsState>(LOADING_PAIRS);
   const [sourceChoice, setSourceChoice] = useState<string | null>(null);
@@ -271,8 +273,27 @@ export function useSwapForm(): SwapFormState {
     return refreshPairs();
   }, [outOfBook, refreshPairs]);
 
-  const swap = useConvertSwap();
-  const done = swap.step === 'done';
+  const swap = useConvertSwap({ onSwapped: reloadRows });
+
+  /**
+   * Whether the swap is OVER, and which ending it was (#593).
+   *
+   * Two terminal kinds and no more: recorded, or signed-and-mined-but-unrecorded. The
+   * discriminator is the hash, not the sentence: a failure before the signature has no
+   * hash because nothing was sent, and that is precisely the case where the form must
+   * stay armed. A failure after it cannot pretend otherwise.
+   *
+   * `swap.quote` at these steps is the quote that was SIGNED — the confirm step replaces
+   * the shown one with the fresh answer before it builds calldata — so the figures on the
+   * result are the figures the chain was asked to move, never the earlier tap's.
+   */
+  const result = useMemo<SwapResultModel | null>(() => {
+    const { step, quote: signed, txHash } = swap;
+    if (signed === null || txHash === null) return null;
+    if (step === 'done') return { kind: 'done', quote: signed, txHash, network };
+    if (step === 'error') return { kind: 'unrecorded', quote: signed, txHash, network };
+    return null;
+  }, [swap, network]);
 
   /*
    * The ceiling (#337): what this balance could swap at all, asked with `max`.
@@ -323,6 +344,12 @@ export function useSwapForm(): SwapFormState {
     // The one line that can carry a hash: the swap was signed, so a hash exists, and the
     // sentence tells the customer to keep it (#413). A failure before the signature has no
     // hash and says nothing moved, so it gets the sentence alone.
+    //
+    // A swap that is OVER has no state line at all (#593): the result view below the
+    // heading is the answer, and a sentence about it here would be the same news twice,
+    // in two registers, on one screen.
+    if (result !== null) return null;
+
     if (swap.error !== null) {
       return swapLine(
         'alert',
@@ -330,7 +357,6 @@ export function useSwapForm(): SwapFormState {
         swap.txHash === null ? null : { txHash: swap.txHash, network }
       );
     }
-    if (done) return swapLine('muted', SWAP_COPY.done);
 
     // The field carries its own sentence while the figure is not one to ask about.
     if (typed && asked.problem !== null) return null;
@@ -353,10 +379,10 @@ export function useSwapForm(): SwapFormState {
     pairs.status,
     sources.length,
     assetOut,
+    result,
     swap.error,
     swap.txHash,
     network,
-    done,
     typed,
     asked.problem,
     quotable,
@@ -425,6 +451,22 @@ export function useSwapForm(): SwapFormState {
     setDraft('');
   }, [canFlip, assetIn, assetOut]);
 
+  /**
+   * A fresh page, from a finished swap (#593).
+   *
+   * Three things, and the second is the one the old reset missed: the swap's own state
+   * goes back to idle, the typed figure is cleared (it was a quantity of the pair that
+   * was just spent, and leaving it would offer a second swap of the same size), and the
+   * balances are re-read, because this is also the moment after a failure where the rows
+   * on screen are the ones the last swap moved.
+   */
+  const onReset = useCallback(() => {
+    swap.reset();
+    setTyped(false);
+    setDraft('');
+    reloadRows();
+  }, [swap, reloadRows]);
+
   const loading = rowsLoading || pairs.status === 'loading';
   const ready = !loading && !rowsUnavailable && pairs.status === 'ready' && assetOut !== '';
 
@@ -457,14 +499,16 @@ export function useSwapForm(): SwapFormState {
     onFlip,
     refocusAmount: convert.code === 'convert-no-liquidity',
     busy: swap.busy,
-    done,
-    canSubmit: shown !== null && !swap.busy && !done,
+    result,
+    // A finished swap has nothing to sign: the result view is drawn instead of the form,
+    // and this is the second lock, for any surface that reads `canSubmit` on its own.
+    canSubmit: shown !== null && !swap.busy && result === null,
     onSource,
     onTarget,
     onAmount,
     onAll,
     onSubmit,
-    onReset: swap.reset,
+    onReset,
     amountFieldId: SWAP_AMOUNT_FIELD_ID,
     sourceFieldId: SWAP_SOURCE_FIELD_ID,
     targetFieldId: SWAP_TARGET_FIELD_ID,

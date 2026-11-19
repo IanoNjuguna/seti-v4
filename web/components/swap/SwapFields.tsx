@@ -117,12 +117,7 @@ export function SwapFields({ form }: SwapFieldsProps) {
 
       {quote !== null && <SwapFigures quote={quote} />}
 
-      <SwapSubmit
-        busy={form.busy}
-        done={form.done}
-        disabled={!form.canSubmit}
-        onReset={form.onReset}
-      />
+      <SwapSubmit busy={form.busy} disabled={!form.canSubmit} />
     </form>
   );
 }
