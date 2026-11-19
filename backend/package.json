@@ -46,6 +46,7 @@
     "check:profile-name": "tsx src/services/profile-name.check.ts",
     "check:referral": "DEV_BYPASS_AUTH=true tsx src/services/referral.check.ts",
     "check:consent": "tsx src/services/consent.check.ts",
+    "check:app-open": "DEV_BYPASS_AUTH=true tsx src/services/app-open.check.ts",
     "check:network": "DEV_BYPASS_AUTH=true tsx src/services/network-scope.check.ts",
     "check:statement": "tsx src/services/statement.check.ts",
     "prove:batch": "tsx src/cli/prove-batch.ts",

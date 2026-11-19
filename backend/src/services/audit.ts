@@ -138,7 +138,23 @@ export type AuditAction =
    * A display label, not an identity: the handle is the thing people pay by and it is
    * immutable. This row exists so a name on a receipt can be traced to when it was set.
    */
-  | 'profile.name.updated';
+  | 'profile.name.updated'
+  /**
+   * The account's session was SERVED on this local day — one row per account per
+   * day, no more (services/app-open.ts, #571).
+   *
+   * Written from `GET /auth/me` rather than from a sign-in, because `/auth/verify`
+   * only runs when a session is ESTABLISHED: a customer returning with a live
+   * token never touches it, and so was invisible. `metadata.day` is the local date
+   * the row bucketed to and `metadata.timeZone` the zone it was bucketed in, both
+   * recorded at write time — the zone is a user setting, and re-deriving history
+   * through today's zone would rewrite last month's retention.
+   *
+   * D7/D30 are `count(distinct metadata.day)` per account. Nothing in product code
+   * reads this action: it is a measurement, and removing the writer leaves the
+   * rows inert.
+   */
+  | 'app.open';
 
 export interface AuditLogInput {
   userId?: string;
@@ -153,6 +169,17 @@ export interface AuditLogInput {
    */
   txHash?: string;
   metadata?: Record<string, unknown>;
+  /**
+   * The instant the event happened, when the caller already holds one.
+   *
+   * `AuditLog.createdAt` defaults to `now()`, so most callers omit this and the
+   * row is stamped at the moment of the write. A caller that buckets an event
+   * into a day needs the row to carry the SAME instant it counted, or the row
+   * and its own dedupe window disagree: `recordAppOpen` looks back from the
+   * instant it was given, and a row stamped at wall-clock time is invisible to
+   * that lookback whenever the two differ.
+   */
+  createdAt?: Date;
 }
 
 export async function logAuditEvent(input: AuditLogInput) {
@@ -163,6 +190,7 @@ export async function logAuditEvent(input: AuditLogInput) {
       ip: input.ip ?? null,
       txHash: input.txHash ?? null,
       metadata: (input.metadata ?? {}) as Prisma.InputJsonValue,
+      ...(input.createdAt ? { createdAt: input.createdAt } : {}),
     },
   });
 }

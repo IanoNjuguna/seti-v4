@@ -9,6 +9,7 @@ import { bindSessionIdentity } from '../services/session-identity.js';
 import { createAccount } from '../services/signup.js';
 import { attributeSignupInvite } from '../services/referral.js';
 import { logAuditEvent } from '../services/audit.js';
+import { recordAppOpen } from '../services/app-open.js';
 import { PRIMARY_ASSET, servedNetwork } from '../services/chain.js';
 
 const verifySchema = z.object({
@@ -277,6 +278,15 @@ export async function authRoutes(app: FastifyInstance) {
 
     if (!user) {
       return reply.status(401).send({ error: 'User not found' });
+    }
+
+    // Serving this answer IS the open, so the retention counter hangs here (#571).
+    // Deliberately NOT awaited into the response's success: a measurement must never
+    // be able to fail a customer's session, so a write error is logged and swallowed.
+    try {
+      await recordAppOpen({ userId: user.id, timeZone: user.timeZone, ip: request.ip });
+    } catch (error) {
+      request.log.warn({ err: error, userId: user.id }, 'app.open was not recorded');
     }
 
     return { user };

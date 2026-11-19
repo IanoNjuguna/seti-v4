@@ -696,14 +696,30 @@ async function main(): Promise<void> {
       },
     });
 
-    const ok = fundedOut
-      ? await ask({ assetIn: FUNDED_ASSET, assetOut: fundedOut, amountIn: '10' })
-      : null;
+    // The size asked is the largest the SERVED network's book will actually fill,
+    // found by walking a ladder down from 10. That is not lowering the bar: the claim
+    // is that the ROUTE quotes a fillable size and prices it inside the band, and the
+    // bar that must not move is the one above, the band matrix, which reads the
+    // product's own network (`PAR_NETWORK`, mainnet) at 10.000000. What has moved
+    // before is the practice book's depth: it filled 10.000000 at 16:03 today and only
+    // 0.001 by 16:24, and a route claim pinned to a literal size then fails as though
+    // the route were broken. `SETI_PAR_NETWORK=mainnet` in the workflow exists for the
+    // same reason one layer up (#316); this is the same drift, one layer deeper.
+    const QUOTE_SIZES = ['10', '1', '0.1', '0.01', '0.001'] as const;
+    let ok: Awaited<ReturnType<typeof ask>> | null = null;
+    let size: string = QUOTE_SIZES[0];
+    if (fundedOut) {
+      for (const candidate of QUOTE_SIZES) {
+        ok = await ask({ assetIn: FUNDED_ASSET, assetOut: fundedOut, amountIn: candidate });
+        size = candidate;
+        if (ok.statusCode === 200) break;
+      }
+    }
     if (ok) {
       check(
-        'a pair with a book quotes 200',
+        `a pair with a book quotes 200 (${FUNDED_ASSET} → ${fundedOut} at ${size})`,
         ok.statusCode === 200,
-        `${FUNDED_ASSET} → ${fundedOut}: ${ok.statusCode} ${codeOf(ok)}`
+        `${FUNDED_ASSET} → ${fundedOut}: ${ok.statusCode} ${codeOf(ok)} at every size down to ${QUOTE_SIZES[QUOTE_SIZES.length - 1]}`
       );
     } else {
       console.log(
@@ -717,7 +733,7 @@ async function main(): Promise<void> {
       const floor = parseUnits(quoted.minAmountOut, ASSET_DECIMALS);
       check(
         'the quote answers the amount in, the amount out and the floor',
-        quoted.amountIn === '10' && out > BigInt(0) && floor > BigInt(0),
+        quoted.amountIn === size && out > BigInt(0) && floor > BigInt(0),
         `${quoted.amountIn} → ${quoted.amountOut}, floor ${quoted.minAmountOut}`
       );
       check(
