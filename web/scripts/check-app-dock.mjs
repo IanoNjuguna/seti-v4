@@ -136,11 +136,17 @@ console.log('the header is the frame, and the dock is the object:');
   check('and it is not fixed', !/className="[^"]*\bfixed\b/.test(topBar));
 }
 
-console.log('the dock spreads its three destinations:');
+console.log('the dock lists places, and spreads them:');
 {
+  const nav = read(new URL('../components/app/AppNav.constants.ts', import.meta.url));
   check('each item takes an equal share', link.includes('flex-1'));
   check('the slab is full width up to its cap', dock.includes('w-full max-w-[26rem]'));
   check('and no divider crowds them', !dock.includes('w-px'));
+  // Two places, not three (#590): Profile left the dock for the header, and the profile route
+  // is asserted above to still be the header state's destination. A tab and a header control
+  // for one page is the second door the shell rule warns about.
+  check('the dock is Home and Activity', /APP_NAV_ITEMS[\s\S]{0,400}'\/app\/activity'/.test(nav) && nav.includes('APP_HOME_PATH'));
+  check('and Profile is not a tab any more', !nav.includes("'/app/profile'"));
 }
 
 console.log('a signed-out visitor still has a door:');
