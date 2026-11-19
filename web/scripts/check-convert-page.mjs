@@ -93,9 +93,23 @@ console.log('\nthe words:');
     calculator.NOT_A_QUOTE
   );
   check(
-    'and says so in the band as well, not only under the figure',
-    page.ABOUT.rows.some((row) => /not a quote/i.test(row.detail)),
-    page.ABOUT.rows.map((row) => row.title).join(', ')
+    'and says it under the figure, where the number is',
+    /not a quote/i.test(calculator.NOT_A_QUOTE)
+  );
+  check(
+    'the band carries only the two rows about the rate (#588)',
+    page.ABOUT.rows.length === 2 &&
+      page.ABOUT.rows.map((row) => row.title).join('|') === 'Who publishes it|What it is made of',
+    page.ABOUT.rows.map((row) => row.title).join('|')
+  );
+  check(
+    'and no longer repeats a "what it is not" row',
+    !page.ABOUT.rows.some((row) => /what it is not/i.test(row.title))
+  );
+  check(
+    'the masthead is the h1 alone, with no lede (#588)',
+    typeof page.MASTHEAD.title === 'string' && !('lede' in page.MASTHEAD),
+    Object.keys(page.MASTHEAD).join(',')
   );
   check(
     'the page names who publishes it and how often',

@@ -27,7 +27,7 @@ export function ConvertPage() {
   return (
     <MarketingShell>
       <MarketingBreadcrumb path="/convert" label="Convert" />
-      <MarketingMasthead title={MASTHEAD.title} lede={MASTHEAD.lede}>
+      <MarketingMasthead title={MASTHEAD.title}>
         <ConvertCalculator />
       </MarketingMasthead>
 

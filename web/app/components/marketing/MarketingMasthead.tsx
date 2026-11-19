@@ -31,7 +31,9 @@ export function MarketingMasthead({ title, lede, children }: MarketingMastheadPr
           {title}
         </h1>
 
-        <p className="mt-5 max-w-2xl text-body-lg text-on-dark-mute">{lede}</p>
+        {lede ? (
+          <p className="mt-5 max-w-2xl text-body-lg text-on-dark-mute">{lede}</p>
+        ) : null}
 
         <div className="mt-12 md:mt-16">{children}</div>
       </div>

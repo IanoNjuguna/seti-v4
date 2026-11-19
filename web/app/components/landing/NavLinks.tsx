@@ -1,4 +1,5 @@
-import { NAV_LINKS } from './LandingNav.constants';
+import Link from 'next/link';
+import { NAV_LINKS, ROUTE_LINKS } from './LandingNav.constants';
 
 /**
  * The bar's centre links: the two answers the page has to give, and what it costs.
@@ -29,6 +30,17 @@ export function NavLinks() {
         >
           {link.label}
         </a>
+      ))}
+      {/* The one destination that is a page, not a band (#586): the router takes it,
+          a fragment link would reload the document for nothing. */}
+      {ROUTE_LINKS.map((link) => (
+        <Link
+          key={link.href}
+          href={link.href}
+          className="rounded-sm text-body-sm font-semibold text-on-dark-mute transition-colors duration-(--duration-quick) ease-out hover:text-on-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-dark focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-dark"
+        >
+          {link.label}
+        </Link>
       ))}
     </div>
   );
