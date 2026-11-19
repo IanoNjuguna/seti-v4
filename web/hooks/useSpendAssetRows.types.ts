@@ -15,4 +15,9 @@ export interface SpendAssetRowsState {
   loading: boolean;
   /** The read failed. The payment still prices; the choice is what is missing. */
   unavailable: boolean;
+  /**
+   * Ask again. For the one moment the rows are known to be stale: after a swap has
+   * moved a balance (#593). The read itself is unchanged; only the moment is new.
+   */
+  reload: () => void;
 }

@@ -13,19 +13,12 @@ import type { SwapSubmitProps } from './SwapForm.types';
  * is in flight it shows the spinner AND is disabled, so a slow wallet is not a dead
  * button and cannot be pressed twice.
  *
- * Once the swap is recorded the sign control goes away and `Done` takes its place. Two
- * reasons: a finished swap has nothing left to sign, and the page is where the next swap
- * starts, which needs the figures cleared rather than re-drawn over a completed one.
+ * Once the swap is over the whole page becomes a result (#593): `SwapResult` when the
+ * swap was recorded, `SwapNotRecorded` when it was signed but could not be written down.
+ * Both replace this control rather than sitting under it, so a finished swap can never
+ * offer the button that signs a second one.
  */
-export function SwapSubmit({ busy, done, disabled, onReset }: SwapSubmitProps) {
-  if (done) {
-    return (
-      <Button type="button" fullWidth onClick={onReset}>
-        {SWAP_FORM_COPY.finish}
-      </Button>
-    );
-  }
-
+export function SwapSubmit({ busy, disabled }: SwapSubmitProps) {
   return (
     <Button type="submit" fullWidth loading={busy} disabled={disabled}>
       {SWAP_FORM_COPY.confirm}
