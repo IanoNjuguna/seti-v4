@@ -84,7 +84,8 @@
     "check:ask": "npm run check:ask --workspace web",
     "check:app-dock": "npm run check:app-dock --workspace web",
     "check:activity-signed-out": "npm run check:activity-signed-out --workspace web",
-    "check:layout-floor": "npm run check:layout-floor --workspace web"
+    "check:layout-floor": "npm run check:layout-floor --workspace web",
+    "check:fx-cbk": "npm run check:fx-cbk --workspace backend"
   },
   "engines": {
     "node": ">=20.0.0"
