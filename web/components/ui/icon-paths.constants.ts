@@ -54,6 +54,16 @@ export const ICON_PATHS = {
   /* Two sheets, sharp corners like the rest of the set: the front one whole, the
      back one open on the edges the front covers. */
   copy: ['M9 9h12v12H9z', 'M15 6V4.5A1.5 1.5 0 0 0 13.5 3h-9A1.5 1.5 0 0 0 3 4.5v9A1.5 1.5 0 0 0 4.5 15H6'],
+  /* An orb: the ball, one light catch on its glass, and the shallow stand it rests
+     in. Two earlier drafts died at 20px — a tripod and a trapezoid base both
+     thickened into the `bell` silhouette, and a sparkle inside the ring read as a
+     `+`. The cradle is a single open stroke for that reason: it separates from the
+     ball at 16px without adding weight under it. */
+  crystalBall: [
+    'M12 4.6a6.2 6.2 0 1 0 0 12.4 6.2 6.2 0 0 0 0-12.4Z',
+    'M8.5 8.4a4.7 4.7 0 0 1 3.9-2',
+    'M7.9 18.2c1 1.4 2.5 2.2 4.1 2.2s3.1-.8 4.1-2.2',
+  ],
   /* Status marks. The word beside them carries the meaning; these carry it to a
      reader who cannot see the colour. */
   check: ['m5 12.5 4.5 4.5L19 7.5'],
