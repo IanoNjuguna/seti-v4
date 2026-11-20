@@ -142,10 +142,16 @@ console.log('the dock lists places, and spreads them:');
   check('each item takes an equal share', link.includes('flex-1'));
   check('the slab is full width up to its cap', dock.includes('w-full max-w-[26rem]'));
   check('and no divider crowds them', !dock.includes('w-px'));
-  // Two places, not three (#590): Profile left the dock for the header, and the profile route
-  // is asserted above to still be the header state's destination. A tab and a header control
-  // for one page is the second door the shell rule warns about.
-  check('the dock is Home and Activity', /APP_NAV_ITEMS[\s\S]{0,400}'\/app\/activity'/.test(nav) && nav.includes('APP_HOME_PATH'));
+  // Three places since #597, two from #590: Profile left the dock for the header, and the
+  // profile route is asserted above to still be the header state's destination. A tab and a
+  // header control for one page is the second door the shell rule warns about.
+  check('the dock is Home, Activity and Outcomes', /APP_NAV_ITEMS[\s\S]{0,600}'\/app\/activity'/.test(nav) && nav.includes("label: 'Outcomes'") && nav.includes('APP_HOME_PATH'));
+  check('Outcomes is marked with the orb, not a second round glyph', nav.includes('label: \'Outcomes\', icon: OUTCOMES_ICON'));
+  // A tab whose destination does not exist is a 404 in production, and no suite would say so:
+  // every check passes on a link to a page nobody wrote. So the route file is part of the
+  // assertion, and the page's own heading is pinned to the tab's label so the two cannot drift.
+  check('and its destination exists', existsSync(new URL('../app/(product)/app/outcomes/page.tsx', import.meta.url)));
+  check('whose heading is the tab\'s own word', read('../components/outcomes/Outcomes.constants.ts').includes("title: 'Outcomes'"));
   check('and Profile is not a tab any more', !nav.includes("'/app/profile'"));
 }
 
