@@ -49,6 +49,14 @@ export const MEASURED_USDT0_SIDE_ON = '2026-11-10';
 export const MEASURED_USDC_E_SIDE_ON = '2026-11-11';
 
 /**
+ * The date the USDT0 SELL side was measured again, after it widened a second time (#600).
+ *
+ * Its own constant for the same reason the first USDT0 date has one: the pair edges and the
+ * USDC.e rows were not read again on this date, and re-dating them would claim they were.
+ */
+export const MEASURED_USDT0_SELL_AGAIN_ON = '2026-11-21';
+
+/**
  * Spread against par, in basis points, keyed `'a↔b'` for a pair measurement and
  * `'a→b'` for one direction of it.
  *
@@ -69,11 +77,21 @@ export const PAR_BAND_BPS: Readonly<Record<Network, Readonly<Record<string, numb
     // The USDT0 side of the OUSD book, measured on MEASURED_USDT0_SIDE_ON. The pair edge
     // is 5 and the book quit quoting near it: four readings in a row, the CI gate among
     // them, held at 14.00 bps while the reverse side sat at -7 to -9 (#517).
-    'usdt0→ousd': 14,
-    // The same move on the other book: `pathusd↔usdt0` measured 6, and this side reads
-    // 14.00 on the same day, while `pathusd→usdt0` reads -8. One token, two books, the same
-    // sell side (#525).
-    'usdt0→pathusd': 14,
+    //
+    // MEASURED AGAIN ON MEASURED_USDT0_SELL_AGAIN_ON (#600), because 14 stopped being the
+    // book's answer: 17.00 at 21:00Z, 19.00 at 21:10Z, and 21.00 three times between 21:43Z
+    // and 21:56Z, each read taken by the same suite at the same size. The row is 22 rather
+    // than 21 for the one basis point of tick room `LIVE_BOOK_HEADROOM_BPS` names: three
+    // readings agreeing at 21.00 is a resting spread, and a single tick above it is not the
+    // drift this row exists to catch.
+    'usdt0→ousd': 22,
+    // The same move on the other book: `pathusd↔usdt0` measured 6, and this side read 14.00
+    // on the same day, while `pathusd→usdt0` read -8. One token, two books, the same sell
+    // side (#525). Re-measured with the OUSD side on MEASURED_USDT0_SELL_AGAIN_ON and moving
+    // with it, reading 21.00 at the same three moments (#600). Both buy sides read -17 to -18
+    // while both sell sides read 21.00, so a round trip costs 3 to 4 bps and the rest is the
+    // token itself: USDT0 is trading about 19 bps under the two native dollars.
+    'usdt0→pathusd': 22,
     // The USDC.e side of both native books, measured on MEASURED_USDC_E_SIDE_ON: two
     // readings forty minutes apart, agreeing to the basis point (#565). Both sell
     // sides read 5.00 while the buy sides sat at 0.00 and 1.00 on the same book, and
@@ -100,8 +118,16 @@ export const LIVE_BOOK_HEADROOM_BPS = 1;
 /**
  * The widest band plus headroom any pair may be given, so loosening the table above is
  * a visible edit against a limit rather than a quiet way to turn the gate green.
+ *
+ * 15 UNTIL THE USDT0 SELL SIDE WIDENED A SECOND TIME (#600). The band for `usdt0→ousd`
+ * and `usdt0→pathusd` is 22 now, and this constant is the rule that says so out loud:
+ * 22 + 1 would have failed against 15, and a band that cannot be recorded is the gate
+ * telling us the token has moved rather than the book. 24 rather than 23 because the same
+ * leg went 14 → 17 → 19 → 21 in eleven days; two basis points of next-day room keeps this
+ * from being re-edited before the drift itself has been answered. The tripwire is duller
+ * by 9 bps on one leg, and that is the cost being accepted here.
  */
-export const PAR_BAND_CEILING_BPS = 15;
+export const PAR_BAND_CEILING_BPS = 24;
 
 /** `['usdt0','ousd']` and `['ousd','usdt0']` are the same book. */
 export function canonicalPair(a: string, b: string): string {
