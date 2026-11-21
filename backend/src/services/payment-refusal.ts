@@ -224,6 +224,15 @@ export type PaymentRefusalCode =
    */
   | 'arrival-is-charge-settlement'
   /**
+   * The arrival path's second refusal (`services/arrival.ts`).
+   *
+   * The transfer is a movement Seti itself already wrote a ledger row for — a convert's
+   * return leg, a p2p receive, a savings deposit or withdrawal. It is real money and it
+   * is the customer's, but it is not unattributed: Activity says what it was, so the
+   * arrival list would be telling the same story twice with less information.
+   */
+  | 'arrival-is-seti-movement'
+  /**
    * The merchant app's own refusals (`routes/merchant-apps.ts`, #156).
    *
    * A merchant app is a name a wallet SIGNED for, bound to the address its charges

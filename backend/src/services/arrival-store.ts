@@ -142,6 +142,27 @@ export async function recordArrivals(input: {
     chargesByRecipient.set(key, list);
   }
 
+  /**
+   * The transactions Seti's own ledger already holds on this network, out of the ones
+   * being classified.
+   *
+   * ONE query for the window, not one per transfer, and the condition is the hash: a
+   * convert's return leg, a p2p receive and a savings deposit each share their
+   * transaction with the row Activity already renders. `txHash` is null on rows that
+   * never reached the chain, so the `in` list is built from the candidates and the
+   * nulls are dropped by the filter itself.
+   */
+  const candidateHashes = [...new Set(input.arrivals.map((arrival) => arrival.txHash))];
+
+  const recordedRows = await prisma.transaction.findMany({
+    where: { network: input.network, txHash: { in: candidateHashes } },
+    select: { txHash: true },
+  });
+
+  const setiTxHashes = recordedRows
+    .map((row) => row.txHash)
+    .filter((hash): hash is string => typeof hash === 'string');
+
   const results: RecordedArrival[] = [];
 
   for (const transfer of input.arrivals) {
@@ -150,6 +171,7 @@ export async function recordArrivals(input: {
     const decision = classifyArrival({
       transfer: { ...transfer, recipient },
       chargesAtRecipient: chargesByRecipient.get(recipient) ?? [],
+      setiTxHashes,
     });
 
     if (decision.kind === 'refuse') {
