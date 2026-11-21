@@ -114,6 +114,16 @@ export type ArrivalRefusalCode =
    * payment and an unattributed arrival.
    */
   | 'arrival-is-charge-settlement'
+  /**
+   * Seti's own ledger already records this exact transaction: a convert, a p2p
+   * receive, a savings deposit or withdrawal.
+   *
+   * The movement is real and it is the customer's, but it is not unattributed, and
+   * an arrival list is a list of movements nobody recorded. Counting it here as well
+   * would show one movement on two surfaces — "money arrived" beside the row that
+   * says what it actually was.
+   */
+  | 'arrival-is-seti-movement'
   /** The chain has no usable receipt for the transfer yet. */
   | 'receipt-unavailable'
   /** The amount is not a usable decimal token amount, so it is not a value to store. */
@@ -168,7 +178,7 @@ function amountUnits(amount: string): bigint | null {
  * PURE: no chain read, no database, no clock, no user. The store hands in the
  * charges it already read; this function answers from them.
  *
- * The gates, in order, and why there are only three:
+ * The gates, in order, and why there are only four:
  *
  *  1. **Is it confirmed?** An unmined transfer has not arrived. Same code the
  *     payment and charge paths use (`receipt-unavailable`).
@@ -177,6 +187,11 @@ function amountUnits(amount: string): bigint | null {
  *     merchant. (`amount-invalid`.)
  *  3. **Has a charge at this recipient already taken this transaction?** If so the
  *     money is that charge's, and the charge path owns it. (`arrival-is-charge-settlement`.)
+ *  4. **Does Seti's own ledger already record this transaction?** A convert's return
+ *     leg, a p2p receive, a savings deposit or withdrawal is a movement Seti wrote a
+ *     row for. (`arrival-is-seti-movement`.) The condition is the hash and nothing
+ *     else: a recorded movement shares this exact transaction, so matching on amount,
+ *     sender or memo would suppress a real payment that happens to look similar.
  *
  * Anything else is an arrival. Note what is NOT a gate: the amount of any charge,
  * its status, its asset, and how close any of those are to what arrived. A charge
@@ -197,8 +212,17 @@ export function classifyArrival(input: {
    * rest of each row is deliberately ignored.
    */
   chargesAtRecipient: readonly ArrivalCharge[];
+  /**
+   * Every `Transaction.txHash` Seti's own ledger holds for THIS network, among the
+   * transfers being classified.
+   *
+   * The caller reads them in one query and hands them in, for the same reason the
+   * charges are handed in: this function is pure, and a classifier that queries is a
+   * classifier that cannot be tested without a database.
+   */
+  setiTxHashes: readonly string[];
 }): ArrivalDecision {
-  const { transfer, chargesAtRecipient } = input;
+  const { transfer, chargesAtRecipient, setiTxHashes } = input;
 
   // 1. The chain has to have it.
   if (!transfer.confirmed) {
@@ -225,6 +249,14 @@ export function classifyArrival(input: {
     return refuse(
       'arrival-is-charge-settlement',
       `Transfer ${transfer.txHash} settled charge ${settledBy.id}, so the charge path records it.`
+    );
+  }
+
+  // 4. A movement Seti already wrote a row for is not an unattributed arrival.
+  if (setiTxHashes.includes(transfer.txHash)) {
+    return refuse(
+      'arrival-is-seti-movement',
+      `Transfer ${transfer.txHash} is already a Seti movement, so Activity records it.`
     );
   }
 
