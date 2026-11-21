@@ -162,9 +162,17 @@ console.log('a signed-out visitor still has a door:');
   check('in the app\'s action fill, the one "Claim your name" carries', state.includes('bg-accent-lime'));
   check('labelled in ink, because white measures 1.64:1 on it', state.includes('color="primary"'));
   check('with a hover that steps the fill, not the label', state.includes('hover:bg-accent-lime-deep'));
-  check('signed in, the row names the account by its handle', state.includes('@${handle}') && state.includes('href="/app/profile"'));
+  // Since #592 the account is a control, not a word: the handle moved into the chip, and the
+  // chip's menu is where Profile lives. The assertions follow the contract rather than the
+  // old markup, because what mattered was never the `@` — it was that the row names the
+  // account and that Profile stays one tap away.
+  const chip = read(new URL('../components/app/AccountChip.tsx', import.meta.url));
+  check('signed in, the row hands the account to the chip', state.includes('<AccountChip') && state.includes('handle={handle}'));
   check('and draws no second product face', !state.includes('<Mark'));
-  check('and it opens the profile', state.includes('href="/app/profile"'));
+  check(
+    'and the chip opens the menu that holds Profile',
+    /aria-haspopup="menu"/.test(chip) && chip.includes('href={PROFILE_PATH}')
+  );
   check('never an empty right-hand slot', !state.includes('return null'));
   check('and does not tell a restoring visitor to sign in', state.includes("session.status === 'restoring'"));
   check('practice is stated there too, linking to where it is switched', state.includes('practice') && state.includes('/app/profile'));
