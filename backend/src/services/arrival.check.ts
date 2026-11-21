@@ -31,6 +31,8 @@
  * was touched.
  */
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
 import { prisma } from '../lib/prisma.js';
@@ -163,7 +165,7 @@ async function main(): Promise<void> {
 
   const plain = observed();
 
-  const noCharges = classifyArrival({ transfer: plain, chargesAtRecipient: [] });
+  const noCharges = classifyArrival({ transfer: plain, chargesAtRecipient: [], setiTxHashes: [] });
   checkEq('a plain transfer with no charge at the address is an arrival', noCharges.kind, 'arrival');
   checkEq(
     'and it carries no fee collection, so nothing can be recorded as fee-bearing',
@@ -187,7 +189,7 @@ async function main(): Promise<void> {
     status: 'pending',
     txHash: null,
   };
-  const withSameAmount = classifyArrival({ transfer: plain, chargesAtRecipient: [sameAmount] });
+  const withSameAmount = classifyArrival({ transfer: plain, chargesAtRecipient: [sameAmount], setiTxHashes: [] });
   checkEq(
     'a pending charge for the EXACT amount is still not attached',
     withSameAmount.kind,
@@ -195,7 +197,7 @@ async function main(): Promise<void> {
   );
 
   const withinTolerance: ArrivalCharge = { ...sameAmount, id: 'arrv-pure-near', amount: '99.500000' };
-  const withNear = classifyArrival({ transfer: plain, chargesAtRecipient: [withinTolerance] });
+  const withNear = classifyArrival({ transfer: plain, chargesAtRecipient: [withinTolerance], setiTxHashes: [] });
   checkEq(
     'a pending charge within the payment path 1% tolerance is still not attached',
     withNear.kind,
@@ -205,7 +207,7 @@ async function main(): Promise<void> {
   const expiredSame: ArrivalCharge = { ...sameAmount, id: 'arrv-pure-expired', status: 'expired' };
   checkEq(
     'and a decided charge at the address does not absorb it either',
-    classifyArrival({ transfer: plain, chargesAtRecipient: [expiredSame] }).kind,
+    classifyArrival({ transfer: plain, chargesAtRecipient: [expiredSame], setiTxHashes: [] }).kind,
     'arrival'
   );
 
@@ -219,6 +221,7 @@ async function main(): Promise<void> {
   const settledDecision = classifyArrival({
     transfer: { ...plain, txHash: settlementHash },
     chargesAtRecipient: [settledByThis],
+    setiTxHashes: [],
   });
   checkEq(
     'a transfer a charge already settled is refused, not filed twice',
@@ -229,18 +232,18 @@ async function main(): Promise<void> {
   const settledElsewhere: ArrivalCharge = { ...sameAmount, id: 'arrv-pure-other', status: 'paid', txHash: txHash() };
   checkEq(
     'a charge settled by a DIFFERENT transaction does not claim this money',
-    classifyArrival({ transfer: plain, chargesAtRecipient: [settledElsewhere] }).kind,
+    classifyArrival({ transfer: plain, chargesAtRecipient: [settledElsewhere], setiTxHashes: [] }).kind,
     'arrival'
   );
 
-  const unconfirmed = classifyArrival({ transfer: { ...plain, confirmed: false }, chargesAtRecipient: [] });
+  const unconfirmed = classifyArrival({ transfer: { ...plain, confirmed: false }, chargesAtRecipient: [], setiTxHashes: [] });
   checkEq(
     'an unmined transfer has not arrived',
     unconfirmed.kind === 'refuse' ? unconfirmed.code : unconfirmed.kind,
     'receipt-unavailable'
   );
 
-  const badAmount = classifyArrival({ transfer: { ...plain, amount: 'not-a-number' }, chargesAtRecipient: [] });
+  const badAmount = classifyArrival({ transfer: { ...plain, amount: 'not-a-number' }, chargesAtRecipient: [], setiTxHashes: [] });
   checkEq(
     'an unreadable amount is refused rather than stored',
     badAmount.kind === 'refuse' ? badAmount.code : badAmount.kind,
@@ -381,6 +384,105 @@ async function main(): Promise<void> {
   checkEq('and the charge stays paid, with its own txHash', paidRow?.txHash, settlement);
 
   // -------------------------------------------------------------------------
+  // 4b. A movement Seti already recorded is not an unattributed arrival (#604)
+  // -------------------------------------------------------------------------
+  console.log('\n— a movement Seti already recorded is not an arrival —');
+
+  // A throwaway account, because a `Transaction` row needs an owner and this suite must
+  // not borrow the dev account's ledger.
+  const movementUser = await prisma.user.create({
+    data: { email: `arrival-movement-${RUN}@example.test` },
+  });
+  const movementAddress = `0x${RUN.padEnd(40, '0').slice(0, 40)}`;
+  const movementWallet = await prisma.wallet.create({
+    data: {
+      userId: movementUser.id,
+      chain: 'tempo',
+      asset: PRIMARY_ASSET,
+      address: movementAddress,
+      network: NETWORK,
+      status: 'active',
+    },
+  });
+
+  const otherNetwork = NETWORK === 'testnet' ? 'mainnet' : 'testnet';
+
+  /**
+   * A transfer to the throwaway address, so this section's two recorded arrivals cannot
+   * change the counts the later sections assert on the merchant's address.
+   */
+  const movementTransfer = (hash: string): ObservedArrival => ({
+    ...observed({ hash }),
+    recipient: movementAddress,
+  });
+
+  /** A ledger row as the convert, p2p and savings paths write one: type, hash, network. */
+  const recordedMovement = (type: 'convert' | 'p2p_receive' | 'savings_deposit' | 'savings_withdrawal', hash: string, on: string) =>
+    prisma.transaction.create({
+      data: {
+        userId: movementUser.id,
+        walletId: movementWallet.id,
+        network: on,
+        type,
+        status: 'completed',
+        amount: '100.000000',
+        asset: PRIMARY_ASSET,
+        txHash: hash,
+      },
+    });
+
+  // Criterion 1 and 2: every type Seti writes is refused, with its own code.
+  for (const type of ['convert', 'p2p_receive', 'savings_deposit', 'savings_withdrawal'] as const) {
+    const hash = txHash();
+    await recordedMovement(type, hash, NETWORK);
+
+    const refused = await recordArrivals({ arrivals: [movementTransfer(hash)], network: NETWORK });
+    checkEq(`a ${type} transaction is not filed as an arrival`, refused[0]?.code, 'arrival-is-seti-movement');
+    checkEq(
+      `and no arrival row exists for it`,
+      await prisma.addressArrival.count({ where: { txHash: hash } }),
+      0
+    );
+  }
+
+  // Criterion 3: the same hash on the OTHER network is a different movement.
+  const crossNetworkHash = txHash();
+  await recordedMovement('convert', crossNetworkHash, otherNetwork);
+  const crossNetwork = await recordArrivals({
+    arrivals: [movementTransfer(crossNetworkHash)],
+    network: NETWORK,
+  });
+  check(
+    'a ledger row on the other network does not suppress this one',
+    typeof crossNetwork[0]?.id === 'string',
+    JSON.stringify(crossNetwork[0])
+  );
+
+  // Criterion 6: the predicate is the hash. Read as text, because the failure this
+  // prevents is silent: an exclusion by amount, sender or memo would suppress a real
+  // payment that happens to look like one Seti already recorded.
+  const classifierSource = readFileSync(join(__dirname, 'arrival.ts'), 'utf8');
+  const storeSource = readFileSync(join(__dirname, 'arrival-store.ts'), 'utf8');
+  check(
+    'the refusal is decided by the transaction hash and nothing else',
+    classifierSource.includes('setiTxHashes.includes(transfer.txHash)')
+  );
+  check(
+    'and the hashes come from the ledger column, read once per window',
+    storeSource.includes('txHash: { in: candidateHashes }')
+  );
+
+  // Criterion 4, the one that matters most: an unrecorded transfer still lands. Over-
+  // excluding hides money a customer actually received.
+  const unseenHash = txHash();
+  const unseen = await recordArrivals({ arrivals: [movementTransfer(unseenHash)], network: NETWORK });
+  check(
+    'a transfer Seti never recorded is still an arrival',
+    typeof unseen[0]?.id === 'string',
+    JSON.stringify(unseen[0])
+  );
+
+  // -------------------------------------------------------------------------
   // 5. What the indexer watches
   // -------------------------------------------------------------------------
   console.log('\n— the addresses a pass reads —');
@@ -470,7 +572,10 @@ async function main(): Promise<void> {
   // -------------------------------------------------------------------------
   // Cleanup, and the proof nothing else was touched
   // -------------------------------------------------------------------------
-  await prisma.wallet.deleteMany({ where: { address: RECIPIENT } });
+  // Children first: a `Transaction` row holds a foreign key to the wallet it spent from.
+  await prisma.transaction.deleteMany({ where: { txHash: { startsWith: TX_PREFIX } } });
+  await prisma.wallet.deleteMany({ where: { address: { in: [RECIPIENT, movementAddress] } } });
+  await prisma.user.deleteMany({ where: { email: { startsWith: `arrival-movement-${RUN}` } } });
   await prisma.auditLog.deleteMany({ where: { txHash: { startsWith: TX_PREFIX } } });
   await prisma.charge.deleteMany({ where: { publicId: { startsWith: CHARGE_PREFIX } } });
   await prisma.addressArrival.deleteMany({ where: { txHash: { startsWith: TX_PREFIX } } });
@@ -478,6 +583,11 @@ async function main(): Promise<void> {
   checkEq(
     'the fixture charges are gone',
     await prisma.charge.count({ where: { publicId: { startsWith: CHARGE_PREFIX } } }),
+    0
+  );
+  checkEq(
+    'and the fixture ledger rows are gone',
+    await prisma.transaction.count({ where: { txHash: { startsWith: TX_PREFIX } } }),
     0
   );
   checkEq(
