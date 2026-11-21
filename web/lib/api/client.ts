@@ -1,4 +1,14 @@
 import { API_BASE_URL } from './api.constants';
+/**
+ * The verbs this client sends.
+ *
+ * PUT and DELETE arrived with the Polymarket card (#599), which stores and forgets a
+ * linked address. Kept as one union rather than a type per helper so every call site
+ * goes through the same `send`, and therefore the same one-shot 401 refresh and the
+ * same code-to-sentence mapping on a refusal.
+ */
+export type ApiMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
+
 import {
   REFUSAL_NETWORK,
   REFUSAL_NETWORK_STATUS,
@@ -80,7 +90,7 @@ async function resolveToken(): Promise<string | null> {
 }
 
 async function send(
-  method: 'GET' | 'POST',
+  method: ApiMethod,
   path: string,
   body: unknown,
   token: string | null
@@ -171,7 +181,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
  * usable token the SDK logs the user out, and the second response is surfaced.
  */
 async function authenticated(
-  method: 'GET' | 'POST',
+  method: ApiMethod,
   path: string,
   body: unknown
 ): Promise<Response> {
@@ -182,7 +192,7 @@ async function authenticated(
 }
 
 async function request<T>(
-  method: 'GET' | 'POST',
+  method: ApiMethod,
   path: string,
   body: unknown
 ): Promise<T> {
@@ -227,4 +237,20 @@ export function get<T>(path: string): Promise<T> {
 
 export async function post<T>(path: string, body: unknown): Promise<T> {
   return request<T>('POST', path, body);
+}
+
+/** Replace a stored value. Body is JSON, exactly as `post` sends it. */
+export async function put<T>(path: string, body: unknown): Promise<T> {
+  return request<T>('PUT', path, body);
+}
+
+/**
+ * Forget a stored value.
+ *
+ * No body, and that is the contract rather than a convenience: the route removes one
+ * column and answers what remains, so a caller cannot accidentally send a replacement
+ * payload with a DELETE and have it silently ignored.
+ */
+export async function del<T>(path: string): Promise<T> {
+  return request<T>('DELETE', path, undefined);
 }
