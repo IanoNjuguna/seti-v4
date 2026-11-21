@@ -45,6 +45,7 @@
     "check:username": "DEV_BYPASS_AUTH=true tsx src/services/username.check.ts",
     "check:profile-name": "tsx src/services/profile-name.check.ts",
     "check:referral": "DEV_BYPASS_AUTH=true tsx src/services/referral.check.ts",
+    "check:polymarket": "tsx src/services/polymarket.check.ts",
     "check:consent": "tsx src/services/consent.check.ts",
     "check:app-open": "DEV_BYPASS_AUTH=true tsx src/services/app-open.check.ts",
     "check:network": "DEV_BYPASS_AUTH=true tsx src/services/network-scope.check.ts",
