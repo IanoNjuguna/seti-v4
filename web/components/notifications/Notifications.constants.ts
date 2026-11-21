@@ -24,8 +24,8 @@ export const NOTIFICATIONS_COPY = {
   failed: 'Your arrivals could not be read just now. Nothing is lost; the list reloads.',
   retry: 'Try again',
   newMark: 'New',
-  matched: 'Matched to a charge',
-  unmatched: 'No charge behind it',
+  /** The row's second line. The sender is the only handle a customer has on an arrival. */
+  fromSender: (sender: string) => `From ${sender}`,
 } as const;
 
 /** How many arrivals the list asks for. One page, no infinite scroll in v1. */
