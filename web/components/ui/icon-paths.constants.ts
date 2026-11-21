@@ -21,6 +21,10 @@ export const ICON_PATHS = {
   eye: ['M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z'],
   eyeOff: ['m3 3 18 18', 'M10.6 5.2A9.9 9.9 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.3 4.1', 'M6.6 7.7A16.4 16.4 0 0 0 2 12s3.6 7 10 7a10 10 0 0 0 4.2-.9'],
   bell: ['M18 8.5a6 6 0 1 0-12 0c0 5.5-2.5 7-2.5 7h17S18 14 18 8.5', 'M13.7 20a2 2 0 0 1-3.4 0'],
+  /* Support, until it has a screen of its own (#592). A frame and its flap, drawn as two
+     primitives; NOT the paper plane, because `send` already owns that verb and an envelope
+     beside a bell has to read as a letter, not as another way to move money. */
+  envelope: ['M4 6.5h16v11H4Z', 'm4.9 7.6 7.1 5.2 7.1-5.2'],
   chevronRight: ['m9.5 5.5 6.5 6.5-6.5 6.5'],
   /* The settings vocabulary: one mark per row that needs to be recognised before
      its word is read. Drawn as primitives like the rest — a shell, a lock body, a
