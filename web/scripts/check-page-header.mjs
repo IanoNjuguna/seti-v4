@@ -203,6 +203,53 @@ console.log('\nthe notifications list separates a quiet account from an unreadab
     'the row prints the asset beside the amount instead of inventing a rate',
     /arrival\.asset/.test(row) && !/fxRate|\* *\d/.test(row)
   );
+  // The one check that would have caught a field the server does not send: the client's row
+  // type and the backend's `ArrivalView` are read as text and compared field by field. A type
+  // that drifts renders `undefined` where a figure belongs, which reads as a money bug.
+  {
+    const serverView = read('../../backend/src/services/arrival-store.ts');
+    const fields = (source) => {
+      const body = /interface ArrivalView \{([\s\S]*?)\n\}/.exec(source);
+      return body
+        ? [...body[1].matchAll(/^  ([a-zA-Z]+)\s*:/gm)].map((match) => match[1]).sort()
+        : [];
+    };
+    const server = fields(serverView);
+    const client = fields(read('../lib/api/arrivals.ts'));
+
+    check(
+      'the client row carries exactly the fields the server sends',
+      server.length > 0 && JSON.stringify(server) === JSON.stringify(client),
+      `server ${server.join(',')} vs client ${client.join(',')}`
+    );
+
+    // The product's words travel with the rows, so the client's copy shape has to hold the
+    // three keys `ARRIVAL_COPY` actually has. A surface that invents a fourth sentence is the
+    // failure this pins.
+    // The words live in `arrival.ts`, beside the classifier that owns them — not in the store.
+    const arrivalSource = read('../../backend/src/services/arrival.ts');
+    const serverCopy = [...(/ARRIVAL_COPY[^=]*= \{([\s\S]*?)\n\};/.exec(arrivalSource)?.[1] ?? '')
+      .matchAll(/^  ([a-zA-Z]+):/gm)].map((match) => match[1]).sort();
+    const clientCopy = [...(/copy: \{([^}]*)\}/.exec(read('../lib/api/arrivals.ts'))?.[1] ?? '')
+      .matchAll(/([a-zA-Z]+):/g)].map((match) => match[1]).sort();
+
+    check(
+      'and the copy it renders is the copy the server sends',
+      serverCopy.length > 0 && JSON.stringify(serverCopy) === JSON.stringify(clientCopy),
+      `server ${serverCopy.join(',')} vs client ${clientCopy.join(',')}`
+    );
+  }
+
+  // The formatter is the one piece of this screen with arithmetic in it, so it is asserted
+  // directly rather than by looking at it: a rounding here would misstate money.
+  {
+    const { formatAmount } = await import('../components/notifications/ArrivalRow.tsx');
+    check('a whole amount drops the six zeros it never earned', formatAmount('2500.000000') === '2,500.00', formatAmount('2500.000000'));
+    check('and a million is grouped', formatAmount('1000000.000000') === '1,000,000.00', formatAmount('1000000.000000'));
+    check('while real dust keeps its digits', formatAmount('0.000042') === '0.000042', formatAmount('0.000042'));
+    check('and a bare integer still reads as money', formatAmount('42') === '42.00', formatAmount('42'));
+  }
+
   check(
     'the seen instant is per browser and read through a store',
     /useSyncExternalStore/.test(strip(read('../components/notifications/useSeenArrivals.ts'))) &&
