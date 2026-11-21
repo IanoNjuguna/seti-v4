@@ -1504,6 +1504,70 @@ weekend is not an outage) and 36 hours for the provider.
 The response is cacheable for five minutes (`cache-control: public, max-age=300,
 stale-while-revalidate=600`). There is no history and no per-date read.
 
+## Integrations
+
+A third party's account, read through that third party's public API and converted into
+the customer's currency at this process's rate.
+
+Nothing in this section has a money path. No route here signs, sends, or holds a key for
+a foreign chain, and none of them can move a customer's funds: they are reads, plus the
+one write that stores which address to read.
+
+Polymarket is the first of these (#599). Its Data API answers for any wallet address with
+no key and no signature, which is what makes a card possible before any decision about
+custody — and what keeps this section honest about being a read.
+
+All three need a bearer token.
+
+### `GET /integrations/polymarket/positions`
+
+The linked wallet's total and its open positions, in the account's own currency.
+
+```json
+{ "linked": true, "address": "0x…", "fiatCurrency": "KES",
+  "fxRate": "129.2500", "fxSource": "cbk", "fxStale": false,
+  "totalFiat": 49834276.94, "totalUsd": 385565.0053, "redeemableCount": 2,
+  "positions": [ { "title": "…", "slug": "…", "outcome": "No",
+                   "redeemable": false, "endDate": "2026-10-28",
+                   "size": 223127.3677, "averagePrice": 0.679, "currentPrice": 0.7875,
+                   "currentValueFiat": 22710879.66, "unrealizedPnlFiat": 3129005.1,
+                   "totalPnlFiat": 2968429.87, "percentPnl": 15.9786 } ] }
+```
+
+**Three states, and none of them is a zero.** `{ "linked": false }` means no address is
+stored for this account, so the card offers a link. `positions: []` with a real total
+means the wallet is linked and genuinely holds nothing, which is an answer. An empty or
+missing figure is never one of the three: a read that failed is a refusal (below).
+
+`fxRate` is the rate every figure in this body was built at, so a row and the headline
+cannot disagree. `fxStale: true` means the publisher's rate is old and the card says so;
+it is not a failure. `redeemableCount` is derived from the rows and is the one actionable
+number here: a resolved market's money is claimable at Polymarket.
+
+Refusals carry a `code` and one sentence:
+
+| HTTP | `code` | Meaning |
+| --- | --- | --- |
+| 422 | `polymarket-address-invalid` | the linked address is not a wallet address |
+| 502 | `polymarket-retired` | the Data API version this build speaks was retired (`v1` answers 410) |
+| 502 | `polymarket-unavailable` | the upstream timed out, dropped, or answered non-2xx |
+| 502 | `polymarket-payload` | the upstream answered a body this build cannot read |
+
+`polymarket-retired` is separate from `polymarket-unavailable` on purpose: the first is a
+deployment that needs a new version, the second is a read worth retrying. Neither is ever
+rendered as a zero.
+
+### `PUT /integrations/polymarket/address`
+
+Store the address to read. Body `{ "address": "0x…" }`, validated before it is written
+(the zero address is refused: it passes every shape check and can only ever answer "no
+positions"). Answers `{ "linked": true, "address": "0x…" }`, lower-cased.
+
+### `DELETE /integrations/polymarket/address`
+
+Forget it. Answers `{ "linked": false }`. The stored column is the only thing removed:
+nothing was ever held, so there is nothing else to unwind.
+
 ## What is not here
 
 No refunds, no payouts, no fiat off-ramp, no pagination cursors, and no OpenAPI

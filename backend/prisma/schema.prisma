@@ -22,6 +22,18 @@ model User {
   /// the account — but NOT the key a live session resolves by. See `privyDid`.
   email         String     @unique
   phone         String?    @unique
+  /// The customer's Polymarket wallet address, for the READ-ONLY positions card (#599).
+  ///
+  /// A CLAIM about an external account, not a wallet this application signs for: nothing
+  /// in this repository sends a transaction on Polygon and no key for this address exists
+  /// here. It is stored because it is a standing fact about the customer rather than a
+  /// query parameter — a card that forgot it on reload would ask someone to paste a
+  /// 42-character string twice.
+  ///
+  /// NULL means not linked, which the card renders as the link state. It never means "no
+  /// positions": that is a linked wallet whose list came back empty, and the two are
+  /// different sentences to a customer.
+  polymarketAddress String?
   /// The Privy DID (`did:privy:…`) this account was ESTABLISHED with.
   ///
   /// The immutable subject of every Privy token for this user, written once at

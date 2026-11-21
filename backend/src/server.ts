@@ -15,6 +15,7 @@ import { walletRoutes } from './routes/wallets.js';
 import { handleRoutes } from './routes/handles.js';
 import { accountRoutes } from './routes/account.js';
 import { savingsRoutes } from './routes/savings.js';
+import { polymarketRoutes } from './routes/polymarket.js';
 import { publicHandleRoutes } from './routes/public-handles.js';
 import { publicPayeeRoutes } from './routes/public-payees.js';
 import { transactionRoutes } from './routes/transactions.js';
@@ -222,6 +223,10 @@ export async function buildServer(options: BuildServerOptions = {}) {
   // `handleRoutes` owns.
   await app.register(accountRoutes, { prefix: '/account' });
   await app.register(savingsRoutes, { prefix: '/savings' });
+  // The read-only Polymarket card (#599): an external account's positions, converted to
+  // the customer's currency at this process's rate. No key, no chain, no money path — the
+  // prefix names the third party because these routes answer FOR it, not for Seti.
+  await app.register(polymarketRoutes, { prefix: '/integrations/polymarket' });
   // The public half of the same feature: the `seti.live/m/<handle>` and
   // `seti.live/u/<handle>` pages read this signed out, which is why it is its own
   // registration with no auth hook rather than a route inside `handleRoutes`.
