@@ -5,31 +5,46 @@ import { get } from './client';
  *
  * The endpoint is `GET /arrivals` and it is behind the session: an arrival belongs to the
  * account whose address received it, and the addresses are resolved from the session rather
- * than from the query. The row shape here is the server's own view (`toArrivalView`), which is
- * what the notifications list prints, so a row cannot say one thing on the list and another in
- * the place it came from.
+ * than from the query. The row shape below is `ArrivalView` in
+ * `backend/src/services/arrival-store.ts`, field for field — and `check:page-header` compares
+ * the two, because a client type that drifts from the server's view renders `undefined` where
+ * a figure should be, which looks like a bug in the money rather than a bug in the types.
+ *
+ * There is no `status`, no `matched` and no `chargeId` on a row, and the absence is the
+ * feature: an arrival is a FACT about money plus an ABSENCE of attribution. A client cannot
+ * render a state this row does not have.
  */
 
 export interface ArrivalView {
-  id: string;
-  /** The amount in the asset it arrived in, as a decimal string. */
-  amount: string;
-  asset: string;
-  /** The address that received it, shortened server-side for display. */
+  /** The transaction, for a customer who wants the chain. */
+  txHash: string;
+  /** The address that received the money. */
   recipient: string;
-  /** The transaction hash, for a reader who wants the chain. */
-  txHash: string | null;
-  /** ISO instant the arrival was indexed. */
-  createdAt: string;
-  /** True when the money has been matched to a charge or a person. */
-  matched: boolean;
+  /** Who sent it, as the chain recorded. The one handle on asking them what it was for. */
+  from: string;
+  /** The Seti ledger label of the token that moved (`ousd`). */
+  asset: string;
+  /** Decimal token units, exactly as the chain moved them. */
+  amount: string;
+  /** The block, when the log carried one. Null means unknown, never zero. */
+  blockNumber: string | null;
+  /** When the indexer first recorded this pass. */
+  seenAt: string;
+}
+
+/** Totals per asset, as the server adds them up. `amount` is decimal token units. */
+export interface ArrivalSummary {
+  asset: string;
+  count: number;
+  amount: string;
 }
 
 export interface ArrivalsPage {
   arrivals: ArrivalView[];
   hasMore: boolean;
-  summary: { count: number; total: string; asset: string }[];
-  copy: { title: string; body: string };
+  summary: ArrivalSummary[];
+  /** The product's own words for what an arrival is, so a surface does not invent a fifth. */
+  copy: { label: string; headline: string; detail: string };
 }
 
 export function fetchArrivals(limit = 20): Promise<ArrivalsPage> {

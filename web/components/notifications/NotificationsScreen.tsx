@@ -65,12 +65,19 @@ export function NotificationsScreen() {
 
       {state.kind === 'ready' ? (
         <Card padding="sm">
+          {/* The server's own sentence about what an arrival is, because a surface inventing
+              a fifth phrasing for the same fact is how two screens start disagreeing. */}
+          <Text variant="micro" as="p" color="secondary" className="pb-2">
+            {state.page.copy.detail}
+          </Text>
           <ul className="divide-y divide-hairline">
             {state.page.arrivals.map((arrival) => (
               <ArrivalRow
-                key={arrival.id}
+                key={arrival.txHash}
                 arrival={arrival}
-                isNew={seenAt !== null && arrival.createdAt > seenAt}
+                // A browser with no stored instant has seen nothing, so everything is new. That is
+                // the first visit, and telling someone their money is old would be wrong.
+                isNew={seenAt === null || arrival.seenAt > seenAt}
               />
             ))}
           </ul>
