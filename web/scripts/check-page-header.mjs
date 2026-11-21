@@ -132,6 +132,84 @@ console.log('\nno surface renders a back control by hand:');
   );
 }
 
+console.log('\nthe bar carries three controls, and the third one opens a menu (#592):');
+{
+  const bar = strip(read('../components/app/TopBarState.tsx'));
+  const chip = strip(read('../components/app/AccountChip.tsx'));
+  const barCopy = strip(read('../components/app/TopBar.constants.ts'));
+  const routes = strip(read('../lib/routes.ts'));
+  const icons = read('../components/ui/icon-paths.constants.ts');
+
+  check(
+    'the bell is a link to the notifications route, imported not spelled',
+    /href=\{NOTIFICATIONS_PATH\}/.test(bar) && /NOTIFICATIONS_PATH[^;]*from '@\/lib\/routes'/.test(bar)
+  );
+  check(
+    'and that route is the one the page is served at',
+    /NOTIFICATIONS_PATH = '\/app\/notifications'/.test(routes)
+  );
+  check('support is a mailto, so it opens a draft and not a form', /mailto:/.test(barCopy));
+  check(
+    'both controls share one 44px target rather than restating it',
+    /BAR_TARGET/.test(bar) && /h-11/.test(barCopy) && /w-11/.test(barCopy) && !/h-11 w-11/.test(bar)
+  );
+  check(
+    'both glyphs exist in the hand-authored set',
+    /^  bell: \[/m.test(icons) && /^  envelope: \[/m.test(icons)
+  );
+  check('the chip is a control, not a word', /<button/.test(chip) && /aria-haspopup="menu"/.test(chip));
+  check('that says whether it is open', /aria-expanded=\{open\}/.test(chip));
+  check(
+    'its menu carries the three things the bar can do',
+    /ACCOUNT_CHIP_COPY\.profile/.test(chip) &&
+      /ACCOUNT_CHIP_COPY\.copyPayLink/.test(chip) &&
+      /ACCOUNT_CHIP_COPY\.signOut/.test(chip) &&
+      /session\.signOut\(\)/.test(chip)
+  );
+  check(
+    'Profile is the route constant, not a literal',
+    /href=\{PROFILE_PATH\}/.test(chip) && /PROFILE_PATH = '\/app\/profile'/.test(routes)
+  );
+  check(
+    'and the pay link is the public page, built from the origin it is pasted at',
+    /\/u\/\$\{handle\}/.test(chip) && /window\.location\.origin/.test(chip)
+  );
+  check(
+    'two densities: the handle and chevron leave the bar under 640px, the avatar stays',
+    /hidden[\s\S]{0,80}sm:block/.test(chip) && /h-10 w-10/.test(chip) && /sm:block/.test(chip)
+  );
+  check(
+    'the handle truncates at a measured width, not by luck',
+    /HANDLE_CLIP/.test(chip) && /HANDLE_CLIP = \d+/.test(strip(read('../components/app/AccountChip.constants.ts')))
+  );
+  check('the menu closes on Escape and on a click outside', /Escape/.test(chip) && /mousedown/.test(chip));
+}
+
+console.log('\nthe notifications list separates a quiet account from an unreadable one (#592):');
+{
+  const hook = strip(read('../components/notifications/useArrivals.ts'));
+  const screen = strip(read('../components/notifications/NotificationsScreen.tsx'));
+  const row = strip(read('../components/notifications/ArrivalRow.tsx'));
+
+  check(
+    'four states, and failed is not empty',
+    /kind: 'failed'/.test(hook) && /kind: 'empty'/.test(hook) && /kind: 'ready'/.test(hook)
+  );
+  check(
+    'a failed read reaches for no cached count',
+    /failedTitle/.test(screen) && !/summary/.test(screen)
+  );
+  check(
+    'the row prints the asset beside the amount instead of inventing a rate',
+    /arrival\.asset/.test(row) && !/fxRate|\* *\d/.test(row)
+  );
+  check(
+    'the seen instant is per browser and read through a store',
+    /useSyncExternalStore/.test(strip(read('../components/notifications/useSeenArrivals.ts'))) &&
+      /seti\.notifications\.seenAt/.test(read('../components/notifications/Notifications.constants.ts'))
+  );
+}
+
 console.log('-'.repeat(74));
 console.log(`${passed} assertions passed${failed ? `, ${failed} failed` : ''}.`);
 process.exit(failed === 0 ? 0 : 1);
