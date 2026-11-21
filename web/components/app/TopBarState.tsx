@@ -2,10 +2,13 @@
 
 import Link from 'next/link';
 import { Text } from '@/components/ui';
-import { SIGN_IN_PATH } from '@/lib/routes';
+import { Icon } from '@/components/ui/Icon';
+import { NOTIFICATIONS_PATH, PROFILE_PATH, SIGN_IN_PATH } from '@/lib/routes';
 import { useSession } from '@/lib/auth';
 import { useAccountIdentity } from '@/lib/account';
 import { useAppNetwork } from './useAppNetwork';
+import { AccountChip } from './AccountChip';
+import { BAR_CONTROL, BAR_TARGET, SUPPORT_HREF, TOP_BAR_COPY } from './TopBar.constants';
 
 /**
  * What the header says about the ACCOUNT, in priority order (#542).
@@ -80,7 +83,7 @@ export function TopBarState() {
     <span className="flex items-center gap-1">
       {practice ? (
         <Link
-          href="/app/profile"
+          href={PROFILE_PATH}
           aria-label="Practice network — change it in Profile"
           className="flex h-11 items-center gap-1.5 rounded-md border border-hairline-dark px-3 whitespace-nowrap transition-colors duration-(--duration-quick) ease-out hover:bg-surface-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
@@ -97,14 +100,22 @@ export function TopBarState() {
       ) : null}
 
       <Link
-        href="/app/profile"
-        aria-label="Your profile"
-        className="flex h-11 max-w-40 items-center rounded-md px-3 whitespace-nowrap transition-colors duration-(--duration-quick) ease-out hover:bg-surface-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        href={NOTIFICATIONS_PATH}
+        aria-label={TOP_BAR_COPY.notifications}
+        className={`${BAR_TARGET} ${BAR_CONTROL}`}
       >
-        <Text variant="tab" as="span" color="inverse" className="truncate">
-          {handle ? `@${handle}` : 'Profile'}
-        </Text>
+        <Icon name="bell" />
       </Link>
+
+      <a
+        href={SUPPORT_HREF}
+        aria-label={TOP_BAR_COPY.support}
+        className={`${BAR_TARGET} ${BAR_CONTROL}`}
+      >
+        <Icon name="envelope" />
+      </a>
+
+      <AccountChip handle={handle} />
     </span>
   );
 }

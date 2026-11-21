@@ -22,3 +22,20 @@ export const SIGN_IN_PATH = '/signin';
  * both render, one is just wrong.
  */
 export const APP_HOME_PATH = '/app';
+
+/**
+ * The account's own page, and the destination the chip's menu offers (#592).
+ *
+ * The handle used to be a link straight here from the bar. It is still the only door:
+ * Profile left the dock in #590, so a wrong spelling here would strand the page.
+ */
+export const PROFILE_PATH = '/app/profile';
+
+/**
+ * Where the bell goes (#592).
+ *
+ * Its own route rather than a panel, because the list is the surface: a popover of money
+ * that arrived would need its own scroll, its own empty state and its own failure state in
+ * a corner of the chrome.
+ */
+export const NOTIFICATIONS_PATH = '/app/notifications';
